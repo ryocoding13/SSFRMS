@@ -1,0 +1,505 @@
+﻿
+DATA DICTIONARY
+Self-Storage Facility Rental and Management System (SSFRMS)
+25 bảng dữ liệu — dùng cho triển khai backend thực tế
+Version 1.0  |  10/09/2026
+
+Quy ước thiết kế chung
+• Đặt tên bảng và trường dữ liệu theo kiểu snake_case.
+• Khóa chính (Primary Key) sử dụng kiểu BIGINT, dạng Generated Identity (auto-increment).
+• Các trường tiền tệ sử dụng DECIMAL(15,2).
+• Các trường trạng thái được thiết kế ở mức logical design dưới dạng ENUM. Khi triển khai: PostgreSQL dùng CREATE TYPE, MySQL dùng ENUM, SQL Server nên dùng CHECK constraint hoặc lookup table thay vì lưu tự do bằng VARCHAR.
+
+Danh mục các nhóm bảng
+I. User, Role & Authorization: roles, permissions, users, user_roles, role_permissions
+II. Facility & Staff Scope: facilities, user_facilities
+III. System Logs: login_history, activity_logs
+IV. Storage Unit Management: unit_types, storage_units, unit_status_history
+V. Pricing & Policy: rental_rates, policies
+VI. Reservation: reservations, unit_assignments
+VII. Rental Contract: rental_contracts
+VIII. Renewal: contract_renewals
+IX. Payment: payments
+X. Check-in & Handover: handover_records, access_credentials
+XI. Return & Inspection: return_inspections
+XII. Overdue Handling: overdue_cases
+XIII. Support & Issue Handling: support_tickets
+XIV. Maintenance: maintenance_requests
+
+I. User, Role & Authorization
+1. roles
+Lưu 5 vai trò của hệ thống.
+Field Name | Data Type | Size | Key | Constraints | Description
+role_id | BIGINT | — | PK | Generated Identity, NOT NULL | Mã vai trò
+role_name | VARCHAR | 50 | — | NOT NULL, UNIQUE | CUSTOMER, FACILITY_STAFF, FACILITY_MANAGER, BUSINESS_OPS_MANAGER, SYSTEM_ADMIN
+description | VARCHAR | 255 | — | NULL | Mô tả quyền hạn tổng quát
+
+
+2. permissions
+Danh mục quyền chi tiết của hệ thống.
+Field Name | Data Type | Size | Key | Constraints | Description
+permission_id | BIGINT | — | PK | Generated Identity, NOT NULL | Mã quyền
+permission_code | VARCHAR | 80 | — | NOT NULL, UNIQUE | Mã quyền, ví dụ UNIT_UPDATE
+permission_name | VARCHAR | 100 | — | NOT NULL | Tên hiển thị
+description | VARCHAR | 255 | — | NULL | Mô tả quyền
+
+Ghi chú: Ví dụ: UNIT_VIEW, UNIT_UPDATE, RESERVATION_VERIFY, UNIT_ASSIGN, CONTRACT_VIEW, SUPPORT_ASSIGN, REPORT_SYSTEM, USER_MANAGE.
+
+3. users
+Lưu tất cả tài khoản. Customer, Staff, Manager, Operations Manager và Admin không cần 5 bảng riêng.
+Field Name | Data Type | Size | Key | Constraints | Description
+user_id | BIGINT | — | PK | Generated Identity, NOT NULL | Mã người dùng
+username | VARCHAR | 50 | — | NOT NULL, UNIQUE | Tên đăng nhập
+password_hash | VARCHAR | 255 | — | NOT NULL | Mật khẩu đã hash, không lưu plaintext
+full_name | VARCHAR | 150 | — | NOT NULL | Họ tên
+email | VARCHAR | 255 | — | NOT NULL, UNIQUE | Email
+phone | VARCHAR | 20 | — | NULL | Số điện thoại
+status | ENUM | — | — | NOT NULL, DEFAULT ACTIVE | ACTIVE, INACTIVE, LOCKED, SUSPENDED
+created_at | TIMESTAMP | — | — | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Thời điểm tạo
+updated_at | TIMESTAMP | — | — | NOT NULL | Lần cập nhật gần nhất
+
+Ghi chú: Không đặt role_id hay facility_id trực tiếp trong bảng này.
+
+4. user_roles
+Bảng trung gian User ↔ Role.
+Field Name | Data Type | Size | Key | Constraints | Description
+user_id | BIGINT | — | PK, FK → `users.user_id | NOT NULL | Người được cấp role
+role_id | BIGINT | — | PK, FK → `roles.role_id | NOT NULL | Role được cấp
+assigned_by | BIGINT | — | FK → `users.user_id | NULL | Admin/người cấp role
+assigned_at | TIMESTAMP | — | — | NOT NULL, DEFAULT CURRENT_TIMESTAMP | Thời điểm cấp
+
+Ghi chú: Composite PK: (user_id, role_id)
+
+5. role_permissions
+Bảng Role ↔ Permission.
+Field Name | Data Type | Size | Key | Constraints | Description
+role_id | BIGINT | — | PK, FK → `roles.role_id | NOT NULL | Vai trò
+permission_id | BIGINT | — | PK, FK → `permissions.permission_id | NOT NULL | Quyền được gán
+
+Ghi chú: Composite PK: (role_id, permission_id)
+
+II. Facility & Staff Scope
+6. facilities
+Lưu toàn bộ cơ sở self-storage.
+Field Name | Data Type | Size | Key | Constraints | Description
+facility_id | BIGINT | — | PK | Generated Identity, NOT NULL | Mã cơ sở
+name | VARCHAR | 150 | — | NOT NULL | Tên cơ sở
+address | VARCHAR | 255 | — | NOT NULL | Địa chỉ
+contact_phone | VARCHAR | 20 | — | NULL | Hotline
+opening_time | TIME | — | — | NULL | Giờ mở cửa
+closing_time | TIME | — | — | NULL | Giờ đóng cửa
+status | ENUM | — | — | NOT NULL, DEFAULT ACTIVE | ACTIVE, INACTIVE, TEMPORARILY_CLOSED
+created_at | TIMESTAMP | — | — | NOT NULL | Ngày tạo
+updated_at | TIMESTAMP | — | — | NOT NULL | Ngày cập nhật
+
+
+7. user_facilities
+Xác định Staff/Manager được làm việc tại facility nào.
+Field Name | Data Type | Size | Key | Constraints | Description
+user_facility_id | BIGINT | — | PK | Generated Identity | Mã phân công
+user_id | BIGINT | — | FK → `users.user_id | NOT NULL | Staff hoặc Manager
+facility_id | BIGINT | — | FK → `facilities.facility_id | NOT NULL | Cơ sở được phân công
+assigned_by | BIGINT | — | FK → `users.user_id | NULL | Người thực hiện phân công
+assigned_from | DATE | — | — | NOT NULL | Ngày bắt đầu
+assigned_to | DATE | — | — | NULL | Ngày kết thúc
+status | ENUM | — | — | NOT NULL | ACTIVE, ENDED, SUSPENDED
+created_at | TIMESTAMP | — | — | NOT NULL | Thời điểm tạo
+
+Ghi chú: Business rule: Không được có hai assignment ACTIVE trùng nhau cho cùng user_id + facility_id.
+
+III. System Logs
+8. login_history
+Lịch sử đăng nhập theo yêu cầu System Administrator.
+Field Name | Data Type | Size | Key | Constraints | Description
+login_history_id | BIGINT | — | PK | Generated Identity | Mã log
+user_id | BIGINT | — | FK → `users.user_id | NOT NULL | Người đăng nhập
+login_at | TIMESTAMP | — | — | NOT NULL | Thời điểm đăng nhập
+logout_at | TIMESTAMP | — | — | NULL | Thời điểm logout
+ip_address | VARCHAR | 45 | — | NULL | Hỗ trợ IPv4/IPv6
+device_info | VARCHAR | 255 | — | NULL | Browser/device
+login_status | ENUM | — | — | NOT NULL | SUCCESS, FAILED, BLOCKED
+
+
+9. activity_logs
+Audit trail cho các hành động quan trọng.
+Field Name | Data Type | Size | Key | Constraints | Description
+log_id | BIGINT | — | PK | Generated Identity | Mã audit
+user_id | BIGINT | — | FK → `users.user_id | NULL | Người thực hiện
+action | VARCHAR | 100 | — | NOT NULL | UPDATE_UNIT, ASSIGN_ROLE...
+entity_type | VARCHAR | 80 | — | NOT NULL | Loại entity bị tác động
+entity_id | BIGINT | — | — | NULL | ID của record
+old_value | TEXT | — | — | NULL | Giá trị trước thay đổi
+new_value | TEXT | — | — | NULL | Giá trị sau thay đổi
+ip_address | VARCHAR | 45 | — | NULL | IP thực hiện
+logged_at | TIMESTAMP | — | — | NOT NULL | Thời điểm thực hiện
+
+
+IV. Storage Unit Management
+10. unit_types
+Đại diện loại kho, không phải unit vật lý.
+Field Name | Data Type | Size | Key | Constraints | Description
+unit_type_id | BIGINT | — | PK | Generated Identity | Mã loại kho
+type_name | VARCHAR | 100 | — | NOT NULL, UNIQUE | Small, Medium, Large...
+length | DECIMAL | 8,2 | — | NULL, CHECK > 0 | Chiều dài
+width | DECIMAL | 8,2 | — | NULL, CHECK > 0 | Chiều rộng
+height | DECIMAL | 8,2 | — | NULL, CHECK > 0 | Chiều cao
+area | DECIMAL | 8,2 | — | NOT NULL, CHECK > 0 | Diện tích m2
+climate_controlled | BOOLEAN | — | — | NOT NULL, DEFAULT FALSE | Có điều hòa/kiểm soát nhiệt độ
+description | VARCHAR | 500 | — | NULL | Mô tả
+status | ENUM | — | — | NOT NULL | ACTIVE, INACTIVE
+created_at | TIMESTAMP | — | — | NOT NULL | Ngày tạo
+updated_at | TIMESTAMP | — | — | NOT NULL | Ngày cập nhật
+
+
+11. storage_units
+Kho vật lý thực tế như A101, A102...
+Field Name | Data Type | Size | Key | Constraints | Description
+unit_id | BIGINT | — | PK | Generated Identity | Mã unit
+facility_id | BIGINT | — | FK → `facilities.facility_id | NOT NULL | Facility sở hữu
+unit_type_id | BIGINT | — | FK → `unit_types.unit_type_id | NOT NULL | Loại kho
+unit_number | VARCHAR | 30 | — | NOT NULL | A101, B203...
+floor | VARCHAR | 20 | — | NULL | Tầng
+zone | VARCHAR | 50 | — | NULL | Khu vực
+location_description | VARCHAR | 255 | — | NULL | Vị trí chi tiết
+status | ENUM | — | — | NOT NULL | AVAILABLE, RESERVED, ASSIGNED, OCCUPIED, RETURN_PENDING, INSPECTION, MAINTENANCE, OUT_OF_SERVICE
+created_at | TIMESTAMP | — | — | NOT NULL | Ngày tạo
+updated_at | TIMESTAMP | — | — | NOT NULL | Ngày cập nhật
+
+Ghi chú: Unique: UNIQUE(facility_id, unit_number). Không đặt access_code ở bảng này.
+
+12. unit_status_history
+Lưu lịch sử thay đổi trạng thái unit.
+Field Name | Data Type | Size | Key | Constraints | Description
+status_history_id | BIGINT | — | PK | Generated Identity | Mã lịch sử
+unit_id | BIGINT | — | FK → `storage_units.unit_id | NOT NULL | Unit được cập nhật
+changed_by | BIGINT | — | FK → `users.user_id | NOT NULL | Staff/Manager thực hiện
+old_status | ENUM | — | — | NULL | Trạng thái cũ
+new_status | ENUM | — | — | NOT NULL | Trạng thái mới
+reason | VARCHAR | 255 | — | NULL | Lý do
+changed_at | TIMESTAMP | — | — | NOT NULL | Thời điểm đổi
+
+
+V. Pricing & Policy
+13. rental_rates
+Giá thuê theo facility + loại unit và thời gian hiệu lực.
+Field Name | Data Type | Size | Key | Constraints | Description
+rate_id | BIGINT | — | PK | Generated Identity | Mã bảng giá
+facility_id | BIGINT | — | FK → `facilities.facility_id | NOT NULL | Facility áp dụng
+unit_type_id | BIGINT | — | FK → `unit_types.unit_type_id | NOT NULL | Loại unit
+set_by | BIGINT | — | FK → `users.user_id | NOT NULL | Manager/Ops Manager thiết lập
+monthly_rate | DECIMAL | 15,2 | — | NOT NULL, CHECK > 0 | Giá thuê mỗi tháng
+effective_from | DATE | — | — | NOT NULL | Ngày bắt đầu
+effective_to | DATE | — | — | NULL | Ngày kết thúc
+status | ENUM | — | — | NOT NULL | DRAFT, ACTIVE, EXPIRED, INACTIVE
+created_at | TIMESTAMP | — | — | NOT NULL | Ngày tạo
+
+Ghi chú: Business rule: Không có hai mức giá ACTIVE bị overlap cho cùng facility_id + unit_type_id.
+
+14. policies
+Chính sách doanh nghiệp: deposit, renewal, cancellation, overdue, discount...
+Field Name | Data Type | Size | Key | Constraints | Description
+policy_id | BIGINT | — | PK | Generated Identity | Mã policy
+facility_id | BIGINT | — | FK → `facilities.facility_id | NULL | NULL = áp dụng toàn hệ thống
+unit_type_id | BIGINT | — | FK → `unit_types.unit_type_id | NULL | NULL = áp dụng mọi loại unit
+created_by | BIGINT | — | FK → `users.user_id | NOT NULL | Ops Manager tạo
+policy_name | VARCHAR | 150 | — | NOT NULL | Tên chính sách
+policy_type | ENUM | — | — | NOT NULL | DEPOSIT, RENEWAL, CANCELLATION, RETURN, OVERDUE, EXTRA_FEE, DISCOUNT, FEE_WAIVER, PRICE_RANGE
+calculation_type | ENUM | — | — | NULL | FIXED, PERCENTAGE, RANGE, RULE
+value | DECIMAL | 15,2 | — | NULL | Giá trị hoặc %
+min_value | DECIMAL | 15,2 | — | NULL | Giá trị tối thiểu
+max_value | DECIMAL | 15,2 | — | NULL | Giá trị tối đa
+rule_description | TEXT | — | — | NOT NULL | Nội dung rule
+effective_from | DATE | — | — | NOT NULL | Ngày có hiệu lực
+effective_to | DATE | — | — | NULL | Ngày hết hiệu lực
+status | ENUM | — | — | NOT NULL | DRAFT, ACTIVE, INACTIVE, EXPIRED
+created_at | TIMESTAMP | — | — | NOT NULL | Ngày tạo
+updated_at | TIMESTAMP | — | — | NOT NULL | Ngày cập nhật
+
+
+VI. Reservation
+15. reservations
+Lưu yêu cầu đặt Facility + Unit Type, chưa nhất thiết có unit vật lý cụ thể.
+Field Name | Data Type | Size | Key | Constraints | Description
+reservation_id | BIGINT | — | PK | Generated Identity | Mã đặt chỗ
+customer_id | BIGINT | — | FK → `users.user_id | NOT NULL | Customer đặt kho
+facility_id | BIGINT | — | FK → `facilities.facility_id | NOT NULL | Facility được chọn
+unit_type_id | BIGINT | — | FK → `unit_types.unit_type_id | NOT NULL | Loại unit yêu cầu
+start_date | DATE | — | — | NOT NULL | Ngày thuê dự kiến
+rental_period_months | INT | — | — | NOT NULL, CHECK > 0 | Số tháng thuê
+expected_end_date | DATE | — | — | NOT NULL | Ngày kết thúc dự kiến
+check_in_appointment_at | TIMESTAMP | — | — | NULL | Lịch check-in
+quoted_monthly_rate | DECIMAL | 15,2 | — | NOT NULL, CHECK >= 0 | Giá được báo tại lúc đặt
+estimated_amount | DECIMAL | 15,2 | — | NOT NULL, CHECK >= 0 | Tổng tiền dự kiến
+required_deposit | DECIMAL | 15,2 | — | NOT NULL, CHECK >= 0 | Tiền cọc yêu cầu
+status | ENUM | — | — | NOT NULL | PENDING_PAYMENT, CONFIRMED, UNIT_ASSIGNED, CHECKED_IN, CANCELLED, EXPIRED, NO_SHOW
+cancellation_reason | VARCHAR | 500 | — | NULL | Lý do hủy
+created_at | TIMESTAMP | — | — | NOT NULL | Ngày đặt
+expires_at | TIMESTAMP | — | — | NULL | Thời điểm reservation hết hạn
+cancelled_at | TIMESTAMP | — | — | NULL | Thời điểm hủy
+
+
+16. unit_assignments
+Lưu quá trình Facility Manager gán unit vật lý cho reservation.
+Field Name | Data Type | Size | Key | Constraints | Description
+assignment_id | BIGINT | — | PK | Generated Identity | Mã assignment
+reservation_id | BIGINT | — | FK → `reservations.reservation_id | NOT NULL | Reservation được gán
+unit_id | BIGINT | — | FK → `storage_units.unit_id | NOT NULL | Unit cụ thể
+assigned_by | BIGINT | — | FK → `users.user_id | NOT NULL | Facility Manager
+status | ENUM | — | — | NOT NULL | ACTIVE, REPLACED, CANCELLED
+assigned_at | TIMESTAMP | — | — | NOT NULL | Thời điểm gán
+unassigned_at | TIMESTAMP | — | — | NULL | Thời điểm bỏ gán
+reason | VARCHAR | 255 | — | NULL | Lý do đổi/bỏ unit
+
+Ghi chú: Business rule: Mỗi reservation chỉ có tối đa một assignment ACTIVE tại một thời điểm.
+
+VII. Rental Contract
+17. rental_contracts
+Hợp đồng thuê thực tế sau khi reservation được xử lý và unit cụ thể được xác định.
+Field Name | Data Type | Size | Key | Constraints | Description
+contract_id | BIGINT | — | PK | Generated Identity | Mã hợp đồng
+reservation_id | BIGINT | — | FK → `reservations.reservation_id | NOT NULL, UNIQUE | Reservation nguồn
+customer_id | BIGINT | — | FK → `users.user_id | NOT NULL | Customer của hợp đồng
+unit_id | BIGINT | — | FK → `storage_units.unit_id | NOT NULL | Unit được thuê
+start_date | DATE | — | — | NOT NULL | Ngày thuê thực tế
+end_date | DATE | — | — | NOT NULL, CHECK end_date > start_date | Ngày kết thúc
+agreed_monthly_rate | DECIMAL | 15,2 | — | NOT NULL, CHECK >= 0 | Giá thuê được chốt
+deposit_amount | DECIMAL | 15,2 | — | NOT NULL, CHECK >= 0 | Tiền cọc
+status | ENUM | — | — | NOT NULL | DRAFT, ACTIVE, EXPIRING, OVERDUE, RETURN_PENDING, COMPLETED, TERMINATED, CANCELLED
+termination_reason | VARCHAR | 500 | — | NULL | Lý do chấm dứt
+created_at | TIMESTAMP | — | — | NOT NULL | Ngày tạo
+activated_at | TIMESTAMP | — | — | NULL | Ngày hợp đồng active
+completed_at | TIMESTAMP | — | — | NULL | Ngày hoàn thành
+
+Ghi chú: Business rules quan trọng: reservation.customer_id = rental_contract.customer_id. Hai hợp đồng ACTIVE của cùng một unit_id không được overlap thời gian. agreed_monthly_rate là snapshot, giá tại rental_rates đổi sau này không làm thay đổi giá hợp đồng cũ.
+
+VIII. Renewal
+18. contract_renewals
+Lưu lịch sử từng lần gia hạn.
+Field Name | Data Type | Size | Key | Constraints | Description
+renewal_id | BIGINT | — | PK | Generated Identity | Mã lần gia hạn
+contract_id | BIGINT | — | FK → `rental_contracts.contract_id | NOT NULL | Hợp đồng được gia hạn
+approved_by | BIGINT | — | FK → `users.user_id | NULL | Manager duyệt
+old_end_date | DATE | — | — | NOT NULL | Ngày kết thúc cũ
+new_end_date | DATE | — | — | NOT NULL | Ngày kết thúc mới
+renewal_period_months | INT | — | — | NOT NULL, CHECK > 0 | Số tháng gia hạn
+old_monthly_rate | DECIMAL | 15,2 | — | NOT NULL | Giá cũ
+new_monthly_rate | DECIMAL | 15,2 | — | NOT NULL | Giá áp dụng sau gia hạn
+renewal_amount | DECIMAL | 15,2 | — | NOT NULL, CHECK >= 0 | Tiền gia hạn
+status | ENUM | — | — | NOT NULL | PENDING, APPROVED, REJECTED, PAID, CANCELLED
+requested_at | TIMESTAMP | — | — | NOT NULL | Customer yêu cầu
+approved_at | TIMESTAMP | — | — | NULL | Thời điểm duyệt
+created_at | TIMESTAMP | — | — | NOT NULL | Ngày tạo
+
+
+IX. Payment
+19. payments
+Một contract có thể có nhiều giao dịch.
+Field Name | Data Type | Size | Key | Constraints | Description
+payment_id | BIGINT | — | PK | Generated Identity | Mã giao dịch
+contract_id | BIGINT | — | FK → `rental_contracts.contract_id | NOT NULL | Hợp đồng được thanh toán
+renewal_id | BIGINT | — | FK → `contract_renewals.renewal_id | NULL | Nếu payment cho một lần gia hạn
+payment_type | ENUM | — | — | NOT NULL | DEPOSIT, RENT, RENEWAL, EXTRA_FEE, OVERDUE_FEE, DAMAGE_FEE, CLEANING_FEE, LOST_KEY_FEE, ACCESS_CARD_FEE, REFUND
+amount | DECIMAL | 15,2 | — | NOT NULL, CHECK >= 0 | Số tiền
+currency | CHAR | 3 | — | NOT NULL, DEFAULT VND | Loại tiền
+payment_method | ENUM | — | — | NOT NULL | CASH, BANK_TRANSFER, CARD, E_WALLET, PAYMENT_GATEWAY
+transaction_reference | VARCHAR | 150 | — | UNIQUE, NULL | Mã giao dịch cổng thanh toán
+due_date | DATE | — | — | NULL | Hạn thanh toán
+paid_at | TIMESTAMP | — | — | NULL | Thời điểm thành công
+status | ENUM | — | — | NOT NULL | PENDING, PAID, FAILED, REFUNDED, PARTIALLY_REFUNDED
+created_at | TIMESTAMP | — | — | NOT NULL | Ngày tạo
+updated_at | TIMESTAMP | — | — | NOT NULL | Ngày cập nhật
+
+
+X. Check-in & Handover
+20. handover_records
+Lưu quá trình Staff kiểm tra reservation, check-in và bàn giao unit.
+Field Name | Data Type | Size | Key | Constraints | Description
+handover_id | BIGINT | — | PK | Generated Identity | Mã bàn giao
+contract_id | BIGINT | — | FK → `rental_contracts.contract_id | NOT NULL, UNIQUE | Hợp đồng được bàn giao
+staff_id | BIGINT | — | FK → `users.user_id | NOT NULL | Staff phụ trách
+scheduled_at | TIMESTAMP | — | — | NULL | Giờ hẹn
+verified_at | TIMESTAMP | — | — | NULL | Lúc kiểm tra reservation
+handover_at | TIMESTAMP | — | — | NULL | Lúc bàn giao thực tế
+initial_condition | VARCHAR | 500 | — | NULL | Tình trạng unit khi giao
+notes | TEXT | — | — | NULL | Ghi chú
+customer_confirmed | BOOLEAN | — | — | NOT NULL, DEFAULT FALSE | Khách xác nhận
+staff_confirmed | BOOLEAN | — | — | NOT NULL, DEFAULT FALSE | Staff xác nhận
+status | ENUM | — | — | NOT NULL | SCHEDULED, VERIFIED, HANDED_OVER, CANCELLED
+created_at | TIMESTAMP | — | — | NOT NULL | Ngày tạo
+
+
+21. access_credentials
+Lưu chìa khóa, lock, access card hoặc access code cấp cho từng hợp đồng.
+Field Name | Data Type | Size | Key | Constraints | Description
+credential_id | BIGINT | — | PK | Generated Identity | Mã credential
+contract_id | BIGINT | — | FK → `rental_contracts.contract_id | NOT NULL | Hợp đồng
+unit_id | BIGINT | — | FK → `storage_units.unit_id | NOT NULL | Unit liên quan
+issued_by | BIGINT | — | FK → `users.user_id | NOT NULL | Staff cấp
+credential_type | ENUM | — | — | NOT NULL | KEY, LOCK, ACCESS_CARD, ACCESS_CODE
+credential_reference | VARCHAR | 100 | — | NULL | Serial/key/card reference
+secret_hash | VARCHAR | 255 | — | NULL | Hash access code nếu có
+issued_at | TIMESTAMP | — | — | NOT NULL | Thời điểm cấp
+returned_at | TIMESTAMP | — | — | NULL | Thời điểm thu hồi
+status | ENUM | — | — | NOT NULL | ACTIVE, RETURNED, LOST, REVOKED, REPLACED
+
+Ghi chú: Không lưu access code nguyên bản trong database nếu không cần thiết.
+
+XI. Return & Inspection
+22. return_inspections
+Staff kiểm tra tình trạng unit sau khi khách trả.
+Field Name | Data Type | Size | Key | Constraints | Description
+inspection_id | BIGINT | — | PK | Generated Identity | Mã kiểm tra
+contract_id | BIGINT | — | FK → `rental_contracts.contract_id | NOT NULL | Hợp đồng
+staff_id | BIGINT | — | FK → `users.user_id | NOT NULL | Staff kiểm tra
+scheduled_at | TIMESTAMP | — | — | NULL | Lịch kiểm tra
+inspected_at | TIMESTAMP | — | — | NULL | Thời điểm thực tế
+condition_status | ENUM | — | — | NULL | GOOD, DIRTY, DAMAGED, MAINTENANCE_REQUIRED
+damage_description | TEXT | — | — | NULL | Mô tả hư hỏng
+cleaning_required | BOOLEAN | — | — | NOT NULL, DEFAULT FALSE | Có cần vệ sinh
+maintenance_required | BOOLEAN | — | — | NOT NULL, DEFAULT FALSE | Có cần bảo trì
+damage_fee | DECIMAL | 15,2 | — | NOT NULL, DEFAULT 0 | Phí hư hỏng
+cleaning_fee | DECIMAL | 15,2 | — | NOT NULL, DEFAULT 0 | Phí vệ sinh
+notes | TEXT | — | — | NULL | Ghi chú
+status | ENUM | — | — | NOT NULL | SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED
+created_at | TIMESTAMP | — | — | NOT NULL | Ngày tạo
+
+
+XII. Overdue Handling
+23. overdue_cases
+Quản lý trường hợp hợp đồng quá hạn.
+Field Name | Data Type | Size | Key | Constraints | Description
+overdue_case_id | BIGINT | — | PK | Generated Identity | Mã hồ sơ quá hạn
+contract_id | BIGINT | — | FK → `rental_contracts.contract_id | NOT NULL | Hợp đồng quá hạn
+assigned_staff_id | BIGINT | — | FK → `users.user_id | NULL | Staff phụ trách
+overdue_from | DATE | — | — | NOT NULL | Ngày bắt đầu quá hạn
+grace_deadline | DATE | — | — | NULL | Hạn ân hạn
+outstanding_amount | DECIMAL | 15,2 | — | NOT NULL, DEFAULT 0 | Công nợ hiện tại
+status | ENUM | — | — | NOT NULL | OPEN, CONTACTED, PAYMENT_PENDING, RETURN_PENDING, RESOLVED, ESCALATED
+opened_at | TIMESTAMP | — | — | NOT NULL | Mở case
+resolved_at | TIMESTAMP | — | — | NULL | Kết thúc case
+notes | TEXT | — | — | NULL | Ghi chú xử lý
+
+
+XIII. Support & Issue Handling
+24. support_tickets
+Customer gửi vấn đề liên quan đến unit, khóa, access code, payment hoặc tài sản lưu trữ.
+Field Name | Data Type | Size | Key | Constraints | Description
+ticket_id | BIGINT | — | PK | Generated Identity | Mã ticket
+customer_id | BIGINT | — | FK → `users.user_id | NOT NULL | Customer gửi
+contract_id | BIGINT | — | FK → `rental_contracts.contract_id | NULL | Hợp đồng liên quan
+unit_id | BIGINT | — | FK → `storage_units.unit_id | NULL | Unit liên quan
+assigned_staff_id | BIGINT | — | FK → `users.user_id | NULL | Staff được phân công
+issue_type | ENUM | — | — | NOT NULL | UNIT, LOCK, ACCESS_CODE, ACCESS_CARD, PAYMENT, STORED_ITEM, OTHER
+title | VARCHAR | 150 | — | NOT NULL | Tiêu đề
+description | TEXT | — | — | NOT NULL | Nội dung
+priority | ENUM | — | — | NOT NULL, DEFAULT NORMAL | LOW, NORMAL, HIGH, URGENT
+status | ENUM | — | — | NOT NULL | OPEN, ASSIGNED, IN_PROGRESS, RESOLVED, CLOSED, CANCELLED
+created_at | TIMESTAMP | — | — | NOT NULL | Ngày gửi
+assigned_at | TIMESTAMP | — | — | NULL | Ngày phân công
+resolved_at | TIMESTAMP | — | — | NULL | Ngày xử lý xong
+closed_at | TIMESTAMP | — | — | NULL | Ngày đóng ticket
+
+
+XIV. Maintenance
+25. maintenance_requests
+Cần có bảng này vì đề yêu cầu Facility Manager quản lý maintenance schedule và Staff cập nhật trạng thái inspection/maintenance.
+Field Name | Data Type | Size | Key | Constraints | Description
+maintenance_id | BIGINT | — | PK | Generated Identity | Mã bảo trì
+unit_id | BIGINT | — | FK → `storage_units.unit_id | NOT NULL | Unit cần bảo trì
+support_ticket_id | BIGINT | — | FK → `support_tickets.ticket_id | NULL | Ticket nguồn nếu có
+reported_by | BIGINT | — | FK → `users.user_id | NOT NULL | Người báo
+assigned_staff_id | BIGINT | — | FK → `users.user_id | NULL | Staff được giao
+maintenance_type | ENUM | — | — | NOT NULL | INSPECTION, REPAIR, CLEANING, LOCK, ACCESS_SYSTEM, OTHER
+issue_description | TEXT | — | — | NOT NULL | Mô tả
+priority | ENUM | — | — | NOT NULL | LOW, NORMAL, HIGH, URGENT
+scheduled_at | TIMESTAMP | — | — | NULL | Lịch bảo trì
+started_at | TIMESTAMP | — | — | NULL | Bắt đầu
+completed_at | TIMESTAMP | — | — | NULL | Hoàn thành
+cost | DECIMAL | 15,2 | — | NOT NULL, DEFAULT 0 | Chi phí
+status | ENUM | — | — | NOT NULL | OPEN, SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED
+notes | TEXT | — | — | NULL | Ghi chú
+created_at | TIMESTAMP | — | — | NOT NULL | Ngày tạo
+
+
+
+XV. Quan hệ chính giữa 25 bảng
+USERS
+ |--< USER_ROLES >-- ROLES
+ |                       |
+ |                       '--< ROLE_PERMISSIONS >-- PERMISSIONS
+ |
+ |--< USER_FACILITIES >-- FACILITIES
+ |--< LOGIN_HISTORY
+ '--< ACTIVITY_LOG
+
+
+FACILITIES
+ |--< STORAGE_UNITS >-- UNIT_TYPES
+ |--< RENTAL_RATES >-- UNIT_TYPES
+ |--< RESERVATIONS
+ '--< POLICIES
+
+
+CUSTOMER (USERS)
+       |
+       '--< RESERVATIONS
+                  |
+                  |--< UNIT_ASSIGNMENTS >-- STORAGE_UNITS
+                  |
+                  '-- 0..1 RENTAL_CONTRACT
+                                |
+              .-----------------+-----------------.
+              |                 |                 |
+              v                 v                 v
+           PAYMENTS       CONTRACT_RENEWALS   HANDOVER_RECORD
+                                                    |
+                                                    v
+                                            ACCESS_CREDENTIALS
+
+RENTAL_CONTRACT
+       |
+       |--< RETURN_INSPECTIONS
+       |--< OVERDUE_CASES
+       '--< SUPPORT_TICKETS
+                    |
+                    '--< MAINTENANCE_REQUESTS
+
+XVI. Các ràng buộc nghiệp vụ phải xử lý ngoài FK
+Đây là những rule không thể chỉ dựa vào PK/FK mà backend hoặc database constraint/trigger phải kiểm tra:
+Rule | Ràng buộc
+BR01 | Unit không được có hai reservation/contract thuê bị overlap
+BR02 | Unit chỉ được assign khi phù hợp facility_id, unit_type_id và availability
+BR03 | Một reservation chỉ có tối đa một unit_assignment ACTIVE
+BR04 | Một reservation sinh tối đa một rental contract
+BR05 | contract.customer_id phải bằng reservation.customer_id
+BR06 | contract.unit_id phải là unit được assignment hợp lệ
+BR07 | Chỉ check-in khi reservation/contract/payment đáp ứng policy
+BR08 | Sau handover thành công, unit chuyển OCCUPIED
+BR09 | Return hoàn tất phải có inspection trước khi unit trở lại AVAILABLE
+BR10 | Nếu inspection phát hiện hư hỏng, unit chuyển MAINTENANCE
+BR11 | today > end_date và chưa return → contract có thể chuyển OVERDUE
+BR12 | Staff/Manager chỉ thao tác facility nằm trong user_facilities
+BR13 | Thay đổi role, giá, unit assignment, contract và payment phải được audit
+BR14 | Giá trong contract không thay đổi khi rental_rates thay đổi
+BR15 | Access credential phải được revoke/return khi hợp đồng kết thúc
+
+
+Các bảng không cần tạo
+Không cần tạo các bảng sau vì đây là dữ liệu được truy vấn/tính toán từ các bảng nghiệp vụ đã có:
+report
+dashboard
+occupancy_report
+revenue_report
+daily_task_list
+
+Ví dụ cách tính:
+Revenue = SUM(payments.amount WHERE status = PAID)
+
+Occupancy Rate = so unit OCCUPIED / tong unit co the khai thac x 100
+
+Daily Staff Tasks = handover_records + return_inspections
+                   + support_tickets + maintenance_requests
+                   theo assigned_staff_id + scheduled date
+
+Data Dictionary này có 25 bảng, bao phủ đầy đủ: account/RBAC, facility, kho, reservation, unit assignment, contract, payment, renewal, handover, access, return, overdue, support, maintenance, pricing/policy và audit. Core flow chính của hệ thống:
+Reservation → Unit Assignment → Rental Contract → Payment → Handover → Rental/Support/Renewal → Return Inspection → Available/Maintenance.

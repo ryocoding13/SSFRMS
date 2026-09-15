@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="StorageProject.Api/StorageProject.Api.csproj" />
+  <Project Path="StorageProject.Core/StorageProject.Core.csproj" />
+  <Project Path="StorageProject.Infrastructure/StorageProject.Infrastructure.csproj" />
+</Solution>

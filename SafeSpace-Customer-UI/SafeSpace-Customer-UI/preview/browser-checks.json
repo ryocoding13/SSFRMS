@@ -1,0 +1,20 @@
+{
+  "passed": [
+    "14 routes at 1440px: render + no page overflow",
+    "14 routes at 390px: render + no page overflow",
+    "14 routes at 768px: render + no page overflow",
+    "Combined search filters + empty result",
+    "Booking validation, submit, awaiting assignment, reload persistence",
+    "Cancel unassigned reservation",
+    "Payment notice stays PENDING and disables duplicate submission",
+    "Renewal pending, unchanged contract end, duplicate guard",
+    "Return request pending inspection",
+    "Support creation, contract binding, escaped user content",
+    "Customer handover gated by staff verification",
+    "Profile validation and saved update",
+    "Mobile menu navigation + modal + Escape",
+    "No browser console errors or uncaught runtime exceptions",
+    "Offline HTML: file://, zero external network requests, desktop/mobile booking, field errors clear on edit"
+  ],
+  "errors": []
+}

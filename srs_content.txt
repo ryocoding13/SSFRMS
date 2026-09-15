@@ -1,0 +1,1159 @@
+﻿ĐẶC TẢ YÊU CẦU PHẦN MỀM
+Hệ thống quản lý và cho thuê kho lưu trữ tự phục vụ
+Self Storage Facility Rental and Management System
+SSFRMS  |  Phiên bản 2.0  |  11/09/2026
+Mục đích tài liệu
+Tài liệu xác định yêu cầu của hệ thống SSFRMS cho năm nhóm người dùng và bảy luồng nghiệp vụ: đặt chỗ, nhận kho, quản lý thuê, chính sách và báo cáo, quản lý cơ sở và nhân viên, gia hạn và quá hạn, hỗ trợ và xử lý sự cố. Các yêu cầu dữ liệu sử dụng tên bảng, thuộc tính và trạng thái trong Data Dictionary phiên bản 1.0 gồm 25 bảng.
+Hệ thống quản lý nhiều cơ sở, cho phép một khách hàng thuê nhiều kho thông qua nhiều hợp đồng. Khách hàng đặt theo cơ sở và loại kho; Facility Manager phân bổ kho vật lý. Hợp đồng nháp được tạo trước thanh toán và chỉ kích hoạt sau khi bàn giao thành công.
+Mục lục
+Mục | Nội dung
+1 | Tổng quan và phạm vi
+2 | Các quyết định nghiệp vụ cơ sở
+3 | Người dùng và phân quyền
+4 | Bối cảnh hệ thống và danh mục 27 use case
+5 | Đặc tả 7 flow và yêu cầu chức năng
+6 | Tài khoản và kiểm soát truy cập
+7 | Quy tắc nghiệp vụ và cách tính
+8 | Trạng thái và điều kiện chuyển tiếp
+9 | Mô hình dữ liệu, ràng buộc và vị trí chèn sơ đồ
+10 | Thanh toán, công nợ và định nghĩa báo cáo
+11 | Giao diện và yêu cầu phi chức năng
+12 | Ma trận truy vết yêu cầu
+13 | Tiêu chí nghiệm thu
+14 | Giới hạn dữ liệu và hướng mở rộng
+15 | Đặc tả chi tiết UC01 đến UC27
+
+
+Cách sử dụng tài liệu
+Đọc mục 1–4 để hiểu phạm vi, các quyết định và quyền của từng actor. Mục 5–8 xác định hành vi hệ thống khi thiết kế giao diện, API và xử lý nghiệp vụ. Mục 9–10 là căn cứ kiểm tra dữ liệu và báo cáo. Mục 11–13 hướng dẫn xác định điều kiện hoàn thành; mục 14 tách các khả năng chưa được hỗ trợ đầy đủ.
+Các tiêu đề được định dạng Heading để có thể điều hướng bằng Navigation Pane của Word và tạo mục lục tự động sau khi nhóm chèn hình. D01–D06 là ký hiệu vị trí sơ đồ; mỗi ký hiệu có mô tả nội dung cần thể hiện.
+1  Tổng quan và phạm vi
+1.1  Bối cảnh và mục tiêu
+Doanh nghiệp vận hành các cơ sở kho lưu trữ với nhiều loại và kích thước unit. Hệ thống hỗ trợ khách lựa chọn và thuê kho, nhân viên tiếp nhận và bàn giao, quản lý theo dõi tình trạng sử dụng và công nợ, bộ phận vận hành quản lý chính sách và kết quả kinh doanh, quản trị viên kiểm soát tài khoản và quyền truy cập.
+Mục tiêu là tránh phân bổ kho trùng thời gian; truy vết đầy đủ từ reservation tới contract; ghi nhận thanh toán, bàn giao, gia hạn và trả kho; giới hạn dữ liệu theo quyền và cơ sở; cung cấp báo cáo có cách tính rõ ràng.
+1.2  Phạm vi chức năng
+Nhóm | Phạm vi
+Khách hàng | Tìm kiếm, đặt chỗ, thanh toán sau khi có hợp đồng nháp, xác nhận nhận kho, xem các hợp đồng của mình, gửi yêu cầu gia hạn/trả kho và hỗ trợ.
+Vận hành cơ sở | Xác minh reservation, phân bổ unit, bàn giao và cấp credential, kiểm tra trả kho, xử lý sự cố/bảo trì, phân công công việc và theo dõi quá hạn.
+Kinh doanh | Danh mục cơ sở, chính sách chung, khung giá và phí, giá thuê theo cơ sở và loại kho, giảm giá/miễn phí, báo cáo cơ sở và toàn hệ thống.
+Quản trị | Tài khoản, vai trò, quyền chi tiết, phạm vi cơ sở, lịch sử đăng nhập và nhật ký hoạt động.
+
+
+1.3  Giới hạn phiên bản cơ bản
+Ứng dụng web sử dụng tiếng Việt và tiền VND. Thanh toán tiền mặt/chuyển khoản được người có quyền xác nhận; khách hàng không tự đánh dấu đã thanh toán. Tích hợp cổng thanh toán, ứng dụng di động riêng, điều khiển khóa thông minh, gửi SMS/email, lưu ảnh và chữ ký điện tử chưa thuộc phạm vi cơ bản.
+Hệ thống không quản lý tồn kho từng món đồ khách gửi và không định giá tài sản. Chức năng support chỉ ghi nhận vấn đề về tài sản. Hệ thống không tự động thanh lý tài sản hoặc áp dụng biện pháp xử lý ngoài những quy tắc được cấu hình và phê duyệt.
+1.4  Thuật ngữ
+Thuật ngữ | Ý nghĩa
+Facility / Unit type / Unit | Cơ sở / Loại kho dùng chung / Kho vật lý có mã riêng trong một cơ sở.
+Reservation / Assignment | Yêu cầu đặt chỗ theo cơ sở và loại kho / Bản ghi phân bổ kho cụ thể.
+Contract / Renewal | Hợp đồng gắn một reservation và một unit / Một lần gia hạn hợp đồng.
+Credential | Chìa khóa, khóa, thẻ hoặc mã truy cập được cấp theo hợp đồng.
+RBAC / Scope | Quyền theo vai trò / Phạm vi dữ liệu mà người dùng được thao tác.
+
+
+2  Các quyết định nghiệp vụ cơ sở
+Các quyết định sau cụ thể hóa yêu cầu giáo viên và các trường còn mở trong Data Dictionary. Đây là quy ước của phiên bản này để nhóm có thể thiết kế và kiểm thử nhất quán.
+Mã | Quyết định
+A01 | Mỗi reservation yêu cầu một unit; một contract thuê một unit. Khách thuê nhiều unit tạo nhiều reservation/contract.
+A02 | Thuê theo số tháng nguyên dương. Khoảng giữ chỗ là [start_date, end_date): ngày bắt đầu được tính, ngày kết thúc là mốc hết quyền thuê. Cộng tháng theo lịch, chặn về ngày cuối tháng nếu tháng đích không có ngày tương ứng.
+A03 | Reservation mới mang PENDING_PAYMENT, nghĩa là chờ hoàn tất điều kiện trước nhận kho; chưa cho thanh toán khi chưa có contract. Manager gán unit và tạo contract DRAFT; thanh toán xong mới xác nhận đủ điều kiện nhận kho.
+A04 | Giữ chỗ có expires_at bắt buộc đối với reservation chưa hoàn tất thanh toán. Thời hạn là cấu hình ứng dụng và phải hiển thị cho khách; chưa ấn định một số giờ cụ thể trong SRS.
+A05 | Thanh toán cơ bản: một payment_id đại diện một khoản cần thanh toán và được thanh toán toàn phần. Retry cập nhật cùng bản ghi, ghi lịch sử vào activity_logs. Chưa hỗ trợ trả góp, phân bổ một lần trả cho nhiều khoản hoặc hoàn một phần.
+A06 | Mỗi nhân viên hoặc quản lý có tối đa một phân công cơ sở ACTIVE có hiệu lực tại một thời điểm. user_facilities vẫn lưu nhiều lần phân công trong lịch sử. Một tài khoản không đồng thời là Staff ở A và Manager ở B trong phiên bản này.
+A07 | Ticket cơ bản phải gắn contract của khách, có thể kèm unit đúng với contract; nhờ đó xác định cơ sở phụ trách. Yêu cầu chung chưa có contract cần mở rộng định tuyến dữ liệu trước khi triển khai.
+A08 | Giá công bố tính theo facility + unit_type + khoảng hiệu lực. Các unit cùng loại tại cùng cơ sở dùng cùng giá. Kích thước thuộc unit_types; thay đổi loại đang được sử dụng phải tạo loại mới để giữ lịch sử.
+A09 | Gia hạn phải được Manager duyệt và thanh toán đủ trước khi cập nhật end_date. Chỉ một renewal PENDING hoặc APPROVED chưa hoàn tất trên một contract; approval giữ đoạn thời gian gia hạn đến due_date của payment.
+A10 | Trả kho vật lý và thanh toán công nợ là hai việc riêng. Unit chỉ có thể cấp lại sau kiểm tra đạt; contract cũ có thể vẫn RETURN_PENDING để tiếp tục xử lý công nợ. Không suy luận kho còn bị chiếm chỉ từ trạng thái tài chính của contract.
+
+
+Giá trị cọc, phí, thời gian ân hạn và điều kiện hủy/trả do Business Operations Manager thiết lập trước khi sử dụng. Cấu hình còn thiếu làm cho thao tác tương ứng bị từ chối với thông báo rõ ràng; chương trình không tự lấy mức phí mặc định không được công bố.
+3  Người dùng và phân quyền
+Actor | Trách nhiệm | Phạm vi dữ liệu
+Storage CustomerSC | Tìm và đặt kho, thanh toán, xác nhận nhận kho, quản lý thuê và gửi hỗ trợ. | Dữ liệu công bố và bản ghi của chính mình.
+Facility StaffFS | Xác minh, bàn giao, cấp/thu credential, kiểm tra trả kho, xử lý sự cố và công việc. | Cơ sở được phân công; thao tác công việc theo quyền và người phụ trách.
+Facility ManagerFM | Quản lý kho, giá tại cơ sở, gán unit, theo dõi hợp đồng, duyệt gia hạn/trả, phân công và báo cáo. | Cơ sở được phân công có hiệu lực.
+Business Operations ManagerBOM | Quản lý cơ sở, chính sách, khung giá và phí, hiệu suất và báo cáo toàn hệ thống. | Toàn hệ thống trong nghiệp vụ kinh doanh.
+System AdministratorSA | Quản lý tài khoản, role, permission, phân công phạm vi và theo dõi log. | Toàn hệ thống trong nghiệp vụ quản trị; không mặc định có quyền duyệt tiền hoặc sửa hợp đồng.
+
+
+3.1  Ma trận quyền nghiệp vụ
+Ký hiệu: C = dữ liệu của mình; F = cơ sở được phân công; G = toàn hệ thống; X = dữ liệu công bố; dấu — = không cấp mặc định. Mỗi thao tác còn phải thỏa điều kiện nghiệp vụ và trạng thái.
+Chức năng | SC | FS | FM | BOM | SA
+Xem cơ sở, loại kho, giá công bố | X | X | X | X | —
+Tạo reservation, gửi gia hạn/trả, hỗ trợ | C | — | — | — | —
+Gán unit, quản lý contract | — | — | F | — | —
+Xem contract/payment | C | F | F | G | —
+Xác minh, bàn giao, kiểm tra trả, credential | C¹ | F | F² | — | —
+Xác nhận thu tiền/ghi phí | — | F³ | F³ | — | —
+Xử lý ticket và công việc | — | F | F | — | —
+Quản lý unit, giá theo cơ sở, bảo trì | — | — | F | — | —
+Phân công công việc, duyệt renewal/return | — | — | F | — | —
+Quản lý facility, chính sách, loại kho chung | — | — | — | G | —
+Xem báo cáo / Xuất báo cáo toàn hệ thống | — | — | F / — | G / G | —
+Tài khoản, role, permission, facility scope, log | — | — | — | — | G
+
+
+¹ SC chỉ xác nhận phần của khách. ² FM giám sát/phê duyệt, không giả danh Staff thực hiện bàn giao. ³ Quyền xác nhận thu tiền là quyền bổ sung để vận hành thanh toán thủ công, phải được SA cấp; người tự tạo yêu cầu thanh toán không tự xác nhận cho chính mình.
+4  Bối cảnh hệ thống và danh mục use case
+4.1  Ranh giới và trao đổi dữ liệu
+Actor | Dữ liệu vào | Dữ liệu ra
+SC | Bộ lọc, ngày thuê, reservation, lựa chọn thanh toán, xác nhận nhận kho, yêu cầu gia hạn/trả, ticket. | Danh sách kho/giá, mã đặt chỗ, hợp đồng, khoản cần trả, kết quả thanh toán, lịch hẹn và tình trạng hỗ trợ.
+FS | Mã reservation, xác minh, bàn giao, credential, kiểm tra trả, tiến độ và kết quả xử lý. | Thông tin đặt chỗ, unit được giao, công việc theo ngày, ticket và kết quả cập nhật.
+FM | Thông tin unit/giá, assignment, duyệt renewal/return, phân công nhân viên, bộ lọc báo cáo. | Danh sách unit, hợp đồng/công nợ, quá hạn, công việc và báo cáo cơ sở.
+BOM | Facility, loại kho chung, chính sách, khung giá/phí, điều kiện giảm/miễn và bộ lọc xuất. | Cấu hình được lưu, hiệu suất, doanh thu theo định nghĩa và tệp báo cáo.
+SA | Tài khoản, role, permission, facility scope, truy vấn log. | Kết quả quản trị, danh sách quyền, login_history và activity_logs.
+
+
+D01  Context Diagram
+Vị trí chèn sơ đồ do nhóm thực hiện. Vẽ một hệ thống SSFRMS và 5 actor ngoài hệ thống; gắn tên dữ liệu vào/ra theo bảng trên. Không đưa bảng dữ liệu nội bộ vào context diagram.
+4.2  Danh mục use case của Customer và Staff
+UC | Tên use case | Actor | Flow
+UC01 | Xem cơ sở, loại kho, kích thước, giá và kho khả dụng | SC | 1
+UC02 | Đặt chỗ thuê kho | SC | 1
+UC03 | Thanh toán các khoản phí | SC | 3, 6
+UC04 | Check in và xác nhận nhận kho | SC | 2
+UC05 | Quản lý các unit đang thuê và gửi yêu cầu gia hạn hoặc trả | SC | 3, 6
+UC06 | Gửi và theo dõi yêu cầu hỗ trợ | SC | 7
+UC07 | Xác minh reservation của khách | FS | 2
+UC08 | Bàn giao unit và cấp credential | FS | 2
+UC09 | Cập nhật trạng thái unit hợp lệ | FS | 2, 3, 5
+UC10 | Kiểm tra và xác nhận tình trạng khi trả kho | FS | 3
+UC11 | Tiếp nhận và xử lý sự cố tại cơ sở | FS | 7
+UC12 | Theo dõi danh sách công việc trong ngày | FS | 5, 7
+
+
+4  Danh mục use case tiếp theo
+UC | Tên use case | Actor | Flow
+UC13 | Quản lý unit tại cơ sở | FM | 5
+UC14 | Phân bổ unit phù hợp cho reservation | FM | 1
+UC15 | Theo dõi khách thuê, contract và thanh toán | FM | 3
+UC16 | Quản lý bàn giao, trả kho, gia hạn và quá hạn | FM | 2, 3, 6
+UC17 | Phân công Staff thực hiện công việc | FM | 5, 7
+UC18 | Xem báo cáo cơ sở | FM | 4
+UC19 | Quản lý danh sách cơ sở toàn hệ thống | BOM | 5
+UC20 | Thiết lập chính sách thuê chung | BOM | 4
+UC21 | Quản lý khung giá, phí, giảm giá và miễn phí | BOM | 4
+UC22 | Giám sát doanh thu và hiệu suất từng cơ sở | BOM | 4
+UC23 | Xem và xuất báo cáo toàn hệ thống | BOM | 4
+UC24 | Quản lý tài khoản người dùng | SA | Dùng chung
+UC25 | Gán và thu hồi vai trò | SA | Dùng chung
+UC26 | Cấu hình quyền và phạm vi cơ sở | SA | Dùng chung
+UC27 | Theo dõi lịch sử đăng nhập và hoạt động | SA | Dùng chung
+
+
+27 use case là nhóm mục tiêu nghiệp vụ tương ứng trách nhiệm của 5 actor. Các chức năng dùng chung như đăng ký, đăng nhập, đăng xuất và kiểm tra quyền được đặc tả tại FR-UM, không đánh số thêm vào danh mục này. UC16 có các nhánh riêng tại Flow 2, 3 và 6 để tránh gộp điều kiện xử lý khác nhau.
+D02  Use Case Diagram tổng quan
+Vị trí chèn sơ đồ do nhóm thực hiện. Vẽ 5 actor ngoài biên hệ thống; các UC01–UC27 trong biên. Có thể chia sơ đồ theo actor hoặc flow. Dùng association cho quyền thực hiện; không dùng mũi tên thứ tự giữa các use case.
+4.3  Quy ước đặc tả luồng
+Mục 5 đặc tả 7 flow từ đầu đến cuối, liên kết với các use case tương ứng. Mỗi flow nêu mục tiêu, actor, điều kiện trước, yêu cầu chức năng, luồng chính, nhánh lỗi và hậu điều kiện. Các bước liên quan nhiều bảng phải thành công đồng thời hoặc được khôi phục nhất quán.
+Trong mọi flow: người dùng đã đăng nhập đối với thao tác ghi; tài khoản ACTIVE; quyền hiện tại và phạm vi cơ sở được kiểm tra ở máy chủ. Không tin customer_id, staff_id, facility_id hoặc số tiền do giao diện gửi lên nếu chưa đối chiếu dữ liệu có thẩm quyền.
+5.1  Flow 1 Đặt chỗ thuê kho
+Use case: UC01, UC02, UC14  |  Actor: SC, FM
+Mục tiêu và điều kiện trước: Khách tìm kho theo thời gian, tạo reservation và được phân bổ một unit phù hợp. Cơ sở, loại kho và bảng giá phải đang cho phép kinh doanh.
+Mã | Yêu cầu chức năng
+FR-RES-01 | Cho tìm theo facility, unit_type, diện tích, mức giá, start_date và số tháng; trả về giá và khả dụng theo khoảng thuê.
+FR-RES-02 | Tạo reservation PENDING_PAYMENT với customer_id của phiên, báo giá, required_deposit, expected_end_date và expires_at.
+FR-RES-03 | Giữ năng lực phục vụ theo cơ sở/loại/khoảng thuê; từ chối đặt vượt khả năng phân bổ kho liên tục trong cả kỳ.
+FR-RES-04 | FM gán unit đúng facility và unit_type; ghi unit_assignments ACTIVE, assigned_by, assigned_at; tạo contract DRAFT duy nhất.
+FR-RES-05 | Cho đổi assignment trước bàn giao: kết thúc bản cũ thành REPLACED, ghi lý do; đồng bộ contract.unit_id và lịch sử.
+FR-RES-06 | Cho hủy/hết hạn/no-show theo chính sách; giải phóng giữ chỗ và assignment, xử lý contract nháp và các khoản thu liên quan.
+
+
+Luồng chính
+1. Khách chọn thời gian, xem lựa chọn và giá. Máy chủ kiểm tra lại khả dụng và tính tiền.
+2. Khách xác nhận; hệ thống tạo reservation và thông báo thời hạn giữ chỗ. Chưa tạo payment khi chưa có contract.
+3. FM chọn unit khả dụng; hệ thống kiểm tra lại, tạo assignment và contract DRAFT trong cùng giao dịch. Reservation chuyển UNIT_ASSIGNED.
+4. Hệ thống tạo các khoản payment PENDING cần thanh toán. Khách thanh toán theo Flow 3; khi đủ điều kiện, reservation chuyển CONFIRMED.
+Luồng thay thế và ngoại lệ
+• Hết kho hoặc xung đột đồng thời: từ chối, không tạo giữ chỗ thừa; gợi ý khách đổi lựa chọn.
+• Chưa được gán unit: hiển thị chờ phân bổ, vô hiệu thao tác thanh toán. Hết expires_at: chuyển EXPIRED nếu chưa thanh toán đủ.
+• Đổi kho sau bàn giao không thuộc thao tác đổi assignment; cần kết thúc hợp đồng cũ và tạo giao dịch thuê mới.
+Hậu điều kiện: Reservation và hợp đồng nháp truy vết được; không có hai quyền sử dụng chồng nhau. Khoản giữ chỗ được thay bằng assignment, không tính hai lần.
+Dữ liệu: reservations, unit_assignments, rental_contracts, payments, facilities, unit_types, storage_units, rental_rates, policies, activity_logs
+5.2  Flow 2 Check in và bàn giao
+Use case: UC04, UC07, UC08, UC09, UC16  |  Actor: SC, FS, FM
+Mục tiêu và điều kiện trước: Khách nhận đúng kho đã được phân bổ. Có contract DRAFT, assignment hợp lệ, lịch hẹn và Staff được phân công. Reservation phải đủ điều kiện thanh toán.
+Mã | Yêu cầu chức năng
+FR-CI-01 | FM phân công staff_id và scheduled_at trong handover_records; mỗi contract có tối đa một hồ sơ bàn giao.
+FR-CI-02 | FS tra reservation, đối chiếu người nhận, cơ sở, thời gian, assignment, contract và thanh toán; ghi verified_at.
+FR-CI-03 | Ghi initial_condition, notes, thời điểm bàn giao và xác nhận riêng của khách/nhân viên.
+FR-CI-04 | Cấp KEY, LOCK, ACCESS_CARD hoặc ACCESS_CODE theo contract; ghi issued_by, issued_at và unit_id phù hợp.
+FR-CI-05 | Chỉ hoàn tất khi customer_confirmed và staff_confirmed đều TRUE; cập nhật các trạng thái liên quan trong một giao dịch.
+FR-CI-06 | Cho đổi lịch trước bàn giao trên hồ sơ hiện có; đồng bộ lịch reservation và handover, ghi log thay đổi.
+
+
+Luồng chính
+1. Khách đến theo lịch; Staff mở danh sách nhận kho và xác minh reservation.
+2. Staff kiểm tra kho thực tế sẵn sàng và đủ điều kiện; handover chuyển VERIFIED.
+3. Staff ghi tình trạng ban đầu, cấp credential; khách kiểm tra và xác nhận nhận.
+4. Hệ thống chuyển handover HANDED_OVER, reservation CHECKED_IN, contract ACTIVE, unit OCCUPIED; ghi activated_at, handover_at và lịch sử unit.
+Luồng thay thế và ngoại lệ
+• Thiếu thanh toán, sai khách hoặc sai cơ sở: không bàn giao, thông báo nguyên nhân.
+• Kho hỏng hoặc người thuê trước chưa trả: dừng bàn giao, FM xử lý phân bổ khác trước khi thử lại.
+• Gửi xác nhận lặp: trả kết quả đã có, không tạo thêm hợp đồng, handover hoặc credential trùng.
+Hậu điều kiện: Khách được giao một unit và credential có hiệu lực. Hợp đồng bắt đầu hoạt động; không tạo hợp đồng mới sau check-in.
+Dữ liệu: handover_records, access_credentials, rental_contracts, reservations, unit_assignments, payments, storage_units, unit_status_history, activity_logs
+5.3  Flow 3 Quản lý thuê và trả kho
+Use case: UC03, UC05, UC09, UC10, UC15, UC16  |  Actor: SC, FS, FM
+Mục tiêu và điều kiện trước: Khách xem nhiều unit đang thuê, trả các khoản đến hạn và trả kho; cơ sở theo dõi hợp đồng, kiểm tra tình trạng và xử lý công nợ.
+Mã | Yêu cầu chức năng
+FR-CON-01 | Hiển thị hợp đồng của khách cùng unit, kỳ thuê, giá đã chốt, cọc, payment, renewal, bàn giao và hỗ trợ.
+FR-PAY-01 | Tạo payment theo contract với loại phí, amount, due_date, currency; tổng tiền do máy chủ xác định.
+FR-PAY-02 | FS/FM có quyền xác nhận CASH/BANK_TRANSFER mới được chuyển PAID và ghi paid_at; từ chối xác nhận trùng.
+FR-PAY-03 | Theo dõi PENDING/FAILED như khoản chưa thu; retry trên cùng payment_id; ghi thay đổi và căn cứ tính tiền trong audit.
+FR-CON-02 | Lưu yêu cầu trả chờ duyệt trong audit của contract; FM duyệt, chuyển RETURN_PENDING và xếp lịch return_inspections cho Staff.
+FR-CON-03 | Staff ghi tình trạng trả, inspected_at, phí hư hỏng/vệ sinh; đưa unit qua INSPECTION rồi AVAILABLE hoặc MAINTENANCE.
+FR-CON-04 | Thu hồi credential; FM hoàn tất contract khi trả vật lý, inspection và quyết toán đáp ứng chính sách.
+
+
+Luồng chính
+1. Khách xem các hợp đồng và khoản cần thanh toán; thanh toán, nhân viên có quyền xác nhận.
+2. Khách yêu cầu trả trong màn hình hợp đồng; FM kiểm tra chính sách, ghi quyết định, phân công lịch kiểm tra.
+3. Staff nhận kho và credential, ghi tình trạng thực tế. Chỉ đánh dấu kiểm tra hoàn tất khi dữ liệu bắt buộc đầy đủ.
+4. Hệ thống ghi phí nếu có đúng một lần; kho đạt kiểm tra được cấp lại, kho chưa đạt chuyển bảo trì. FM xử lý cọc/công nợ và đóng contract.
+Luồng thay thế và ngoại lệ
+• Khách chưa trả vật lý: kho vẫn bị chiếm; không chuyển AVAILABLE dù đã hết end_date.
+• Còn nợ sau kiểm tra: tiếp tục RETURN_PENDING và theo dõi khoản nợ; không giữ kho đã trả chỉ vì nợ.
+• Hủy khoản chưa thu: giữ bản ghi, đổi amount về 0 theo quyền, lưu giá trị gốc/lý do trong audit; không coi là tiền đã thu.
+Hậu điều kiện: Tình trạng kho, credential, inspection và hợp đồng phản ánh thực tế; lịch sử tiền và các khoản cần xử lý được giữ lại.
+Dữ liệu: rental_contracts, payments, return_inspections, access_credentials, storage_units, unit_status_history, maintenance_requests, overdue_cases, activity_logs
+5.4  Flow 4 Chính sách phí và báo cáo
+Use case: UC18, UC20, UC21, UC22, UC23  |  Actor: FM, BOM
+Mục tiêu và điều kiện trước: BOM quản lý chính sách và khung giá toàn hệ thống; FM áp dụng giá trong phạm vi; báo cáo dùng cùng bộ định nghĩa ở mục 10.
+Mã | Yêu cầu chức năng
+FR-BIZ-01 | BOM tạo policies theo policy_type, phạm vi facility/unit_type, thời gian hiệu lực và cách tính.
+FR-BIZ-02 | Kiểm tra value, min_value, max_value theo FIXED, PERCENTAGE, RANGE; RULE chỉ hiển thị hướng dẫn cho người có quyền xử lý.
+FR-BIZ-03 | FM tạo rental_rates theo cơ sở/loại; giá phải nằm trong PRICE_RANGE có hiệu lực. Không có hai giá hiệu lực chồng nhau.
+FR-BIZ-04 | Áp dụng giảm giá/miễn phí có điều kiện; ghi số tiền trước/sau và policy_id trong activity_logs; không sửa giá hợp đồng cũ khi đổi giá công bố.
+FR-BIZ-05 | FM xem báo cáo cơ sở; BOM xem từng cơ sở/toàn hệ thống theo thời gian, loại kho, trạng thái thuê.
+FR-BIZ-06 | BOM xuất báo cáo CSV với bộ lọc, ngày xuất, đơn vị tiền, chỉ tiêu và dữ liệu khớp kết quả xem.
+
+
+Luồng chính
+1. BOM lập chính sách và khung giá, nhập khoảng hiệu lực rồi kích hoạt sau kiểm tra.
+2. FM nhập giá theo facility/unit_type; hệ thống xác minh quyền, khung giá và thời gian hiệu lực.
+3. Khi đặt thuê/gia hạn/lập phí, hệ thống tìm chính sách thích hợp, tính khoản tiền và lưu căn cứ áp dụng.
+4. Người quản lý chọn bộ lọc, xem các chỉ tiêu; BOM xuất dữ liệu trong đúng phạm vi đã chọn.
+Luồng thay thế và ngoại lệ
+• Thiếu giá hoặc chính sách bắt buộc: không cho xác nhận báo giá, báo cấu hình còn thiếu.
+• Hai chính sách cùng mức ưu tiên xung đột: từ chối kích hoạt; không chọn ngẫu nhiên.
+• Báo cáo không có dữ liệu: vẫn hiển thị tiêu đề/cột, số liệu bằng 0 và bộ lọc đã dùng.
+Hậu điều kiện: Chính sách/giá có thể truy vết và không thay đổi ngược lịch sử; báo cáo xem và xuất cho cùng bộ lọc trả cùng số liệu.
+Dữ liệu: policies, rental_rates, payments, rental_contracts, storage_units, facilities, unit_types, overdue_cases, activity_logs
+5.5  Flow 5 Quản lý cơ sở kho và công việc
+Use case: UC09, UC12, UC13, UC17, UC19  |  Actor: FS, FM, BOM, SA
+Mục tiêu và điều kiện trước: BOM quản lý cơ sở và danh mục loại dùng chung; FM quản lý kho tại cơ sở và phân công nhiệm vụ. SA quản lý quyền làm việc theo cơ sở.
+Mã | Yêu cầu chức năng
+FR-FAC-01 | BOM tạo/sửa cơ sở, địa chỉ, liên hệ, giờ hoạt động và trạng thái; cơ sở ngừng nhận mới không làm mất hợp đồng hiện hữu.
+FR-FAC-02 | BOM quản lý unit_types dùng chung. FM lựa chọn loại, quản lý mã unit, vị trí, trạng thái và giá liên quan tại cơ sở.
+FR-FAC-03 | Không trùng unit_number trong cùng facility. Không đổi facility/type của unit đang giữ chỗ hoặc đã có lịch sử thuê.
+FR-FAC-04 | FM phân công Staff còn ACTIVE tại đúng cơ sở cho handover, inspection, ticket hoặc maintenance; ghi người giao và thay đổi vào audit.
+FR-FAC-05 | FS xem lịch handover/inspection/maintenance theo scheduled_at, và danh sách ticket chưa xong được giao; lọc ngày và trạng thái.
+FR-FAC-06 | Lập maintenance_request, lịch dự kiến và người xử lý; khi hoàn thành ghi chi phí, thời gian, kết quả và đánh giá khả năng sử dụng kho.
+
+
+Luồng chính
+1. BOM tạo cơ sở và loại kho; SA cấp quyền và scope cho FM/FS.
+2. FM tạo unit, vị trí và giá; hệ thống kiểm tra tính duy nhất và quan hệ dữ liệu.
+3. FM tạo hoặc mở công việc và gán Staff; hệ thống kiểm tra người được giao thuộc đúng cơ sở và có quyền phù hợp.
+4. Staff xem danh sách và xử lý; kết quả bàn giao/trả/hỗ trợ cập nhật theo flow tương ứng. FM giám sát việc tồn và trạng thái kho.
+Luồng thay thế và ngoại lệ
+• Nhân viên hết thời gian phân công: chặn thao tác, yêu cầu FM giao lại công việc.
+• Unit có lịch thuê xung đột bảo trì: không đánh dấu sẵn sàng; FM xử lý lịch/assignment trước.
+• Xóa dữ liệu có tham chiếu: từ chối xóa cứng, cho ngừng hoạt động theo chính sách lưu lịch sử.
+Hậu điều kiện: Danh mục nhất quán, nhiệm vụ có người phụ trách đúng cơ sở; không cần bảng daily_task_list hoặc report riêng.
+Dữ liệu: facilities, unit_types, storage_units, rental_rates, user_facilities, handover_records, return_inspections, support_tickets, maintenance_requests, activity_logs
+5.6  Flow 6 Gia hạn và quá hạn
+Use case: UC03, UC05, UC15, UC16  |  Actor: SC, FM, FS
+Mục tiêu và điều kiện trước: Gia hạn thời gian thuê hợp lệ và quản lý cả nợ quá hạn lẫn hết hạn chưa trả kho. Không đổi unit sang trạng thái OVERDUE hoặc LOCKED vì Data Dictionary không có các giá trị này.
+Mã | Yêu cầu chức năng
+FR-REN-01 | Khách yêu cầu số tháng gia hạn; tạo contract_renewals PENDING, lưu ngày/giá cũ và ngày/giá đề xuất mới.
+FR-REN-02 | FM kiểm tra đoạn gia hạn với reservation, contract khác, bảo trì và điều kiện công nợ; APPROVED hoặc REJECTED có audit lý do.
+FR-REN-03 | Khi duyệt, tạo payment RENEWAL PENDING liên kết đúng renewal và contract; giữ đoạn gia hạn tới due_date.
+FR-REN-04 | Sau thanh toán đủ, cập nhật renewal PAID, contract.end_date và giá kỳ mới đồng thời; xác nhận lặp không kéo dài thêm lần nữa.
+FR-OVD-01 | Phát hiện payment còn số tiền phải thu sau due_date hoặc hết kỳ thuê chưa trả; tạo overdue_case, phân loại trong notes và ghi công nợ.
+FR-OVD-02 | FM phân công liên hệ, nhập grace_deadline theo chính sách, ghi phí và hướng xử lý; đóng case khi điều kiện giải quyết đã đủ.
+FR-OVD-03 | Giữ unit bị chiếm cho tới khi trả thật; thu hồi credential theo quyết định được phép, không tự coi là kho trống.
+
+
+Luồng chính
+1. Khách gửi gia hạn trước hoặc trong trường hợp quá hạn được chính sách cho phép; Manager kiểm tra và duyệt.
+2. Khách thanh toán khoản gia hạn trước hạn giữ; hệ thống kiểm tra lại rồi cập nhật ngày kết thúc và lịch sử.
+3. Tác vụ kiểm tra theo ngày hoặc FM mở danh sách phát hiện các khoản/trường hợp quá hạn; hệ thống không tạo case trùng cho cùng vấn đề đang mở.
+4. FM/Staff liên hệ, thu tiền hoặc xử lý trả kho; cập nhật notes, status, outstanding_amount và resolved_at khi giải quyết xong.
+Luồng thay thế và ngoại lệ
+• Trùng lịch tương lai: từ chối gia hạn hoặc yêu cầu lựa chọn khác; không đẩy reservation của khách khác ra ngoài.
+• Hết hạn thanh toán gia hạn: hủy renewal, giải phóng đoạn giữ; khoản cũ chưa thu được vô hiệu theo BR25 và BR29.
+• Khách chỉ trả tiền nhưng chưa trả kho sau hết kỳ và chưa gia hạn hợp lệ: case hết hạn chưa trả vẫn chưa giải quyết.
+Hậu điều kiện: Lịch thuê chỉ thay đổi một lần khi gia hạn hoàn tất; hồ sơ quá hạn có kết quả và công nợ cập nhật, kho đang chiếm không bị cấp trùng.
+Dữ liệu: contract_renewals, payments, rental_contracts, overdue_cases, reservations, unit_assignments, access_credentials, activity_logs
+5.7  Flow 7 Hỗ trợ và xử lý sự cố
+Use case: UC06, UC11, UC12, UC17  |  Actor: SC, FS, FM
+Mục tiêu và điều kiện trước: Khách gửi vấn đề UNIT, LOCK, ACCESS_CODE, ACCESS_CARD, PAYMENT, STORED_ITEM hoặc OTHER. Ticket gắn hợp đồng của khách để xác định cơ sở; FS/FM có quyền tại cơ sở đó xử lý.
+Mã | Yêu cầu chức năng
+FR-SUP-01 | Tạo support_ticket OPEN với customer_id, contract_id, loại vấn đề, title, description và priority; unit nếu có phải đúng contract.
+FR-SUP-02 | FM giao assigned_staff_id và assigned_at; Staff nhận xử lý theo ASSIGNED rồi IN_PROGRESS.
+FR-SUP-03 | Ghi kết quả xử lý và mọi thay đổi trong activity_logs với entity_type support_tickets, entity_id ticket_id; không ghi đè description gốc.
+FR-SUP-04 | Đổi/cấp lại credential khi mất khóa hoặc lỗi mã; đánh dấu bản cũ LOST/REVOKED/REPLACED và tạo credential mới đúng contract.
+FR-SUP-05 | Tạo maintenance_request khi cần sửa chữa, liên kết ticket; chi phí nội bộ và phí thu khách phải phân biệt.
+FR-SUP-06 | RESOLVED khi có kết quả; CLOSED sau xác nhận/kiểm tra của FM; khách xem trạng thái và kết quả được phép công bố. Cho mở lại nếu chưa thực sự giải quyết.
+
+
+Luồng chính
+1. Khách chọn hợp đồng, nhập vấn đề; hệ thống kiểm tra sở hữu và tạo ticket.
+2. FM xem hàng đợi của cơ sở, phân công Staff; Staff nhận và ghi nhận xử lý.
+3. Staff xử lý tại chỗ, thay credential hoặc tạo bảo trì; mọi khoản thu phát sinh đi qua payment đúng contract.
+4. Staff ghi kết quả, chuyển RESOLVED; FM xác nhận CLOSED. Khách xem tiến độ và kết quả của ticket của mình.
+Luồng thay thế và ngoại lệ
+• Contract/unit không thuộc khách hoặc khác cơ sở: từ chối tạo/liên kết.
+• Chưa có Staff được giao: ticket giữ OPEN trong hàng đợi cơ sở; không bị mất khỏi danh sách.
+• Sự cố tái diễn: chuyển RESOLVED về IN_PROGRESS với lý do, hoặc tạo ticket mới nếu ticket cũ đã đóng. Không yêu cầu đính kèm ảnh trong bản cơ bản.
+Hậu điều kiện: Ticket có người phụ trách, lịch sử và kết quả; liên kết maintenance/credential/payment nếu phát sinh được kiểm tra nhất quán.
+Dữ liệu: support_tickets, rental_contracts, users, user_facilities, maintenance_requests, access_credentials, payments, activity_logs
+6  Tài khoản và kiểm soát truy cập
+Use case: UC24–UC27. Các chức năng xác thực hỗ trợ toàn bộ 7 flow. Mọi quyết định cấp/thu quyền có hiệu lực ở máy chủ, kể cả khi người dùng đang mở một màn hình cũ.
+Mã | Yêu cầu chức năng
+FR-UM-01 | Khách đăng ký bằng username, email, password và full_name; kiểm tra duy nhất, hash password; chỉ tự cấp role CUSTOMER.
+FR-UM-02 | Đăng nhập kiểm tra mật khẩu và status ACTIVE; phản hồi lỗi chung, ghi login_history với user đã nhận diện; đăng xuất kết thúc phiên và cập nhật logout_at khi có bản ghi phù hợp.
+FR-UM-03 | SA tạo/sửa/ngừng tài khoản; không xóa cứng user đã có hợp đồng, giao dịch hoặc log. Không hiển thị password_hash.
+FR-UM-04 | SA gán/thu hồi user_roles; lưu assigned_by/assigned_at và audit. Không tạo cặp user_id + role_id trùng.
+FR-UM-05 | SA cấu hình role_permissions từ permissions; thao tác ghi đòi hỏi đúng permission_code; không dựa riêng vào tên dashboard.
+FR-UM-06 | SA tạo/kết thúc user_facilities với ngày hiệu lực; kiểm tra một phân công ACTIVE theo A06 và đúng nhóm Staff/Manager.
+FR-UM-07 | Customer chỉ đọc/sửa đối tượng của chính mình; FS/FM kiểm tra facility của bản ghi và phân công hiện hành; BOM và SA theo chức năng được cấp.
+FR-UM-08 | SA tra login_history và activity_logs theo user, thời gian, action, loại đối tượng, kết quả; log nghiệp vụ không được sửa từ giao diện thông thường.
+FR-UM-09 | Ghi sự kiện nhạy cảm cùng người thực hiện, thời điểm, entity_type/entity_id, old_value/new_value đã loại bí mật; giữ audit trong cùng giao dịch khi cần truy vết quyết định.
+
+
+6.1  Luồng quản trị quyền
+1. SA tìm tài khoản, kiểm tra trạng thái và quyền quản trị hiện tại.
+2. SA chọn role, permission hoặc phân công facility với ngày hiệu lực.
+3. Hệ thống kiểm tra trùng, loại tài khoản, scope, ràng buộc phân công và ngăn tự làm mất tài khoản quản trị hoạt động cuối cùng.
+4. Lưu thay đổi, ghi audit và áp dụng quyền mới ở lần truy cập tiếp theo; người không còn quyền nhận thông báo từ chối.
+6.2  Giới hạn log đăng nhập
+login_history.user_id là NOT NULL nên chỉ ghi vào bảng này khi xác định được user. Thử đăng nhập bằng username không tồn tại được ghi thành activity_logs với user_id NULL, action LOGIN_FAILED_UNKNOWN, không lưu mật khẩu hoặc dữ liệu bí mật. Không gán thử đăng nhập đó cho một user bất kỳ.
+Đối với tác vụ tự động chỉ thay đổi contract/case, activity_logs.user_id có thể NULL. Nếu tác vụ đổi trạng thái unit, unit_status_history.changed_by NOT NULL phải dùng tài khoản dịch vụ được định danh và không được đăng nhập tương tác.
+7  Quy tắc nghiệp vụ và tính nhất quán
+BR01–BR15 giữ liên kết với nhóm ràng buộc tương ứng trong Data Dictionary; mô tả dưới đây làm rõ điều kiện áp dụng.
+Mã | Ràng buộc
+BR01 | Kho không có hai quyền sử dụng chồng nhau; kiểm tra khoảng thời gian và khả năng phân bổ cả reservation chưa gán, không chỉ storage_units.status.
+BR02 | Unit gán đúng facility_id, unit_type_id và khả dụng liên tục trong kỳ; không gán unit MAINTENANCE/OUT_OF_SERVICE hoặc đang bị chiếm quá hạn.
+BR03 | Mỗi reservation chỉ có tối đa một unit_assignment ACTIVE; đổi kho phải kết thúc bản cũ.
+BR04 | Mỗi reservation sinh tối đa một contract bằng UNIQUE(reservation_id); contract luôn được tạo trước payment/handover.
+BR05 | contract.customer_id bằng reservation.customer_id; khách của ticket/payment qua contract phải có quyền sở hữu phù hợp.
+BR06 | contract.unit_id là unit của assignment ACTIVE trước bàn giao; credential.unit_id cũng bằng contract.unit_id.
+BR07 | Chỉ bàn giao khi reservation còn hợp lệ, contract DRAFT, unit sẵn sàng, Staff đúng quyền và thanh toán đáp ứng chính sách.
+BR08 | Bàn giao thành công cập nhật unit OCCUPIED, contract ACTIVE và reservation CHECKED_IN đồng thời.
+BR09 | Kho đã trả phải qua return_inspections COMPLETED và đạt điều kiện vận hành trước AVAILABLE.
+BR10 | Hư hỏng hoặc cần vệ sinh/sửa chữa làm unit vào MAINTENANCE; chỉ cho AVAILABLE sau xác nhận khắc phục.
+BR11 | Sau mốc kết thúc kỳ thuê, nếu chưa có bằng chứng trả vật lý thì contract OVERDUE; không chuyển kho trống. Nếu đã yêu cầu trả thì giữ RETURN_PENDING và theo dõi overdue_case.
+BR12 | FS/FM chỉ thao tác cơ sở trong phân công ACTIVE đang có hiệu lực và permission phù hợp.
+BR13 | Thay đổi role, scope, giá, policy, assignment, contract, payment và kết quả xử lý phải ghi audit.
+BR14 | quoted_monthly_rate, agreed_monthly_rate và giá trong renewal là giá chụp tại thời điểm nghiệp vụ; đổi rental_rates không sửa ngược.
+BR15 | Kết thúc hợp đồng phải thu hồi/đánh dấu credential không còn ACTIVE; LOST không đồng nghĩa đã vô hiệu quyền truy cập, phải xử lý thu hồi tương ứng.
+
+
+7.1  Giao dịch và xử lý lặp
+Việc tạo reservation, gán unit, thanh toán, gia hạn và bàn giao phải kiểm tra lại dữ liệu trong giao dịch. Nếu phát sinh lỗi ở một bước cập nhật liên quan, hệ thống không được để hợp đồng/assignment/trạng thái unit lệch nhau. Xác nhận lặp trên cùng payment_id, renewal_id hoặc handover_id trả kết quả hiện có, không tạo thêm tác động.
+7  Quy tắc bổ sung và cách tính
+Mã | Ràng buộc bổ sung
+BR16 | Hai khoảng [s1,e1) và [s2,e2) trùng khi s1 < e2 và s2 < e1. Kho đã trả chỉ sẵn sàng thực tế sau kiểm tra, dù end_date đã tới.
+BR17 | Reservation chưa gán vẫn chiếm năng lực phục vụ. Chỉ xác nhận khi tồn tại phương án gán một unit liên tục cho từng reservation đang giữ; tổng số trống từng ngày riêng lẻ chưa đủ để kết luận.
+BR18 | Khi có assignment, không cộng reservation và contract của cùng giao dịch thuê thành hai lượt chiếm kho. Gia hạn chỉ giữ đoạn bổ sung.
+BR19 | Không có giá ACTIVE chồng nhau cho cùng facility/type; effective_to rỗng nghĩa là chưa giới hạn cuối kỳ.
+BR20 | Policy cùng loại ưu tiên: facility cụ thể + type cụ thể, facility cụ thể + mọi type, global + type cụ thể, global + mọi type. Không có hai policy xung đột cùng mức ưu tiên trong một khoảng.
+BR21 | FIXED là số tiền VND; PERCENTAGE nằm trong [0,100] và cơ sở tính phải được công bố. Cọc phần trăm tính trên tiền thuê kỳ đầu trước giảm; giảm giá phần trăm tính trên tiền thuê kỳ tương ứng. Phí phần trăm khác cần nêu rõ cơ sở tính trước áp dụng.
+BR22 | Giá thuê kỳ = giá tháng đã chốt × số tháng, sau giảm/miễn không âm. Không cộng dồn giảm giá cùng loại; miễn phí được ưu tiên cho đúng khoản. Tiền cọc được ghi riêng.
+BR23 | Chính sách RULE là hướng dẫn cần người có quyền đánh giá; không thực thi văn bản tùy ý như mã. Khi áp dụng ghi policy_id, phiên bản nội dung, cơ sở tính và kết quả trong audit.
+BR24 | new_end_date > old_end_date; renewal thuộc đúng contract; chỉ cập nhật end_date một lần khi thanh toán thành công và còn quyền giữ đoạn gia hạn.
+BR25 | Payment của renewal phải có contract_id bằng contract_id của renewal. amount không âm; amount bằng 0 là khoản miễn/hủy chưa thu và không phải tiền mặt đã nhận.
+BR26 | Một đợt quá hạn đang mở cho cùng contract và cùng nguyên nhân không được tạo trùng. notes ghi loại PAYMENT hoặc RETURN cùng payment_id liên quan nếu có.
+BR27 | Hoàn tiền cơ bản chỉ hoàn toàn bộ một payment đã thu, tạo payment REFUND và ghi original_payment_id trong audit; khóa giao dịch gốc khi xử lý để tránh hoàn trùng.
+BR28 | Không khấu trừ cọc/hoàn một phần tự động. Nếu có phí trả kho, lập và thu phí riêng, sau đó hoàn toàn bộ khoản cọc được phép hoàn; điều kiện giữ cọc phải được ghi quyết định rõ ràng.
+BR29 | Khi điều chỉnh phí chưa thu, lưu giá trị gốc và lý do; không sửa amount của payment đã thu. Sửa sai tiền đã thu dùng quy trình hoàn được kiểm soát.
+BR30 | Bảo trì có scheduled_at nhưng chưa có planned_end_at: không hứa kho khả dụng cho kỳ đụng lịch bảo trì chưa xác định thời điểm kết thúc; loại khỏi phân bổ cho tới khi hoàn thành hoặc lịch được xử lý.
+
+
+8  Trạng thái reservation contract và unit
+Các giá trị bên dưới giữ nguyên ENUM trong Data Dictionary. Chỉ các chuyển tiếp có điều kiện mới được phép; mọi nhánh hủy, quá hạn hoặc thử lại phải được audit.
+Đối tượng | Chuyển tiếp | Điều kiện
+Reservation | PENDING_PAYMENT → UNIT_ASSIGNED | Manager gán unit và tạo contract DRAFT.
+Reservation | UNIT_ASSIGNED → CONFIRMED | Các khoản cần trả trước nhận đã hoàn tất hoặc được miễn hợp lệ.
+Reservation | CONFIRMED → CHECKED_IN | Bàn giao thành công; assignment vẫn ACTIVE.
+Reservation | PENDING_PAYMENT / UNIT_ASSIGNED / CONFIRMED → CANCELLED | Hủy hợp lệ trước bàn giao; xử lý khoản đã thu theo chính sách.
+Reservation | PENDING_PAYMENT / UNIT_ASSIGNED → EXPIRED | Qua expires_at mà chưa đủ điều kiện thanh toán; giải phóng giữ chỗ.
+Reservation | CONFIRMED → NO_SHOW | Qua lịch nhận và thời gian chờ theo chính sách, khách không đến; FM xác nhận xử lý.
+Contract | DRAFT → ACTIVE → EXPIRING | Bàn giao rồi tới ngưỡng nhắc hết kỳ; EXPIRING là trạng thái nhắc, không phải hết quyền thuê.
+Contract | ACTIVE / EXPIRING → OVERDUE | Hết kỳ chưa trả; nợ thanh toán theo dõi riêng trong overdue_cases.
+Contract | ACTIVE / EXPIRING / OVERDUE → RETURN_PENDING | Yêu cầu trả được duyệt; chờ nhận kho/kiểm tra/quyết toán.
+Contract | RETURN_PENDING → COMPLETED | Đã trả, kiểm tra xong, credential thu hồi, công nợ và cọc đã xử lý.
+Contract | DRAFT → CANCELLED | Không tiếp tục thuê trước bàn giao; giữ lịch sử.
+Contract | ACTIVE / EXPIRING / OVERDUE / RETURN_PENDING → TERMINATED | Chấm dứt theo quyết định có lý do; chỉ hoàn tất trạng thái này sau thu hồi kho/credential và xử lý nghĩa vụ theo chính sách.
+Contract | EXPIRING / OVERDUE → ACTIVE | Gia hạn đã thanh toán hợp lệ, kỳ mới còn hiệu lực và không có yêu cầu trả đang mở.
+
+
+8.1  Trạng thái unit
+OCCUPIED, RETURN_PENDING, INSPECTION, MAINTENANCE và OUT_OF_SERVICE biểu diễn trạng thái vận hành hiện tại. ASSIGNED biểu diễn kho được gán chờ bàn giao khi không còn khách đang chiếm. RESERVED dành cho giữ kho cụ thể ngắn hạn nếu có; reservation chỉ giữ theo loại không làm đổi ngẫu nhiên trạng thái một unit.
+Luồng điển hình: AVAILABLE → ASSIGNED → OCCUPIED → RETURN_PENDING → INSPECTION → AVAILABLE hoặc MAINTENANCE. MAINTENANCE → AVAILABLE sau kiểm tra đạt; OUT_OF_SERVICE chỉ trở lại hoạt động khi FM xác nhận. Hủy giữ/gán chỉ về AVAILABLE nếu không còn quyền chiếm/giữ có hiệu lực ở hiện tại.
+Một assignment tương lai không được ghi đè OCCUPIED của khách đang thuê. Trạng thái hiện tại và lịch khả dụng theo thời gian là hai nguồn thông tin bổ sung nhau. Kho đã trả và đạt kiểm tra có thể AVAILABLE trong khi contract cũ còn xử lý nợ.
+8  Trạng thái các hồ sơ liên quan
+Đối tượng | Trạng thái và chuyển tiếp chính
+Unit assignment | ACTIVE → REPLACED khi đổi kho; ACTIVE → CANCELLED khi bỏ gán. Không sửa bản lịch sử thành ACTIVE trở lại để che mất lần phân bổ.
+Payment | PENDING → PAID hoặc FAILED; FAILED → PENDING khi thử lại cùng khoản. PAID → REFUNDED sau hoàn đủ. PARTIALLY_REFUNDED có trong Dictionary nhưng chưa dùng ở bản cơ bản.
+Contract renewal | PENDING → APPROVED / REJECTED / CANCELLED; APPROVED → PAID khi thu đủ hoặc CANCELLED khi hết hạn/hủy giữ. Không dùng PAID cho lần gia hạn chưa cập nhật contract thành công.
+Handover | SCHEDULED → VERIFIED → HANDED_OVER; SCHEDULED/VERIFIED → CANCELLED. Đổi lịch trên cùng hồ sơ nếu contract tiếp tục hợp lệ; không tạo hồ sơ thứ hai.
+Return inspection | SCHEDULED → IN_PROGRESS → COMPLETED; SCHEDULED/IN_PROGRESS → CANCELLED nếu hủy lịch. Kiểm tra lại tạo bản ghi mới để giữ lịch sử.
+Credential | ACTIVE → RETURNED, LOST, REVOKED hoặc REPLACED. Cấp lại tạo bản ghi mới. Chỉ ACTIVE mới được xem là quyền truy cập có hiệu lực.
+Overdue case | OPEN → CONTACTED → PAYMENT_PENDING hoặc RETURN_PENDING → RESOLVED; ESCALATED khi cần FM xử lý tiếp. Có thể chuyển từ OPEN thẳng sang trạng thái phù hợp khi đã có chứng cứ.
+Support ticket | OPEN → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED; OPEN/ASSIGNED → CANCELLED; RESOLVED → IN_PROGRESS nếu mở lại có lý do.
+Maintenance | OPEN → SCHEDULED → IN_PROGRESS → COMPLETED; chưa hoàn tất có thể CANCELLED khi có lý do. Hoàn thành hồ sơ không tự làm unit AVAILABLE nếu còn kiểm tra hoặc tác vụ khác.
+User facility | ACTIVE → ENDED hoặc SUSPENDED. Quyền còn phụ thuộc assigned_from/assigned_to và status của user.
+Rate và policy | DRAFT → ACTIVE → EXPIRED hoặc INACTIVE; cấu hình đã được áp dụng không được sửa âm thầm, tạo phiên bản/bản ghi hiệu lực mới và audit.
+
+
+8.2  Điều kiện dữ liệu khi hoàn tất
+PAID bắt buộc paid_at và phương thức thu; HANDED_OVER bắt buộc handover_at, hai xác nhận và điều kiện ban đầu; inspection COMPLETED bắt buộc inspected_at và condition_status; ticket RESOLVED bắt buộc resolved_at và audit kết quả; CLOSED có closed_at; maintenance COMPLETED có completed_at và notes kết quả; case RESOLVED có resolved_at và notes chứng cứ giải quyết.
+D03  State Diagrams
+Vị trí chèn sơ đồ do nhóm thực hiện. Vẽ riêng reservation, contract và unit theo mục 8; có thể bổ sung payment, renewal, ticket. Mỗi mũi tên ghi sự kiện và điều kiện, không thêm OVERDUE hoặc LOCKED vào unit.
+9  Mô hình dữ liệu và quan hệ
+Data Dictionary là nguồn chi tiết cho kiểu dữ liệu, kích thước, nullable và mặc định. SRS giữ nguyên 25 bảng; không thêm bảng nghiệp vụ bắt buộc trong phiên bản này.
+Nhóm | Bảng | Vai trò
+Tài khoản và quyền | users, roles, permissions, user_roles, role_permissions | Tài khoản, vai trò, quyền chi tiết và bảng liên kết.
+Cơ sở và nhân sự | facilities, user_facilities | Danh mục cơ sở và lịch sử phạm vi làm việc.
+Nhật ký | login_history, activity_logs | Đăng nhập và lịch sử tác động dữ liệu.
+Kho | unit_types, storage_units, unit_status_history | Loại, kích thước, kho vật lý và lịch sử trạng thái.
+Giá và chính sách | rental_rates, policies | Giá theo cơ sở/loại và quy tắc hiệu lực.
+Đặt chỗ và phân bổ | reservations, unit_assignments | Yêu cầu theo loại và kho được gán.
+Thuê và gia hạn | rental_contracts, contract_renewals | Hợp đồng của một kho và các kỳ gia hạn.
+Thanh toán | payments | Các khoản cần thanh toán, kết quả thu và hoàn toàn phần.
+Bàn giao và truy cập | handover_records, access_credentials | Lịch nhận kho, xác minh, bàn giao và credential.
+Trả và quá hạn | return_inspections, overdue_cases | Kiểm tra khi trả và xử lý quá hạn.
+Hỗ trợ và bảo trì | support_tickets, maintenance_requests | Tiếp nhận vấn đề, phân công và khắc phục.
+
+
+9.1  Quan hệ cốt lõi
+Quan hệ | Số lượng và điều kiện
+User–Role; Role–Permission | N–N qua user_roles và role_permissions; cặp khóa không trùng.
+User–Facility | N–N theo lịch sử qua user_facilities; A06 giới hạn một cơ sở hoạt động tại một thời điểm.
+Facility–Unit; Unit type–Unit | 1–N; mỗi unit thuộc đúng một cơ sở và một loại.
+Reservation–Assignment | 1–N theo lịch sử; tối đa một assignment ACTIVE.
+Reservation–Contract | 1–0..1; FK reservation_id của contract NOT NULL và UNIQUE.
+Customer–Contract; Unit–Contract | 1–N; unit được thuê nhiều lần theo thời gian, không chồng lịch.
+Contract–Handover | 1–0..1 nhờ UNIQUE(contract_id).
+Contract–Payment/Renewal/Credential/Inspection/Overdue | 1–N; mỗi bản ghi con thuộc một contract.
+Ticket–Maintenance | Một ticket có 0..N maintenance; một maintenance có thể không có ticket nguồn.
+
+
+9  Ràng buộc dữ liệu và chỗ chèn ERD
+9.2  Kiểm tra dữ liệu đầu vào
+Dữ liệu | Điều kiện kiểm tra
+Tài khoản | username và email duy nhất; các trường bắt buộc không rỗng; role/scope chỉ do người có quyền cấp.
+Kho và kích thước | UNIQUE(facility_id, unit_number); area > 0; length/width/height nếu nhập phải > 0. Công bố rõ đơn vị m và m².
+Khoảng ngày | Ngày kết thúc sau ngày bắt đầu; số tháng nguyên dương; ngày hiệu lực kết thúc không trước ngày bắt đầu; lịch hẹn trong thời gian hoạt động cơ sở.
+Số tiền | DECIMAL(15,2); không âm; rental_rates.monthly_rate > 0. Chỉ VND trong bản cơ bản; làm tròn số tiền giao dịch về đồng và hiển thị nhất quán.
+Trạng thái | Giá trị thuộc ENUM tương ứng; giá trị hợp lệ chưa đủ, còn phải kiểm tra điều kiện chuyển tiếp tại mục 8.
+FK và phạm vi | Tồn tại bản ghi tham chiếu; customer đúng vai trò/sở hữu; Staff/Manager đúng role, scope và hiệu lực.
+Tham chiếu dư thừa | Contract–reservation cùng customer; contract–assignment cùng unit; renewal–payment cùng contract; ticket/credential cùng unit của contract.
+Lưu lịch sử | Không xóa cứng dữ liệu đã tham gia thuê, tiền hoặc audit. Giá/policy có lịch sử hiệu lực; cập nhật có người và thời điểm.
+
+
+9.3  Quan hệ tùy chọn cần thể hiện đúng
+policies.facility_id và unit_type_id có thể NULL để áp dụng chung. activity_logs.user_id có thể NULL cho tác vụ hệ thống. assigned_by/approved_by/assigned_staff_id cho phép NULL theo Dictionary. Vì vậy đầu cha tương ứng trên ERD phải cho phép 0..1 nếu FK con nullable.
+support_tickets.contract_id nullable trong mô hình dữ liệu, nhưng quy tắc tạo ticket cơ bản A07 yêu cầu contract. Đây là ràng buộc ứng dụng mạnh hơn schema, không phải thay đổi FK. access_credentials liên kết trực tiếp contract; không vẽ quan hệ trực tiếp với handover nếu không có FK.
+D04  ERD tổng thể và ERD từng nhóm
+Vị trí chèn sơ đồ do nhóm thực hiện. Dùng đủ 25 bảng tại mục 9, tên snake_case; đánh dấu PK, FK, UNIQUE và nullable. Có thể tách 5 hình: tài khoản/quyền, cơ sở/kho/giá, reservation/contract, payment/renewal/overdue, handover/return/support/maintenance.
+D05  Activity Diagrams cho 7 flow
+Vị trí chèn sơ đồ do nhóm thực hiện. Mỗi flow dùng swimlane theo actor và hệ thống. Thể hiện cả từ chối, hủy, hết hạn, lỗi thanh toán và xung đột lịch. Lấy thứ tự từ mục 5; không tạo contract sau handover.
+D06  Sequence Diagrams nghiệp vụ trọng yếu
+Vị trí chèn sơ đồ do nhóm thực hiện. Đề xuất vẽ đặt chỗ đồng thời, assignment và tạo contract, xác nhận thanh toán, bàn giao, gia hạn và trả kho. Thể hiện ranh giới giao dịch và phản hồi khi kiểm tra thất bại.
+10  Thanh toán công nợ và định nghĩa báo cáo
+10.1  Mô hình thanh toán trong 25 bảng
+Phiên bản cơ bản dùng một payment_id cho một khoản phải thu đơn giản và kết quả thu của khoản đó. PENDING/FAILED với amount > 0 là khoản chưa thu; PAID là đã thu; số lần thử và thay đổi được audit. Mô hình này không phải thiết kế sổ kế toán tổng quát và không đại diện độc lập cho nhiều lần giao dịch cổng thanh toán.
+REFUND là bản ghi chiều chi, amount vẫn dương; giao dịch gốc chuyển REFUNDED sau khi hoàn toàn phần. Audit của refund phải ghi original_payment_id, loại tiền gốc, người duyệt và căn cứ. Chỉ cho hoàn một lần, không vượt amount gốc. Hoàn một phần và khấu trừ cọc tự động là phần mở rộng tại mục 14.
+10.2  Định nghĩa chỉ tiêu
+Chỉ tiêu | Cách tính và phạm vi
+Tiền thu trong kỳ | Tổng amount của payment_type khác REFUND đã từng thu thành công, paid_at thuộc kỳ. Bản đã chuyển REFUNDED vẫn giữ lịch sử thu ban đầu, không được xóa khỏi kỳ thu.
+Tiền hoàn trong kỳ | Tổng amount của payment_type REFUND, status PAID và paid_at thuộc kỳ; phân biệt hoàn cọc với hoàn tiền thuê/phí theo giao dịch gốc trong audit.
+Thu tiền ròng | Tiền thu trong kỳ trừ tiền hoàn trong kỳ; bao gồm cọc, nên không đồng nhất với doanh thu thuê.
+Doanh thu thuê và phí theo tiền thu | Tiền RENT, RENEWAL và các phí đã thu trong kỳ, trừ khoản hoàn tương ứng trong kỳ. Không cộng DEPOSIT hoặc khoản REFUND vào tiền thu. Đây là chỉ tiêu quản trị theo tiền thu, không phân bổ doanh thu kế toán theo kỳ thuê.
+Cọc còn giữ | Tổng DEPOSIT đã thu trừ hoàn cọc thành công đến thời điểm báo cáo; không trừ phí tự động trong bản cơ bản.
+Công nợ hiện tại | Tổng amount > 0 của các khoản chưa thu PENDING/FAILED còn hiệu lực. Khoản được miễn/hủy về 0 không cộng nợ. overdue_cases.outstanding_amount là bản tổng hợp cần cập nhật, không cộng thêm lần nữa.
+Kho đang sử dụng | Unit đang còn tài sản của khách; xác định từ OCCUPIED hoặc RETURN_PENDING chưa nhận trả thực tế. Quá hạn chưa trả vẫn tính đang sử dụng.
+Tỷ lệ sử dụng hiện tại | Số kho đang sử dụng / số unit có thể khai thác × 100. Mẫu số loại MAINTENANCE, OUT_OF_SERVICE và INSPECTION; mẫu số 0 hiển thị không áp dụng.
+Kho khả dụng cho một kỳ | Số unit có thể phân bổ liên tục cho khoảng thuê sau khi xét giữ chỗ, assignment, hợp đồng còn chiếm và bảo trì. Không lấy số unit AVAILABLE hiện tại làm kết quả mặc định.
+Trường hợp quá hạn | Đếm overdue_cases chưa RESOLVED theo nguyên nhân và cơ sở; số contract quá hạn riêng phải dùng DISTINCT contract_id để không đếm trùng.
+
+
+Báo cáo theo cơ sở và loại kho truy qua payment → contract → unit → facility/unit_type. Không cho thay facility/type của unit có lịch sử thuê trong bản cơ bản để tránh dịch chuyển số liệu quá khứ. Báo cáo tỷ lệ sử dụng lịch sử là phần mở rộng, không suy từ trạng thái hiện tại.
+11  Yêu cầu giao diện và phi chức năng
+11.1  Các màn hình và giao tiếp
+Nhóm màn hình | Nội dung tối thiểu
+Customer | Đăng ký/đăng nhập; tìm kho và giá; đặt chỗ; chi tiết reservation; danh sách/chi tiết contract; khoản thanh toán; gia hạn/trả; ticket.
+Staff | Nhận kho hôm nay; xác minh/bàn giao; cấp và thu credential; kiểm tra trả; ticket; bảo trì; lịch công việc; xác nhận tiền nếu có quyền.
+Facility Manager | Unit/giá cơ sở; hàng đợi reservation; assignment; contract/công nợ; duyệt gia hạn/trả; quá hạn; phân công; báo cáo cơ sở.
+Business Operations Manager | Cơ sở và loại kho chung; policy/khung giá/phí; theo dõi hiệu suất; bộ lọc và xuất báo cáo.
+System Administrator | Tài khoản; role; permission; user_facilities; lịch sử đăng nhập; audit và bộ lọc.
+
+
+Biểu mẫu hiển thị trường bắt buộc, đơn vị, định dạng và lỗi ngay tại trường; các thao tác tiền, hủy, đổi kho và kết thúc hợp đồng hiển thị nội dung cần xác nhận. Phân trang danh sách lớn; có trạng thái đang tải, không có dữ liệu và thất bại. Kết quả trạng thái cập nhật lại sau thao tác.
+Giao diện trao đổi với backend qua API có xác thực; backend kiểm tra quyền, dữ liệu và giao dịch. File báo cáo dùng CSV UTF-8 có hàng tiêu đề. Khóa/mã truy cập là dữ liệu bàn giao; không có kết nối phần cứng bắt buộc. Mã chỉ lưu hash không thể xem lại nguyên bản; khi cần cấp lại phải tạo mã mới.
+11.2  Yêu cầu phi chức năng có thể kiểm tra
+Mã | Yêu cầu và cách kiểm chứng
+NFR01 | Hiệu năng: với 10 cơ sở, 1.000 unit, 10.000 contract và 50 người dùng đồng thời, 95% request đọc thông thường không gồm xuất báo cáo có thời gian backend ≤ 2 giây trên môi trường kiểm thử đã ghi cấu hình.
+NFR02 | Toàn vẹn: kiểm thử đồng thời đặt/gán/gia hạn suất cuối không tạo lịch chồng. Rollback giữ dữ liệu nhất quán khi lỗi giữa giao dịch.
+NFR03 | Bảo mật: hash mật khẩu bằng thuật toán dành cho mật khẩu; HTTPS khi triển khai; kiểm tra quyền/ownership/scope ở mọi API nghiệp vụ; không ghi mật khẩu hoặc mã truy cập gốc vào log.
+NFR04 | Độ tin cậy: thao tác lặp không thu tiền/bàn giao/gia hạn hai lần; lỗi trả thông báo có thể hiểu, không lộ stack trace hoặc bí mật.
+NFR05 | Sao lưu: bản sao cơ sở dữ liệu hàng ngày; thử khôi phục trên môi trường thử nghiệm. Mục tiêu mất dữ liệu tối đa 24 giờ và phục hồi trong 4 giờ được kiểm chứng bằng diễn tập.
+NFR06 | Khả dụng giao diện: dùng được ở chiều rộng 360px và 1366px; không che nút xác nhận; bảng rộng có cuộn và tên cột rõ.
+NFR07 | Thời gian: lưu thời điểm theo quy ước thống nhất, hiển thị Asia/Ho_Chi_Minh; ngày DD/MM/YYYY. Chạy kiểm tra hạn ít nhất một lần mỗi ngày và kiểm tra lại khi người dùng thao tác.
+NFR08 | Khả năng bảo trì: tách giao diện, xử lý nghiệp vụ và truy cập dữ liệu; validation và tính tiền dùng chung; có cấu hình môi trường, migration, dữ liệu mẫu và hướng dẫn chạy.
+
+
+12  Ma trận truy vết yêu cầu
+Mỗi hàng nối một nhóm chức năng với use case, yêu cầu chức năng, dữ liệu và bài nghiệm thu. Mã AT được mô tả tại mục 13.
+Nhóm | UC | FR | Dữ liệu chính | AT
+Tìm và đặt | 01, 02 | RES-01..03, 06 | reservations, rates, unit_types, units | 01, 02, 03
+Gán unit | 14 | RES-04..05 | unit_assignments, rental_contracts | 04, 05
+Nhận kho | 04, 07, 08, 09, 16 | CI-01..06 | handover_records, credentials, history | 06, 07
+Thanh toán | 03 | PAY-01..03 | payments, activity_logs | 08, 09
+Quản lý thuê | 05, 15 | CON-01 | rental_contracts, payments | 10
+Trả và kiểm tra | 09, 10, 16 | CON-02..04 | return_inspections, maintenance, credentials | 11, 12
+Chính sách và giá | 20, 21 | BIZ-01..04 | policies, rental_rates, audit | 13, 14
+Báo cáo | 18, 22, 23 | BIZ-05..06 | payments, contracts, units, overdue | 15
+Cơ sở và unit | 13, 19 | FAC-01..03 | facilities, unit_types, storage_units | 16
+Phân công và lịch | 12, 17 | FAC-04..05 | user_facilities, handover, inspection, ticket | 17
+Bảo trì | 13, 17 | FAC-06 | maintenance_requests, unit history | 18
+Gia hạn | 03, 05, 16 | REN-01..04 | contract_renewals, payments, contracts | 19, 20
+Quá hạn | 15, 16 | OVD-01..03 | overdue_cases, payments, contracts | 21, 22
+Hỗ trợ | 06, 11, 12, 17 | SUP-01..06 | support_tickets, maintenance, audit | 23, 24
+Tài khoản | 24 | UM-01..03 | users, login_history | 25
+Role và scope | 25, 26 | UM-04..07 | roles, permissions, user_facilities | 26, 27
+Log | 27 | UM-08..09 | login_history, activity_logs | 28
+
+
+12.1  Quy tắc hoàn thành yêu cầu
+Một FR được coi là hoàn thành khi có chức năng tương ứng, kiểm tra quyền và dữ liệu, xử lý ít nhất luồng chính và lỗi liên quan, ghi lịch sử bắt buộc và vượt qua AT liên kết. NFR phải có chứng cứ kiểm thử riêng. Có màn hình hoặc có bảng dữ liệu chưa đủ để kết luận hoàn thành flow.
+Các viết tắt tên bảng trong bảng truy vết chỉ phục vụ trình bày; tên bảng triển khai chính thức theo mục 9 và Data Dictionary. Nội dung gốc về 5 actor được bao phủ bởi đủ UC01–UC27; Flow 6 và Flow 7 được kiểm thử bắt buộc như các flow khác.
+13  Tiêu chí nghiệm thu chức năng
+Mã | Tình huống | Kết quả mong đợi
+AT01 | Chọn khoảng thuê | Kết quả xét cả ngày bắt đầu/kết thúc, giá và cơ sở; một kho trống hôm nay nhưng bận trong kỳ không được báo khả dụng.
+AT02 | Hai khách giữ suất cuối | Tối đa một giữ chỗ được chấp nhận; không có bản ghi thừa làm vượt khả năng phân bổ.
+AT03 | Reservation hết hạn | Chuyển EXPIRED đúng điều kiện, giải phóng giữ chỗ và assignment, không xóa lịch sử.
+AT04 | Gán kho đúng/sai loại | Đúng loại/cơ sở thì tạo DRAFT duy nhất; sai loại hoặc trùng lịch bị từ chối.
+AT05 | Đổi assignment trước nhận | Bản cũ REPLACED, bản mới ACTIVE; contract.unit_id đồng bộ, vẫn chỉ một assignment ACTIVE.
+AT06 | Bàn giao đủ điều kiện | Có xác minh, hai xác nhận và credential; reservation/contract/unit chuyển trạng thái đồng thời.
+AT07 | Bàn giao thiếu tiền hoặc lặp | Thiếu tiền bị chặn; gửi lại yêu cầu hoàn tất không sinh thêm bản ghi/tác động.
+AT08 | Retry thanh toán | FAILED trở về PENDING rồi PAID cùng payment_id; công nợ chỉ tính một khoản.
+AT09 | Hoàn cọc toàn phần | Có giao dịch REFUND liên kết trong audit; tiền thu, tiền hoàn, cọc còn giữ chính xác; hoàn lặp bị chặn.
+AT10 | Khách có nhiều hợp đồng | Xem được các unit của mình; sửa ID URL không đọc được hợp đồng người khác.
+AT11 | Trả kho đạt kiểm tra | Inspection COMPLETED; credential thu hồi; unit AVAILABLE khi không còn việc vận hành ngăn cấp lại.
+AT12 | Trả kho hư hỏng hoặc còn nợ | Hư hỏng chuyển MAINTENANCE và phí không tạo trùng; nợ chưa xong không đóng contract nhưng không giữ kho đã đạt kiểm tra.
+AT13 | Giá ngoài khung hoặc trùng hiệu lực | Từ chối lưu/kích hoạt; báo lỗi cụ thể.
+AT14 | Thay chính sách và giá | Giao dịch mới lấy mức phù hợp; hợp đồng cũ giữ giá đã chốt; audit lưu căn cứ áp dụng.
+
+
+Đây là tiêu chí nghiệm thu dự kiến, chưa phải kết quả đã chạy. Bộ test triển khai phải bổ sung dữ liệu đầu vào, bước thao tác, môi trường, kết quả thực tế và bằng chứng.
+13  Tiêu chí nghiệm thu tiếp theo
+Mã | Tình huống | Kết quả mong đợi
+AT15 | Báo cáo có cọc và hoàn | Không cộng cọc vào doanh thu thuê; hoàn đúng chiều; CSV và màn hình khớp cùng bộ lọc.
+AT16 | Tạo unit trùng và sửa dữ liệu lịch sử | Trùng mã cùng cơ sở bị chặn; cơ sở khác có thể dùng cùng mã. Không chuyển facility/type của kho có lịch sử thuê.
+AT17 | Giao việc khác cơ sở | Từ chối Staff sai scope; Staff đúng scope thấy việc được giao và lịch đúng ngày.
+AT18 | Bảo trì chưa biết thời điểm xong | Kho không được hứa khả dụng cho kỳ xung đột; hoàn thành cần kết quả và kiểm tra vận hành.
+AT19 | Gia hạn trùng reservation tiếp theo | Từ chối duyệt; không sửa contract.end_date hoặc mất reservation của khách khác.
+AT20 | Gia hạn thành công và gửi lặp | Thu đủ, renewal PAID và end_date đúng; gửi lặp không cộng thêm tháng. Hết hạn thu thì giải phóng đoạn giữ.
+AT21 | Nợ phí trong kỳ thuê | Mở case PAYMENT, unit vẫn OCCUPIED; thu đủ giải quyết case tương ứng.
+AT22 | Hết kỳ chưa trả kho | Mở case RETURN, không cấp lại kho; thu tiền chưa đủ để đóng case khi chưa trả/gia hạn hợp lệ.
+AT23 | Ticket và quyền sở hữu | Chỉ tạo trên contract của khách; FM đúng cơ sở thấy hàng đợi OPEN; Staff được giao xử lý.
+AT24 | Ticket cần thay khóa/sửa kho | Credential cũ mất hiệu lực theo quy trình; maintenance liên kết ticket; kết quả xử lý được lưu trong audit và hiển thị phù hợp.
+AT25 | Đăng nhập và khóa tài khoản | ACTIVE đúng thông tin được vào; LOCKED/SUSPENDED bị chặn; không lộ mật khẩu hoặc thông tin xác thực.
+AT26 | Thu hồi role khi đang đăng nhập | Request tiếp theo bị kiểm tra quyền mới; giao diện cũ không vượt qua backend.
+AT27 | Truy cập chéo cơ sở | Staff/Manager không xem/sửa bản ghi cơ sở khác qua API; phân công hết hạn không còn hiệu lực.
+AT28 | Audit và đăng nhập không tồn tại | Thao tác quan trọng có người/thời gian/đối tượng; username không tồn tại ghi activity log user NULL, không gán cho user khác.
+
+
+13.1  Điều kiện nghiệm thu toàn hệ thống
+Tất cả 7 flow và 27 use case có đường đi kiểm chứng; không còn lỗi phân quyền, mất dữ liệu, thu tiền trùng hoặc cấp kho trùng. Chạy kiểm thử NFR trên môi trường được mô tả, thực hiện thử phục hồi dữ liệu, kiểm tra báo cáo mẫu và bàn giao hướng dẫn chạy hệ thống. Các giới hạn mục 14 được công bố trong phạm vi demo.
+14  Giới hạn dữ liệu và hướng mở rộng
+Mục này xác định ranh giới của phiên bản dựa trên 25 bảng. Các chức năng sau chỉ được đưa vào kế hoạch bắt buộc sau khi bổ sung thiết kế dữ liệu và cập nhật SRS; không suy diễn rằng schema hiện tại đã hỗ trợ đầy đủ.
+Nhu cầu mở rộng | Giới hạn hiện tại | Thay đổi cần xem xét
+Thu cọc ngay trước khi gán kho | payments.contract_id NOT NULL; contract cần unit_id. | Liên kết khoản thu tới reservation hoặc mô hình hóa khoản phải thu trước hợp đồng.
+Thanh toán nhiều lần/qua gateway | Một payment hiện gộp khoản cần thu và kết quả thu. | Tách khoản phải thu, giao dịch thử thanh toán, phân bổ thanh toán và idempotency key.
+Hoàn một phần/khấu trừ cọc | Chưa có amount hoàn từng lần hoặc FK giao dịch gốc; bản cơ bản dùng audit cho hoàn đủ. | Bổ sung refund/original_payment_id, số tiền từng lần và nghiệp vụ quyết toán cọc.
+Ticket trước hợp đồng hoặc nhiều cơ sở | Ticket không có facility_id, reservation_id hay payment_id trực tiếp. | Bổ sung định tuyến cơ sở và liên kết nguồn; làm rõ người tiếp nhận ticket chung.
+Ảnh, tệp và trao đổi hỗ trợ | Không có bảng attachment/message; description không phải lịch sử hội thoại. | Tạo mô hình file đính kèm, hội thoại hoặc kết quả xử lý riêng.
+Một người nhiều vai trò theo từng cơ sở | user_roles và user_facilities độc lập. | Gắn role với phạm vi facility thay vì tích chéo mọi role và mọi cơ sở.
+Bảo trì có khoảng kết thúc dự kiến | maintenance_requests chỉ có scheduled_at, started_at, completed_at. | Bổ sung planned_end_at hoặc lịch chặn kho theo khoảng thời gian.
+Policy tự động phức tạp | rule_description là văn bản, không có cấu trúc điều kiện đầy đủ. | Thêm tham số có kiểu, phiên bản policy và bản chụp áp dụng có liên kết nghiệp vụ.
+Lịch sử sử dụng và chuyển kho | Không có thời điểm trả vật lý riêng hoặc lịch sử đổi unit trong cùng contract. | Bổ sung sự kiện trả/chuyển kho và khoảng sử dụng thực tế trước báo cáo lịch sử chi tiết.
+Giá riêng từng unit | rental_rates định giá theo cơ sở và loại. | Bổ sung cơ chế giá theo unit nếu có yêu cầu khác biệt trong cùng loại.
+
+
+14.1  Các quyết định triển khai còn cần chốt
+Nhóm chọn một DBMS và một backend phù hợp môi trường môn học; SRS không bắt buộc đồng thời nhiều công nghệ. Chốt giá trị thời hạn giữ chỗ, ngưỡng EXPIRING, chính sách grace period, mức phí và lịch kiểm tra quá hạn trước khi demo. Các giá trị phải được cấu hình/công bố, không rải thành hằng số khác nhau trong nhiều màn hình.
+Các bước tiếp theo: hoàn thiện sơ đồ D01–D06; thiết kế wireframe; viết migration theo Data Dictionary cùng BR trong SRS; thiết kế API; triển khai và chạy AT01–AT28. Mỗi thay đổi quy tắc phải cập nhật đồng thời tài liệu, sơ đồ, dữ liệu và test liên quan.
+15.1  UC01 Xem cơ sở loại kho giá và kho khả dụng
+Actor chính: Storage Customer. Không có actor hỗ trợ bắt buộc.
+Kích hoạt: Khách mở trang tìm kho hoặc thay đổi bộ lọc.
+Điều kiện trước: Có cơ sở, loại kho và bảng giá được công bố. Xem thông tin công bố không bắt buộc đăng nhập.
+Luồng chính
+1. Hệ thống hiển thị cơ sở, loại kho, kích thước, giá tháng và mô tả.
+2. Khách nhập cơ sở hoặc khu vực, loại/diện tích, mức giá, ngày bắt đầu và số tháng thuê.
+3. Hệ thống kiểm tra ngày, số tháng và tính ngày kết thúc theo A02.
+4. Hệ thống xét các reservation đang giữ, assignment, hợp đồng còn chiếm và bảo trì; xác định khả năng cấp một unit liên tục trong cả kỳ.
+5. Hệ thống trả danh sách phù hợp với giá áp dụng, đơn vị, điều kiện cọc và khoảng thời gian đã kiểm tra.
+6. Khách mở chi tiết lựa chọn; nếu chọn đặt chỗ, chuyển sang UC02.
+Luồng thay thế
+A1 tại bước 2: chưa nhập thời gian thì chỉ hiển thị danh mục và giá tham khảo; không cam kết khả dụng theo kỳ.
+A2 tại bước 5: không có kết quả thì giữ bộ lọc và cho đổi cơ sở, loại hoặc ngày.
+A3 tại bước 6: giá/khả dụng đã thay đổi thì UC02 kiểm tra lại trước khi giữ chỗ.
+Ngoại lệ và lỗi
+Ngày hoặc số tháng không hợp lệ: hiển thị lỗi tại trường. Không có giá hiệu lực: không cho xác nhận đặt lựa chọn đó. Lỗi truy vấn: báo thử lại, không báo kho trống giả định.
+Điều kiện sau: Khách nhận thông tin tìm kiếm; chưa tạo reservation, contract hoặc payment.
+Yêu cầu và quy tắc: FR-RES-01. A02, A08; BR01, BR17, BR19, BR30.
+Dữ liệu liên quan: facilities, unit_types, storage_units, rental_rates, policies, reservations, unit_assignments, rental_contracts, maintenance_requests.
+Điểm nghiệm thu: Kết quả không chứa kho bận trong khoảng yêu cầu; lọc thời gian được giữ khi chuyển sang đặt chỗ.
+15.2  UC02 Đặt chỗ thuê kho
+Actor chính: Storage Customer. Facility Manager tiếp nhận phân bổ sau khi đặt; không phải người xác nhận thay khách.
+Kích hoạt: Khách chọn Đặt chỗ từ kết quả tìm kiếm.
+Điều kiện trước: Customer đăng nhập, tài khoản ACTIVE; đã chọn cơ sở, loại kho, ngày bắt đầu và số tháng. Cơ sở nhận đặt mới.
+Luồng chính
+1. Khách kiểm tra cơ sở, loại kho, khoảng thuê và thông tin liên hệ của mình.
+2. Máy chủ kiểm tra lại khả dụng liên tục, giá hiệu lực, cọc và chính sách hủy; tính tổng dự kiến.
+3. Hệ thống hiển thị báo giá và thời hạn giữ chỗ; khách xác nhận.
+4. Trong giao dịch, hệ thống kiểm tra lại năng lực phân bổ và tạo reservations PENDING_PAYMENT với customer_id của phiên, ngày, giá và expires_at.
+5. Hệ thống trả mã reservation, trạng thái chờ phân bổ và hạn hoàn tất; chưa cho thanh toán nếu chưa có contract.
+6. Reservation xuất hiện trong hàng đợi cơ sở để Manager thực hiện UC14.
+Luồng thay thế
+A1 tại bước 3: khách đổi lựa chọn thì quay lại tính giá/khả dụng; từ chối thì chưa tạo bản ghi.
+A2 sau bước 4: khách yêu cầu hủy trước nhận kho; hệ thống kiểm tra chính sách, ghi CANCELLED/lý do và giải phóng giữ chỗ; khoản đã thu được xử lý riêng.
+A3 sau bước 4: hết expires_at khi chưa đủ thanh toán thì chuyển EXPIRED và xử lý assignment/contract nháp nếu đã có.
+Ngoại lệ và lỗi
+Hai khách tranh suất cuối: chỉ giao dịch giữ chỗ hợp lệ được lưu. Lỗi giữa giao dịch: rollback. Gửi xác nhận lặp phải dùng cùng yêu cầu đặt, không tạo reservation mới ngoài ý muốn.
+Điều kiện sau: Có một reservation hợp lệ chiếm năng lực phục vụ hoặc không có thay đổi nếu thất bại. Chưa đồng nghĩa có quyền nhận kho.
+Yêu cầu và quy tắc: FR-RES-02, FR-RES-03, FR-RES-06. A01–A04; BR01, BR16–BR18.
+Dữ liệu liên quan: reservations, facilities, unit_types, storage_units, rental_rates, policies, activity_logs.
+Điểm nghiệm thu: Lưu đúng giá báo và thời hạn; không vượt số kho có thể phân bổ; lỗi đồng thời không tạo giữ chỗ thừa.
+15.3  UC03 Thanh toán các khoản phí
+Actor chính: Storage Customer. FS hoặc FM có quyền xác nhận thu tiền; FM duyệt xử lý hoàn tiền theo chính sách.
+Kích hoạt: Khách mở khoản cần trả của hợp đồng.
+Điều kiện trước: Có contract của khách và payment PENDING/FAILED với số tiền còn hiệu lực. Phiên bản cơ bản dùng CASH/BANK_TRANSFER; chưa tích hợp gateway.
+Luồng chính
+1. Khách xem contract, loại phí, số tiền, hạn trả và phương thức được hỗ trợ.
+2. Khách chọn phương thức; hệ thống dùng số tiền đã tính ở máy chủ, không nhận số tiền tùy ý từ giao diện.
+3. Khách thực hiện trả tiền tại quầy hoặc chuyển khoản theo hướng dẫn.
+4. Nhân viên có quyền tại đúng cơ sở đối chiếu tiền thực nhận và mã tham chiếu nếu có.
+5. Hệ thống khóa payment cần xác nhận, kiểm tra chưa thu, ghi PAID, paid_at, phương thức và audit; tránh trùng transaction_reference.
+6. Hệ thống cập nhật công nợ và điều kiện liên quan: xác nhận reservation hoặc hoàn tất renewal đúng một lần; khách xem kết quả.
+Luồng thay thế
+A1 tại bước 4: chưa xác minh được tiền thì giữ PENDING; xác định thất bại thì FAILED, ghi lý do.
+A2 tại bước 1: retry dùng cùng payment_id, không tạo thêm khoản nợ; khoản miễn/hủy amount = 0 hiển thị đã xử lý theo quyết định, không báo đã thu tiền.
+A3 sau bước 5: hoàn toàn phần được FM duyệt; tạo REFUND, liên kết giao dịch gốc trong audit và chuyển bản gốc REFUNDED trong giao dịch.
+Ngoại lệ và lỗi
+Khách tự yêu cầu PAID, sai contract hoặc Staff sai cơ sở: từ chối. Xác nhận lặp trả kết quả đã có. Lỗi ghi dữ liệu: không cập nhật một phần; tiền thực nhận cần đối chiếu lại trước khi retry.
+Điều kiện sau: Khoản thu/hoàn và công nợ được cập nhật có audit. Payment đã thu không được sửa amount trực tiếp.
+Yêu cầu và quy tắc: FR-PAY-01..03, FR-REN-04. A05; BR07, BR13, BR24–BR29.
+Dữ liệu liên quan: payments, rental_contracts, reservations, contract_renewals, overdue_cases, activity_logs.
+Điểm nghiệm thu: Không thu hoặc gia hạn hai lần khi xác nhận lặp; khách không tự đánh dấu thành công; hoàn tiền đúng chiều báo cáo.
+15.4  UC04 Check in và xác nhận nhận kho
+Actor chính: Storage Customer. Facility Staff xác minh và bàn giao; Facility Manager xử lý ngoại lệ phân bổ.
+Kích hoạt: Khách đến nhận kho theo lịch và cung cấp mã reservation.
+Điều kiện trước: Reservation của khách CONFIRMED; contract DRAFT; đã gán unit hợp lệ và có lịch nhận. Customer chỉ xác nhận phần của mình.
+Luồng chính
+1. Khách cung cấp mã reservation và thông tin nhận diện để Staff tra cứu.
+2. Staff thực hiện UC07; hệ thống hiển thị hợp đồng, unit, lịch hẹn và điều kiện đủ nhận.
+3. Staff giới thiệu kho thực tế, tình trạng ban đầu, khóa/thẻ/mã được bàn giao theo UC08.
+4. Khách kiểm tra đúng unit và điều kiện bàn giao, đọc thông tin xác nhận.
+5. Khách xác nhận; hệ thống chỉ cập nhật customer_confirmed của hồ sơ handover của chính khách.
+6. Khi Staff cũng xác nhận và các điều kiện vẫn hợp lệ, hệ thống hoàn tất bàn giao; khách thấy hợp đồng ACTIVE và unit đang thuê.
+Luồng thay thế
+A1 tại bước 1: đến sai lịch thì Staff kiểm tra khả năng phục vụ; đổi lịch theo quyền hoặc giữ lịch cũ, không tự bỏ qua điều kiện.
+A2 tại bước 4: khách chưa đồng ý tình trạng kho thì giữ hồ sơ chưa bàn giao, ghi vấn đề để Staff/FM xử lý.
+A3 tại bước 6: Staff chưa xác nhận thì hiển thị chờ hoàn tất; customer_confirmed không tự làm contract ACTIVE.
+Ngoại lệ và lỗi
+Mã không thuộc khách, reservation bị hủy/hết hạn hoặc thiếu tiền: không check-in. Lỗi cập nhật: không báo nhận kho thành công cho đến khi giao dịch hoàn tất.
+Điều kiện sau: Thành công: CHECKED_IN, HANDED_OVER, ACTIVE và OCCUPIED được cập nhật đồng thời. Nếu chưa đủ xác nhận, khách chưa được coi là đã nhận kho.
+Yêu cầu và quy tắc: FR-CI-02, FR-CI-03, FR-CI-05. BR04, BR06–BR08.
+Dữ liệu liên quan: reservations, rental_contracts, handover_records, access_credentials, storage_units, unit_status_history.
+Điểm nghiệm thu: Xác nhận của khách không thể sửa staff_confirmed hoặc xác nhận thay người khác; trạng thái chỉ chuyển khi đủ điều kiện.
+15.5  UC05 Quản lý các unit đang thuê
+Actor chính: Storage Customer. Facility Manager xử lý yêu cầu gia hạn hoặc trả; Staff kiểm tra trả.
+Kích hoạt: Khách mở mục Các kho của tôi hoặc chi tiết hợp đồng.
+Điều kiện trước: Customer đăng nhập. Các truy vấn luôn lọc customer_id của phiên; có thể chưa có hợp đồng nào.
+Luồng chính
+1. Hệ thống hiển thị các hợp đồng của khách, facility, unit, kỳ thuê và trạng thái.
+2. Khách chọn contract; hệ thống cung cấp giá đã chốt, cọc, thanh toán, lịch nhận/trả và lịch sử renewal.
+3. Khách chọn hành động được phép theo trạng thái: thanh toán, yêu cầu gia hạn, yêu cầu trả hoặc hỗ trợ.
+4. Với gia hạn, khách nhập số tháng; hệ thống kiểm tra điều kiện, tạo renewal PENDING với ngày/giá đề xuất để FM duyệt trong UC16.
+5. Với trả kho, khách gửi ngày mong muốn và lý do; hệ thống lưu yêu cầu có cấu trúc trong activity_logs của contract để FM tiếp nhận và xếp inspection theo UC16.
+6. Hệ thống hiển thị trạng thái xử lý và các khoản cần hoàn tất; khách có thể quay lại theo dõi.
+Luồng thay thế
+A1 tại bước 1: chưa có contract thì hiển thị danh sách rỗng và đường dẫn đặt chỗ.
+A2 tại bước 3: thanh toán chuyển UC03; hỗ trợ chuyển UC06; hợp đồng đã đóng chỉ cho xem lịch sử và hỗ trợ phù hợp.
+A3 tại bước 4/5: đã có yêu cầu chưa xử lý thì hiển thị yêu cầu cũ, cho hủy yêu cầu chưa duyệt theo chính sách và ghi audit.
+Ngoại lệ và lỗi
+ID contract không thuộc khách: từ chối. Số tháng không hợp lệ hoặc yêu cầu trùng: không tạo thêm. Khách không được sửa trực tiếp end_date, giá hoặc trạng thái ACTIVE.
+Điều kiện sau: Khách xem đúng dữ liệu của mình; các yêu cầu mới được lưu chờ xử lý, chưa tự gia hạn hoặc trả xong kho.
+Yêu cầu và quy tắc: FR-CON-01, FR-CON-02, FR-REN-01. A01, A09, A10; BR05, BR24.
+Dữ liệu liên quan: rental_contracts, payments, contract_renewals, return_inspections, activity_logs.
+Điểm nghiệm thu: Một khách thấy nhiều kho của mình; yêu cầu trả còn chờ duyệt truy vết được mà không cần bảng mới.
+15.6  UC06 Gửi và theo dõi yêu cầu hỗ trợ
+Actor chính: Storage Customer. Facility Manager phân công; Facility Staff xử lý.
+Kích hoạt: Khách chọn Gửi hỗ trợ trong chi tiết hợp đồng.
+Điều kiện trước: Customer đăng nhập; contract thuộc khách, kể cả contract DRAFT khi gặp vấn đề thanh toán. Bản cơ bản áp dụng A07.
+Luồng chính
+1. Khách chọn contract, loại vấn đề, tiêu đề, mô tả và mức ưu tiên.
+2. Hệ thống kiểm tra dữ liệu bắt buộc, giới hạn độ dài và liên kết unit nếu có.
+3. Hệ thống tạo support_ticket OPEN với customer_id của phiên, contract_id và created_at; cơ sở được suy từ unit của contract.
+4. Hệ thống trả ticket_id và đưa ticket vào hàng đợi của FM tại cơ sở.
+5. Khách xem trạng thái phân công/xử lý và kết quả được phép công bố trong lịch sử ticket.
+6. Khi kết quả chưa giải quyết vấn đề, khách gửi phản hồi; FM/Staff xem xét mở lại theo UC11.
+Luồng thay thế
+A1 tại bước 1: vấn đề về tiền chọn PAYMENT, mô tả khoản liên quan; không liên kết tới contract của người khác.
+A2 sau bước 3: khách hủy ticket chưa xử lý theo chính sách, ghi CANCELLED và audit.
+A3 tại bước 6: ticket đã CLOSED thì tạo ticket mới, tham chiếu mã cũ trong mô tả; không xóa lịch sử đã đóng.
+Ngoại lệ và lỗi
+Thiếu tiêu đề/mô tả, contract sai chủ hoặc unit không khớp: từ chối. Lỗi lưu: không thông báo đã tiếp nhận. Không yêu cầu ảnh vì chưa có dữ liệu attachment trong bản cơ bản.
+Điều kiện sau: Ticket hợp lệ tồn tại và định tuyến được theo cơ sở; khách chỉ xem ticket và phần kết quả thuộc quyền mình.
+Yêu cầu và quy tắc: FR-SUP-01, FR-SUP-06. A07; BR05, BR06, BR12, BR13.
+Dữ liệu liên quan: support_tickets, rental_contracts, storage_units, activity_logs.
+Điểm nghiệm thu: Ticket OPEN chưa gán Staff vẫn xuất hiện ở hàng đợi cơ sở; khách không nhìn thấy ticket của người khác.
+15.7  UC07 Xác minh reservation của khách
+Actor chính: Facility Staff. Storage Customer cung cấp thông tin; Facility Manager giải quyết trường hợp không đủ điều kiện.
+Kích hoạt: Staff mở lịch nhận kho và nhập mã reservation.
+Điều kiện trước: Staff ACTIVE, có quyền xác minh và scope tại cơ sở; có handover SCHEDULED và Staff được giao.
+Luồng chính
+1. Staff tìm reservation theo mã hoặc tra từ danh sách khách nhận trong ngày.
+2. Hệ thống kiểm tra reservation thuộc cơ sở và cung cấp thông tin khách, lịch hẹn, assignment, contract và thanh toán.
+3. Staff đối chiếu khách đến nhận với thông tin reservation và contract.
+4. Hệ thống kiểm tra trạng thái chưa hủy/hết hạn/no-show, assignment ACTIVE, contract DRAFT và các khoản trước nhận đã đủ.
+5. Staff xác nhận kết quả; hệ thống ghi verified_at, handover VERIFIED và audit người xác minh.
+6. Hệ thống cho tiếp tục UC08, chưa tự đánh dấu HANDED_OVER.
+Luồng thay thế
+A1 tại bước 1: tìm theo tên trả danh sách trong cơ sở; Staff chọn đúng mã, không xác minh chỉ dựa trên tên trùng.
+A2 tại bước 4: thiếu tiền thì chuyển khách thực hiện UC03, sau đó kiểm tra lại.
+A3 tại bước 5: đã VERIFIED thì hiển thị kết quả và kiểm tra lại điều kiện nếu có thay đổi.
+Ngoại lệ và lỗi
+Không tìm thấy reservation, sai cơ sở, sai khách hoặc assignment không còn hợp lệ: dừng xác minh. Không cho Staff sửa customer_id hoặc bỏ qua kiểm tra thanh toán.
+Điều kiện sau: Hồ sơ có kết quả xác minh hợp lệ hoặc giữ trạng thái trước; contract vẫn DRAFT cho đến bàn giao.
+Yêu cầu và quy tắc: FR-CI-02. BR05–BR07, BR12, BR13.
+Dữ liệu liên quan: reservations, unit_assignments, rental_contracts, payments, handover_records, user_facilities, activity_logs.
+Điểm nghiệm thu: Xác minh sai cơ sở bị chặn ở API; verified_at chỉ ghi khi kiểm tra thành công.
+15.8  UC08 Bàn giao unit và cấp credential
+Actor chính: Facility Staff. Storage Customer xác nhận nhận; Facility Manager xử lý đổi unit trước bàn giao.
+Kích hoạt: Staff chọn Bàn giao trên hồ sơ đã xác minh.
+Điều kiện trước: Handover VERIFIED; Staff được giao có quyền; contract DRAFT, reservation CONFIRMED và kho thực tế sẵn sàng.
+Luồng chính
+1. Staff mở contract, kiểm tra unit và điều kiện bàn giao còn hiệu lực.
+2. Staff ghi initial_condition, notes và các loại credential cần cấp.
+3. Hệ thống tạo/cấp KEY, LOCK, ACCESS_CARD hoặc ACCESS_CODE đúng contract và unit, ghi issued_by/issued_at; mã bí mật chỉ lưu hash.
+4. Khách kiểm tra và xác nhận theo UC04; Staff xác nhận phần của mình.
+5. Trong cùng giao dịch, hệ thống kiểm tra đủ hai xác nhận rồi ghi HANDED_OVER, handover_at, CHECKED_IN, ACTIVE, activated_at và OCCUPIED.
+6. Hệ thống ghi lịch sử trạng thái unit, audit và hiển thị kết quả bàn giao.
+Luồng thay thế
+A1 tại bước 2: kho không đạt thì dừng, ghi vấn đề; FM đổi assignment qua UC14 trước khi xác minh lại.
+A2 tại bước 3: nhiều credential thì lưu nhiều bản ghi; credential cùng loại/serial không được cấp trùng ngoài ý muốn.
+A3 tại bước 4: một bên chưa xác nhận thì giữ hồ sơ chưa hoàn tất; mã đã tạo chưa được coi là bàn giao xong.
+Ngoại lệ và lỗi
+Contract đã ACTIVE/HANDED_OVER: trả kết quả hiện có. Lỗi lưu một bảng: rollback các cập nhật liên quan. Không phát hành thêm credential khi retry cùng lần bàn giao.
+Điều kiện sau: Unit được giao đúng một lần và có credential có hiệu lực; dữ liệu contract/reservation/handover/unit nhất quán.
+Yêu cầu và quy tắc: FR-CI-03..05. BR04, BR06–BR08, BR13.
+Dữ liệu liên quan: handover_records, access_credentials, rental_contracts, reservations, storage_units, unit_status_history, activity_logs.
+Điểm nghiệm thu: Gửi lại yêu cầu không tạo handover hoặc credential trùng; lỗi giữa giao dịch không để contract ACTIVE với unit chưa bàn giao.
+15.9  UC09 Cập nhật trạng thái unit hợp lệ
+Actor chính: Facility Staff. Facility Manager phê duyệt trường hợp ngừng sử dụng hoặc điều chỉnh cần quyền cao hơn.
+Kích hoạt: Bàn giao, nhận trả, kiểm tra hoặc xử lý công việc làm thay đổi tình trạng kho.
+Điều kiện trước: Staff có quyền và scope đúng cơ sở; tồn tại sự kiện nghiệp vụ/bằng chứng tương ứng với trạng thái đích.
+Luồng chính
+1. Staff mở unit từ công việc liên quan và xem trạng thái hiện tại.
+2. Hệ thống hiển thị các chuyển tiếp được phép theo mục 8, không hiển thị tùy chọn tùy ý.
+3. Staff chọn thao tác và nhập lý do hoặc kết quả nghiệp vụ cần thiết.
+4. Hệ thống kiểm tra contract/assignment, bàn giao, inspection, maintenance và phiên bản dữ liệu mới nhất.
+5. Hệ thống cập nhật storage_units.status cùng unit_status_history chứa old_status, new_status, changed_by, reason và changed_at.
+6. Hệ thống cập nhật màn hình và ghi audit; các trạng thái liên quan chỉ thay đổi qua flow nghiệp vụ tương ứng.
+Luồng thay thế
+A1 tại bước 3: chuyển OCCUPIED phải hoàn tất UC08; chuyển AVAILABLE sau trả phải hoàn tất UC10, không thay bằng nút sửa trực tiếp.
+A2 tại bước 3: yêu cầu OUT_OF_SERVICE cần FM xác nhận theo quyền.
+A3 tại bước 4: assignment tương lai tồn tại nhưng khách hiện tại còn thuê thì giữ OCCUPIED và cập nhật lịch, không ghi đè trạng thái vận hành.
+Ngoại lệ và lỗi
+Chuyển tiếp không hợp lệ, dữ liệu đã đổi hoặc thiếu chứng cứ: từ chối và tải lại trạng thái. Không hỗ trợ unit OVERDUE/LOCKED vì ngoài ENUM.
+Điều kiện sau: Mỗi thay đổi thành công có lịch sử; trạng thái unit phù hợp thực tế và không tự giải phóng lịch thuê.
+Yêu cầu và quy tắc: FR-CI-05, FR-CON-03, FR-FAC-06. BR01, BR08–BR13, BR30.
+Dữ liệu liên quan: storage_units, unit_status_history, handover_records, return_inspections, maintenance_requests, activity_logs.
+Điểm nghiệm thu: Không thể chuyển kho đang chứa đồ thành AVAILABLE bằng API sửa trạng thái đơn lẻ.
+15.10  UC10 Kiểm tra và xác nhận tình trạng khi trả kho
+Actor chính: Facility Staff. Storage Customer trả kho; FM phân công và xử lý phí/quyết toán.
+Kích hoạt: Khách tới trả kho hoặc đến lịch inspection được giao.
+Điều kiện trước: Có contract RETURN_PENDING và return_inspections SCHEDULED; Staff được phân công đúng cơ sở.
+Luồng chính
+1. Staff mở inspection, kiểm tra contract, unit và tình trạng ban đầu khi bàn giao.
+2. Staff xác nhận khách đã đưa đồ ra và nhận lại credential; ghi sự kiện nhận trả trong notes/audit, unit vào INSPECTION.
+3. Staff kiểm tra vệ sinh, hư hỏng, khóa và khả năng vận hành; ghi condition_status và damage_description nếu có.
+4. Staff ghi cleaning_required, maintenance_required, damage_fee, cleaning_fee và notes theo chính sách/quyền.
+5. Staff hoàn tất kiểm tra; hệ thống ghi inspected_at và COMPLETED, tạo phí cần thu đúng một lần với căn cứ inspection_id trong audit.
+6. Nếu đạt thì cho unit AVAILABLE khi không còn việc ngăn vận hành; nếu chưa đạt thì MAINTENANCE và tạo công việc. FM quyết toán và đóng contract qua UC16.
+Luồng thay thế
+A1 tại bước 2: khách chưa trả vật lý thì không hoàn tất inspection và không giải phóng unit.
+A2 tại bước 3: cần kiểm tra lại thì tạo lần inspection mới; không xóa kết quả cũ.
+A3 tại bước 6: còn nợ nhưng kho đã đạt thì vẫn có thể cấp lại; contract cũ tiếp tục RETURN_PENDING để thu nợ.
+Ngoại lệ và lỗi
+Thiếu condition_status/inspected_at hoặc phí âm: từ chối hoàn tất. Yêu cầu hoàn tất lặp không tạo phí/maintenance trùng. Staff sai công việc/cơ sở bị chặn.
+Điều kiện sau: Có biên bản kiểm tra và tình trạng vận hành đúng; credential đã thu hồi hoặc có hồ sơ mất/thu hồi tương ứng. Chưa mặc định contract COMPLETED.
+Yêu cầu và quy tắc: FR-CON-02..04. A10; BR09, BR10, BR13, BR15, BR29.
+Dữ liệu liên quan: return_inspections, handover_records, access_credentials, storage_units, unit_status_history, maintenance_requests, payments, activity_logs.
+Điểm nghiệm thu: Kho hỏng không trở lại AVAILABLE; inspection và phí phát sinh có thể truy vết, không bị tính hai lần.
+15.11  UC11 Tiếp nhận và xử lý sự cố tại cơ sở
+Actor chính: Facility Staff. FM phân công/phê duyệt; Customer cung cấp vấn đề và phản hồi.
+Kích hoạt: Staff mở ticket được giao hoặc tiếp nhận một vấn đề tại quầy thuộc contract của khách.
+Điều kiện trước: Ticket có contract và cơ sở xác định; Staff có quyền và được phân công. Vấn đề tiếp nhận tại quầy phải ghi customer_id đúng khách, người nhập thực tế được audit.
+Luồng chính
+1. Staff mở ticket, kiểm tra contract, unit, mô tả gốc và lịch sử xử lý được phép xem.
+2. Staff nhận việc, chuyển ASSIGNED sang IN_PROGRESS.
+3. Staff xác minh vấn đề thực tế và ghi các bước xử lý trong activity_logs của ticket; giữ nguyên description gốc.
+4. Nếu mất khóa/lỗi mã thì thu hồi credential cũ và cấp mới; nếu cần sửa chữa thì tạo maintenance liên kết; phí thu khách qua UC03.
+5. Staff ghi kết quả có thể công bố cho khách, chuyển RESOLVED và ghi resolved_at.
+6. FM kiểm tra kết quả và phản hồi, chuyển CLOSED với closed_at hoặc yêu cầu xử lý tiếp.
+Luồng thay thế
+A1 tại bước 1: ticket chưa được giao thì FM thực hiện UC17 trước khi Staff thao tác.
+A2 tại bước 4: vấn đề vượt khả năng xử lý tại chỗ thì ghi lý do và yêu cầu FM phối hợp, không đánh dấu đã giải quyết.
+A3 tại bước 6: chưa giải quyết thực tế thì RESOLVED → IN_PROGRESS có lý do, giữ lịch sử.
+Ngoại lệ và lỗi
+Credential hoặc unit không thuộc contract: chặn liên kết. Kết quả trống: không RESOLVED. Staff không được đọc audit bí mật hoặc ticket khác cơ sở để xử lý.
+Điều kiện sau: Ticket có tiến độ/kết quả và audit; maintenance, credential hoặc khoản phí phát sinh được liên kết đúng nghiệp vụ.
+Yêu cầu và quy tắc: FR-SUP-02..06. BR05, BR06, BR12, BR13, BR15.
+Dữ liệu liên quan: support_tickets, access_credentials, maintenance_requests, payments, rental_contracts, activity_logs.
+Điểm nghiệm thu: Mất khóa không làm credential cũ tiếp tục có hiệu lực; khách xem được kết quả phù hợp mà không thấy log quản trị.
+15.12  UC12 Theo dõi danh sách công việc trong ngày
+Actor chính: Facility Staff. Facility Manager tạo và phân công công việc.
+Kích hoạt: Staff mở dashboard công việc hoặc chọn ngày.
+Điều kiện trước: Staff ACTIVE và có phân công cơ sở hiệu lực. Công việc có staff_id/assigned_staff_id tương ứng.
+Luồng chính
+1. Hệ thống mặc định ngày hiện tại theo Asia/Ho_Chi_Minh và scope của Staff.
+2. Hệ thống lấy handover và inspection có staff_id phù hợp, lọc scheduled_at theo ngày.
+3. Hệ thống lấy maintenance có assigned_staff_id phù hợp và lịch scheduled_at; hiển thị riêng việc đang tồn.
+4. Hệ thống lấy ticket được giao chưa RESOLVED/CLOSED/CANCELLED; do không có lịch hẹn xử lý riêng, hiển thị thành hàng đợi hỗ trợ.
+5. Staff lọc loại việc/trạng thái, xem khách, unit, giờ hẹn, mức ưu tiên và mã công việc.
+6. Staff mở công việc để xử lý bằng UC07, UC08, UC10 hoặc UC11; danh sách cập nhật sau thao tác.
+Luồng thay thế
+A1 tại bước 1: chọn ngày khác thì chỉ đổi danh sách có lịch; ticket tồn vẫn được ghi rõ là hàng đợi, không gán ngày giả.
+A2 tại bước 5: công việc quá lịch nhưng chưa hoàn tất hiển thị nhóm tồn/quá lịch để không bị bỏ sót.
+A3 tại bước 5: không có việc thì hiển thị danh sách rỗng, không coi là lỗi.
+Ngoại lệ và lỗi
+Scope hết hạn hoặc công việc đã giao lại: chặn thao tác và tải lại danh sách. Lỗi truy vấn một nguồn phải báo danh sách chưa đầy đủ, không âm thầm báo hết việc.
+Điều kiện sau: Staff thấy đúng công việc của mình và các việc cần xử lý; thao tác xem không tạo thêm bản ghi công việc.
+Yêu cầu và quy tắc: FR-FAC-04, FR-FAC-05. A06; BR12, BR13.
+Dữ liệu liên quan: handover_records, return_inspections, support_tickets, maintenance_requests, user_facilities, users.
+Điểm nghiệm thu: Danh sách không lẫn công việc người khác/cơ sở khác; lịch và ticket tồn được phân biệt rõ.
+15.13  UC13 Quản lý unit tại cơ sở
+Actor chính: Facility Manager. BOM quản lý loại kho chung và khung giá; Staff báo tình trạng.
+Kích hoạt: FM mở danh mục unit và chọn thêm, sửa hoặc ngừng sử dụng.
+Điều kiện trước: FM ACTIVE và có scope tại cơ sở; loại kho tồn tại. Tạo giá cần khung giá/policy hiệu lực.
+Luồng chính
+1. Hệ thống hiển thị unit thuộc cơ sở với loại, kích thước, vị trí, giá áp dụng và trạng thái.
+2. FM thêm unit bằng unit_number, unit_type_id, floor, zone và location_description.
+3. Hệ thống kiểm tra mã duy nhất trong cơ sở, loại hợp lệ và dữ liệu vị trí.
+4. FM thiết lập/cập nhật giá theo facility + unit_type qua rental_rates, trong khung BOM quy định.
+5. Hệ thống lưu thay đổi và audit; khi cần bảo trì FM tạo maintenance_request, lịch và phân công theo UC17.
+6. FM xem lại danh mục và các lịch thuê liên quan để đảm bảo trạng thái công bố phù hợp.
+Luồng thay thế
+A1 tại bước 2: sửa unit hiện có thì cho cập nhật mô tả/vị trí hợp lệ; không đổi cơ sở/loại nếu có lịch sử thuê hoặc quyền giữ đang tồn tại.
+A2 tại bước 5: ngừng sử dụng unit chưa bị chiếm thì chuyển OUT_OF_SERVICE có lý do; nếu còn lịch thuê phải xử lý lịch trước.
+A3 tại bước 2: cần loại/kích thước mới thì BOM tạo unit_type mới; FM không sửa loại dùng chung làm đổi dữ liệu cơ sở khác.
+Ngoại lệ và lỗi
+Mã trùng, loại không hoạt động, giá ngoài khung, FK hoặc scope sai: từ chối. Xóa unit có tham chiếu bị chặn; dùng trạng thái ngừng hoạt động.
+Điều kiện sau: Unit, giá và trạng thái được cập nhật trong đúng cơ sở; giữ lịch sử và không phá assignment/contract hiện hữu.
+Yêu cầu và quy tắc: FR-FAC-02, FR-FAC-03, FR-FAC-06, FR-BIZ-03. A08; BR02, BR10, BR12–BR14, BR19, BR30.
+Dữ liệu liên quan: storage_units, unit_types, rental_rates, policies, maintenance_requests, unit_status_history, activity_logs.
+Điểm nghiệm thu: Không có hai mã unit trùng trong một facility; thay giá công bố không sửa giá contract cũ.
+15.14  UC14 Phân bổ unit cho reservation
+Actor chính: Facility Manager. Customer nhận kết quả; Staff dùng assignment khi bàn giao.
+Kích hoạt: FM chọn reservation đang chờ phân bổ.
+Điều kiện trước: FM đúng cơ sở; reservation còn giữ chỗ, chưa CHECKED_IN/CANCELLED/EXPIRED/NO_SHOW; khách và loại kho hợp lệ.
+Luồng chính
+1. FM mở reservation, xem facility, unit_type, khoảng thuê và các thông tin giá đã báo.
+2. Hệ thống liệt kê unit có thể cấp liên tục trong kỳ, xét cả các giữ chỗ chưa gán còn lại.
+3. FM chọn unit; máy chủ khóa/kiểm tra lại reservation và quyền sử dụng của unit.
+4. Hệ thống tạo unit_assignments ACTIVE với assigned_by/assigned_at, bảo đảm một ACTIVE trên reservation.
+5. Hệ thống tạo rental_contracts DRAFT nếu chưa có, với reservation_id UNIQUE, customer và unit đúng; lưu giá/cọc đã chốt.
+6. Hệ thống chuyển reservation UNIT_ASSIGNED, tạo payment PENDING cần thu, ghi audit và trả kết quả chờ thanh toán.
+Luồng thay thế
+A1 tại bước 2: không có unit phù hợp thì chưa gán; FM liên hệ xử lý lựa chọn/hủy theo chính sách.
+A2 khi đổi trước bàn giao: bản assignment cũ REPLACED có unassigned_at/lý do; tạo bản mới và đồng bộ contract.unit_id, không tạo contract thứ hai.
+A3 sau đổi assignment của reservation đã CONFIRMED: giữ CONFIRMED nếu điều kiện giá/tiền không đổi; nếu thay điều kiện cần xử lý lại và có xác nhận khách.
+Ngoại lệ và lỗi
+Hai Manager gán cùng kho trùng kỳ: một giao dịch thất bại, tải lại lựa chọn. Lỗi tạo contract/payment: rollback phần gán. Không cho đổi kho qua UC này sau bàn giao.
+Điều kiện sau: Có assignment duy nhất hiện hành và contract nháp tương ứng; giữ chỗ không bị tính hai lần.
+Yêu cầu và quy tắc: FR-RES-04, FR-RES-05. BR01–BR06, BR13, BR16–BR18.
+Dữ liệu liên quan: reservations, unit_assignments, rental_contracts, payments, storage_units, activity_logs.
+Điểm nghiệm thu: Đổi kho giữ lịch sử; contract.customer_id/unit_id luôn khớp reservation/assignment; không tạo thêm contract.
+15.15  UC15 Theo dõi khách thuê hợp đồng và thanh toán
+Actor chính: Facility Manager. Không có actor hỗ trợ bắt buộc.
+Kích hoạt: FM mở danh sách khách thuê hoặc hợp đồng tại cơ sở.
+Điều kiện trước: FM có quyền đọc hợp đồng trong scope hiện tại; dữ liệu thuê và thanh toán đã được ghi nhận.
+Luồng chính
+1. Hệ thống lấy contract theo unit thuộc cơ sở của FM, kèm thông tin khách cần cho vận hành.
+2. FM lọc theo khách, unit, trạng thái hợp đồng, thời gian thuê hoặc tình trạng thanh toán.
+3. Hệ thống hiển thị ngày bắt đầu/kết thúc, trạng thái vận hành, giá đã chốt, cọc và công nợ theo mục 10.
+4. FM mở contract để xem reservation, assignment, handover, payments, renewals, inspections và overdue_cases.
+5. Hệ thống phân biệt nợ thanh toán với hết hạn chưa trả; chỉ rõ khoản phí và due_date liên quan.
+6. FM chuyển sang thao tác được phép như phân công, duyệt gia hạn/trả hoặc xử lý quá hạn trong UC16/UC17.
+Luồng thay thế
+A1 tại bước 2: lọc không có kết quả thì trả danh sách rỗng và giữ bộ lọc.
+A2 tại bước 4: contract DRAFT cho xem tiến độ gán/thu/nhận; contract đã đóng hiển thị lịch sử chỉ đọc.
+A3 tại bước 5: kho đã trả nhưng còn nợ thì thể hiện rõ hai trạng thái, không suy kho đang bị chiếm từ RETURN_PENDING một mình.
+Ngoại lệ và lỗi
+ID contract thuộc cơ sở khác: từ chối ở API. Dữ liệu vừa thay đổi phải tải lại trước thao tác duyệt; không sử dụng số tiền cũ trên màn hình để ghi đè.
+Điều kiện sau: FM có thông tin đúng phạm vi để ra quyết định; thao tác xem không làm đổi hợp đồng hoặc payment.
+Yêu cầu và quy tắc: FR-CON-01, FR-OVD-01, FR-BIZ-05. A10; BR05, BR12, BR14, BR26.
+Dữ liệu liên quan: users, rental_contracts, payments, reservations, unit_assignments, handover_records, contract_renewals, return_inspections, overdue_cases.
+Điểm nghiệm thu: Công nợ không cộng payments và outstanding_amount hai lần; tài khoản FM không đọc chéo cơ sở.
+15.16  UC16 Quản lý bàn giao trả kho gia hạn và quá hạn
+Actor chính: Facility Manager. Customer gửi yêu cầu; Staff thực hiện bàn giao, kiểm tra và liên hệ.
+Kích hoạt: FM mở contract hoặc hàng đợi yêu cầu cần xử lý.
+Điều kiện trước: FM đúng scope; contract và hồ sơ liên quan tồn tại. Từng nhánh phải đáp ứng điều kiện trạng thái riêng.
+Luồng chính
+1. FM chọn contract và loại xử lý: bàn giao, gia hạn, trả kho hoặc quá hạn; hệ thống tải dữ liệu mới nhất.
+2. Nhánh bàn giao: FM kiểm tra DRAFT, assignment và tiền; tạo/cập nhật handover SCHEDULED rồi phân công Staff. UC07/UC08 thực hiện xác minh và giao kho.
+3. Nhánh gia hạn: FM kiểm tra renewal PENDING, ngày mới, giá, công nợ và xung đột lịch; duyệt APPROVED, tạo khoản RENEWAL và hạn giữ; chỉ sau UC03 mới cập nhật end_date.
+4. Nhánh trả: FM đọc yêu cầu trả trong audit, kiểm tra chính sách, duyệt RETURN_PENDING và tạo inspection có lịch/Staff; sau UC10 xử lý cọc/nợ và COMPLETED.
+5. Nhánh quá hạn: FM mở case PAYMENT/RETURN, nhập hướng xử lý, grace_deadline và người liên hệ; chuyển trạng thái theo tiến độ, ghi phí hợp lệ.
+6. FM lưu quyết định/lý do; hệ thống ghi audit và cập nhật kết quả cho các bên liên quan.
+Luồng thay thế
+A1 tại bước 3: trùng lịch hoặc không đủ điều kiện thì REJECTED; không kéo dài hợp đồng. Hết hạn thanh toán approval thì CANCELLED và giải phóng đoạn giữ.
+A2 tại bước 4: inspection chưa đạt thì chuyển bảo trì; còn nợ thì chưa COMPLETED, nhưng kho đã trả/đạt có thể cấp lại.
+A3 tại bước 5: chỉ RESOLVED khi nguyên nhân đã hết; khách trả tiền nhưng chưa trả kho/gia hạn hợp lệ không đóng case RETURN.
+Ngoại lệ và lỗi
+Gửi duyệt lặp không tạo thêm payment/inspection/handover. Quyền/scope hoặc trạng thái đã đổi: từ chối. Không tự khóa unit bằng trạng thái ngoài ENUM hoặc tự thanh lý tài sản.
+Điều kiện sau: Mỗi nhánh có quyết định và hồ sơ đúng; thuê, tiền và kho không bị cập nhật mâu thuẫn.
+Yêu cầu và quy tắc: FR-CI-01, FR-CON-02..04, FR-REN-01..04, FR-OVD-01..03. A09, A10; BR07–BR15, BR24–BR30.
+Dữ liệu liên quan: rental_contracts, handover_records, contract_renewals, payments, return_inspections, overdue_cases, activity_logs.
+Điểm nghiệm thu: Gia hạn chỉ có hiệu lực sau thu đủ; hoàn tất trả không bỏ qua inspection hoặc công nợ; từng nhánh có log quyết định.
+15.17  UC17 Phân công nhân viên thực hiện công việc
+Actor chính: Facility Manager. Facility Staff nhận việc; SA quản lý role và phạm vi cơ sở.
+Kích hoạt: FM chọn Phân công trên handover, inspection, ticket hoặc maintenance.
+Điều kiện trước: FM đúng cơ sở; công việc tồn tại và chưa hoàn tất; Staff có tài khoản ACTIVE, role/quyền phù hợp và phân công cơ sở còn hiệu lực.
+Luồng chính
+1. FM chọn loại và mã công việc, xem yêu cầu, unit, contract và lịch dự kiến.
+2. Hệ thống suy cơ sở từ nguồn công việc và liệt kê Staff hợp lệ tại cơ sở.
+3. FM chọn Staff, nhập scheduled_at cho công việc có lịch và kiểm tra các việc cùng giờ của nhân viên.
+4. Hệ thống ghi staff_id cho handover/inspection hoặc assigned_staff_id cho ticket/maintenance; ticket ghi assigned_at và ASSIGNED.
+5. Hệ thống ghi người phân công, người nhận trước/sau, thời điểm và lý do trong activity_logs.
+6. Công việc xuất hiện trong danh sách UC12 của Staff và bảng theo dõi của FM.
+Luồng thay thế
+A1 tại bước 3: giao lại công việc thì giữ lịch sử người cũ trong audit, yêu cầu lý do; người cũ không tiếp tục thao tác dưới quyền người được giao.
+A2 tại bước 3: chưa có Staff phù hợp thì ticket/maintenance có thể giữ chưa gán; handover/inspection có staff_id NOT NULL nên chỉ tạo hồ sơ khi chọn được Staff.
+A3 tại bước 3: ticket không có scheduled_at trong schema thì chỉ giao người và ưu tiên, không giả lập lịch hẹn.
+Ngoại lệ và lỗi
+Staff khác cơ sở, hết hiệu lực hoặc không có quyền: từ chối. Công việc đã đóng: không ghi đè phân công; cần mở việc phù hợp theo nghiệp vụ.
+Điều kiện sau: Công việc có đúng người phụ trách và audit; không làm thay role hoặc user_facilities của nhân viên.
+Yêu cầu và quy tắc: FR-FAC-04, FR-FAC-05, FR-CI-01, FR-SUP-02. A06; BR12, BR13.
+Dữ liệu liên quan: users, user_roles, role_permissions, user_facilities, handover_records, return_inspections, support_tickets, maintenance_requests, activity_logs.
+Điểm nghiệm thu: Giao việc không đồng nghĩa cấp quyền; Staff sai scope không thể được chọn hoặc cập nhật bằng API.
+15.18  UC18 Xem báo cáo cơ sở
+Actor chính: Facility Manager. Không có actor hỗ trợ bắt buộc.
+Kích hoạt: FM mở mục Báo cáo của cơ sở.
+Điều kiện trước: FM có quyền REPORT_FACILITY hoặc permission tương đương; scope cơ sở hiệu lực.
+Luồng chính
+1. Hệ thống xác định facility từ scope của FM; không dùng facility tùy ý từ giao diện.
+2. FM chọn khoảng thời gian thu tiền, loại kho và trạng thái thuê cần phân tích.
+3. Hệ thống tổng hợp tiền thu, tiền hoàn, doanh thu thuê/phí theo tiền thu và cọc riêng theo mục 10.
+4. Hệ thống tổng hợp unit đang sử dụng, unit đang trống/kiểm tra/bảo trì, tỷ lệ sử dụng hiện tại và các case quá hạn.
+5. Hệ thống hiển thị chỉ tiêu, thời điểm chụp trạng thái, đơn vị và bộ lọc; cho mở danh sách nguồn trong cùng cơ sở.
+6. FM điều chỉnh bộ lọc hoặc chuyển sang quản lý hợp đồng/quá hạn liên quan.
+Luồng thay thế
+A1 tại bước 4: mẫu số khả dụng bằng 0 thì tỷ lệ hiển thị Không áp dụng, không chia cho 0.
+A2 tại bước 3: không có giao dịch thì các tổng bằng 0; danh sách vẫn giữ cấu trúc.
+A3 tại bước 4: khách cần xem khả dụng cho một kỳ thì dùng kiểm tra lịch, không lấy tỷ lệ hiện tại làm kết quả kỳ tương lai.
+Ngoại lệ và lỗi
+Khoảng thời gian sai: báo lỗi. Sai quyền hoặc truy vấn nguồn cơ sở khác: từ chối. Truy vấn lỗi không hiển thị số liệu cũ như kết quả mới.
+Điều kiện sau: Có báo cáo đúng cơ sở và định nghĩa; không sửa nguồn dữ liệu.
+Yêu cầu và quy tắc: FR-BIZ-05. BR12, BR14; mục 10.2.
+Dữ liệu liên quan: payments, rental_contracts, storage_units, facilities, unit_types, overdue_cases, activity_logs.
+Điểm nghiệm thu: Cọc không được cộng vào doanh thu thuê; danh sách drill-down luôn giới hạn cơ sở của FM.
+15.19  UC19 Quản lý danh sách cơ sở toàn hệ thống
+Actor chính: Business Operations Manager. System Administrator phân công nhân sự sau khi cơ sở được tạo.
+Kích hoạt: BOM mở danh mục cơ sở và chọn thêm, sửa hoặc ngừng nhận mới.
+Điều kiện trước: BOM đăng nhập, ACTIVE và có quyền quản lý facility toàn hệ thống.
+Luồng chính
+1. Hệ thống hiển thị các facility với tên, địa chỉ, liên hệ, giờ hoạt động và trạng thái.
+2. BOM nhập/cập nhật name, address, contact_phone, opening_time và closing_time.
+3. Hệ thống kiểm tra trường bắt buộc, định dạng và giờ hoạt động hợp lệ.
+4. BOM chọn trạng thái ACTIVE, INACTIVE hoặc TEMPORARILY_CLOSED và xác nhận.
+5. Hệ thống lưu facility, thời điểm và audit; chỉ cơ sở cho phép kinh doanh mới nhận reservation mới.
+6. BOM xem lại cơ sở; SA thực hiện quyền/phân công ở UC26, FM quản lý unit ở UC13.
+Luồng thay thế
+A1 tại bước 4: tạm đóng cơ sở thì chặn đặt mới, vẫn cho xử lý hợp đồng, trả kho và ticket hiện hữu.
+A2 tại bước 4: mở lại thì kiểm tra cấu hình giá/unit và nhân sự; unit vẫn giữ trạng thái vận hành riêng.
+A3 tại bước 2: tên gần giống cơ sở cũ thì cảnh báo để BOM kiểm tra; không tự coi tên là khóa duy nhất khi Dictionary không quy định.
+Ngoại lệ và lỗi
+Thiếu tên/địa chỉ, giờ không hợp lệ hoặc không có quyền: từ chối lưu. Xóa cơ sở có unit/contract/tham chiếu bị chặn; chọn ngừng hoạt động.
+Điều kiện sau: Danh mục cơ sở cập nhật và có lịch sử; các hợp đồng hiện hữu không bị mất do thay trạng thái facility.
+Yêu cầu và quy tắc: FR-FAC-01. BR12, BR13; mục 9.2.
+Dữ liệu liên quan: facilities, storage_units, reservations, rental_contracts, activity_logs.
+Điểm nghiệm thu: Tạm đóng chặn đặt mới nhưng không chặn quy trình trả hoặc hỗ trợ khách đang thuê.
+15.20  UC20 Thiết lập chính sách thuê chung
+Actor chính: Business Operations Manager. Facility Manager áp dụng và xử lý các quy tắc cần đánh giá thủ công.
+Kích hoạt: BOM tạo hoặc thay phiên bản chính sách cọc, gia hạn, hủy, trả hoặc quá hạn.
+Điều kiện trước: BOM có quyền quản lý policies; đã xác định loại, phạm vi và khoảng hiệu lực.
+Luồng chính
+1. BOM chọn policy_type DEPOSIT, RENEWAL, CANCELLATION, RETURN hoặc OVERDUE.
+2. BOM xác định scope toàn hệ thống hoặc facility/unit_type cụ thể; NULL dùng cho phạm vi chung.
+3. BOM nhập tên, calculation_type, giá trị cần thiết, rule_description và ngày hiệu lực.
+4. Hệ thống kiểm tra kiểu tính, miền giá trị, khoảng ngày và xung đột policy cùng mức ưu tiên.
+5. BOM xem lại nội dung, lưu DRAFT hoặc kích hoạt ACTIVE; hệ thống ghi created_by, timestamps và audit.
+6. Các nghiệp vụ sau đó tìm policy theo BR20, lưu căn cứ và kết quả khi áp dụng; chính sách cũ đã áp dụng không bị sửa âm thầm.
+Luồng thay thế
+A1 tại bước 3: RULE chỉ là hướng dẫn cho người có quyền, không được tự thực thi thành công thức.
+A2 tại bước 5: thay chính sách đang dùng thì kết thúc hiệu lực bản cũ và tạo bản mới phù hợp, giữ lịch sử.
+A3 tại bước 5: thiếu tham số/cơ sở tính thì giữ DRAFT, chưa áp dụng.
+Ngoại lệ và lỗi
+Phần trăm ngoài [0,100], min > max hoặc ngày không hợp lệ: từ chối. Chính sách xung đột cùng mức ưu tiên không được kích hoạt.
+Điều kiện sau: Có chính sách hợp lệ và truy vết được; không làm thay đổi tiền hoặc giá đã chốt của các giao dịch trước.
+Yêu cầu và quy tắc: FR-BIZ-01, FR-BIZ-02, FR-BIZ-04. BR13, BR14, BR20–BR23.
+Dữ liệu liên quan: policies, facilities, unit_types, activity_logs.
+Điểm nghiệm thu: Policy global có scope NULL; thay policy không sửa ngược hợp đồng; RULE không được coi là biểu thức có thể chạy.
+15.21  UC21 Quản lý khung giá phí giảm giá và miễn phí
+Actor chính: Business Operations Manager. Facility Manager nhập giá cụ thể tại cơ sở và áp dụng phí theo quyền.
+Kích hoạt: BOM mở nhóm chính sách giá và phí.
+Điều kiện trước: BOM có quyền; cơ sở/loại áp dụng tồn tại; đã xác định cơ sở tính và điều kiện áp dụng.
+Luồng chính
+1. BOM chọn PRICE_RANGE, EXTRA_FEE, OVERDUE, DISCOUNT hoặc FEE_WAIVER trong policies.
+2. BOM nhập phạm vi, thời gian, cách tính, min/max hoặc value và mô tả điều kiện.
+3. Hệ thống kiểm tra giá trị không âm, miền phần trăm, min ≤ max và quy tắc ưu tiên.
+4. BOM lưu/kích hoạt chính sách; hệ thống ghi audit.
+5. FM nhập rental_rates trong khung tương ứng; hệ thống từ chối mức ngoài khung hoặc thời gian giá chồng nhau.
+6. Khi lập khoản thu, hệ thống/người có quyền áp dụng giảm/miễn đúng điều kiện, lưu số tiền trước/sau và policy trong audit.
+Luồng thay thế
+A1 tại bước 1: phí không có payment_type riêng thì dùng EXTRA_FEE và căn cứ chi tiết trong audit; không thêm ENUM tùy ý.
+A2 tại bước 6: miễn phí có hiệu lực thì khoản chưa thu về 0, không ghi là tiền đã nhận.
+A3 tại bước 6: nhiều giảm giá cùng loại không cộng dồn; lựa chọn theo BR20/BR22, không chọn ngẫu nhiên.
+Ngoại lệ và lỗi
+Khung giá xung đột, dữ liệu sai hoặc áp dụng giảm cho khoản đã thu: chặn; tiền đã thu xử lý hoàn theo quy trình. Không cho FM sửa policy global nếu không có quyền BOM.
+Điều kiện sau: Khung và phí có hiệu lực rõ; giá cụ thể nằm trong khung, khoản áp dụng có thể truy vết.
+Yêu cầu và quy tắc: FR-BIZ-01..04. BR13, BR14, BR19–BR23, BR25, BR29.
+Dữ liệu liên quan: policies, rental_rates, payments, reservations, rental_contracts, contract_renewals, activity_logs.
+Điểm nghiệm thu: Giá ngoài khung bị từ chối; giá trị giảm không làm số tiền âm; khoản miễn không tăng doanh thu.
+15.22  UC22 Giám sát doanh thu và hiệu suất từng cơ sở
+Actor chính: Business Operations Manager. Không có actor hỗ trợ bắt buộc.
+Kích hoạt: BOM mở dashboard vận hành toàn hệ thống.
+Điều kiện trước: BOM ACTIVE, có quyền xem báo cáo toàn hệ thống. Định nghĩa chỉ tiêu theo mục 10.
+Luồng chính
+1. BOM chọn kỳ tiền thu, cơ sở hoặc tất cả cơ sở, loại kho và trạng thái thuê.
+2. Hệ thống tổng hợp chỉ tiêu tiền thu, tiền hoàn, doanh thu thuê/phí và tiền cọc tách biệt.
+3. Hệ thống tổng hợp số unit đang sử dụng, khả năng khai thác hiện tại, tỷ lệ sử dụng và số case quá hạn theo facility.
+4. Hệ thống hiển thị so sánh giữa các cơ sở và ghi rõ thời điểm chụp trạng thái kho.
+5. BOM mở chi tiết một cơ sở để xem nguồn tạo chỉ tiêu và các hợp đồng/quá hạn liên quan.
+6. BOM đổi bộ lọc hoặc chuyển sang UC23 để xuất kết quả.
+Luồng thay thế
+A1 tại bước 3: cơ sở không có unit khai thác thì tỷ lệ Không áp dụng; tiền thu vẫn có thể tồn tại trong kỳ lịch sử.
+A2 tại bước 4: một contract có nhiều overdue_case thì số case và số contract quá hạn được trình bày thành hai chỉ tiêu.
+A3 tại bước 4: tỷ lệ sử dụng lịch sử chưa có mô hình sự kiện đầy đủ thì chỉ báo tỷ lệ hiện tại, không giả lập số liệu quá khứ.
+Ngoại lệ và lỗi
+Bộ lọc ngày sai hoặc truy vấn thất bại: thông báo cụ thể. Không cộng số dư cọc vào doanh thu thuê và không cộng cả công nợ từ payments lẫn overdue_cases.
+Điều kiện sau: BOM có dữ liệu so sánh đúng định nghĩa; không thay đổi giao dịch hoặc trạng thái vận hành.
+Yêu cầu và quy tắc: FR-BIZ-05. BR14, BR26; mục 10.2.
+Dữ liệu liên quan: facilities, storage_units, unit_types, rental_contracts, payments, overdue_cases, activity_logs.
+Điểm nghiệm thu: Tổng toàn hệ thống bằng tổng các cơ sở trong cùng bộ lọc; trạng thái hiện tại không bị gắn nhãn là lịch sử.
+15.23  UC23 Xem và xuất báo cáo toàn hệ thống
+Actor chính: Business Operations Manager. Không có actor hỗ trợ bắt buộc.
+Kích hoạt: BOM chọn Xem báo cáo hoặc Xuất CSV.
+Điều kiện trước: BOM có quyền REPORT_SYSTEM và xuất báo cáo; bộ lọc hợp lệ.
+Luồng chính
+1. BOM chọn cơ sở, loại kho, khoảng thời gian, trạng thái thuê và nhóm chỉ tiêu cần xem.
+2. Hệ thống kiểm tra quyền và bộ lọc, tính báo cáo theo mục 10 và hiển thị dữ liệu.
+3. BOM kiểm tra kết quả rồi chọn xuất.
+4. Hệ thống dùng cùng bộ lọc và mốc dữ liệu của kết quả xem để tạo CSV UTF-8 có tiêu đề cột, đơn vị và thời điểm xuất.
+5. Hệ thống xử lý giá trị văn bản an toàn khi mở bằng ứng dụng bảng tính; không xuất dữ liệu ngoài quyền hoặc thông tin bí mật.
+6. Hệ thống cung cấp tệp tải xuống và ghi audit xuất báo cáo.
+Luồng thay thế
+A1 tại bước 2: không có dữ liệu thì hiển thị 0/danh sách rỗng; CSV vẫn có tiêu đề và mô tả bộ lọc.
+A2 tại bước 4: dữ liệu đã thay đổi từ lần xem thì hệ thống chụp lại dữ liệu nhất quán và thông báo mốc mới, không lặng lẽ xuất khác số liệu đã hiển thị.
+A3 tại bước 3: người dùng hủy xuất thì không tạo tác động vào nguồn nghiệp vụ.
+Ngoại lệ và lỗi
+Quyền bị thu hồi, truy vấn lỗi hoặc tạo tệp thất bại: không báo xuất thành công. Không ghi tệp kết quả rỗng như báo cáo hợp lệ khi nguồn bị lỗi.
+Điều kiện sau: Tệp và kết quả xem khớp cùng bộ lọc/mốc dữ liệu; có lịch sử người xuất và thời điểm.
+Yêu cầu và quy tắc: FR-BIZ-05, FR-BIZ-06. BR12, BR13; mục 10.2.
+Dữ liệu liên quan: payments, rental_contracts, facilities, storage_units, unit_types, overdue_cases, activity_logs.
+Điểm nghiệm thu: CSV giữ tiếng Việt, tiêu đề/đơn vị rõ; báo cáo không chứa password_hash, secret_hash hoặc thông tin xác thực.
+15.24  UC24 Quản lý tài khoản người dùng
+Actor chính: System Administrator. Người dùng nhận tài khoản hoặc cập nhật trạng thái theo quy trình của nhóm.
+Kích hoạt: SA mở danh sách người dùng và chọn tạo, sửa hoặc ngừng tài khoản.
+Điều kiện trước: SA ACTIVE có quyền USER_MANAGE. Không được làm mất tài khoản quản trị hoạt động cuối cùng.
+Luồng chính
+1. SA tìm tài khoản theo username, họ tên, email hoặc trạng thái.
+2. SA tạo tài khoản bằng username, full_name, email, phone nếu có và mật khẩu ban đầu theo quy trình bàn giao an toàn.
+3. Hệ thống kiểm tra trường bắt buộc và tính duy nhất, hash mật khẩu trước lưu.
+4. SA cập nhật thông tin hoặc status ACTIVE/INACTIVE/LOCKED/SUSPENDED theo nhu cầu.
+5. Hệ thống lưu created_at/updated_at, audit thay đổi đã loại bỏ mật khẩu và dữ liệu bí mật.
+6. SA thực hiện gán role ở UC25 và facility scope ở UC26 nếu cần; tài khoản chưa có quyền không được truy cập chức năng nghiệp vụ.
+Luồng thay thế
+A1 tại bước 1: sửa tài khoản hiện có chỉ thay trường được phép; không hiển thị hash mật khẩu.
+A2 tại bước 4: khóa/ngừng tài khoản có lịch sử thuê vẫn giữ các liên kết dữ liệu, các yêu cầu tiếp theo bị kiểm tra trạng thái mới.
+A3 tại bước 2: Customer tự đăng ký theo FR-UM-01 chỉ được role CUSTOMER, không dùng quyền SA.
+Ngoại lệ và lỗi
+Username/email trùng, dữ liệu sai, thiếu quyền: từ chối. Xóa user đã có tham chiếu bị chặn. Không tự mở khóa/gán quyền qua trường cập nhật hồ sơ thông thường.
+Điều kiện sau: Tài khoản được tạo/cập nhật có audit; thông tin xác thực không bị lộ và dữ liệu lịch sử được giữ.
+Yêu cầu và quy tắc: FR-UM-01..03, FR-UM-09. BR12, BR13; mục 9.2.
+Dữ liệu liên quan: users, user_roles, login_history, activity_logs.
+Điểm nghiệm thu: Email/username duy nhất; không trả password_hash qua API; khóa tài khoản có hiệu lực ở lần truy cập tiếp theo.
+15.25  UC25 Gán và thu hồi vai trò
+Actor chính: System Administrator. Người dùng được thay đổi role.
+Kích hoạt: SA mở phân quyền vai trò của một tài khoản.
+Điều kiện trước: SA có quyền gán role; user tồn tại; role thuộc danh mục hệ thống.
+Luồng chính
+1. SA chọn user và xem các role đang được gán.
+2. SA chọn role CUSTOMER, FACILITY_STAFF, FACILITY_MANAGER, BUSINESS_OPS_MANAGER hoặc SYSTEM_ADMIN để thêm/thu hồi.
+3. Hệ thống kiểm tra quyền người thao tác, role hợp lệ, tính duy nhất cặp user_id + role_id và quy tắc bảo vệ admin cuối cùng.
+4. Nếu thêm, hệ thống tạo user_roles với assigned_by và assigned_at; nếu thu hồi, ghi audit đầy đủ trước khi cập nhật liên kết.
+5. Hệ thống ghi log quyết định và áp dụng tập quyền mới ở lần truy cập tiếp theo.
+6. Nếu role cần cơ sở, SA kiểm tra UC26; chỉ có role mà chưa có scope không được thao tác dữ liệu cơ sở.
+Luồng thay thế
+A1 tại bước 2: role đã tồn tại thì trả trạng thái hiện có, không tạo cặp trùng.
+A2 tại bước 2: user có nhiều role hợp lệ thì quyền theo role_permissions được kết hợp trong giới hạn A06 và scope.
+A3 sau thu hồi role Staff/Manager: các công việc chưa xong phải giao lại; không cho user tiếp tục vì còn tên trên công việc.
+Ngoại lệ và lỗi
+Role không tồn tại, SA không đủ quyền hoặc thao tác làm mất admin hoạt động cuối cùng: từ chối. Lỗi lưu audit/role trong giao dịch: rollback.
+Điều kiện sau: Tập role và audit nhất quán; role bị thu hồi không còn tạo quyền trên API.
+Yêu cầu và quy tắc: FR-UM-04, FR-UM-07, FR-UM-09. A06; BR12, BR13.
+Dữ liệu liên quan: users, roles, user_roles, role_permissions, user_facilities, activity_logs.
+Điểm nghiệm thu: Thu hồi role trong khi người dùng đang đăng nhập vẫn chặn request tiếp theo; không có user_roles trùng.
+15.26  UC26 Cấu hình quyền và phạm vi cơ sở
+Actor chính: System Administrator. FM/FS nhận phạm vi làm việc; BOM chịu trách nhiệm danh mục cơ sở.
+Kích hoạt: SA cấu hình quyền cho role hoặc phân công facility cho user.
+Điều kiện trước: SA có quyền quản trị permission/scope; role, permission, user và facility liên quan tồn tại.
+Luồng chính
+1. SA chọn cấu hình role_permissions hoặc user_facilities.
+2. Với quyền: SA chọn role, thêm/thu permission từ danh mục; hệ thống kiểm tra cặp role_id + permission_id duy nhất.
+3. Với scope: SA chọn Staff/Manager, facility, assigned_from và assigned_to nếu có; kiểm tra ngày và một phân công hiệu lực ACTIVE theo A06.
+4. Hệ thống lưu role_permissions hoặc user_facilities, người phân công và thời điểm; audit giá trị trước/sau.
+5. Backend áp dụng quyền chi tiết cùng scope ở các request tiếp theo, không chỉ ẩn nút trên giao diện.
+6. SA xem lại cấu hình; việc chuyển cơ sở yêu cầu kết thúc phân công cũ và giao lại công việc còn tồn.
+Luồng thay thế
+A1 tại bước 3: lập phân công tương lai thì không tạo quyền trước assigned_from.
+A2 tại bước 3: kết thúc/tạm dừng phân công chuyển ENDED/SUSPENDED, giữ bản lịch sử.
+A3 tại bước 2: thay permission của role tác động mọi user có role đó; hệ thống hiển thị phạm vi ảnh hưởng trước xác nhận.
+Ngoại lệ và lỗi
+Ngày kết thúc trước bắt đầu, phân công ACTIVE chồng nhau, user sai role hoặc permission không tồn tại: từ chối. Scope không được tự cấp bởi Staff qua API nhiệm vụ.
+Điều kiện sau: Quyền và phạm vi hiện hành rõ ràng, lịch sử phân công được giữ; dữ liệu cơ sở khác không truy cập được.
+Yêu cầu và quy tắc: FR-UM-05..07, FR-UM-09. A06; BR12, BR13.
+Dữ liệu liên quan: permissions, roles, role_permissions, users, user_roles, user_facilities, facilities, activity_logs.
+Điểm nghiệm thu: Phân công chưa hiệu lực/hết hạn không tạo quyền; backend chặn truy cập chéo cơ sở dù người dùng sửa URL.
+15.27  UC27 Theo dõi lịch sử đăng nhập và hoạt động
+Actor chính: System Administrator. Không có actor hỗ trợ bắt buộc.
+Kích hoạt: SA mở trang Login history hoặc Activity logs.
+Điều kiện trước: SA có quyền đọc log. Sự kiện được các chức năng ghi theo FR-UM-02/09.
+Luồng chính
+1. SA chọn loại log và khoảng thời gian cần xem.
+2. SA lọc theo user, trạng thái đăng nhập hoặc action, entity_type/entity_id tùy loại log.
+3. Hệ thống truy vấn có phân trang và trả người thực hiện, thời điểm, IP, thiết bị hoặc giá trị thay đổi được phép hiển thị.
+4. SA mở chi tiết để xem sự kiện trước/sau và đối tượng nghiệp vụ liên quan trong phạm vi quyền quản trị.
+5. Hệ thống giữ log chỉ đọc ở giao diện; dữ liệu bí mật như mật khẩu/mã truy cập gốc không được ghi hoặc trả về.
+6. SA điều chỉnh bộ lọc để theo dõi vấn đề, không sửa dữ liệu nghiệp vụ chỉ bằng việc mở log.
+Luồng thay thế
+A1 tại bước 3: user_id NULL trong activity_logs là sự kiện hệ thống hoặc đăng nhập username chưa nhận diện; hiển thị nhãn rõ, không gán giả cho user khác.
+A2 tại bước 3: login_history ghi SUCCESS/FAILED/BLOCKED khi xác định được user; logout_at có thể NULL nếu không có sự kiện logout.
+A3 tại bước 3: không có kết quả thì giữ bộ lọc và trả danh sách rỗng.
+Ngoại lệ và lỗi
+Bộ lọc không hợp lệ, quyền bị thu hồi hoặc truy vấn thất bại: thông báo lỗi; không trả toàn bộ log không lọc như cách dự phòng. Không cho sửa/xóa log bằng chức năng xem.
+Điều kiện sau: SA có thông tin truy vết chính xác và chỉ đọc; không làm thay đổi nội dung log hoặc trạng thái hợp đồng.
+Yêu cầu và quy tắc: FR-UM-02, FR-UM-08, FR-UM-09. BR13; mục 6.2.
+Dữ liệu liên quan: login_history, activity_logs, users.
+Điểm nghiệm thu: Log không lộ bí mật; sự kiện không xác định user được lưu/hiển thị hợp lệ; người không có quyền không truy cập được API log.
