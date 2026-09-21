@@ -87,6 +87,7 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IRenewalService, RenewalService>();
 builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
 builder.Services.AddScoped<IHandoverService, HandoverService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 
 var app = builder.Build();
 
@@ -99,7 +100,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "SSFRMS Customer API v1");
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "SSFRMS API v1 (Customer & Admin)");
         c.RoutePrefix = string.Empty; // Swagger UI at root
     });
 }
@@ -107,7 +108,7 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
-// 7. Map Minimal API Endpoints (Customer Scoped)
+// 7. Map Minimal API Endpoints
 app.MapAuthEndpoints();
 app.MapFacilityEndpoints();
 app.MapReservationEndpoints();
@@ -115,6 +116,7 @@ app.MapContractEndpoints();
 app.MapPaymentEndpoints();
 app.MapRenewalEndpoints();
 app.MapSupportTicketEndpoints();
+app.MapAdminEndpoints();
 
 // Root status check
 app.MapGet("/health", () => Results.Ok(new
@@ -124,11 +126,13 @@ app.MapGet("/health", () => Results.Ok(new
     Timestamp = DateTime.UtcNow
 }));
 
-// 8. Auto-Seed Initial Database Data
+// 8. Auto-Migrate and Auto-Seed Initial Database Data
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await context.Database.MigrateAsync();
     await DbSeeder.SeedAsync(context);
 }
+
 
 app.Run();
