@@ -1,227 +1,140 @@
 import React from "react";
-import { useCustomer } from "../context";
+import { EmptyInline } from "../components/Inline";
+import { LinkButton } from "../components/UI";
+import { typeLabel } from "../lib/catalog";
+import { dateLabel, dayMonth } from "../lib/format";
+import { siteLabel } from "../lib/hooks";
+import { href } from "../lib/router";
+import { CONTRACT_STATUS } from "../lib/status";
 import {
-  Badge,
-  Button,
-  LinkButton,
-  Icon,
-  PageTitle,
-  StorageArt,
-  Empty,
-} from "../components/UI";
-import { money, dateLabel, dateTimeLabel, paymentTypes } from "../domain";
+  activeContracts,
+  contractStatus,
+  expiringContracts,
+  facilityOf,
+  milestones,
+  pendingRenewal,
+  pendingReturn,
+  unpaidCount,
+  upcomingAppointments,
+} from "../state/selectors";
+import { useApp } from "../state/store";
 
-export function UnitCard({ contract: c }) {
-  const { data } = useCustomer();
-  const u = data.units.find((u) => u.unit_id === c.unit_id),
-    f = data.facilities.find((f) => f.facility_id === u.facility_id),
-    t = data.unitTypes.find((t) => t.unit_type_id === u.unit_type_id);
-  return (
-    <article className="ss-unit-card">
-      <div className="ss-unit-visual">
-        <StorageArt variant={f.color} />
-        <Badge status={c.status} />
-        <span className="ss-unit-number">{u.unit_number}</span>
-      </div>
-      <div className="ss-card-body">
-        <div className="ss-row">
-          <h3>Kho {t.name}</h3>
-          <span className="ss-size">{t.size} m²</span>
-        </div>
-        <p className="ss-muted-line">
-          <Icon name="pin" size={15} />
-          {f.name}
-        </p>
-        <div className="ss-unit-meta">
-          <div>
-            <small>Ngày kết thúc</small>
-            <strong>{dateLabel(c.end_date)}</strong>
-          </div>
-          <div>
-            <small>Giá thuê / tháng</small>
-            <strong>{money(c.agreed_monthly_rate)}</strong>
-          </div>
-        </div>
-        <LinkButton to={`units/${c.contract_id}`} variant="outline full">
-          Xem chi tiết <Icon name="arrow" size={16} />
-        </LinkButton>
-      </div>
-    </article>
-  );
-}
+const TONES = { amber: "#b45309", green: "#047857", blue: "#2563eb" };
+
 export default function Overview() {
-  const { data } = useCustomer();
-  const active = data.contracts.filter((c) =>
-    ["ACTIVE", "EXPIRING", "OVERDUE", "RETURN_PENDING"].includes(c.status),
-  );
-  const due = data.payments.filter((p) =>
-    ["PENDING", "FAILED"].includes(p.status),
-  );
-  const h = data.handovers.find((h) => h.status === "SCHEDULED");
-  const tickets = data.tickets.filter(
-    (t) => !["RESOLVED", "CLOSED", "CANCELLED"].includes(t.status),
-  );
-  const exp = data.contracts.find((c) => c.status === "EXPIRING");
+  const { data } = useApp();
+  const now = new Date();
+  const active = activeContracts(data, now);
+  const expiring = expiringContracts(data, now);
+  const unpaid = unpaidCount(data);
+  const nextAppt = upcomingAppointments(data, now)[0];
+  const renewTarget = expiring.find((c) => !pendingRenewal(data, c.contract_id) && !pendingReturn(data, c.contract_id));
+  const firstContract = active[0];
+  const marks = milestones(data, now);
+  const activities = data.activities.slice(0, 4);
+
+  const tiles = [
+    renewTarget
+      ? { title: `Gia hạn kho ${renewTarget.unit_number}`, text: `Hợp đồng kết thúc ${dateLabel(renewTarget.end_date)}`, cta: "Gửi yêu cầu gia hạn", to: `units/${renewTarget.contract_id}/renew` }
+      : { title: "Tìm kho mới", text: "Chọn loại kho và diện tích phù hợp", cta: "Bắt đầu tìm kho", to: "find" },
+    firstContract
+      ? { title: "Xem hợp đồng", text: `${firstContract.contract_id} · Kho ${firstContract.unit_number}`, cta: "Mở hợp đồng", to: `units/${firstContract.contract_id}` }
+      : { title: "Đơn đặt chỗ", text: "Theo dõi đơn và trạng thái đối soát", cta: "Xem đơn", to: "reservations" },
+    {
+      title: "Thanh toán & lịch hẹn",
+      text: nextAppt ? `${nextAppt.kind === "CHECK_IN" ? "Nhận kho" : "Trả kho"} ${nextAppt.unit_number} ngày ${dayMonth(nextAppt.date)} · ${nextAppt.slot.slice(0, 5)}` : "Xem khoản thu và lịch hẹn",
+      cta: "Xem chi tiết",
+      to: "payments",
+    },
+    { title: "Cần hỗ trợ?", text: "Gửi yêu cầu đến cơ sở, theo dõi phản hồi", cta: "Gửi yêu cầu", to: "support" },
+  ];
+
   return (
-    <>
-      <PageTitle
-        title={`Xin chào, ${data.user.full_name.split(" ").slice(-2).join(" ")}`}
-        description="Mọi không gian lưu trữ của bạn, gọn gàng ở một nơi."
-      >
-        <LinkButton to="find" icon="plus">
-          Thuê thêm kho
-        </LinkButton>
-      </PageTitle>
-      <section className="ss-welcome">
+    <main className="container page">
+      <header className="page-header">
         <div>
-          <span className="ss-eyebrow">SAFESPACE CUSTOMER</span>
-          <h2>
-            Thêm không gian.
-            <br />
-            <span>Thêm an tâm.</span>
-          </h2>
-          <p>
-            Theo dõi kho thuê, thanh toán và lịch hẹn
-            <br className="desktop" /> chỉ với vài thao tác.
-          </p>
-          <LinkButton to="units" variant="light">
-            Quản lý kho của tôi <Icon name="arrow" size={17} />
-          </LinkButton>
+          <h1>Xin chào, {data.user.full_name}</h1>
+          <p>Đây là tổng quan các kho bạn đang thuê tại SafeSpace.</p>
         </div>
-        <StorageArt />
-        <div className="ss-hero-caption">
-          <Icon name="shield" size={15} /> Không gian riêng · An tâm lưu trữ
-        </div>
-      </section>
-      <section className="ss-stats">
-        {[
-          [
-            "box",
-            "Kho đang thuê",
-            active.length,
-            "Không gian của bạn",
-            "units",
-          ],
-          [
-            "card",
-            "Cần thanh toán",
-            money(due.reduce((s, p) => s + p.amount, 0)),
-            `${due.length} khoản cần xử lý`,
-            "payments",
-          ],
-          [
-            "calendar",
-            "Lịch nhận kho",
-            h ? "01" : "00",
-            h ? dateTimeLabel(h.scheduled_at) : "Chưa có lịch hẹn mới",
-            "appointments",
-          ],
-          [
-            "help",
-            "Yêu cầu hỗ trợ",
-            String(tickets.length).padStart(2, "0"),
-            "Đang được cơ sở xử lý",
-            "support",
-          ],
-        ].map(([icon, label, value, note, to]) => (
-          <a href={`#/customer/${to}`} className="ss-stat" key={label}>
-            <div className="ss-row">
-              <span>{label}</span>
-              <span className={`ss-stat-icon ${icon}`}>
-                <Icon name={icon} />
-              </span>
-            </div>
-            <strong>{value}</strong>
-            <small>{note}</small>
+      </header>
+
+      <div className="stats">
+        <div className="stat"><strong>{active.length}</strong><span>Kho đang thuê</span></div>
+        <div className="stat"><strong className="warn">{expiring.length}</strong><span>Sắp hết hạn (30 ngày)</span></div>
+        <div className="stat"><strong className="ok">{unpaid}</strong><span>Hoá đơn chưa thanh toán</span></div>
+      </div>
+
+      <h2 className="section-title">Kho đang thuê</h2>
+      {active.length === 0 ? (
+        <EmptyInline text="Bạn chưa thuê kho nào. Tìm cơ sở phù hợp để bắt đầu." />
+      ) : (
+        <ul className="rows">
+          {active.map((c) => {
+            const f = facilityOf(data, c.facility_id, c.facility_name);
+            const status = contractStatus(c, now);
+            const [label, tone] = CONTRACT_STATUS[status];
+            return (
+              <li key={c.contract_id}>
+                <a className="row" href={href(`units/${c.contract_id}`)}>
+                  <span className="row__icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3 3 8v9l9 5 9-5V8l-9-5ZM3 8l9 5 9-5M12 13v9" /></svg>
+                  </span>
+                  <span className="row__main">
+                    <strong>Kho #{c.unit_number}</strong>
+                    <span>{siteLabel(f)} · {typeLabel(c.type)}{c.size_m2 ? ` · ${c.size_m2} m²` : ""}</span>
+                  </span>
+                  <span className="row__side">
+                    <span className={`tag tag--${tone}`}>{status === "ACTIVE" ? "Đang hoạt động" : label}</span>
+                    <small>Hết hạn: {dateLabel(c.end_date)}</small>
+                  </span>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <LinkButton to="find">Tìm kho mới</LinkButton>
+
+      <h2 className="section-title">Hành động nhanh</h2>
+      <div className="tiles">
+        {tiles.map((t) => (
+          <a className="panel tile" key={t.title} href={href(t.to)}>
+            <strong>{t.title}</strong>
+            <span>{t.text}</span>
+            <em>{t.cta} →</em>
           </a>
         ))}
-      </section>
-      {exp && (
-        <div className="ss-renew-banner">
-          <span className="ss-alert-icon">
-            <Icon name="clock" />
-          </span>
-          <div>
-            <strong>
-              Kho{" "}
-              {data.units.find((u) => u.unit_id === exp.unit_id).unit_number}{" "}
-              sắp đến ngày gia hạn
-            </strong>
-            <p>
-              Hợp đồng kết thúc ngày {dateLabel(exp.end_date)}. Gửi yêu cầu sớm
-              để tiếp tục lưu trữ.
-            </p>
-          </div>
-          <LinkButton to={`units/${exp.contract_id}`} variant="outline">
-            Xem hợp đồng <Icon name="arrow" size={16} />
-          </LinkButton>
-        </div>
-      )}
-      <div className="ss-section-heading">
-        <div>
-          <h2>Kho của tôi</h2>
-          <p>Những không gian đang đồng hành cùng bạn.</p>
-        </div>
-        <a href="#/customer/units">
-          Xem tất cả <Icon name="arrow" size={16} />
-        </a>
       </div>
-      <div className="ss-grid two">
-        {active.slice(0, 2).map((c) => (
-          <UnitCard key={c.contract_id} contract={c} />
-        ))}
-      </div>
-      <div className="ss-grid two ss-bottom-grid">
-        <section className="ss-panel">
-          <div className="ss-section-heading">
-            <h2>Thanh toán sắp tới</h2>
-            <a href="#/customer/payments">Xem tất cả</a>
-          </div>
-          {due.length ? (
-            due.slice(0, 3).map((p) => (
-              <a
-                className="ss-list-row"
-                key={p.payment_id}
-                href={`#/customer/payments/${p.payment_id}`}
-              >
-                <span className="ss-soft-icon">
-                  <Icon name="card" />
-                </span>
-                <div>
-                  <strong>{paymentTypes[p.payment_type]}</strong>
-                  <small>
-                    {p.contract_id} · Hạn {dateLabel(p.due_date)}
-                  </small>
-                </div>
-                <b>{money(p.amount)}</b>
-                <Icon name="chevron" size={16} />
-              </a>
-            ))
-          ) : (
-            <Empty
-              title="Bạn đã thanh toán đủ"
-              text="Không có khoản nào cần xử lý."
-            />
-          )}
+
+      <h2 className="section-title">Mốc sắp tới & hoạt động</h2>
+      <div className="grid grid--2">
+        <section className="panel timeline">
+          <h3>Mốc sắp tới</h3>
+          {marks.length === 0 && <p className="muted">Chưa có mốc nào sắp tới.</p>}
+          {marks.map((m) => (
+            <div className="milestone" key={m.key}>
+              <span className="milestone__date">{dayMonth(m.date)}</span>
+              <div>
+                <strong>{m.title}</strong>
+                <span>{m.detail}</span>
+              </div>
+            </div>
+          ))}
         </section>
-        <section className="ss-panel">
-          <div className="ss-section-heading">
-            <h2>Bạn cần hỗ trợ?</h2>
-            <Icon name="help" />
-          </div>
-          <p className="muted">
-            Vấn đề về kho, khóa hoặc thanh toán? Gửi yêu cầu để nhân viên tại cơ
-            sở hỗ trợ bạn.
-          </p>
-          <LinkButton to="support/new" variant="outline" icon="plus">
-            Tạo yêu cầu hỗ trợ
-          </LinkButton>
-          <div className="ss-help-note">
-            <Icon name="clock" size={17} /> Theo dõi tiến độ ngay trong tài
-            khoản
-          </div>
+        <section className="panel timeline">
+          <h3>Hoạt động gần đây</h3>
+          {activities.length === 0 && <p className="muted">Hoạt động của bạn sẽ hiện ở đây.</p>}
+          {activities.map((a) => (
+            <div className="activity" key={a.id}>
+              <i style={{ background: TONES[a.tone] || TONES.blue }} aria-hidden="true" />
+              <div>
+                <strong>{a.text}</strong>
+                <span>{dateLabel(a.at)}</span>
+              </div>
+            </div>
+          ))}
         </section>
       </div>
-    </>
+    </main>
   );
 }

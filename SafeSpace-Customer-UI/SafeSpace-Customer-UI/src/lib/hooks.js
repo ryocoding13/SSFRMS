@@ -1,0 +1,17 @@
+import { useEffect, useState } from "react";
+
+// Đồng hồ cập nhật mỗi `ms` mili giây (dùng cho đếm ngược ở màn C04)
+export function useNow(ms = 1000) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), ms);
+    return () => clearInterval(id);
+  }, [ms]);
+  return now;
+}
+
+export const shortName = (facility) => (facility?.name || "").replace(/^SafeSpace\s+/, "");
+
+// "SafeSpace Quận 7" theo Figma; cơ sở từ máy chủ đặt tên khác thì dùng nguyên tên
+export const siteLabel = (facility) =>
+  /^SafeSpace\b/.test(facility?.name || "") && facility.district ? `SafeSpace ${facility.district}` : facility?.name || "SafeSpace";
