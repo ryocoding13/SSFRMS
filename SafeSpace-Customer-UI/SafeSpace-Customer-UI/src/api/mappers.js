@@ -41,6 +41,13 @@ function splitAddress(address = "") {
 }
 const hhmm = (t) => (t ? String(t).slice(0, 5) : null);
 
+// Thứ tự hiển thị theo Figma C02; cơ sở khác xếp sau theo id
+const FIGMA_ORDER = ["Nguyễn Lương Bằng", "Him Lam", "Phú Xuân", "Tân Thuận", "Phú Mỹ Hưng", "Bình Thạnh", "Nhà Bè", "Bình Chánh", "Thủ Đức"];
+const rank = (f) => {
+  const i = FIGMA_ORDER.findIndex((n) => f.name.includes(n));
+  return i >= 0 ? i : 100 + f.facility_id;
+};
+
 // ---------- Danh mục (công khai) ----------
 export function mapCatalog({ facilities = [], unitTypes = [], rates = [] }) {
   const typeById = new Map(unitTypes.map((t) => [t.unitTypeId, t]));
@@ -81,7 +88,7 @@ export function mapCatalog({ facilities = [], unitTypes = [], rates = [] }) {
         offers,
       };
     })
-    .sort((a, b) => a.facility_id - b.facility_id);
+    .sort((a, b) => rank(a) - rank(b));
   return { facilities: mapped, unitTypes };
 }
 

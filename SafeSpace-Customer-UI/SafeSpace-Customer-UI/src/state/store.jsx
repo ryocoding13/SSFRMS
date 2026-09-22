@@ -8,6 +8,7 @@ import { createEmptyData, createSeedData } from "../data/seed";
 import { RENTAL_PLANS, offerByKey } from "../lib/catalog";
 import { isEmail, localDate, shortCode, timeoutLabel } from "../lib/format";
 import { TICKET_TOPICS } from "../lib/status";
+import { isAdminRoles, isCustomerRoles, rolesFromToken } from "../lib/roles";
 import { reduce, sweepExpired, validateRegister } from "./reducer";
 import { pendingRenewal, pendingReturn } from "./selectors";
 
@@ -151,6 +152,9 @@ function LocalProvider({ children }) {
       register,
       logout,
       checkAvailability: null,
+      onApiError: () => {},
+      roles: store.authed ? ["CUSTOMER"] : [],
+      isAdmin: false,
       supports: { changePassword: true, forgotPassword: true },
       toast,
       notify,
@@ -173,8 +177,9 @@ function readSession() {
   const s = readJson(SESSION_KEY);
   if (!s?.token || !s.user) return null;
   if (s.expiresAt && new Date(s.expiresAt).getTime() <= Date.now()) return null;
-  return s;
+  return { ...s, roles: s.roles || rolesFromToken(s.token) };
 }
+const EMPTY_REMOTE = { reservations: [], reservationDetails: {}, contracts: [], tickets: [] };
 
 const fail = (error, code) => ({ ok: false, error, code });
 const readOverlay = (userId) => ({ ...emptyOverlay(), ...(readJson(overlayKey(userId)) || {}) });
@@ -259,11 +264,22 @@ function ApiProvider({ children }) {
     [endSession],
   );
 
+  // Lỗi từ các màn tự gọi API (khu quản trị): 401 → kết thúc phiên
+  const onApiError = useCallback(
+    (e) => {
+      if (e instanceof ApiError && e.status === 401 && refs.current.session) endSession("expired");
+    },
+    [endSession],
+  );
+
   const loadAll = useCallback(async () => {
     setLoadError(null);
     try {
       await loadCatalog();
-      if (refs.current.session) await loadCustomer();
+      if (refs.current.session) {
+        if (isAdminRoles(refs.current.session.roles)) setRemote(EMPTY_REMOTE);
+        else await loadCustomer();
+      }
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) endSession("expired");
       else setLoadError(e?.message || "Không tải được dữ liệu.");
@@ -297,7 +313,7 @@ function ApiProvider({ children }) {
 
   const startSession = useCallback(
     async (res, extra = {}) => {
-      const next = { token: res.token, expiresAt: res.expiresAt, user: res.user };
+      const next = { token: res.token, expiresAt: res.expiresAt, user: res.user, roles: rolesFromToken(res.token) };
       setToken(next.token);
       writeJson(SESSION_KEY, next);
       refs.current.session = next;
@@ -306,7 +322,10 @@ function ApiProvider({ children }) {
       refs.current.overlay = saved;
       setOverlay(saved);
       setSession(next);
-      await loadCustomer();
+      if (isAdminRoles(next.roles)) {
+        refs.current.remote = EMPTY_REMOTE;
+        setRemote(EMPTY_REMOTE);
+      } else await loadCustomer();
     },
     [loadCustomer],
   );
@@ -317,8 +336,12 @@ function ApiProvider({ children }) {
       if (!id || !password) return fail("Vui lòng nhập tên đăng nhập hoặc email và mật khẩu.");
       try {
         const res = await api.login(id.includes("@") ? id.toLowerCase() : id, password);
+        const roles = rolesFromToken(res.token);
+        if (!isAdminRoles(roles) && !isCustomerRoles(roles)) {
+          return fail("Tài khoản Nhân viên / Quản lý dùng giao diện theo vai trò riêng, hiện chưa mở trên trang này.");
+        }
         await startSession(res);
-        return { ok: true };
+        return { ok: true, roles };
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) return fail("Tên đăng nhập / email hoặc mật khẩu chưa đúng.");
         return fail(e.message);
@@ -530,6 +553,10 @@ function ApiProvider({ children }) {
       register,
       logout,
       checkAvailability,
+      onApiError,
+      roles: session?.roles || [],
+      isAdmin: isAdminRoles(session?.roles),
+      session,
       supports: { changePassword: false, forgotPassword: false },
       toast,
       notify,
@@ -537,7 +564,7 @@ function ApiProvider({ children }) {
       storageError,
       timeoutSeconds: paymentTimeoutSeconds,
     }),
-    [ready, loadError, loadAll, session, data, dispatch, login, register, logout, checkAvailability, toast, notify, dismissToast, storageError],
+    [ready, loadError, loadAll, session, data, dispatch, login, register, logout, checkAvailability, onApiError, toast, notify, dismissToast, storageError],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

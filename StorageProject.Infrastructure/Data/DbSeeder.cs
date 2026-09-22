@@ -313,6 +313,11 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
+        // 7b. Mạng lưới 12 cơ sở SafeSpace theo thiết kế Figma.
+        //     Chạy lại nhiều lần vẫn an toàn: chỉ thêm cơ sở / bảng giá / phòng kho còn thiếu,
+        //     nên database đã tạo từ trước cũng được bổ sung khi khởi động lại API.
+        await SeedSafeSpaceNetworkAsync(context, admin.UserId, typeS, typeM, typeL, typeXL);
+
         // 8. Sample Customer Data (Reservation, Contract, Payment, SupportTicket for customer01)
         if (!await context.Reservations.AnyAsync())
         {
@@ -439,6 +444,115 @@ public static class DbSeeder
             };
             context.Reservations.Add(res2);
 
+            await context.SaveChangesAsync();
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Mạng lưới cơ sở SafeSpace (Figma C02 / Trang chủ)
+    // RateM = giá kho Tiêu Chuẩn M; các loại khác tính theo tỉ lệ (S ≈ 40%, L = 2×, XL = 3,5×).
+    // ------------------------------------------------------------------------------------------
+    private sealed record SeedFacility(string Code, string Name, string Address, string Phone, int OpenHour, int CloseHour, decimal RateM, bool HasXL);
+
+    private static readonly SeedFacility[] SafeSpaceNetwork =
+    [
+        new("NLB", "SafeSpace Nguyễn Lương Bằng", "12 Nguyễn Lương Bằng, Phường Tân Phú, Quận 7, TP. Hồ Chí Minh", "02837001012", 6, 22, 1150000m, true),
+        new("HL", "SafeSpace Him Lam", "Khu dân cư Him Lam, Phường Tân Hưng, Quận 7, TP. Hồ Chí Minh", "02837001013", 6, 22, 1050000m, false),
+        new("PX", "SafeSpace Phú Xuân", "Đường Nguyễn Hữu Thọ, Xã Phú Xuân, Huyện Nhà Bè, TP. Hồ Chí Minh", "02837001014", 6, 22, 890000m, false),
+        new("TT", "SafeSpace Tân Thuận", "Đường Huỳnh Tấn Phát, Phường Tân Thuận Đông, Quận 7, TP. Hồ Chí Minh", "02837001015", 6, 22, 1100000m, true),
+        new("PMH", "SafeSpace Phú Mỹ Hưng", "Đường Nguyễn Văn Linh, Phường Tân Phong, Quận 7, TP. Hồ Chí Minh", "02837001016", 6, 22, 1250000m, true),
+        new("BT", "SafeSpace Bình Thạnh", "Đường Nguyễn Xí, Phường 26, Quận Bình Thạnh, TP. Hồ Chí Minh", "02837001017", 6, 22, 980000m, false),
+        new("NB", "SafeSpace Nhà Bè", "Đường Huỳnh Tấn Phát, Thị trấn Nhà Bè, Huyện Nhà Bè, TP. Hồ Chí Minh", "02837001018", 6, 22, 850000m, false),
+        new("BC", "SafeSpace Bình Chánh", "Quốc lộ 50, Xã Bình Hưng, Huyện Bình Chánh, TP. Hồ Chí Minh", "02837001019", 6, 22, 790000m, true),
+        new("TD", "SafeSpace Thủ Đức", "Đường Võ Văn Ngân, Phường Linh Chiểu, TP. Thủ Đức, TP. Hồ Chí Minh", "02837001020", 6, 22, 920000m, false),
+        new("GV", "SafeSpace Gò Vấp", "Đường Quang Trung, Phường 10, Quận Gò Vấp, TP. Hồ Chí Minh", "02837001021", 6, 22, 930000m, false),
+    ];
+
+    private static decimal RoundRate(decimal value) => Math.Round(value / 10000m, MidpointRounding.AwayFromZero) * 10000m;
+
+    private static async Task SeedSafeSpaceNetworkAsync(AppDbContext context, long adminId, UnitType typeS, UnitType typeM, UnitType typeL, UnitType typeXL)
+    {
+        // Đổi tên 2 cơ sở seed ban đầu sang thương hiệu SafeSpace (chỉ đổi khi còn tên cũ)
+        var renames = new Dictionary<string, string>
+        {
+            ["SSFRMS Chi nhánh Tân Bình"] = "SafeSpace Tân Bình",
+            ["SSFRMS Chi nhánh Quận 7"] = "SafeSpace Quận 7",
+        };
+        var oldNames = renames.Keys.ToList();
+        var toRename = await context.Facilities.Where(f => oldNames.Contains(f.Name)).ToListAsync();
+        foreach (var f in toRename)
+        {
+            f.Name = renames[f.Name];
+            f.UpdatedAt = DateTime.UtcNow;
+        }
+        if (toRename.Count > 0) await context.SaveChangesAsync();
+
+        var effectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30));
+
+        foreach (var seed in SafeSpaceNetwork)
+        {
+            var facility = await context.Facilities.FirstOrDefaultAsync(f => f.Name == seed.Name);
+            if (facility == null)
+            {
+                facility = new Facility
+                {
+                    Name = seed.Name,
+                    Address = seed.Address,
+                    ContactPhone = seed.Phone,
+                    OpeningTime = new TimeOnly(seed.OpenHour, 0),
+                    ClosingTime = new TimeOnly(seed.CloseHour, 0),
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                context.Facilities.Add(facility);
+                await context.SaveChangesAsync();
+            }
+
+            // (loại kho, giá/tháng, số phòng, ký hiệu, số phòng bắt đầu, tầng, khu)
+            var plan = new List<(UnitType Type, decimal Rate, int Count, string Size, int FirstNo, string Floor, string Zone)>
+            {
+                (typeS, RoundRate(seed.RateM * 0.4m), 2, "S", 101, "Tầng 1", "Khu A"),
+                (typeM, seed.RateM, 2, "M", 111, "Tầng 1", "Khu B"),
+                (typeL, RoundRate(seed.RateM * 2m), 1, "L", 201, "Tầng 2", "Khu C"),
+            };
+            if (seed.HasXL) plan.Add((typeXL, RoundRate(seed.RateM * 3.5m), 1, "XL", 301, "Tầng 3", "Khu D"));
+
+            foreach (var item in plan)
+            {
+                var hasRate = await context.RentalRates.AnyAsync(r => r.FacilityId == facility.FacilityId && r.UnitTypeId == item.Type.UnitTypeId);
+                if (!hasRate)
+                {
+                    context.RentalRates.Add(new RentalRate
+                    {
+                        FacilityId = facility.FacilityId,
+                        UnitTypeId = item.Type.UnitTypeId,
+                        SetBy = adminId,
+                        MonthlyRate = item.Rate,
+                        EffectiveFrom = effectiveFrom,
+                        Status = "ACTIVE",
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+
+                for (var i = 0; i < item.Count; i++)
+                {
+                    var unitNumber = $"{seed.Code}-{item.Size}-{item.FirstNo + i}";
+                    var exists = await context.StorageUnits.AnyAsync(u => u.FacilityId == facility.FacilityId && u.UnitNumber == unitNumber);
+                    if (exists) continue;
+                    context.StorageUnits.Add(new StorageUnit
+                    {
+                        FacilityId = facility.FacilityId,
+                        UnitTypeId = item.Type.UnitTypeId,
+                        UnitNumber = unitNumber,
+                        Floor = item.Floor,
+                        Zone = item.Zone,
+                        Status = "AVAILABLE",
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+                }
+            }
             await context.SaveChangesAsync();
         }
     }

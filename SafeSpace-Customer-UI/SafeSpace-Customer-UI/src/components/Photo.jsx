@@ -98,8 +98,8 @@ const ART_KIND = { cover: "front", "inside-1": "shelf", "inside-2": "aisle", "in
  */
 export function Photo({ facility, index, className = "", badge, hero = false, eager = false }) {
   const id = facility?.facility_id || 1;
-  const item = index === undefined ? null : galleryImage(id, index);
-  const src = hero ? heroImage : item ? item.src : facilityCard(id);
+  const item = index === undefined ? null : galleryImage(facility || id, index);
+  const src = hero ? heroImage : item ? item.src : facilityCard(facility || id);
   const alt = hero
     ? "Cơ sở kho tự phục vụ SafeSpace"
     : `${facility?.name || "SafeSpace"}${item ? ` — ${item.caption}` : ""}`;
