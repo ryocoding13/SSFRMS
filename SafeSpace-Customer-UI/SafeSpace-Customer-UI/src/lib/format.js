@@ -76,11 +76,17 @@ export const shortCode = (id) => {
 
 export const formatCountdown = (seconds) => {
   const s = Math.max(0, Math.ceil(seconds));
-  return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+  const h = Math.floor(s / 3600);
+  const mmss = `${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
+  return h ? `${pad(h)}:${mmss}` : mmss;
 };
 
 export const timeoutLabel = (seconds) =>
-  seconds % 60 === 0 ? `${seconds / 60} phút` : `${seconds} giây`;
+  seconds >= 3600 && seconds % 3600 === 0
+    ? `${seconds / 3600} giờ`
+    : seconds % 60 === 0
+      ? `${seconds / 60} phút`
+      : `${seconds} giây`;
 
 export const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
 export const isPhone = (v) =>

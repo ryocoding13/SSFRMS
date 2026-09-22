@@ -3,6 +3,7 @@ import { EmptyInline } from "../components/Inline";
 import { LinkButton } from "../components/UI";
 import { typeLabel } from "../lib/catalog";
 import { dateLabel, dayMonth } from "../lib/format";
+import { siteLabel } from "../lib/hooks";
 import { href } from "../lib/router";
 import { CONTRACT_STATUS } from "../lib/status";
 import {
@@ -69,7 +70,7 @@ export default function Overview() {
       ) : (
         <ul className="rows">
           {active.map((c) => {
-            const f = facilityOf(data, c.facility_id);
+            const f = facilityOf(data, c.facility_id, c.facility_name);
             const status = contractStatus(c, now);
             const [label, tone] = CONTRACT_STATUS[status];
             return (
@@ -80,7 +81,7 @@ export default function Overview() {
                   </span>
                   <span className="row__main">
                     <strong>Kho #{c.unit_number}</strong>
-                    <span>SafeSpace {f.district} · {typeLabel(c.type)} · {c.size_m2} m²</span>
+                    <span>{siteLabel(f)} · {typeLabel(c.type)}{c.size_m2 ? ` · ${c.size_m2} m²` : ""}</span>
                   </span>
                   <span className="row__side">
                     <span className={`tag tag--${tone}`}>{status === "ACTIVE" ? "Đang hoạt động" : label}</span>

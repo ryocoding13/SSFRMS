@@ -1,8 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Select } from "../components/Pickers";
-import { Button, Dialog, Field, Modal, PageHeader, StatusTag } from "../components/UI";
+import { Button, Dialog, Field, Modal, Notice, PageHeader, StatusTag } from "../components/UI";
 import { dateTimeLabel } from "../lib/format";
-import { shortName } from "../lib/hooks";
 import { TICKET_STATUS, TICKET_TOPICS } from "../lib/status";
 import { facilityOf } from "../state/selectors";
 import { useApp } from "../state/store";
@@ -15,15 +14,15 @@ function TicketCard({ t }) {
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const c = data.contracts.find((x) => x.contract_id === t.contract_id);
-  const cancel = () => {
-    const res = dispatch("CANCEL_TICKET", { ticket_id: t.ticket_id });
+  const cancel = async () => {
+    const res = await dispatch("CANCEL_TICKET", { ticket_id: t.ticket_id });
     setConfirm(false);
     notify(res.ok ? "Đã huỷ yêu cầu hỗ trợ." : res.error, res.ok ? "success" : "error");
   };
   return (
     <article className="panel ticket">
       <StatusTag map={TICKET_STATUS} status={t.status} square />
-      <h3>{t.ticket_id} · {TICKET_TOPICS[t.topic].title}</h3>
+      <h3>{t.ticket_id} · {t.title || TICKET_TOPICS[t.topic].title}</h3>
       <p className="muted">
         {t.staff_note}
         <br />
@@ -34,7 +33,7 @@ function TicketCard({ t }) {
       )}
       {open && (
         <div className="ticket__more">
-          {c && <p><strong>Kho:</strong> {c.unit_number} · {shortName(facilityOf(data, c.facility_id))}</p>}
+          {c && <p><strong>Kho:</strong> {c.unit_number} · {facilityOf(data, c.facility_id, c.facility_name).name}</p>}
           <p><strong>Nội dung:</strong> {t.description}</p>
           {t.attachments.length > 0 && <p><strong>Ảnh đính kèm:</strong> {t.attachments.join(", ")}</p>}
         </div>
@@ -61,7 +60,8 @@ function TicketCard({ t }) {
 }
 
 export default function Support({ query }) {
-  const { data, dispatch } = useApp();
+  const { data, dispatch, mode } = useApp();
+  const [busy, setBusy] = useState(false);
   const preContract = query.get("contract");
   const preTopic = query.get("topic");
   const [form, setForm] = useState({
@@ -91,11 +91,13 @@ export default function Support({ query }) {
     setErrors((p) => ({ ...p, files: problem || undefined }));
     if (picker.current) picker.current.value = "";
   };
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
     if (!form.description.trim()) return setErrors({ description: "Vui lòng mô tả vấn đề bạn đang gặp." });
-    const res = dispatch("CREATE_TICKET", { ...form, attachments: files.map((f) => f.name) });
-    if (!res.ok) return setErrors({ description: res.error });
+    setBusy(true);
+    const res = await dispatch("CREATE_TICKET", { ...form, attachments: files.map((f) => f.name) });
+    setBusy(false);
+    if (!res.ok) return setErrors({ form: res.error });
     setSent(res.ticket_id);
     setForm({ ...form, description: "" });
     setFiles([]);
@@ -111,9 +113,9 @@ export default function Support({ query }) {
           <Field label="Kho / hợp đồng liên quan">
             <Select value={form.contract_id} onChange={(e) => set("contract_id", e.target.value)}>
               {data.contracts.map((c) => (
-                <option key={c.contract_id} value={c.contract_id}>{c.unit_number} · {facilityOf(data, c.facility_id).name}</option>
+                <option key={c.contract_id} value={c.contract_id}>{c.unit_number} · {facilityOf(data, c.facility_id, c.facility_name).name}</option>
               ))}
-              {data.contracts.length === 0 && <option value="">Vấn đề chung (chưa thuê kho)</option>}
+              {data.contracts.length === 0 && <option value="">{mode === "api" ? "Bạn chưa có hợp đồng thuê kho" : "Vấn đề chung (chưa thuê kho)"}</option>}
             </Select>
           </Field>
           <Field label="Chủ đề">
@@ -142,7 +144,8 @@ export default function Support({ query }) {
             )}
             {errors.files && <p className="field__error" role="alert">{errors.files}</p>}
           </div>
-          <Button type="submit">Gửi yêu cầu</Button>
+          {errors.form && <Notice tone="error">{errors.form}</Notice>}
+          <Button type="submit" disabled={busy}>{busy ? "Đang gửi…" : "Gửi yêu cầu"}</Button>
         </form>
 
         <div className="stack stack--col stack--fill">

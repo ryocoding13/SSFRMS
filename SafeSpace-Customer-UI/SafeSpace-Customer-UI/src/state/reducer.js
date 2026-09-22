@@ -1,4 +1,4 @@
-import { RENTAL_PLANS, SIZE_BANDS, quote } from "../lib/catalog.js";
+import { RENTAL_PLANS, SIZE_BANDS, offerByKey, quote } from "../lib/catalog.js";
 import {
   addDays,
   addMonths,
@@ -73,9 +73,9 @@ const handlers = {
   CREATE_RESERVATION(state, p, ctx) {
     const facility = state.facilities.find((f) => f.facility_id === Number(p.facility_id));
     if (!facility) fail("Không tìm thấy cơ sở.");
-    if (!["normal", "climate"].includes(p.type) || (p.type === "climate" && !facility.has_climate))
-      fail("Cơ sở này chưa có loại kho bạn chọn.");
-    if (!SIZE_BANDS.some((b) => b.id === p.band)) fail("Vui lòng chọn diện tích.");
+    if (!p.offer_key && p.band && !SIZE_BANDS.some((b) => b.id === p.band)) fail("Vui lòng chọn diện tích.");
+    const offer = offerByKey(facility, p.offer_key || `${p.type}-${p.band}`);
+    if (!offer) fail("Cơ sở này chưa có loại kho bạn chọn.");
     const months = Number(p.months);
     if (!RENTAL_PLANS.includes(months)) fail("Gói thuê chỉ gồm 1, 3 hoặc 6 tháng.");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(p.start_date || "")) fail("Vui lòng chọn ngày bắt đầu.");
@@ -86,21 +86,22 @@ const handlers = {
       (r) =>
         r.status === "PENDING_PAYMENT" &&
         r.facility_id === facility.facility_id &&
-        r.type === p.type &&
-        r.band === p.band &&
+        r.offer_key === offer.key &&
         r.months === months &&
         r.start_date === p.start_date,
     );
     if (dup) return { state, result: { reservation_id: dup.reservation_id } };
 
-    const q = quote({ facility, type: p.type, band: p.band, months, start_date: p.start_date });
+    const q = quote({ offer, months, start_date: p.start_date });
     const reservation_id = newReservationId(state, ctx.now);
     const timeout = ctx.timeoutSeconds;
     const reservation = {
       reservation_id,
       facility_id: facility.facility_id,
-      type: p.type,
-      band: p.band,
+      type: offer.type,
+      band: offer.band,
+      offer_key: offer.key,
+      size_label: offer.size_label,
       months,
       start_date: p.start_date,
       end_date: q.end_date,

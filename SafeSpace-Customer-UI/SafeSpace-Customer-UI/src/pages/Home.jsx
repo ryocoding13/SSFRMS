@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Photo } from "../components/Photo";
 import { Pagination } from "../components/Pickers";
 import { Icon, LinkButton } from "../components/UI";
-import { rateFor } from "../lib/catalog";
+import { minRate, offerTypes, typeLabel } from "../lib/catalog";
 import { money } from "../lib/format";
 import { useApp } from "../state/store";
 
@@ -65,8 +65,8 @@ export default function Home() {
             <article className="panel facility-card facility-card--compact" key={f.facility_id}>
               <Photo facility={f} />
               <h3>{f.name}</h3>
-              <p className="price">Từ {money(rateFor(f, "normal", "M"))} / tháng</p>
-              <p className="muted">{f.has_climate ? "Kho thường · Kiểm soát nhiệt độ" : "Kho thường"}</p>
+              <p className="price">{minRate(f) != null ? `Từ ${money(minRate(f))} / tháng` : "Liên hệ để nhận giá"}</p>
+              <p className="muted">{offerTypes(f).map(typeLabel).join(" · ") || "Kho thường"}</p>
               <LinkButton to={`find/${f.facility_id}`}>Khám phá cơ sở</LinkButton>
             </article>
           ))}

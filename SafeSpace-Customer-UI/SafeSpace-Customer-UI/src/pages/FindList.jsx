@@ -7,9 +7,8 @@ import {
   SIZE_BANDS,
   UNIT_TYPES,
   areaLabel,
-  bandLabel,
+  displayOffer,
   listAreas,
-  rateFor,
   searchFacilities,
   typeLabel,
 } from "../lib/catalog";
@@ -50,7 +49,6 @@ export default function FindList({ query }) {
     if (next.sort === "best") next.sort = "";
     go(`find${qs(next)}`, { replace });
   };
-  const detailQuery = qs({ type: filters.type, band: filters.band });
 
   return (
     <main className="container page">
@@ -131,23 +129,22 @@ export default function FindList({ query }) {
       ) : (
         <div className="facility-grid">
           {shown.map((f, i) => {
-            const type = filters.type || "normal";
-            const band = filters.band || "M";
+            const offer = displayOffer(f, filters);
             return (
               <article className="panel facility-card" key={f.facility_id}>
                 <Photo facility={f} badge={filters.sort === "best" && current === 1 && i === 0 ? "Gợi ý phù hợp nhất" : null} />
                 <h3>{f.name}</h3>
                 <p className="muted">
-                  {f.city} · Cách bạn {distanceLabel(f.distance_km)}
+                  {f.distance_km != null ? `${f.city} · Cách bạn ${distanceLabel(f.distance_km)}` : [f.district, f.city].filter(Boolean).join(", ")}
                 </p>
                 <p className="facility-card__meta">
-                  {compactLabel(bandLabel(band))} · {typeLabel(type)}
+                  {compactLabel(offer.size_label)} · {typeLabel(offer.type)}
                   <br />
                   Ra vào {f.hours} · Camera 24/7
                 </p>
-                <p className="price">{money(rateFor(f, type, band))} / tháng</p>
+                <p className="price">{money(offer.monthly_rate)} / tháng</p>
                 <p className="hint">Chọn gói thuê và ngày bắt đầu ở trang chi tiết.</p>
-                <a className="btn btn--primary" href={href(`find/${f.facility_id}${detailQuery}`)} aria-label={`Xem chi tiết cơ sở ${f.name} tại ${areaLabel(f)}`}>
+                <a className="btn btn--primary" href={href(`find/${f.facility_id}${qs({ offer: offer.key, type: filters.type, band: filters.band })}`)} aria-label={`Xem chi tiết cơ sở ${f.name} tại ${areaLabel(f)}`}>
                   Xem chi tiết cơ sở
                 </a>
               </article>

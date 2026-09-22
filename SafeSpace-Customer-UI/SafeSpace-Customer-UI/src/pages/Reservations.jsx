@@ -36,7 +36,7 @@ export default function Reservations() {
                     <td>
                       <a href={href(`reservations/${r.reservation_id}`)} title={r.reservation_id}>{r.reservation_id}</a>
                     </td>
-                    <td>{shortName(facilityOf(data, r.facility_id))} · {r.months} tháng</td>
+                    <td>{shortName(facilityOf(data, r.facility_id, r.facility_name))} · {r.months} tháng</td>
                     <td>{money(r.initial_total)}</td>
                     <td>{RESERVATION_STATUS[r.status][0]}</td>
                   </tr>

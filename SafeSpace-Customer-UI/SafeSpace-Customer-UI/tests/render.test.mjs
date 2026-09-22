@@ -16,7 +16,7 @@ try {
   const { default: App } = await vite.ssrLoadModule("/src/CustomerApp.jsx");
   const { STORAGE_KEY } = await vite.ssrLoadModule("/src/state/store.jsx");
   const { createSeedData } = await vite.ssrLoadModule("/src/data/seed.js");
-  const seed = (authed) => memory.set(STORAGE_KEY, JSON.stringify({ version: 4, authed, data: createSeedData() }));
+  const seed = (authed) => memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed, data: createSeedData() }));
 
   const publicRoutes = ["home", "login", "register", "pricing", "guide", "find", "find?type=climate&band=S", "find/1", "find/8?type=climate", "find/999", "nope"];
   const privateRoutes = [

@@ -4,6 +4,26 @@ Giao diện bám Figma nên **khác luồng backend cũ (v3)** ở vài điểm.
 Toàn bộ nghiệp vụ hiện nằm ở `src/state/reducer.js`; mỗi lệnh (`CREATE_RESERVATION`, `CONFIRM_TRANSFER`, ...)
 tương ứng một endpoint dưới đây, nên thay bằng lời gọi API là đủ.
 
+## 0. Hiện trạng nối API (VITE_USE_API=true)
+
+Giao diện đã gọi thật các endpoint backend đang có: auth, facilities / unit-types / rates / availability,
+reservations, contracts (+ payments, renewals, handover), tickets. Những luồng dưới đây backend **chưa có**
+nên giao diện tạm lưu trong trình duyệt theo từng tài khoản (mất khi đổi máy / xoá dữ liệu trình duyệt):
+báo đã chuyển khoản, đăng ký trả kho + lịch trả kho, thông báo, đổi tên hiển thị, ảnh đính kèm hỗ trợ.
+Đổi / quên mật khẩu đang khoá trên giao diện.
+
+Cách giao diện xử lý các điểm lệch hiện tại của backend:
+- **Đăng nhập chỉ bằng Username** → khi khách đăng ký trên giao diện, `username` được đặt bằng email, nên khách
+  đăng nhập được bằng email như Figma. Tài khoản seed (`customer01`…) vẫn đăng nhập bằng username.
+- **DateTime trả về không kèm múi giờ** (đọc từ DB) → giao diện coi là UTC. Nên cấu hình JSON trả kèm `Z`.
+- **Giữ chỗ 24 giờ** ở backend, Figma là 01:00 → đơn tạo trên giao diện đếm ngược theo `VITE_PAYMENT_TIMEOUT_SECONDS`,
+  hết giờ thì gọi `POST /api/reservations/{id}/cancel`. Đơn tạo nơi khác theo `ExpiresAt` của backend.
+- **Không có API báo đã chuyển khoản** → đơn vẫn `PENDING_PAYMENT` trên backend dù khách đã bấm.
+- **Yêu cầu hỗ trợ bắt buộc ContractId** → khách chưa có hợp đồng không gửi được. `IssueType` = mã chủ đề
+  (`ACCESS`, `LOCK`, `UNIT`, `PAYMENT`, `ITEMS`, `SCHEDULE`, `OTHER`), `Title` theo chủ đề, `Priority` = `HIGH` / `NORMAL`.
+- **Loại kho thật** (Mini S 1 m², M 4 m², L 9 m², XL 16 m²) hiển thị thành "Kho thường / Kiểm soát nhiệt độ" +
+  diện tích thật, lấy giá từ `/api/rates`.
+
 ## 1. Luồng khác v3 (cần quyết định phía BE)
 
 | Điểm | Figma / giao diện hiện tại | Backend cũ (v3) |

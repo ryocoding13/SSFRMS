@@ -1,3 +1,4 @@
+import { localOffers } from "../lib/catalog.js";
 import { addDays, addMonths, today } from "../lib/format.js";
 
 export const SEED_EMAIL = "mai.nguyen@example.com";
@@ -20,7 +21,7 @@ const FACILITIES = [
 ];
 
 export function createFacilities() {
-  return FACILITIES.map(([facility_id, name, district, distance_km, base_price, has_climate, street]) => ({
+  return FACILITIES.map(([facility_id, name, district, distance_km, base_price, has_climate, street]) => withOffers({
     facility_id,
     name,
     district,
@@ -33,6 +34,8 @@ export function createFacilities() {
     hours: "06:00–22:00",
   }));
 }
+
+const withOffers = (f) => ({ ...f, offers: localOffers(f) });
 
 const at = (iso, time) => `${iso}T${time}:00`;
 
@@ -55,6 +58,8 @@ export function createSeedData(t = today()) {
         facility_id: 1,
         type: "normal",
         band: "M",
+        offer_key: "normal-M",
+        size_label: "10 – 20 m²",
         months: 3,
         start_date: t,
         end_date: a102End,
@@ -70,6 +75,8 @@ export function createSeedData(t = today()) {
         facility_id: 1,
         type: "climate",
         band: "S",
+        offer_key: "climate-S",
+        size_label: "2 – 5 m²",
         months: 3,
         start_date: b015Start,
         end_date: b015End,

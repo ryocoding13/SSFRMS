@@ -14,7 +14,8 @@ const book = (state, over = {}) =>
 
 test("báo giá khớp Figma: 3 × 1.150.000 + cọc 1.150.000 = 4.600.000", () => {
   const s = createSeedData(T);
-  const q = quote({ facility: s.facilities[0], type: "normal", band: "M", months: 3, start_date: T });
+  const offer = s.facilities[0].offers.find((o) => o.key === "normal-M");
+  const q = quote({ offer, months: 3, start_date: T });
   assert.equal(q.monthly_rate, 1150000);
   assert.equal(q.rent_total, 3450000);
   assert.equal(q.deposit, 1150000);

@@ -3,6 +3,7 @@ import { Photo } from "../components/Photo";
 import { Button, DetailList, Empty, Icon, LinkButton, Notice } from "../components/UI";
 import PaymentQr from "../components/PaymentQr";
 import { bandLabel, typeLabel } from "../lib/catalog";
+import { distanceLabel } from "../lib/format";
 import { dateLabel, formatCountdown, money, rangeLabel } from "../lib/format";
 import { useNow, shortName } from "../lib/hooks";
 import { go } from "../lib/router";
@@ -24,7 +25,7 @@ function NotFound() {
 export function Checkout({ id }) {
   const { data, dispatch, timeoutSeconds } = useApp();
   const r = data.reservations.find((x) => x.reservation_id === id);
-  const facility = r && facilityOf(data, r.facility_id);
+  const facility = r && facilityOf(data, r.facility_id, r.facility_name);
   const now = useNow(250);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -39,17 +40,16 @@ export function Checkout({ id }) {
 
   useEffect(() => {
     if (r?.status === "PENDING_PAYMENT" && remaining <= 0) {
-      dispatch("EXPIRE_RESERVATION", { reservation_id: id });
-      go(`checkout/${id}/failed`, { replace: true });
+      dispatch("EXPIRE_RESERVATION", { reservation_id: id }).then(() => go(`checkout/${id}/failed`, { replace: true }));
     }
   }, [remaining <= 0, r?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!r) return <NotFound />;
 
-  const confirm = () => {
+  const confirm = async () => {
     setBusy(true);
     setError("");
-    const res = dispatch("CONFIRM_TRANSFER", { reservation_id: id });
+    const res = await dispatch("CONFIRM_TRANSFER", { reservation_id: id });
     if (res.ok) return go(`confirmation/${id}`);
     setBusy(false);
     if (res.code === "EXPIRED") return go(`checkout/${id}/failed`, { replace: true });
@@ -62,7 +62,10 @@ export function Checkout({ id }) {
       <header className="page-header page-header--tight">
         <div>
           <h1>{facility.name}</h1>
-          <p>{facility.district}, {facility.city} · Cách bạn {String(facility.distance_km).replace(".", ",")} km</p>
+          <p>
+            {[facility.district, facility.city].filter(Boolean).join(", ") || facility.address}
+            {facility.distance_km != null && ` · Cách bạn ${distanceLabel(facility.distance_km)}`}
+          </p>
         </div>
       </header>
       <div className="detail-grid">
@@ -136,7 +139,7 @@ export function ReservationSummary({ id, mode = "confirmation" }) {
   const now = useNow(1000);
   const r = data.reservations.find((x) => x.reservation_id === id);
   if (!r) return <NotFound />;
-  const facility = facilityOf(data, r.facility_id);
+  const facility = facilityOf(data, r.facility_id, r.facility_name);
   const isDetail = mode === "detail";
   const waiting = r.status === "PENDING_PAYMENT" && r.expires_at && new Date(r.expires_at) > now;
   const statusText = !isDetail && r.status === "PENDING_VERIFICATION" ? "Chờ đối soát thanh toán" : RESERVATION_STATUS[r.status][0];
@@ -148,11 +151,11 @@ export function ReservationSummary({ id, mode = "confirmation" }) {
     CANCELLED: "Đơn đặt chỗ đã huỷ",
   };
   const rows = [
-    ["Cơ sở", `SafeSpace ${facility.district} — ${shortName(facility)}`],
+    ["Cơ sở", facility.district && /^SafeSpace/.test(facility.name) ? `SafeSpace ${facility.district} — ${shortName(facility)}` : facility.name],
     ["Kỳ thuê", `${rangeLabel(r.start_date, r.end_date)} · ${r.months} tháng`],
   ];
   if (isDetail) {
-    rows.push(["Loại kho", `${typeLabel(r.type)} · ${bandLabel(r.band)}`], ["Tổng ban đầu", money(r.initial_total)]);
+    rows.push(["Loại kho", `${typeLabel(r.type)} · ${r.size_label || bandLabel(r.band)}`], ["Tổng ban đầu", money(r.initial_total)]);
     if (r.cancel_reason) rows.push(["Lý do huỷ", r.cancel_reason]);
   }
   rows.push(["Trạng thái", statusText]);

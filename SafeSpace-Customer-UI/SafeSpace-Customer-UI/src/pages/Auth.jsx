@@ -7,6 +7,7 @@ import { useApp } from "../state/store";
 const safeNext = (next) => (next && !/^(login|register)/.test(next) ? next : "overview");
 
 function ForgotPassword({ onClose }) {
+  const { supports } = useApp();
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
@@ -17,7 +18,12 @@ function ForgotPassword({ onClose }) {
   };
   return (
     <Modal title="Quên mật khẩu?" onClose={onClose}>
-      {sent ? (
+      {!supports.forgotPassword ? (
+        <>
+          <p className="modal__text">Vui lòng liên hệ quản trị viên hoặc nhân viên cơ sở SafeSpace để được đặt lại mật khẩu.</p>
+          <Button onClick={onClose}>Đã hiểu</Button>
+        </>
+      ) : sent ? (
         <>
           <p className="modal__text">Nếu email đã đăng ký, SafeSpace sẽ gửi hướng dẫn đặt lại mật khẩu trong ít phút.</p>
           <Button onClick={onClose}>Đã hiểu</Button>
@@ -44,6 +50,7 @@ export function Login({ query }) {
   const [form, setForm] = useState({ identifier: "", password: "" });
   const [errors, setErrors] = useState({});
   const [forgot, setForgot] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (authed) go(next, { replace: true });
@@ -53,13 +60,15 @@ export function Login({ query }) {
     setForm({ ...form, [k]: v });
     setErrors({});
   };
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
     const err = {};
     if (!form.identifier.trim()) err.identifier = "Vui lòng nhập tên đăng nhập hoặc email.";
     if (!form.password) err.password = "Vui lòng nhập mật khẩu.";
     if (Object.keys(err).length) return setErrors(err);
-    const res = login(form);
+    setBusy(true);
+    const res = await login(form);
+    setBusy(false);
     if (!res.ok) return setErrors({ form: res.error });
     go(next);
   };
@@ -77,7 +86,7 @@ export function Login({ query }) {
           <input type="password" autoComplete="current-password" placeholder="Nhập mật khẩu" value={form.password} onChange={(e) => set("password", e.target.value)} />
         </Field>
         <button type="button" className="link-btn auth__forgot" onClick={() => setForgot(true)}>Quên mật khẩu?</button>
-        <Button type="submit" block>Đăng nhập</Button>
+        <Button type="submit" block disabled={busy}>{busy ? "Đang đăng nhập…" : "Đăng nhập"}</Button>
         <p className="auth__note">
           Nhân viên: nhập đúng tên đăng nhập và mật khẩu được cấp trước để vào đúng giao diện vai trò của bạn — Nhân viên cơ sở, Quản lý cơ sở, Vận hành, hoặc Quản trị hệ thống.
         </p>
@@ -95,6 +104,7 @@ export function Register({ query }) {
   const next = safeNext(query.get("next"));
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", confirm: "" });
   const [errors, setErrors] = useState({});
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (authed) go(next, { replace: true });
@@ -102,11 +112,13 @@ export function Register({ query }) {
 
   const set = (k, v) => {
     setForm({ ...form, [k]: v });
-    setErrors((p) => ({ ...p, [k]: undefined }));
+    setErrors((p) => ({ ...p, [k]: undefined, form: undefined }));
   };
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    const res = register(form);
+    setBusy(true);
+    const res = await register(form);
+    setBusy(false);
     if (!res.ok) return setErrors(res.errors);
     go(next);
   };
@@ -116,6 +128,7 @@ export function Register({ query }) {
       <form className="panel auth__card" onSubmit={submit} noValidate>
         <h1>Tạo tài khoản khách hàng</h1>
         <p className="lead">Điền thông tin bên dưới để bắt đầu thuê kho cùng SafeSpace.</p>
+        {errors.form && <p className="form-error" role="alert">{errors.form}</p>}
         <Field label="Họ và tên" error={errors.name}>
           <input autoComplete="name" placeholder="Nhập họ và tên của bạn" value={form.name} onChange={(e) => set("name", e.target.value)} />
         </Field>
@@ -131,7 +144,7 @@ export function Register({ query }) {
         <Field label="Xác nhận mật khẩu" error={errors.confirm}>
           <input type="password" autoComplete="new-password" placeholder="Nhập lại mật khẩu" value={form.confirm} onChange={(e) => set("confirm", e.target.value)} />
         </Field>
-        <Button type="submit" block>Tạo tài khoản</Button>
+        <Button type="submit" block disabled={busy}>{busy ? "Đang tạo tài khoản…" : "Tạo tài khoản"}</Button>
         <p className="auth__role">
           <Icon name="check" size={14} /> Tài khoản mới sẽ tự động vào vai trò Khách hàng.
         </p>

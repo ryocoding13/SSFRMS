@@ -3,18 +3,45 @@
 React + Vite, bám theo file Figma **SafeSpace - Modern UI**: Trang chủ, Đăng nhập, Đăng ký, Bảng giá,
 Hướng dẫn và toàn bộ luồng khách hàng C01–C14 (kèm C03b/C03c/C04b, popup thông báo, các trạng thái C13).
 
+## Chạy cùng backend (khuyến nghị)
+
+1. Chạy backend ở thư mục gốc repo: `dotnet run --project StorageProject.Api --launch-profile http` → `http://localhost:5151`
+2. Chạy giao diện:
+
 ```bash
+cd SafeSpace-Customer-UI/SafeSpace-Customer-UI
 npm ci
-cp .env.example .env            # chỉnh tài khoản nhận chuyển khoản
-npm run dev                     # http://127.0.0.1:5173
+copy .env.example .env.local        # macOS/Linux: cp .env.example .env.local
+npm run dev                         # http://127.0.0.1:5173
 ```
 
-Tài khoản khách hàng có sẵn: `mai.nguyen@example.com` / `SafeSpace@123`. Khách mới đăng ký tại `#/register`.
+`.env.local` mặc định đã bật `VITE_USE_API=true`. Tài khoản có sẵn trong backend: `customer01` / `Customer@123`
+(đăng nhập bằng **tên đăng nhập**). Khách đăng ký mới trên giao diện đăng nhập bằng **email**.
+
+## Chạy không cần backend
+
+Đặt `VITE_USE_API=false` (hoặc không tạo `.env.local`): dữ liệu lưu trong trình duyệt, tài khoản có sẵn
+`mai.nguyen@example.com` / `SafeSpace@123`. Dùng khi chỉ cần xem giao diện.
+
+## Luồng nào gọi backend
+
+| Luồng | Chế độ API |
+|---|---|
+| Đăng ký, đăng nhập, đăng xuất | `POST /api/auth/register · login · logout` |
+| Cơ sở, loại kho, bảng giá, kiểm tra kho trống | `GET /api/facilities · unit-types · rates`, `POST /api/availability/check` |
+| Tạo / xem / huỷ đơn đặt chỗ, hết giờ giữ chỗ tự huỷ | `/api/reservations` |
+| Hợp đồng, khoản thu, lịch nhận kho, xác nhận bàn giao | `/api/contracts`, `/api/handovers/{id}/confirm` |
+| Gia hạn | `POST /api/contracts/{id}/renewals` |
+| Yêu cầu hỗ trợ (gửi, xem, huỷ) | `/api/tickets` |
+| Báo "Tôi đã chuyển khoản", đăng ký trả kho, thông báo, đổi tên hiển thị, ảnh đính kèm hỗ trợ | Backend **chưa có API** → lưu trong trình duyệt theo từng tài khoản |
+| Đổi mật khẩu, quên mật khẩu | Backend chưa có API → giao diện hướng dẫn liên hệ quản trị viên |
+
+Khi backend bổ sung API cho các dòng cuối, chỉ cần sửa `src/state/store.jsx` (nhánh `ApiProvider`), xem `BE-CONTRACT.md`.
 
 ## Kiểm tra
 
 ```bash
-npm test             # 18 test nghiệp vụ: báo giá, giữ chỗ / tự huỷ, gia hạn, trả kho, hỗ trợ, VietQR...
+npm test             # 25 test: nghiệp vụ, VietQR, chuyển đổi dữ liệu backend (theo seed thật)
 npm run test:render  # render 38 route, bắt lỗi runtime, NaN, undefined
 npm run build        # xuất bản dist/ (đường dẫn tương đối, đặt được ở thư mục con)
 ```
@@ -40,11 +67,8 @@ src/
   pages/                   mỗi màn Figma một component (xem CUSTOMER-FLOW-COVERAGE.md)
   components/              Header + thông báo, lịch chọn ngày, thư viện ảnh, mã QR, UI dùng chung
   state/reducer.js         nghiệp vụ (thuần, có test)
-  state/store.jsx          phiên đăng nhập + kho dữ liệu cục bộ (localStorage)
+  state/store.jsx          phiên đăng nhập; 2 chế độ: dữ liệu trong trình duyệt / API backend
+  api/                     gọi API (http.js, endpoints.js) + chuyển dữ liệu backend → giao diện (mappers.js)
   data/seed.js             dữ liệu khởi tạo: 12 cơ sở, khách hàng Nguyễn Thị Mai
-  config/                  ảnh, tài khoản nhận chuyển khoản
-  services/                lớp gọi API REST, dùng khi nối backend
+  config/                  địa chỉ API, ảnh, tài khoản nhận chuyển khoản
 ```
-
-Dữ liệu hiện lưu ở trình duyệt. Nối backend: thay `dispatch` / `login` / `register` trong `state/store.jsx`
-bằng lời gọi API theo `BE-CONTRACT.md`; các trang không phải sửa.

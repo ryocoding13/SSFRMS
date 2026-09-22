@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Icon, LinkButton, PageHeader } from "../components/UI";
-import { SIZE_BANDS, rateFor } from "../lib/catalog";
+import { SIZE_BANDS, minRate } from "../lib/catalog";
 import { money } from "../lib/format";
 import { useApp } from "../state/store";
 
@@ -11,12 +11,13 @@ export function Pricing() {
       <PageHeader title="Chi phí rõ ràng, dễ lựa chọn" description="Giá tham khảo theo diện tích. Giá chính xác phụ thuộc cơ sở, loại kho và kỳ thuê." />
       <div className="grid grid--3">
         {SIZE_BANDS.map((b) => {
-          const min = Math.min(...data.facilities.map((f) => rateFor(f, "normal", b.id)));
+          const rates = data.facilities.map((f) => minRate(f, { band: b.id })).filter((x) => x != null);
+          const min = rates.length ? Math.min(...rates) : null;
           return (
             <article className="panel price-card" key={b.id}>
               <h2>{b.name}</h2>
               <span className="tag tag--soft">{b.label.replaceAll(" – ", "–")}</span>
-              <p className="price price--lg">{b.id === "L" ? "Xem giá theo cơ sở" : `Từ ${money(min)} / tháng`}</p>
+              <p className="price price--lg">{min == null || b.id === "L" ? "Xem giá theo cơ sở" : `Từ ${money(min)} / tháng`}</p>
               <p className="muted">{b.note}</p>
               <LinkButton to={`find?band=${b.id}`}>Tìm kho phù hợp</LinkButton>
             </article>

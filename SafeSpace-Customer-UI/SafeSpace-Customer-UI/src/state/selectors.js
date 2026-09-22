@@ -1,6 +1,16 @@
 import { daysBetween, localDate } from "../lib/format.js";
 
-export const facilityOf = (data, id) => data.facilities.find((f) => f.facility_id === Number(id));
+// Luôn trả về một cơ sở (dự phòng khi dữ liệu máy chủ chỉ có tên cơ sở)
+export const facilityOf = (data, id, name) =>
+  data.facilities.find((f) => f.facility_id === Number(id)) ||
+  (name && data.facilities.find((f) => f.name === name)) || {
+    facility_id: Number(id) || 0,
+    name: name || "SafeSpace",
+    district: "",
+    city: "",
+    hours: "06:00–22:00",
+    offers: [],
+  };
 export const contractOf = (data, id) => data.contracts.find((c) => c.contract_id === id);
 
 // Trạng thái hợp đồng suy ra theo ngày (ACTIVE → EXPIRING trong 30 ngày → OVERDUE)
@@ -49,7 +59,7 @@ export function milestones(data, now = new Date(), limit = 3) {
       key: a.appointment_id,
       date: a.date,
       title: `${a.kind === "CHECK_IN" ? "Nhận kho" : "Trả kho"} ${a.unit_number}`,
-      detail: `${a.slot} · ${f?.name || "SafeSpace"}`,
+      detail: `${a.slot} · ${f.name}`,
     });
   }
   for (const c of data.contracts) {

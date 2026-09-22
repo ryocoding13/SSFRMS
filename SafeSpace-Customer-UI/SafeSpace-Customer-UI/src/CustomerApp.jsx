@@ -11,7 +11,7 @@ import "@fontsource/inter/vietnamese-800.css";
 import "./styles/ss.css";
 import React, { useEffect } from "react";
 import Header from "./components/Header";
-import { Empty, Icon, LinkButton } from "./components/UI";
+import { Button, Empty, Icon, LinkButton } from "./components/UI";
 import { go, href, parseRoute, useRoute } from "./lib/router";
 import { Login, Register } from "./pages/Auth";
 import { Checkout, CheckoutFailed, ReservationSummary } from "./pages/Checkout";
@@ -82,7 +82,7 @@ function renderPage({ page, parts, query }) {
 
 function Shell() {
   const route = useRoute();
-  const { authed, toast, dismissToast, storageError } = useApp();
+  const { authed, toast, dismissToast, storageError, ready, loadError, retry } = useApp();
   const needsLogin = PRIVATE.includes(route.page) && !authed;
 
   useEffect(() => {
@@ -101,11 +101,29 @@ function Shell() {
       <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>Chuyển đến nội dung</a>
       <Header page={route.page} />
       <div id="main" tabIndex={-1} key={route.raw.split("?")[0]}>
-        {needsLogin ? null : renderPage(route)}
+        {needsLogin ? null : loadError && !ready ? (
+          <main className="container page">
+            <Empty title="Không tải được dữ liệu" text={loadError}>
+              <Button onClick={retry}>Thử lại</Button>
+            </Empty>
+          </main>
+        ) : !ready ? (
+          <main className="container page loading" aria-busy="true">
+            <span className="loading__spinner" aria-hidden="true" />
+            <p>Đang tải dữ liệu…</p>
+          </main>
+        ) : (
+          renderPage(route)
+        )}
       </div>
       <footer className="footer">
-        <span>© 2026 SafeSpace – Cất bề bộn, Mở không gian.</span>
-       
+        <span>© 2026 SafeSpace · Không gian cho cuộc sống của bạn.</span>
+        <nav className="footer__links" aria-label="Liên kết cuối trang">
+          <a href={href("find")}>Cơ sở</a>
+          <a href={href("pricing")}>Bảng giá</a>
+          <a href={href("guide")}>Hướng dẫn</a>
+          <a href={href(authed ? "support" : "guide")}>Hỗ trợ</a>
+        </nav>
       </footer>
       {storageError && <p className="storage-warning" role="status">Trình duyệt không cho lưu dữ liệu, thao tác chỉ giữ trong phiên này.</p>}
       {toast && (

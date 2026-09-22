@@ -1,15 +1,14 @@
 import React, { useState } from "react";
 import { DatePicker, Select } from "../components/Pickers";
 import { Button, Empty, Field, LinkButton, Notice, PageHeader, StatusTag, Tag } from "../components/UI";
-import { RENTAL_PLANS, bandLabel, typeLabel } from "../lib/catalog";
+import { RENTAL_PLANS, typeLabel } from "../lib/catalog";
 import { addDays, addMonths, dateLabel, dayMonth, money, rangeLabel, today } from "../lib/format";
-import { shortName } from "../lib/hooks";
+import { siteLabel } from "../lib/hooks";
 import { go, href } from "../lib/router";
 import { CONTRACT_STATUS, LEDGER_STATUS } from "../lib/status";
 import { contractOf, contractStatus, facilityOf, pendingRenewal, pendingReturn } from "../state/selectors";
 import { useApp } from "../state/store";
 
-const compact = (s) => s.replaceAll(" – ", "–");
 
 function NotFound() {
   return (
@@ -34,12 +33,12 @@ export function Units() {
       ) : (
         <div className="grid grid--2">
           {data.contracts.map((c) => {
-            const f = facilityOf(data, c.facility_id);
+            const f = facilityOf(data, c.facility_id, c.facility_name);
             return (
               <article className="panel unit-card" key={c.contract_id}>
                 <StatusTag map={CONTRACT_STATUS} status={contractStatus(c)} square />
                 <h2>{c.unit_number} · {typeLabel(c.type)}</h2>
-                <p className="muted">SafeSpace {f.district} · {c.size_m2} m²</p>
+                <p className="muted">{siteLabel(f)}{c.size_m2 ? ` · ${c.size_m2} m²` : ""}</p>
                 <h3>Thời hạn hợp đồng</h3>
                 <p className="muted">
                   Ngày kết thúc: {dateLabel(c.end_date)}
@@ -58,13 +57,20 @@ export function Units() {
 
 // C07 — Hợp đồng & quản lý kho
 export function UnitDetail({ id }) {
-  const { data } = useApp();
+  const { data, dispatch, notify } = useApp();
+  const [confirming, setConfirming] = useState(false);
   const c = contractOf(data, id);
   if (!c) return <NotFound />;
-  const f = facilityOf(data, c.facility_id);
+  const f = facilityOf(data, c.facility_id, c.facility_name);
   const renewal = pendingRenewal(data, id);
   const ret = pendingReturn(data, id);
-  const rent = [...data.ledger].reverse().find((l) => l.contract_id === id && /-RENT$/.test(l.ref));
+  const rent = [...data.ledger].reverse().find((l) => l.contract_id === id && (l.kind === "RENT" || /-RENT$/.test(l.ref)));
+  const confirmHandover = async () => {
+    setConfirming(true);
+    const res = await dispatch("CONFIRM_HANDOVER", { contract_id: id });
+    setConfirming(false);
+    notify(res.ok ? "Đã xác nhận nhận bàn giao kho." : res.error, res.ok ? "success" : "error");
+  };
   const busy = Boolean(renewal || ret);
   return (
     <main className="container page">
@@ -72,9 +78,9 @@ export function UnitDetail({ id }) {
       <div className="detail-grid detail-grid--even">
         <section className="panel info-card">
           <StatusTag map={CONTRACT_STATUS} status={contractStatus(c)} square />
-          <h2 className="h-sub">{typeLabel(c.type)} · {c.size_m2} m²</h2>
+          <h2 className="h-sub">{typeLabel(c.type)}{c.size_m2 ? ` · ${c.size_m2} m²` : ""}</h2>
           <p className="muted">
-            {c.location} · Kho {c.unit_number}
+            {c.location ? `${c.location} · ` : ""}Kho {c.unit_number}
             <br />
             Kỳ thuê: {rangeLabel(c.start_date, c.end_date)}
             <br />
@@ -90,6 +96,14 @@ export function UnitDetail({ id }) {
               <tr><td>Thanh toán kỳ này</td><td>{rent ? LEDGER_STATUS[rent.status][0] : "—"}</td></tr>
             </tbody>
           </table>
+          {c.handover_pending_customer && (
+            <Notice>
+              Cơ sở đã bàn giao kho. Vui lòng kiểm tra và xác nhận đã nhận kho.{" "}
+              <button type="button" className="link-btn" onClick={confirmHandover} disabled={confirming}>
+                {confirming ? "Đang xác nhận…" : "Xác nhận đã nhận kho"}
+              </button>
+            </Notice>
+          )}
           <h3>Thông tin ra vào</h3>
           <p className="muted">
             {c.handed_over
@@ -128,11 +142,14 @@ export function Renew({ id }) {
   const c = contractOf(data, id);
   const [months, setMonths] = useState(3);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   if (!c) return <NotFound />;
   const newEnd = addMonths(c.end_date, months);
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    const res = dispatch("REQUEST_RENEWAL", { contract_id: id, months });
+    setBusy(true);
+    const res = await dispatch("REQUEST_RENEWAL", { contract_id: id, months });
+    setBusy(false);
     if (!res.ok) return setError(res.error);
     go(`sent?type=renew&contract=${encodeURIComponent(id)}`);
   };
@@ -157,7 +174,7 @@ export function Renew({ id }) {
         <p className="visually-hidden" aria-live="polite">Ngày kết thúc mới dự kiến {dateLabel(newEnd)}</p>
         {error && <Notice tone="error">{error}</Notice>}
         <div className="stack">
-          <Button type="submit">Gửi yêu cầu gia hạn</Button>
+          <Button type="submit" disabled={busy}>{busy ? "Đang gửi…" : "Gửi yêu cầu gia hạn"}</Button>
           <LinkButton to={`units/${id}`} variant="outline">Quay lại hợp đồng</LinkButton>
         </div>
       </form>
@@ -176,9 +193,9 @@ export function Return({ id }) {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   if (!c) return <NotFound />;
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    const res = dispatch("REQUEST_RETURN", { contract_id: id, date, slot, notes });
+    const res = await dispatch("REQUEST_RETURN", { contract_id: id, date, slot, notes });
     if (!res.ok) return setError(res.error);
     go(`sent?type=return&contract=${encodeURIComponent(id)}`);
   };
