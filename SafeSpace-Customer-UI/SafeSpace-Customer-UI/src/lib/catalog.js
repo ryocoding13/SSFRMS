@@ -94,7 +94,11 @@ export const DEFAULT_FILTERS = { type: "", band: "", area: "", camera: false, bu
 
 export const hasActiveFilters = (f) => Boolean(f.type || f.band || f.area || f.camera || f.budget);
 
-const byDistance = (a, b) => (a.distance_km ?? Infinity) - (b.distance_km ?? Infinity) || a.facility_id - b.facility_id;
+// Theo khoảng cách; không có khoảng cách (dữ liệu backend) thì giữ thứ tự danh mục (sort ổn định)
+const byDistance = (a, b) => {
+  if (a.distance_km == null || b.distance_km == null) return (a.distance_km == null) - (b.distance_km == null);
+  return a.distance_km - b.distance_km;
+};
 
 // Lọc + sắp xếp danh sách cơ sở (C02 / C03)
 export function searchFacilities(facilities, filters) {
