@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build --base=./",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test tests/reducer.test.js tests/api-mappers.test.js",
+    "test": "node --test tests/reducer.test.js tests/api-mappers.test.js tests/admin.test.js",
     "test:render": "node tests/render.test.mjs"
   },
   "dependencies": {

@@ -4,7 +4,7 @@ Giao diện bám Figma nên **khác luồng backend cũ (v3)** ở vài điểm.
 Toàn bộ nghiệp vụ hiện nằm ở `src/state/reducer.js`; mỗi lệnh (`CREATE_RESERVATION`, `CONFIRM_TRANSFER`, ...)
 tương ứng một endpoint dưới đây, nên thay bằng lời gọi API là đủ.
 
-## 0. Hiện trạng nối API (VITE_USE_API=true)
+## 0. Hiện trạng nối API
 
 Giao diện đã gọi thật các endpoint backend đang có: auth, facilities / unit-types / rates / availability,
 reservations, contracts (+ payments, renewals, handover), tickets. Những luồng dưới đây backend **chưa có**
@@ -23,6 +23,23 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
   (`ACCESS`, `LOCK`, `UNIT`, `PAYMENT`, `ITEMS`, `SCHEDULE`, `OTHER`), `Title` theo chủ đề, `Priority` = `HIGH` / `NORMAL`.
 - **Loại kho thật** (Mini S 1 m², M 4 m², L 9 m², XL 16 m²) hiển thị thành "Kho thường / Kiểm soát nhiệt độ" +
   diện tích thật, lấy giá từ `/api/rates`.
+
+## 0a. Dữ liệu 12 cơ sở theo Figma
+
+`StorageProject.Infrastructure/Data/DbSeeder.cs` được bổ sung bước **7b** (`SeedSafeSpaceNetworkAsync`):
+- Đổi tên 2 cơ sở seed cũ: "SSFRMS Chi nhánh Tân Bình / Quận 7" → "SafeSpace Tân Bình / Quận 7".
+- Thêm 10 cơ sở Figma (Nguyễn Lương Bằng, Him Lam, Phú Xuân, Tân Thuận, Phú Mỹ Hưng, Bình Thạnh, Nhà Bè, Bình Chánh,
+  Thủ Đức, Gò Vấp), mỗi cơ sở có bảng giá S / M / L (một số có XL) và 5–6 phòng kho `AVAILABLE`.
+- Chạy lại được: chỉ thêm phần còn thiếu, nên database đã tạo từ trước cũng tự có đủ 12 cơ sở khi khởi động lại API.
+
+## 0b. Khu quản trị
+
+Đã gọi toàn bộ `/api/admin/*` hiện có (xem `ADMIN-FLOW-COVERAGE.md`). Đề xuất bổ sung phía backend:
+- Gửi email mời / đặt mật khẩu lần đầu khi tạo tài khoản (Figma A02 "Gửi lời mời").
+- Vai trò `OPERATIONS` (Vận hành KD) như Figma.
+- Ghi lịch sử đăng nhập **thất bại** (hiện chỉ ghi khi thành công) và lưu IP vào nhật ký hoạt động.
+- Cho lọc nhật ký theo nhiều `action` một lúc (để tab "Thay đổi dữ liệu" / "Phân quyền" phân trang ở máy chủ).
+- Trả kèm cơ sở phụ trách trong `GET /api/admin/users` để khỏi gọi thêm từng người.
 
 ## 1. Luồng khác v3 (cần quyết định phía BE)
 

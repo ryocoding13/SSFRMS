@@ -11,6 +11,7 @@ globalThis.localStorage = { getItem: (k) => memory.get(k) ?? null, setItem: (k, 
 globalThis.window = { location: { hash: "" }, addEventListener() {}, removeEventListener() {}, scrollTo() {} };
 globalThis.document = { title: "", addEventListener() {}, removeEventListener() {}, activeElement: null, body: { style: {} } };
 
+process.env.VITE_USE_API = "false";
 const vite = await createServer({ root, server: { middlewareMode: true }, appType: "custom", logLevel: "error" });
 try {
   const { default: App } = await vite.ssrLoadModule("/src/CustomerApp.jsx");

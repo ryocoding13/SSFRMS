@@ -1,9 +1,10 @@
-# SafeSpace — Giao diện khách hàng
+# SafeSpace — Giao diện khách hàng & quản trị hệ thống
 
 React + Vite, bám theo file Figma **SafeSpace - Modern UI**: Trang chủ, Đăng nhập, Đăng ký, Bảng giá,
-Hướng dẫn và toàn bộ luồng khách hàng C01–C14 (kèm C03b/C03c/C04b, popup thông báo, các trạng thái C13).
+Hướng dẫn, toàn bộ luồng khách hàng C01–C14 (kèm C03b/C03c/C04b, popup thông báo, các trạng thái C13)
+và khu **Quản trị hệ thống** A01–A04 (xem `ADMIN-FLOW-COVERAGE.md`).
 
-## Chạy cùng backend (khuyến nghị)
+## Chạy cùng backend
 
 1. Chạy backend ở thư mục gốc repo: `dotnet run --project StorageProject.Api --launch-profile http` → `http://localhost:5151`
 2. Chạy giao diện:
@@ -11,16 +12,21 @@ Hướng dẫn và toàn bộ luồng khách hàng C01–C14 (kèm C03b/C03c/C04
 ```bash
 cd SafeSpace-Customer-UI/SafeSpace-Customer-UI
 npm ci
-copy .env.example .env.local        # macOS/Linux: cp .env.example .env.local
 npm run dev                         # http://127.0.0.1:5173
 ```
 
-`.env.local` mặc định đã bật `VITE_USE_API=true`. Tài khoản có sẵn trong backend: `customer01` / `Customer@123`
-(đăng nhập bằng **tên đăng nhập**). Khách đăng ký mới trên giao diện đăng nhập bằng **email**.
+Giao diện mặc định gọi API ở `http://localhost:5151`; đổi địa chỉ bằng `VITE_API_URL` trong `.env.local` (xem `.env.example`). Tài khoản có sẵn trong backend (đăng nhập bằng **tên đăng nhập**):
+
+| Tài khoản | Mật khẩu | Vào |
+|---|---|---|
+| `customer01`, `customer02` | `Customer@123` | Giao diện khách hàng `#/overview` |
+| `admin` | `Admin@123` | Quản trị hệ thống `#/admin` |
+
+Khách đăng ký mới trên giao diện đăng nhập bằng **email**. Khu quản trị chỉ chạy ở chế độ API.
 
 ## Chạy không cần backend
 
-Đặt `VITE_USE_API=false` (hoặc không tạo `.env.local`): dữ liệu lưu trong trình duyệt, tài khoản có sẵn
+Tạo `.env.local` với dòng `VITE_USE_API=false`: dữ liệu lưu trong trình duyệt, tài khoản có sẵn
 `mai.nguyen@example.com` / `SafeSpace@123`. Dùng khi chỉ cần xem giao diện.
 
 ## Luồng nào gọi backend
@@ -41,7 +47,7 @@ Khi backend bổ sung API cho các dòng cuối, chỉ cần sửa `src/state/st
 ## Kiểm tra
 
 ```bash
-npm test             # 25 test: nghiệp vụ, VietQR, chuyển đổi dữ liệu backend (theo seed thật)
+npm test             # 28 test: nghiệp vụ, VietQR, chuyển đổi dữ liệu backend, vai trò JWT, nhật ký quản trị
 npm run test:render  # render 38 route, bắt lỗi runtime, NaN, undefined
 npm run build        # xuất bản dist/ (đường dẫn tương đối, đặt được ở thư mục con)
 ```
@@ -68,7 +74,8 @@ src/
   components/              Header + thông báo, lịch chọn ngày, thư viện ảnh, mã QR, UI dùng chung
   state/reducer.js         nghiệp vụ (thuần, có test)
   state/store.jsx          phiên đăng nhập; 2 chế độ: dữ liệu trong trình duyệt / API backend
-  api/                     gọi API (http.js, endpoints.js) + chuyển dữ liệu backend → giao diện (mappers.js)
+  api/                     gọi API (http.js, endpoints.js, admin.js) + chuyển dữ liệu backend → giao diện (mappers.js)
+  admin/                   khu quản trị: AdminShell, AdminUsers, AdminUserDetail, AdminCreateUser, AdminPermissions, AdminLogs
   data/seed.js             dữ liệu khởi tạo: 12 cơ sở, khách hàng Nguyễn Thị Mai
   config/                  địa chỉ API, ảnh, tài khoản nhận chuyển khoản
 ```

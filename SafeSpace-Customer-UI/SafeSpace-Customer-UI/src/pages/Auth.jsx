@@ -45,7 +45,7 @@ function ForgotPassword({ onClose }) {
 }
 
 export function Login({ query }) {
-  const { login, authed } = useApp();
+  const { login, authed, isAdmin } = useApp();
   const next = safeNext(query.get("next"));
   const [form, setForm] = useState({ identifier: "", password: "" });
   const [errors, setErrors] = useState({});
@@ -53,8 +53,8 @@ export function Login({ query }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (authed) go(next, { replace: true });
-  }, [authed, next]);
+    if (authed) go(isAdmin ? "admin" : next, { replace: true });
+  }, [authed, isAdmin, next]);
 
   const set = (k, v) => {
     setForm({ ...form, [k]: v });
@@ -70,7 +70,7 @@ export function Login({ query }) {
     const res = await login(form);
     setBusy(false);
     if (!res.ok) return setErrors({ form: res.error });
-    go(next);
+    go(res.roles?.includes("ADMIN") ? (next.startsWith("admin") ? next : "admin") : next);
   };
 
   return (
