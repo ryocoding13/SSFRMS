@@ -31,6 +31,6 @@ Nguồn: file Figma "SafeSpace - Modern UI" (section Khách hàng + Trang chủ 
 ## Chỗ Figma tự mâu thuẫn, code chọn như sau
 - C04 ghi cần chuyển 3.450.000 đ nhưng C03b/C14 ghi "Tổng ban đầu" 4.600.000 đ → chuyển **4.600.000 đ** (tiền thuê + cọc).
 - C03c ghi "x trên 4" → thư viện hiện **6 ảnh** (ảnh cơ sở + 4 ảnh bên trong + sơ đồ).
-- C01 nói đã gửi gia hạn B-015 nhưng vẫn có nút "Gửi yêu cầu gia hạn" → dữ liệu khởi tạo chưa có yêu cầu gia hạn.
+- C01 nói đã gửi gia hạn B-015 nhưng vẫn có nút "Gửi yêu cầu gia hạn" → **đã sửa trong Figma 26/09/2026**: B-015 chưa gửi gia hạn (xem `docs/figma-review-2026-09-26.md` ở thư mục gốc repo).
 - Figma không có màn cho: chi tiết đơn, huỷ yêu cầu hỗ trợ, trạng thái rỗng → dựng theo cùng phong cách.
 - Figma có 12 cơ sở nhưng chỉ vẽ 9 thẻ; 3 cơ sở trang 2 (Gò Vấp, Tân Bình, Bình Tân) dùng lại ảnh Bình Thạnh, Tân Thuận, Bình Chánh.
