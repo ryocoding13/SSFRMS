@@ -11,7 +11,7 @@ process.env.VITE_USE_API = "true";
 process.env.VITE_API_URL = `http://localhost:${API_PORT}`;
 
 try {
-  await startMockApi(API_PORT, { verbose: true });
+  await startMockApi(API_PORT, { verbose: true, ops: process.env.MOCK_OPS === "1" });
 } catch (e) {
   console.error(`Không mở được cổng ${API_PORT} (có thể backend thật đang chạy). Đặt MOCK_API_PORT=5199 rồi chạy lại.`);
   process.exit(1);
@@ -24,5 +24,9 @@ console.log(`
   Tài khoản có sẵn:
     admin       / Admin@123      → Quản trị hệ thống (#/admin)
     customer01  / Customer@123   → Khách hàng
+    staff01     / Staff@123      → Nhân viên cơ sở (#/staff)
+    manager01   / Manager@123    → Quản lý cơ sở (#/manager) — chỉ khi chạy với MOCK_OPS=1
+  MOCK_OPS=1 bật các endpoint /api/ops/* (backend thật CHƯA có, xem BE-CONTRACT.md mục 5).
+  Không bật: khu vận hành báo "backend chưa có API" và dùng dữ liệu mẫu trong trình duyệt.
   Mỗi lời gọi API sẽ hiện bên dưới (xanh = thành công, đỏ = lỗi từ máy chủ).
 `);

@@ -1,5 +1,6 @@
 import React from "react";
-import { Empty, LinkButton, PageHeader } from "../components/UI";
+import { EmptyInline } from "../components/Inline";
+import { LinkButton, PageHeader } from "../components/UI";
 import { money, shortCode } from "../lib/format";
 import { shortName } from "../lib/hooks";
 import { href } from "../lib/router";
@@ -15,9 +16,7 @@ export default function Reservations() {
     <main className="container page">
       <PageHeader title="Đơn đặt chỗ của tôi" description="Theo dõi thanh toán, phân bổ kho và lịch nhận theo từng đơn." />
       {list.length === 0 ? (
-        <Empty title="Bạn chưa có đơn đặt chỗ" text="Tìm cơ sở phù hợp để đặt kho đầu tiên.">
-          <LinkButton to="find">Tìm & đặt kho</LinkButton>
-        </Empty>
+        <EmptyInline text="Bạn chưa có đơn đặt chỗ nào." cta="Tìm & đặt kho" to="find" />
       ) : (
         <>
           <div className="table-wrap panel">

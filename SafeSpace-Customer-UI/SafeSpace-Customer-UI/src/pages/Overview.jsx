@@ -66,7 +66,7 @@ export default function Overview() {
 
       <h2 className="section-title">Kho đang thuê</h2>
       {active.length === 0 ? (
-        <EmptyInline text="Bạn chưa thuê kho nào. Tìm cơ sở phù hợp để bắt đầu." />
+        <EmptyInline text="Bạn chưa thuê kho nào. Tìm cơ sở phù hợp để đặt kho đầu tiên." cta="Tìm & đặt kho" to="find" />
       ) : (
         <ul className="rows">
           {active.map((c) => {

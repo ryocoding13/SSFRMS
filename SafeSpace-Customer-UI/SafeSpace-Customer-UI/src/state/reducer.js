@@ -102,6 +102,7 @@ const handlers = {
       band: offer.band,
       offer_key: offer.key,
       size_label: offer.size_label,
+      unit_code: p.unit_code || null, // ô khách chọn trên sơ đồ (quản lý phân bổ chính thức ở M05)
       months,
       start_date: p.start_date,
       end_date: q.end_date,
