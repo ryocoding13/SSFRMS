@@ -2,7 +2,12 @@
 
 React + Vite, bám theo file Figma **SafeSpace - Modern UI**: Trang chủ, Đăng nhập, Đăng ký, Bảng giá,
 Hướng dẫn, toàn bộ luồng khách hàng C01–C14 (kèm C03b/C03c/C04b, popup thông báo, các trạng thái C13)
+khu **Nhân viên cơ sở** S01–S09, **Quản lý cơ sở** M01–M08 (xem `OPS-FLOW-COVERAGE.md`)
 và khu **Quản trị hệ thống** A01–A04 (xem `ADMIN-FLOW-COVERAGE.md`).
+
+Cập nhật theo Figma 30/09: trang chi tiết cơ sở có nút **Xem sơ đồ & tình trạng kho** (cột ảnh đổi thành sơ đồ 10 ô,
+tóm tắt đặt chỗ đổi theo ô được bấm), màn **Tìm kho trên bản đồ** `#/find/map` (chỉ có thanh tìm kho và bản đồ, bấm logo mở
+thông tin cơ sở), thư viện ảnh bỏ sơ đồ mặt bằng, bỏ footer ở mọi trang.
 
 ## Chạy cùng backend
 
@@ -21,13 +26,31 @@ Giao diện mặc định gọi API ở `http://localhost:5151`; đổi địa c
 |---|---|---|
 | `customer01`, `customer02` | `Customer@123` | Giao diện khách hàng `#/overview` |
 | `admin` | `Admin@123` | Quản trị hệ thống `#/admin` |
+| `staff01` | `Staff@123` | Nhân viên cơ sở `#/staff` (backend chưa có API vận hành → dữ liệu mẫu, có dòng báo) |
 
 Khách đăng ký mới trên giao diện đăng nhập bằng **email**. Khu quản trị chỉ chạy ở chế độ API.
 
+## Chạy với máy chủ API giả lập
+
+`npm run dev:mock` chạy giao diện cùng API giả lập giống hệt backend hiện tại (không cần .NET / SQL Server).
+`MOCK_OPS=1 npm run dev:mock` (PowerShell: `$env:MOCK_OPS=1; npm run dev:mock`) bật thêm các endpoint khu vận hành
+mà backend **chưa có** (`/api/ops/*`), kèm tài khoản `staff01 / Staff@123`, `manager01 / Manager@123`.
+Việc backend còn thiếu: xem **`BACKEND-TODO.md`**.
+
 ## Chạy không cần backend
 
-Tạo `.env.local` với dòng `VITE_USE_API=false`: dữ liệu lưu trong trình duyệt, tài khoản có sẵn
-`mai.nguyen@example.com` / `SafeSpace@123`. Dùng khi chỉ cần xem giao diện.
+Tạo `.env.local` với dòng `VITE_USE_API=false`: dữ liệu lưu trong trình duyệt. Tài khoản có sẵn (mật khẩu đều là `SafeSpace@123`):
+
+| Tài khoản | Vai trò | Vào |
+|---|---|---|
+| `mai.nguyen@example.com` | Khách hàng | `#/overview` |
+| `long.tran` (hoặc `long.tran@safespace.vn`) | Nhân viên cơ sở | `#/staff` (10 việc mẫu → lưới 3x3, 2 trang) |
+| `ha.pham` (hoặc `ha.pham@safespace.vn`) | Quản lý cơ sở | `#/manager` (xem được cả `#/staff`) |
+
+Nhân viên và quản lý dùng chung dữ liệu vận hành: nhân viên xác nhận thu → đơn hiện ở "Phân bổ kho" của quản lý;
+quản lý phân bổ / phân công → việc hiện ở "Công việc ngày" của nhân viên. Mở hai tab để thử, dữ liệu tự đồng bộ.
+Muốn xem màn "chưa có kho": đăng ký một tài khoản khách mới. Muốn xem màn "chưa có việc": xử lý hết việc của nhân viên.
+Muốn làm lại từ đầu: xoá `safespace.ops.v1` và `safespace.customer.v5` trong Local Storage của trình duyệt.
 
 ## Luồng nào gọi backend
 
@@ -41,22 +64,25 @@ Tạo `.env.local` với dòng `VITE_USE_API=false`: dữ liệu lưu trong trì
 | Yêu cầu hỗ trợ (gửi, xem, huỷ) | `/api/tickets` |
 | Báo "Tôi đã chuyển khoản", đăng ký trả kho, thông báo, đổi tên hiển thị, ảnh đính kèm hỗ trợ | Backend **chưa có API** → lưu trong trình duyệt theo từng tài khoản |
 | Đổi mật khẩu, quên mật khẩu | Backend chưa có API → giao diện hướng dẫn liên hệ quản trị viên |
+| Sơ đồ tình trạng 10 ô kho, toạ độ cơ sở trên bản đồ | Backend chưa có API → sinh cố định theo cơ sở (`src/lib/units.js`, `src/config/geo.js`) |
+| Toàn bộ khu Nhân viên / Quản lý cơ sở | Đăng nhập qua API (vai trò `STAFF` / `MANAGER` trong JWT); dữ liệu vận hành lưu trong trình duyệt (`src/ops/`) cho đến khi backend có API (xem mục 5 của `BE-CONTRACT.md`) |
 
 Khi backend bổ sung API cho các dòng cuối, chỉ cần sửa `src/state/store.jsx` (nhánh `ApiProvider`), xem `BE-CONTRACT.md`.
 
 ## Kiểm tra
 
 ```bash
-npm test             # 28 test: nghiệp vụ, VietQR, chuyển đổi dữ liệu backend, vai trò JWT, nhật ký quản trị
-npm run test:render  # render 38 route, bắt lỗi runtime, NaN, undefined
+npm test             # 38 test: nghiệp vụ khách hàng, VietQR, chuyển đổi dữ liệu backend, vai trò JWT, nhật ký quản trị,
+                     #          sơ đồ ô kho, nghiệp vụ nhân viên / quản lý cơ sở
+npm run test:render  # render 76 trường hợp (khách hàng, nhân viên, quản lý, trạng thái trống, lưới 3x3), bắt lỗi runtime, NaN, undefined
 npm run build        # xuất bản dist/ (đường dẫn tương đối, đặt được ở thư mục con)
 ```
 
 ## Ảnh
 
 Toàn bộ ảnh nằm sẵn trong `public/images/` (đã nén JPG, tổng ~3,9 MB): ảnh hero trang chủ, ảnh mặt tiền
-9 cơ sở, 4 ảnh bên trong kho và 3 sơ đồ mặt bằng. Khi bấm xem một cơ sở, thư viện ảnh gồm ảnh cơ sở,
-4 ảnh bên trong kho và 1 sơ đồ ở cuối (mỗi cơ sở được gán một trong 3 sơ đồ). Chi tiết ở
+9 cơ sở, 4 ảnh bên trong kho và 3 sơ đồ mặt bằng. Khi bấm xem một cơ sở, thư viện ảnh gồm ảnh cơ sở và
+4 ảnh bên trong kho (sơ đồ mặt bằng không còn trong thư viện theo Figma 30/09; file vẫn giữ trong `public/images/plans/`). Chi tiết ở
 `public/images/README.md`; đổi cách gán ảnh ở `src/config/media.js`.
 
 ## Thanh toán
@@ -76,6 +102,7 @@ src/
   state/store.jsx          phiên đăng nhập; 2 chế độ: dữ liệu trong trình duyệt / API backend
   api/                     gọi API (http.js, endpoints.js, admin.js) + chuyển dữ liệu backend → giao diện (mappers.js)
   admin/                   khu quản trị: AdminShell, AdminUsers, AdminUserDetail, AdminCreateUser, AdminPermissions, AdminLogs
+  ops/                     khu nhân viên & quản lý cơ sở: OpsShell, StaffPages, ManagerPages, data (khởi tạo), reducer (nghiệp vụ), store
   data/seed.js             dữ liệu khởi tạo: 12 cơ sở, khách hàng Nguyễn Thị Mai
   config/                  địa chỉ API, ảnh, tài khoản nhận chuyển khoản
 ```

@@ -8,7 +8,8 @@ import { createEmptyData, createSeedData } from "../data/seed";
 import { RENTAL_PLANS, offerByKey } from "../lib/catalog";
 import { isEmail, localDate, shortCode, timeoutLabel } from "../lib/format";
 import { TICKET_TOPICS } from "../lib/status";
-import { isAdminRoles, isCustomerRoles, rolesFromToken } from "../lib/roles";
+import { isAdminRoles, isCustomerRoles, isOpsRoles, rolesFromToken } from "../lib/roles";
+import { OPS_ACCOUNTS, OPS_PASSWORD } from "../ops/data";
 import { reduce, sweepExpired, validateRegister } from "./reducer";
 import { pendingRenewal, pendingReturn } from "./selectors";
 
@@ -60,9 +61,9 @@ export function AppProvider({ children }) {
 function readLocalStore() {
   const saved = readJson(STORAGE_KEY);
   if (saved?.version === VERSION && saved.data?.user && Array.isArray(saved.data.reservations)) {
-    return { authed: Boolean(saved.authed), data: saved.data };
+    return { authed: Boolean(saved.authed), data: saved.data, opsUser: saved.authed ? saved.opsUser || null : null };
   }
-  return { authed: false, data: createSeedData() };
+  return { authed: false, data: createSeedData(), opsUser: null };
 }
 
 function LocalProvider({ children }) {
@@ -108,8 +109,14 @@ function LocalProvider({ children }) {
       const { user } = ref.current.data;
       const username = user.email.split("@")[0].toLowerCase();
       if ((id === user.email.toLowerCase() || id === username) && password === user.password) {
-        commit({ ...ref.current, authed: true });
-        return { ok: true };
+        commit({ ...ref.current, authed: true, opsUser: null });
+        return { ok: true, roles: ["CUSTOMER"] };
+      }
+      // Tài khoản nhân viên / quản lý cơ sở (khu vận hành)
+      const ops = OPS_ACCOUNTS.find((a) => id === a.email || id === a.username);
+      if (ops && password === OPS_PASSWORD) {
+        commit({ ...ref.current, authed: true, opsUser: ops });
+        return { ok: true, roles: [ops.role] };
       }
       return { ok: false, error: "Tên đăng nhập / email hoặc mật khẩu chưa đúng." };
     },
@@ -136,7 +143,7 @@ function LocalProvider({ children }) {
     [commit],
   );
 
-  const logout = useCallback(async () => commit({ ...ref.current, authed: false }), [commit]);
+  const logout = useCallback(async () => commit({ ...ref.current, authed: false, opsUser: null }), [commit]);
 
   const value = useMemo(
     () => ({
@@ -146,14 +153,14 @@ function LocalProvider({ children }) {
       retry: () => {},
       authed: store.authed,
       data: store.data,
-      user: store.authed ? store.data.user : null,
+      user: store.authed ? store.opsUser || store.data.user : null,
       dispatch,
       login,
       register,
       logout,
       checkAvailability: null,
       onApiError: () => {},
-      roles: store.authed ? ["CUSTOMER"] : [],
+      roles: store.authed ? (store.opsUser ? [store.opsUser.role] : ["CUSTOMER"]) : [],
       isAdmin: false,
       supports: { changePassword: true, forgotPassword: true },
       toast,
@@ -277,7 +284,7 @@ function ApiProvider({ children }) {
     try {
       await loadCatalog();
       if (refs.current.session) {
-        if (isAdminRoles(refs.current.session.roles)) setRemote(EMPTY_REMOTE);
+        if (isAdminRoles(refs.current.session.roles) || isOpsRoles(refs.current.session.roles)) setRemote(EMPTY_REMOTE);
         else await loadCustomer();
       }
     } catch (e) {
@@ -322,7 +329,7 @@ function ApiProvider({ children }) {
       refs.current.overlay = saved;
       setOverlay(saved);
       setSession(next);
-      if (isAdminRoles(next.roles)) {
+      if (isAdminRoles(next.roles) || isOpsRoles(next.roles)) {
         refs.current.remote = EMPTY_REMOTE;
         setRemote(EMPTY_REMOTE);
       } else await loadCustomer();
@@ -337,8 +344,8 @@ function ApiProvider({ children }) {
       try {
         const res = await api.login(id.includes("@") ? id.toLowerCase() : id, password);
         const roles = rolesFromToken(res.token);
-        if (!isAdminRoles(roles) && !isCustomerRoles(roles)) {
-          return fail("Tài khoản Nhân viên / Quản lý dùng giao diện theo vai trò riêng, hiện chưa mở trên trang này.");
+        if (!isAdminRoles(roles) && !isCustomerRoles(roles) && !isOpsRoles(roles)) {
+          return fail("Tài khoản này chưa được gán vai trò trên giao diện SafeSpace. Vui lòng liên hệ quản trị viên.");
         }
         await startSession(res);
         return { ok: true, roles };

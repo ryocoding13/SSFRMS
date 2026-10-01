@@ -2,6 +2,8 @@
 // Dùng để chạy / kiểm thử giao diện khi máy chưa có .NET và SQL Server:  npm run dev:mock
 // Dữ liệu nằm trong bộ nhớ, tắt là mất. Không thay thế backend thật.
 import http from "node:http";
+import { createOpsData } from "../src/ops/data.js";
+import { reduceOps } from "../src/ops/reducer.js";
 
 const pad = (n) => String(n).padStart(2, "0");
 const iso = (d) => d.toISOString(); // DateTime.UtcNow trả về khi vừa tạo: có "Z"
@@ -102,8 +104,39 @@ export function createState() {
   return { users, facilities, unitTypes, rates, units, reservations, contracts, handovers, payments, renewals: [], tickets, tokens: new Map(), down: false, roles, permissions, rolePermissions, userRoles, userFacilities: [], loginHistory: [], activityLogs: [] };
 }
 
-export function startMockApi(port = 5199, { verbose = false } = {}) {
+// ---- Khu vận hành (Nhân viên / Quản lý cơ sở): backend thật CHƯA có, chỉ bật khi { ops: true } hoặc MOCK_OPS=1.
+// Đây là bản chạy được của hợp đồng đề xuất trong BE-CONTRACT.md mục 5, dùng lại nghiệp vụ src/ops/reducer.js.
+const camel = (k) => k.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
+const snake = (k) => k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+const mapKeys = (v, fn) =>
+  Array.isArray(v) ? v.map((x) => mapKeys(x, fn)) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [fn(k), mapKeys(x, fn)])) : v;
+const STAFF_PARTS = ["facility", "staff", "units", "payments", "verifications", "handovers", "returns", "tickets"];
+const OPS_ROUTES = [
+  // [method, regex, role, action, payload(body, id)]
+  ["POST", /^\/api\/ops\/payments\/([^/]+)\/confirm$/, "STAFF", "CONFIRM_PAYMENT", (b, id) => ({ id })],
+  ["POST", /^\/api\/ops\/payments\/([^/]+)\/mismatch$/, "STAFF", "REPORT_MISMATCH", (b, id) => ({ id, note: b?.note })],
+  ["POST", /^\/api\/ops\/verifications\/([^/]+)$/, "STAFF", "VERIFY_CUSTOMER", (b, id) => ({ id, doc_type: b?.docType, doc_no: b?.docNumber, photo_ok: b?.photoMatched, info_ok: b?.infoMatched })],
+  ["POST", /^\/api\/ops\/handovers\/([^/]+)\/complete$/, "STAFF", "HANDOVER", (b, id) => ({ id, method: b?.unlockMethod })],
+  ["POST", /^\/api\/ops\/returns\/([^/]+)\/inspection$/, "STAFF", "SUBMIT_RETURN", (b, id) => ({ id, report: mapKeys(b || {}, snake) })],
+  ["POST", /^\/api\/ops\/tickets\/([^/]+)\/responses$/, "STAFF", "TICKET_RESPONSE", (b, id, me) => ({ id, note: b?.note, next: b?.nextStatus, staff: me })],
+  ["POST", /^\/api\/ops\/renewals\/([^/]+)\/approve$/, "MANAGER", "DECIDE_RENEWAL", (b, id) => ({ id, approve: true })],
+  ["POST", /^\/api\/ops\/renewals\/([^/]+)\/reject$/, "MANAGER", "DECIDE_RENEWAL", (b, id) => ({ id, approve: false, reason: b?.reason })],
+  ["POST", /^\/api\/ops\/allocations\/([^/]+)$/, "MANAGER", "ALLOCATE", (b, id) => ({ id, unit: b?.unitCode })],
+  ["PUT", /^\/api\/ops\/assignments\/([^/]+)$/, "MANAGER", "ASSIGN", (b, id) => ({ id, staff: b?.staffId })],
+  ["POST", /^\/api\/ops\/contracts\/([^/]+)\/reminders$/, "MANAGER", "REMIND", (b, id) => ({ id, note: b?.note })],
+  ["POST", /^\/api\/ops\/contracts\/([^/]+)\/refund$/, "MANAGER", "CONFIRM_REFUND", (b, id) => ({ id })],
+];
+
+export function startMockApi(port = 5199, { verbose = false, ops = process.env.MOCK_OPS === "1" } = {}) {
   const S = createState();
+  let O = null;
+  if (ops) {
+    // Tài khoản quản lý cơ sở (DbSeeder thật chưa có) + gán nhân viên staff01 vào cơ sở
+    S.users.push({ userId: S.users.length + 1, username: "manager01", email: "manager01@storage.vn", password: "Manager@123", fullName: "Phạm Thu Hà", status: "ACTIVE", phone: null, createdAt: days(-20), updatedAt: days(-20) });
+    S.userRoles.push({ userId: S.users.length, roleId: 2 });
+    O = createOpsData();
+    O.staff[0] = { ...O.staff[0], full_name: "Trần Nhân Viên" };
+  }
   const log = [];
   const fac = (id) => S.facilities.find((f) => f.facilityId === id);
   const ut = (id) => S.unitTypes.find((t) => t.unitTypeId === id);
@@ -447,6 +480,30 @@ export function startMockApi(port = 5199, { verbose = false } = {}) {
       if (t.status !== "OPEN") return bad("Chỉ có thể hủy yêu cầu đang ở trạng thái mở.");
       t.status = "CANCELLED";
       return send(200, { message: "Đã hủy yêu cầu hỗ trợ." });
+    }
+    // ---- Khu vận hành (chỉ khi bật ops)
+    if (O && path.startsWith("/api/ops/")) {
+      const u = auth();
+      if (!u) return send(401);
+      const roleNames = S.userRoles.filter((r) => r.userId === u.userId).map((r) => S.roles.find((x) => x.roleId === r.roleId).roleName);
+      const isManager = roleNames.includes("MANAGER");
+      if (!isManager && !roleNames.includes("STAFF")) return send(403, { error: "Chỉ nhân viên hoặc quản lý cơ sở được truy cập." });
+      const me = O.staff.find((x) => x.full_name === u.fullName) || null;
+      if (req.method === "GET" && path === "/api/ops/board") {
+        const { log: _log, version: _v, ...all } = O;
+        const board = isManager ? all : Object.fromEntries(STAFF_PARTS.map((k) => [k, O[k]]));
+        return send(200, mapKeys({ ...board, me }, camel));
+      }
+      for (const [method, re, role, type, toPayload] of OPS_ROUTES) {
+        const hit = req.method === method && path.match(re);
+        if (!hit) continue;
+        if (role === "MANAGER" && !isManager) return send(403, { error: "Chỉ quản lý cơ sở được thực hiện thao tác này." });
+        const out = reduceOps(O, { type, payload: toPayload(body, decodeURIComponent(hit[1]), me?.staff_id) }, new Date());
+        if (out.error) return bad(out.error.message);
+        O = out.state;
+        return send(200, { message: "Đã cập nhật." });
+      }
+      return send(404, { error: "Not found" });
     }
     return send(404, { error: "Not found" });
   });

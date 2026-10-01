@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { EmptyInline } from "../components/Inline";
 import { DatePicker, Select } from "../components/Pickers";
 import { Button, Empty, Field, LinkButton, Notice, PageHeader, StatusTag, Tag } from "../components/UI";
 import { RENTAL_PLANS, typeLabel } from "../lib/catalog";
@@ -27,9 +28,7 @@ export function Units() {
     <main className="container page">
       <PageHeader title="Kho của tôi" description="Theo dõi kho đang thuê, hợp đồng và các mốc cần xử lý." />
       {data.contracts.length === 0 ? (
-        <Empty title="Bạn chưa thuê kho nào" text="Các kho đang thuê sẽ xuất hiện tại đây sau khi cơ sở xác nhận đơn đặt chỗ.">
-          <LinkButton to="find">Tìm & đặt kho</LinkButton>
-        </Empty>
+        <EmptyInline text="Bạn chưa thuê kho nào. Kho sẽ hiện ở đây sau khi cơ sở xác nhận đơn đặt chỗ của bạn." cta="Tìm & đặt kho" to="find" />
       ) : (
         <div className="grid grid--2">
           {data.contracts.map((c) => {
