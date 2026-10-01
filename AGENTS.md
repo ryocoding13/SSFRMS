@@ -33,12 +33,14 @@ Hệ thống quản lý và cho thuê kho tự phục vụ **SafeSpace** cho 5 n
 | `StorageProject.Api/` | .NET Minimal API: `Program.cs`, `Endpoints/*Endpoints.cs` |
 | `StorageProject.Core/` | Entities, DTOs, `Interfaces/IServices.cs` |
 | `StorageProject.Infrastructure/` | EF Core `AppDbContext`, `Migrations/`, `DbSeeder.cs`, `Services/*Service.cs` |
-| `SafeSpace-Customer-UI/SafeSpace-Customer-UI/` | React 19 + Vite: khách hàng + quản trị |
+| `SafeSpace-Customer-UI/SafeSpace-Customer-UI/` | React 19 + Vite: khách hàng, nhân viên, quản lý cơ sở, quản trị |
+| `…/src/ops/` | Khu Nhân viên `#/staff` + Quản lý cơ sở `#/manager` (gọi `/api/ops/*`, D15) |
 | `…/src/state/reducer.js` | Nghiệp vụ phía giao diện (hàm thuần, có test) |
 | `…/src/state/store.jsx` | Phiên đăng nhập, 2 chế độ: API / lưu trình duyệt |
 | `…/src/api/` | Gọi API + `mappers.js` chuyển dữ liệu backend → giao diện |
 | `…/BE-CONTRACT.md` | Endpoint giao diện cần backend bổ sung |
-| `…/CUSTOMER-FLOW-COVERAGE.md`, `ADMIN-FLOW-COVERAGE.md` | Đối chiếu màn Figma ↔ route ↔ component ↔ API |
+| `…/BACKEND-TODO.md` | Việc backend còn thiếu, xếp ưu tiên A/B/C, mẫu JSON `GET /api/ops/board` |
+| `…/CUSTOMER-FLOW-COVERAGE.md`, `ADMIN-FLOW-COVERAGE.md`, `OPS-FLOW-COVERAGE.md` | Đối chiếu màn Figma ↔ route ↔ component ↔ API |
 
 ## 4. Đọc thêm khi cần (tiết lộ dần)
 
@@ -63,7 +65,8 @@ cd SafeSpace-Customer-UI/SafeSpace-Customer-UI && npm run dev     # UI:  http://
 
 Cần: .NET SDK 10 (project đặt `net10.0`), Node ≥ 22.12, SQL Server (mặc định `.\SQLEXPRESS`).
 Tài khoản seed: `customer01`/`Customer@123`, `staff01`/`Staff@123`, `admin`/`Admin@123`.
-Không có backend: tạo `.env.local` với `VITE_USE_API=false`.
+Không có backend: tạo `.env.local` với `VITE_USE_API=false`, hoặc `MOCK_OPS=1 npm run dev:mock` (máy chủ giả có cả `/api/ops/*`,
+thêm `manager01`/`Manager@123`).
 
 ## 6. Vòng đời một phiên làm việc
 

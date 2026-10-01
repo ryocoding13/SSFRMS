@@ -51,3 +51,27 @@
 - Quy tắc rút ra từ Figma: hợp đồng **chưa bàn giao** chỉ cho "Xem lịch nhận kho" / "Đổi lịch nhận kho" / hỗ trợ;
   gia hạn và trả kho chỉ mở sau khi nhận kho. Gia hạn gửi chậm nhất 7 ngày trước ngày kết thúc; tiền cọc chuyển sang kỳ mới.
 - Ảnh, giá, số liệu trong Figma chỉ là minh hoạ — dữ liệu thật lấy từ backend.
+
+## D12 — Tìm kho: chế độ Bản đồ chỉ hiện bản đồ — Đã chốt (01/10/2026)
+- `#/find` (Danh sách) và `#/find/map` (Bản đồ) chuyển qua nút Danh sách / Bản đồ trên đầu trang.
+- Chế độ Bản đồ không hiện danh sách cơ sở bên cạnh; bấm điểm trên bản đồ → popup có "Xem chi tiết cơ sở".
+- Bản đồ dùng Leaflet + OpenStreetMap (ghi công trong `THIRD-PARTY-NOTICES.md`); toạ độ cơ sở ở `src/config/geo.js`.
+
+## D13 — Sơ đồ ô kho ở chi tiết cơ sở: chọn ô để xem giá, quản lý vẫn phân bổ — Cần nhóm chốt
+- Nút "Sơ đồ tình trạng kho" thay phần ảnh + tiện ích bằng sơ đồ 10 ô; ô trống màu xanh như nút bấm.
+  Chọn ô → tóm tắt đặt trước đổi theo loại kho / diện tích / giá của ô đó; ô không trống thì khoá nút đặt.
+- Ô khách chọn được gửi kèm đơn (`unit_code`) chỉ như **mong muốn**; quản lý vẫn phân bổ chính thức ở M05 (giữ D02).
+- Ảnh sơ đồ mặt bằng bỏ khỏi thư viện ảnh cơ sở (sơ đồ ô kho thay thế); D06 vẫn giữ cho ảnh mặt tiền / bên trong.
+- Số ô trống lấy từ `POST /api/availability/check`. Khi backend có `GET /api/facilities/{id}/units` thì sơ đồ dùng ô thật.
+- Nhóm cần chốt: có cho khách giữ đúng ô đã chọn hay không. Nếu có → đổi D02 và API đặt chỗ.
+
+## D14 — Công việc nhân viên dạng lưới 3×3 — Đã chốt (01/10/2026)
+- Mỗi trang danh sách việc của nhân viên hiện tối đa 9 thẻ (3×3), có phân trang.
+- Ô / mục không có việc hiện "Chưa có việc" — không để trống. Khách chưa thuê kho thì phần kho chỉ hiện một dòng thông báo.
+
+## D15 — Khu vận hành gọi `/api/ops/*`, chưa có thì lưu trong trình duyệt — Đã chốt (mở rộng D04)
+- Khu Nhân viên (`#/staff`) và Quản lý cơ sở (`#/manager`) dùng một hợp đồng API: `GET /api/ops/board` + các lệnh
+  `POST /api/ops/...` (chi tiết `BACKEND-TODO.md` mục A). Mọi lời gọi nằm trong `src/ops/api.js` + `src/ops/store.jsx`.
+- Backend trả 404 cho `/api/ops/board` → giao diện chuyển sang lưu trên trình duyệt (`safespace.ops.v1`) và hiện dòng
+  "Khu vận hành chưa kết nối được máy chủ. Thao tác đang được lưu trên trình duyệt này." (không dùng chữ "dữ liệu mẫu", theo D07).
+- Mock `npm run dev:mock` với `MOCK_OPS=1` có đủ endpoint này để thử; backend làm xong thì không cần sửa giao diện.
