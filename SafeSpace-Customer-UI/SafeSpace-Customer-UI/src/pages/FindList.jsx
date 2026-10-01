@@ -1,17 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
+import SearchBar from "../components/SearchBar";
+import { ViewToggle } from "../components/Inline";
 import { Photo } from "../components/Photo";
 import { Pagination, Select } from "../components/Pickers";
-import { Button, Empty, Field, LinkButton, PageHeader } from "../components/UI";
-import {
-  BUDGET_LIMIT,
-  SIZE_BANDS,
-  UNIT_TYPES,
-  areaLabel,
-  displayOffer,
-  listAreas,
-  searchFacilities,
-  typeLabel,
-} from "../lib/catalog";
+import { Empty, LinkButton, PageHeader } from "../components/UI";
+import { BUDGET_LIMIT, areaLabel, displayOffer, searchFacilities, typeLabel } from "../lib/catalog";
 import { distanceLabel, money } from "../lib/format";
 import { go, href, qs } from "../lib/router";
 import { useApp } from "../state/store";
@@ -33,8 +26,6 @@ export default function FindList({ query }) {
   const { data } = useApp();
   const filters = filtersFromQuery(query);
   const page = Math.max(1, Number(query.get("page")) || 1);
-  const [draft, setDraft] = useState({ type: filters.type, band: filters.band, area: filters.area });
-  useEffect(() => setDraft({ type: filters.type, band: filters.band, area: filters.area }), [filters.type, filters.band, filters.area]);
 
   const searched = Boolean(filters.type || filters.band || filters.area);
   const results = searchFacilities(data.facilities, filters);
@@ -55,7 +46,9 @@ export default function FindList({ query }) {
       <PageHeader
         title={searched ? "Chọn cơ sở phù hợp với bạn" : "Tìm & đặt kho"}
         description={searched ? undefined : "Xem tất cả cơ sở SafeSpace, hoặc chọn nhu cầu bên dưới để thu hẹp danh sách."}
-      />
+      >
+        <ViewToggle active="list" listTo={`find${qs(filters)}`} mapTo={`find/map${qs({ type: filters.type, band: filters.band, area: filters.area })}`} />
+      </PageHeader>
       {searched && (
         <ol className="steps-trail" aria-label="Các bước đặt kho">
           <li className="is-current">01 Nhu cầu</li>
@@ -65,39 +58,12 @@ export default function FindList({ query }) {
         </ol>
       )}
 
-      <form
-        className="panel search-bar"
-        onSubmit={(e) => {
-          e.preventDefault();
-          update({ ...draft, page: "" }, { replace: false });
-        }}
-      >
-        <Field label="Loại kho">
-          <Select value={draft.type} onChange={(e) => setDraft({ ...draft, type: e.target.value })}>
-            <option value="">Tất cả loại kho</option>
-            {UNIT_TYPES.map((t) => (
-              <option key={t.id} value={t.id}>{t.label}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Diện tích">
-          <Select value={draft.band} onChange={(e) => setDraft({ ...draft, band: e.target.value })}>
-            <option value="">Mọi diện tích</option>
-            {SIZE_BANDS.map((b) => (
-              <option key={b.id} value={b.id}>{b.label}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Khu vực">
-          <Select value={draft.area} onChange={(e) => setDraft({ ...draft, area: e.target.value })}>
-            <option value="">Tất cả khu vực</option>
-            {listAreas(data.facilities).map((a) => (
-              <option key={a} value={a}>{a}</option>
-            ))}
-          </Select>
-        </Field>
-        <Button type="submit">{searched ? "Tìm lại" : "Tìm kho"}</Button>
-      </form>
+      <SearchBar
+        facilities={data.facilities}
+        filters={filters}
+        submitLabel={searched ? "Tìm lại" : "Tìm kho"}
+        onSubmit={(draft) => update({ ...draft, page: "" }, { replace: false })}
+      />
 
       <div className="result-bar">
         <strong>{searched || filters.camera || filters.budget ? `${results.length} cơ sở phù hợp trong tổng ${total} cơ sở` : `${total} cơ sở SafeSpace`}</strong>

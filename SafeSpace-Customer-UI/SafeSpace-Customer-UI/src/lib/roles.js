@@ -84,3 +84,11 @@ export function rolesFromToken(token) {
 }
 export const isAdminRoles = (roles = []) => roles.includes("ADMIN");
 export const isCustomerRoles = (roles = []) => roles.length === 0 || roles.includes("CUSTOMER");
+
+export const isStaffRoles = (roles = []) => roles.includes("STAFF");
+export const isManagerRoles = (roles = []) => roles.includes("MANAGER");
+// Vai trò làm việc tại cơ sở (không dùng giao diện khách hàng)
+export const isOpsRoles = (roles = []) => isStaffRoles(roles) || isManagerRoles(roles);
+// Trang chính sau đăng nhập theo vai trò (ưu tiên quyền cao hơn khi có nhiều vai trò)
+export const homeFor = (roles = []) =>
+  isAdminRoles(roles) ? "admin" : isManagerRoles(roles) ? "manager" : isStaffRoles(roles) ? "staff" : "overview";

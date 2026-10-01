@@ -41,14 +41,15 @@ export function planFor(f) {
   return PLANS[(h >>> 0) % PLANS.length];
 }
 
-// Thư viện ảnh cơ sở (C03c): ảnh cơ sở + 4 ảnh bên trong kho + sơ đồ mặt bằng ở cuối
+// Thư viện ảnh cơ sở (C03c): ảnh cơ sở + 4 ảnh bên trong kho.
+// Sơ đồ mặt bằng không còn nằm trong thư viện ảnh (Figma 30/09): tình trạng từng ô xem ở nút
+// "Xem sơ đồ & tình trạng kho" trên trang chi tiết.
 export const GALLERY = [
   { id: "cover", caption: "Mặt tiền cơ sở" },
   { id: "inside-1", caption: "Kho kiểm soát nhiệt độ", file: "inside/ben-trong-1.jpg" },
   { id: "inside-2", caption: "Kho thường nhìn từ cửa cuốn", file: "inside/ben-trong-2.jpg" },
   { id: "inside-3", caption: "Khu kệ lưu trữ kiểm soát nhiệt độ", file: "inside/ben-trong-3.jpg" },
   { id: "inside-4", caption: "Lối đi bên trong kho thường", file: "inside/ben-trong-4.jpg" },
-  { id: "plan", caption: "Sơ đồ mặt bằng cơ sở", fit: "contain" },
 ];
 export function galleryImage(facility, index) {
   const item = GALLERY[index % GALLERY.length];

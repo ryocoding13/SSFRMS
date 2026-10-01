@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Button, Field, Icon, Modal } from "../components/UI";
 import { go, href } from "../lib/router";
 import { isEmail } from "../lib/format";
+import { homeFor, isOpsRoles } from "../lib/roles";
 import { useApp } from "../state/store";
 
 const safeNext = (next) => (next && !/^(login|register)/.test(next) ? next : "overview");
@@ -45,7 +46,7 @@ function ForgotPassword({ onClose }) {
 }
 
 export function Login({ query }) {
-  const { login, authed, isAdmin } = useApp();
+  const { login, authed, isAdmin, roles } = useApp();
   const next = safeNext(query.get("next"));
   const [form, setForm] = useState({ identifier: "", password: "" });
   const [errors, setErrors] = useState({});
@@ -53,8 +54,8 @@ export function Login({ query }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (authed) go(isAdmin ? "admin" : next, { replace: true });
-  }, [authed, isAdmin, next]);
+    if (authed) go(isAdmin || isOpsRoles(roles) ? homeFor(roles) : next, { replace: true });
+  }, [authed, isAdmin, roles, next]);
 
   const set = (k, v) => {
     setForm({ ...form, [k]: v });
@@ -70,7 +71,8 @@ export function Login({ query }) {
     const res = await login(form);
     setBusy(false);
     if (!res.ok) return setErrors({ form: res.error });
-    go(res.roles?.includes("ADMIN") ? (next.startsWith("admin") ? next : "admin") : next);
+    const home = homeFor(res.roles || []);
+    go(home === "overview" ? next : next.startsWith(home) ? next : home);
   };
 
   return (

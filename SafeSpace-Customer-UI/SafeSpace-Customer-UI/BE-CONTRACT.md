@@ -1,3 +1,5 @@
+> **Danh sách việc backend còn thiếu, xếp theo ưu tiên: xem `BACKEND-TODO.md`.** Tài liệu này giữ chi tiết lịch sử.
+
 # BE-CONTRACT — những gì giao diện khách hàng cần từ backend
 
 Giao diện bám Figma nên **khác luồng backend cũ (v3)** ở vài điểm. Tài liệu này là danh sách để sửa BE cho khớp.
@@ -92,5 +94,17 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 - Tài khoản nhận chuyển khoản đang cấu hình ở `.env` (`VITE_BANK_*`); nếu mỗi cơ sở nhận tiền riêng thì trả kèm theo đơn.
 - Khoảng cách "Cách bạn X km" cần vị trí khách; hiện lấy từ dữ liệu cơ sở.
 - Ảnh cơ sở đang là file tĩnh trong `public/images/`; khi có API ảnh (`GET /api/facilities/{id}/photos`), thay các hàm trong `src/config/media.js`.
-- Đăng nhập nhân viên / quản lý / admin (Figma A01) thuộc các giao diện vai trò khác, chưa nằm trong gói này.
+- Khu Nhân viên cơ sở (S01–S09) và Quản lý cơ sở (M01–M08) đã có giao diện, đang chạy trên dữ liệu trong trình duyệt
+  (`src/ops/`). Endpoint cần có ở mục 5.
 - Kho dữ liệu cục bộ lưu cả mật khẩu để đăng nhập được khi chưa có server; khi nối API, bỏ trường này.
+
+## 5. Endpoint cho sơ đồ ô kho, bản đồ và khu vận hành (giao diện đã sẵn, đang dùng dữ liệu cục bộ)
+
+| Màn | Endpoint đề xuất | Thay ở |
+|---|---|---|
+| C03b-sđ | `GET /api/facilities/{id}/units` → `unitNumber, zone, floor, sizeM2, unitTypeId, status` (StorageUnit) | `unitsFor()` trong `src/lib/units.js`; `fromBackendStatus()` đã map trạng thái |
+| C02m | Thêm `latitude, longitude` vào `GET /api/facilities` | `coordsOf()` trong `src/config/geo.js` |
+| S01–S09, M01–M08 | `/api/ops/*` — **đã chốt hợp đồng ở `BACKEND-TODO.md` mục A2–A3**, giao diện gọi qua `src/ops/api.js` | `src/ops/store.jsx` |
+
+Hình dạng dữ liệu giao diện đang dùng nằm ở `src/ops/data.js`; nghiệp vụ (điều kiện chặn, chuyển trạng thái) ở
+`src/ops/reducer.js` và có test (`tests/ops.test.js`) để backend đối chiếu.
