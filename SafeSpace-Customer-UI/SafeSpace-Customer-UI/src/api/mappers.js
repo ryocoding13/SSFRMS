@@ -82,7 +82,6 @@ export function mapCatalog({ facilities = [], unitTypes = [], rates = [] }) {
         city,
         phone: f.contactPhone || "",
         hours: open && close ? `${open}–${close}` : "06:00–22:00",
-        distance_km: null,
         camera: true,
         has_climate: offers.some((o) => o.type === "climate"),
         offers,

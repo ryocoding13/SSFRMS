@@ -8,16 +8,21 @@ export function Pricing() {
   const { data } = useApp();
   return (
     <main className="container page">
-      <PageHeader title="Chi phí rõ ràng, dễ lựa chọn" description="Giá tham khảo theo diện tích. Giá chính xác phụ thuộc cơ sở, loại kho và kỳ thuê." />
-      <div className="grid grid--3">
+      <PageHeader title="Chi phí rõ ràng, dễ lựa chọn" description="Hai cỡ kho, kho thường hoặc kho lạnh. Giá chính xác phụ thuộc cơ sở và kỳ thuê." />
+      <div className="grid grid--2">
         {SIZE_BANDS.map((b) => {
-          const rates = data.facilities.map((f) => minRate(f, { band: b.id })).filter((x) => x != null);
-          const min = rates.length ? Math.min(...rates) : null;
+          const from = (type) => {
+            const rates = data.facilities.map((f) => minRate(f, { band: b.id, type })).filter((x) => x != null);
+            return rates.length ? Math.min(...rates) : null;
+          };
+          const normal = from("normal");
+          const cold = from("climate");
           return (
             <article className="panel price-card" key={b.id}>
               <h2>{b.name}</h2>
-              <span className="tag tag--soft">{b.label.replaceAll(" – ", "–")}</span>
-              <p className="price price--lg">{min == null || b.id === "L" ? "Xem giá theo cơ sở" : `Từ ${money(min)} / tháng`}</p>
+              <span className="tag tag--soft">{b.short}</span>
+              <p className="price price--lg">{normal == null ? "Xem giá theo cơ sở" : `Từ ${money(normal)} / tháng`}</p>
+              {cold != null && <p className="muted">Kho lạnh từ {money(cold)} / tháng</p>}
               <p className="muted">{b.note}</p>
               <LinkButton to={`find?band=${b.id}`}>Tìm kho phù hợp</LinkButton>
             </article>
