@@ -6,7 +6,7 @@ import { Button, Empty, Field, LinkButton, Notice } from "../components/UI";
 import UnitMap from "../components/UnitMap";
 import { RENTAL_PLANS, UNIT_TYPES, offerTypes, pickOffer, quote } from "../lib/catalog";
 import { UNIT_STATUS, unitsFor } from "../lib/units";
-import { dateLabel, distanceLabel, money, today } from "../lib/format";
+import { dateLabel, money, today } from "../lib/format";
 import { go, href, qs } from "../lib/router";
 import { useApp } from "../state/store";
 
@@ -162,8 +162,7 @@ export default function FacilityDetail({ id, query }) {
         <div>
           <h1>{facility.name}</h1>
           <p>
-            {place}
-            {facility.distance_km != null && ` · Cách bạn ${distanceLabel(facility.distance_km)}`} · {stockText}
+            {place} · {stockText}
           </p>
         </div>
         <button type="button" className="btn btn--soft detail-head__toggle" onClick={toggleView} aria-pressed={view === "map"}>

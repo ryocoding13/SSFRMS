@@ -79,7 +79,7 @@ function Bell({ role }) {
   );
 }
 
-function UserMenu({ roleLabel, tone }) {
+function UserMenu({ roleLabel, tone, facilityName }) {
   const { user, logout } = useApp();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -89,6 +89,7 @@ function UserMenu({ roleLabel, tone }) {
       <button type="button" className={`usermenu__btn usermenu__btn--${tone}`} onClick={() => setOpen(!open)} aria-expanded={open} aria-haspopup="menu">
         <strong>{user?.full_name}</strong>
         <small>{roleLabel}</small>
+        {facilityName && <span className="usermenu__facility">{facilityName}</span>}
       </button>
       {open && (
         <div className="usermenu__pop" role="menu">
@@ -116,7 +117,7 @@ function UserMenu({ roleLabel, tone }) {
 // Khung chung khu vận hành (Figma S01 / M01): logo, tên + vai trò, chuông, thanh điều hướng theo vai trò
 export default function OpsShell({ role, active, children }) {
   const { mode } = useApp();
-  const { source } = useOps();
+  const { source, ops } = useOps();
   const staff = role === "STAFF";
   const tabs = staff ? STAFF_TABS : MANAGER_TABS;
   const home = staff ? "staff" : "manager";
@@ -130,7 +131,8 @@ export default function OpsShell({ role, active, children }) {
           </a>
           <nav className="header__nav" aria-label="Điều hướng chính" />
           <div className="header__user">
-            <UserMenu roleLabel={staff ? "Nhân viên cơ sở" : "Quản lý cơ sở"} tone={staff ? "staff" : "manager"} />
+            {/* Figma 14/10: mỗi nhân viên / quản lý phụ trách đúng 1 cơ sở (SRS A06) → hiện tên cơ sở dưới vai trò */}
+            <UserMenu roleLabel={staff ? "Nhân viên cơ sở" : "Quản lý cơ sở"} tone={staff ? "staff" : "manager"} facilityName={ops?.facility?.name} />
             <Bell role={role} />
           </div>
         </div>

@@ -2,7 +2,7 @@ import React from "react";
 import { typeLabel } from "../lib/catalog";
 import { LEGEND, UNIT_STATUS, countBy, freeCount } from "../lib/units";
 
-// Sơ đồ 10 ô kho (Figma C03b-sđ): chú giải, dãy A – hành lang – dãy B, ô đang chọn có viền sáng.
+// Sơ đồ 12 ô kho (Figma C03b-sđ, 14/10): chú giải, dãy A cỡ M – hành lang – dãy B cỡ L, ô đang chọn có viền sáng.
 export default function UnitMap({ units, selected, onSelect }) {
   const counts = countBy(units);
   const rowA = units.filter((u) => u.row === "A");
