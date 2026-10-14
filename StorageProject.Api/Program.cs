@@ -45,7 +45,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "SSFRMS Customer API",
         Version = "v1",
-        Description = "Self-Storage Facility Rental Management System - Customer Scope API"
+        Description = "Self-Storage Facility Rental Management System - Customer, Admin & Business Operations API"
     });
 
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -88,6 +88,8 @@ builder.Services.AddScoped<IRenewalService, RenewalService>();
 builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
 builder.Services.AddScoped<IHandoverService, HandoverService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IOperationsService, OperationsService>();
+builder.Services.AddScoped<IOperationsReportService, OperationsReportService>();
 
 var app = builder.Build();
 
@@ -117,6 +119,7 @@ app.MapPaymentEndpoints();
 app.MapRenewalEndpoints();
 app.MapSupportTicketEndpoints();
 app.MapAdminEndpoints();
+app.MapOperationsEndpoints();
 
 // Root status check
 app.MapGet("/health", () => Results.Ok(new

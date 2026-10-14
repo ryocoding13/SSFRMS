@@ -125,6 +125,9 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
+        // 2b. Vai trò Quản lý vận hành KD (OPERATIONS) + tài khoản ops01 — chạy lại được với DB đã có
+        await EnsureOperationsRoleAsync(context);
+
         var admin = await context.Users.FirstAsync(u => u.Username == "admin");
         var staff = await context.Users.FirstAsync(u => u.Username == "staff01");
         var cust1 = await context.Users.FirstAsync(u => u.Username == "customer01");
@@ -444,6 +447,79 @@ public static class DbSeeder
             };
             context.Reservations.Add(res2);
 
+            await context.SaveChangesAsync();
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Quản lý vận hành kinh doanh (SRS: Business Operations Manager — UC19–UC23)
+    // Chỉ thêm phần còn thiếu nên DB tạo từ trước cũng được bổ sung khi khởi động lại API.
+    // ------------------------------------------------------------------------------------------
+    private static async Task EnsureOperationsRoleAsync(AppDbContext context)
+    {
+        var opsRole = await context.Roles.FirstOrDefaultAsync(r => r.RoleName == "OPERATIONS");
+        if (opsRole == null)
+        {
+            opsRole = new Role { RoleName = "OPERATIONS", Description = "Quản lý vận hành kinh doanh toàn hệ thống" };
+            context.Roles.Add(opsRole);
+            await context.SaveChangesAsync();
+        }
+
+        var newPermissions = new List<Permission>
+        {
+            new() { PermissionCode = "POLICY_MANAGE", PermissionName = "Quản lý chính sách", Description = "Thiết lập chính sách thuê, khung giá, phí, giảm giá và miễn phí" },
+            new() { PermissionCode = "REPORT_SYSTEM", PermissionName = "Xem báo cáo toàn hệ thống", Description = "Xem doanh thu và hiệu suất của mọi cơ sở" },
+            new() { PermissionCode = "REPORT_EXPORT", PermissionName = "Xuất báo cáo", Description = "Xuất báo cáo toàn hệ thống ra tệp CSV" }
+        };
+        foreach (var perm in newPermissions)
+        {
+            if (!await context.Permissions.AnyAsync(p => p.PermissionCode == perm.PermissionCode))
+            {
+                context.Permissions.Add(perm);
+            }
+        }
+        await context.SaveChangesAsync();
+
+        // ADMIN giữ toàn bộ quyền như thiết lập ban đầu
+        var adminRole = await context.Roles.FirstOrDefaultAsync(r => r.RoleName == "ADMIN");
+        var opsCodes = new[] { "FACILITY_MANAGE", "POLICY_MANAGE", "REPORT_VIEW", "REPORT_SYSTEM", "REPORT_EXPORT" };
+        var allPermissions = await context.Permissions.ToListAsync();
+        var existingPairs = await context.RolePermissions.Select(rp => new { rp.RoleId, rp.PermissionId }).ToListAsync();
+
+        foreach (var perm in allPermissions)
+        {
+            if (adminRole != null && !existingPairs.Any(x => x.RoleId == adminRole.RoleId && x.PermissionId == perm.PermissionId))
+            {
+                context.RolePermissions.Add(new RolePermission { RoleId = adminRole.RoleId, PermissionId = perm.PermissionId });
+            }
+            if (opsCodes.Contains(perm.PermissionCode) && !existingPairs.Any(x => x.RoleId == opsRole.RoleId && x.PermissionId == perm.PermissionId))
+            {
+                context.RolePermissions.Add(new RolePermission { RoleId = opsRole.RoleId, PermissionId = perm.PermissionId });
+            }
+        }
+        await context.SaveChangesAsync();
+
+        var opsUser = await context.Users.FirstOrDefaultAsync(u => u.Username == "ops01");
+        if (opsUser == null)
+        {
+            opsUser = new User
+            {
+                Username = "ops01",
+                Email = "ops01@storage.vn",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Ops@123"),
+                FullName = "Lê Vận Hành",
+                Phone = "0900000004",
+                Status = "ACTIVE",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            context.Users.Add(opsUser);
+            await context.SaveChangesAsync();
+        }
+
+        if (!await context.UserRoles.AnyAsync(ur => ur.UserId == opsUser.UserId && ur.RoleId == opsRole.RoleId))
+        {
+            context.UserRoles.Add(new UserRole { UserId = opsUser.UserId, RoleId = opsRole.RoleId, AssignedAt = DateTime.UtcNow });
             await context.SaveChangesAsync();
         }
     }
