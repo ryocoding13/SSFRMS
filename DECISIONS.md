@@ -75,3 +75,14 @@
 - Backend trả 404 cho `/api/ops/board` → giao diện chuyển sang lưu trên trình duyệt (`safespace.ops.v1`) và hiện dòng
   "Khu vận hành chưa kết nối được máy chủ. Thao tác đang được lưu trên trình duyệt này." (không dùng chữ "dữ liệu mẫu", theo D07).
 - Mock `npm run dev:mock` với `MOCK_OPS=1` có đủ endpoint này để thử; backend làm xong thì không cần sửa giao diện.
+
+## D16 — Vai trò Vận hành KD và quy ước báo cáo — Đã chốt (14/10/2026)
+- Tên role backend là `OPERATIONS` (khớp `src/lib/roles.js`). API riêng `/api/operations/*`, chỉ role này gọi được;
+  hợp đồng chi tiết ở `docs/operations-api.md`. Tài khoản seed `ops01` / `Ops@123`.
+- Chính sách `DEPOSIT`: `PERCENTAGE` = % tiền thuê cả kỳ; `FIXED ≥ 1.000` = số tiền VND; `FIXED < 1.000` = số tháng tiền thuê
+  (giữ nghĩa của chính sách seed `Value = 1` = 1 tháng, khớp D09). Chỉ chính sách `ACTIVE` còn hiệu lực mới được áp dụng.
+- Tra cứu giá thuê chỉ lấy `rental_rates.Status = ACTIVE`, để giá bị thay thế (`INACTIVE`) không còn được dùng.
+- Báo cáo: `payments` chưa có `original_payment_id`, và hoàn tiền hiện chỉ có hoàn cọc, nên mọi REFUND trừ vào
+  "Cọc còn giữ"; "Doanh thu thuê và phí" không trừ REFUND. Khi thêm hoàn tiền thuê/phí thì phải thêm liên kết khoản gốc.
+- Cơ sở `TEMPORARILY_CLOSED` chặn đặt chỗ mới; `INACTIVE` chỉ khi không còn hợp đồng / đơn đang xử lý. Không xoá cơ sở.
+

@@ -38,7 +38,7 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 
 Đã gọi toàn bộ `/api/admin/*` hiện có (xem `ADMIN-FLOW-COVERAGE.md`). Đề xuất bổ sung phía backend:
 - Gửi email mời / đặt mật khẩu lần đầu khi tạo tài khoản (Figma A02 "Gửi lời mời").
-- Vai trò `OPERATIONS` (Vận hành KD) như Figma.
+- ~~Vai trò `OPERATIONS` (Vận hành KD) như Figma.~~ Đã có (14/10/2026): role `OPERATIONS`, tài khoản `ops01`, API `/api/operations/*` — xem `docs/operations-api.md`.
 - Ghi lịch sử đăng nhập **thất bại** (hiện chỉ ghi khi thành công) và lưu IP vào nhật ký hoạt động.
 - Cho lọc nhật ký theo nhiều `action` một lúc (để tab "Thay đổi dữ liệu" / "Phân quyền" phân trang ở máy chủ).
 - Trả kèm cơ sở phụ trách trong `GET /api/admin/users` để khỏi gọi thêm từng người.

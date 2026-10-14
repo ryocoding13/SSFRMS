@@ -17,6 +17,25 @@
 
 ---
 
+## Phiên 3 — 2026-10-14 — Backend khu Quản lý vận hành KD (Claude)
+
+- Tính năng: F24 (role OPERATIONS), F22 (cơ sở, chính sách, bảng giá), F23 (báo cáo + xuất CSV) — phía backend.
+  Nhánh `feature/operations-backend`.
+- Đã xong:
+  - Role `OPERATIONS`, quyền `POLICY_MANAGE`, `REPORT_SYSTEM`, `REPORT_EXPORT`, tài khoản `ops01` / `Ops@123`
+    (`DbSeeder.EnsureOperationsRoleAsync`, chạy lại được với DB cũ).
+  - `/api/operations/*`: cơ sở (UC19), chính sách (UC20–21), bảng giá (UC21), báo cáo theo cơ sở / loại kho / tháng /
+    trạng thái, drill-down hợp đồng, xuất CSV (UC22–23). Hợp đồng API: `docs/operations-api.md`. Không có migration mới.
+  - Đặt chỗ: chặn cơ sở không ACTIVE; tiền cọc và giá chỉ lấy chính sách / giá `ACTIVE` còn hiệu lực (D16).
+- Kiểm chứng:
+  - `dotnet build StorageProject.Core` → Build succeeded, 0 warning.
+  - Không tải được NuGet trong môi trường làm việc → biên dịch file mới / file sửa với lớp giả lập API EF Core → Build succeeded.
+  - **Chưa chạy `dotnet build StorageProject.slnx` đầy đủ và chưa chạy với SQL Server thật.**
+- Bị chặn / rủi ro: giao diện B01–B05 chưa có. Nếu B làm PayOS đổi `Payment.ContractId` thành không bắt buộc thì
+  `OperationsReportService.LoadAsync` cần lọc `p.ContractId != null` (khoản chưa có hợp đồng chưa thuộc cơ sở nào).
+- Phiên sau nên: chạy `dotnet build StorageProject.slnx` + chạy API, đăng nhập `ops01`, thử các request trong
+  `StorageProject.Api.http` mục Vận hành KD; pass thì đổi F24 sang `passing`, F22–F23 chờ giao diện B01–B05.
+
 ## Phiên 2 — 2026-10-01 — Giao diện theo Figma 30/09, khu Nhân viên / Quản lý cơ sở
 
 - Tính năng: F30 (mới), F21, F11–F20 (phía giao diện). Nhánh `feature/figma-3009-staff-manager`.
