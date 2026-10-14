@@ -153,7 +153,7 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
         var reservedUnitsCount = await dbContext.Reservations
             .CountAsync(r => r.FacilityId == request.FacilityId 
                           && r.UnitTypeId == request.UnitTypeId
-                          && (r.Status == "PENDING_PAYMENT" || r.Status == "CONFIRMED")
+                          && (r.Status == "PENDING_PAYMENT" || r.Status == "PENDING_VERIFICATION" || r.Status == "CONFIRMED")
                           && r.StartDate < expectedEndDate
                           && r.ExpectedEndDate > request.StartDate, ct);
 

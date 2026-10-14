@@ -19,7 +19,7 @@ public class HandoverService(AppDbContext dbContext) : IHandoverService
         // If staff already confirmed, or now both confirmed, complete handover
         if (handover.StaffConfirmed)
         {
-            handover.Status = "COMPLETED";
+            handover.Status = "HANDED_OVER"; // CHECK chỉ cho SCHEDULED/VERIFIED/HANDED_OVER/CANCELLED
             handover.HandoverAt = DateTime.UtcNow;
 
             // Activate contract

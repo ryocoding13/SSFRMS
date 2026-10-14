@@ -6,7 +6,7 @@ import { reduceOps } from "./reducer";
 
 // Kho dữ liệu vận hành cho khu Nhân viên & Quản lý cơ sở.
 // - mode "api": đọc GET /api/ops/board, mỗi thao tác gọi endpoint tương ứng (ops/api.js) rồi nạp lại.
-// - backend chưa có API (404) hoặc chạy không backend: dữ liệu mẫu lưu trong trình duyệt, dùng chung
+// - backend không có /api/ops (404, bản backend cũ) hoặc chạy không backend: dữ liệu cục bộ lưu trong trình duyệt, dùng chung
 //   giữa nhân viên và quản lý (thao tác bên này hiện ngay bên kia, kể cả khác tab).
 export const OPS_KEY = "safespace.ops.v1";
 const OpsContext = createContext(null);
@@ -49,7 +49,7 @@ export function OpsProvider({ children, notify, mode = "local", onApiError }) {
       setSource("api");
     } catch (e) {
       if (e instanceof ApiError && (e.status === 404 || e.status === 405)) {
-        // Backend chưa có endpoint vận hành → dữ liệu mẫu
+        // Backend không có endpoint vận hành (bản cũ) → dữ liệu cục bộ
         commit(readOps());
         setSource("local");
       } else {
@@ -63,7 +63,7 @@ export function OpsProvider({ children, notify, mode = "local", onApiError }) {
     if (mode === "api") reload();
   }, [mode, reload]);
 
-  // Lưu + đồng bộ giữa các tab khi dùng dữ liệu mẫu
+  // Lưu + đồng bộ giữa các tab khi dùng dữ liệu cục bộ
   useEffect(() => {
     if (source !== "local" || !state) return;
     try {
