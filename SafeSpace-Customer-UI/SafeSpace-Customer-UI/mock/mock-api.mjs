@@ -104,8 +104,8 @@ export function createState() {
   return { users, facilities, unitTypes, rates, units, reservations, contracts, handovers, payments, renewals: [], tickets, tokens: new Map(), down: false, roles, permissions, rolePermissions, userRoles, userFacilities: [], loginHistory: [], activityLogs: [] };
 }
 
-// ---- Khu vận hành (Nhân viên / Quản lý cơ sở): backend thật CHƯA có, chỉ bật khi { ops: true } hoặc MOCK_OPS=1.
-// Đây là bản chạy được của hợp đồng đề xuất trong BE-CONTRACT.md mục 5, dùng lại nghiệp vụ src/ops/reducer.js.
+// ---- Khu vận hành (Nhân viên / Quản lý cơ sở): chỉ bật khi { ops: true } hoặc MOCK_OPS=1.
+// Cùng hợp đồng với backend thật (docs/facility-ops-api.md), dùng lại nghiệp vụ src/ops/reducer.js.
 const camel = (k) => k.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
 const snake = (k) => k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 const mapKeys = (v, fn) =>
@@ -131,7 +131,7 @@ export function startMockApi(port = 5199, { verbose = false, ops = process.env.M
   const S = createState();
   let O = null;
   if (ops) {
-    // Tài khoản quản lý cơ sở (DbSeeder thật chưa có) + gán nhân viên staff01 vào cơ sở
+    // Tài khoản quản lý cơ sở manager01 (giống DbSeeder) + gán nhân viên staff01 vào cơ sở
     S.users.push({ userId: S.users.length + 1, username: "manager01", email: "manager01@storage.vn", password: "Manager@123", fullName: "Phạm Thu Hà", status: "ACTIVE", phone: null, createdAt: days(-20), updatedAt: days(-20) });
     S.userRoles.push({ userId: S.users.length, roleId: 2 });
     O = createOpsData();
@@ -159,7 +159,7 @@ export function startMockApi(port = 5199, { verbose = false, ops = process.env.M
   const availability = (facilityId, unitTypeId, startDate, months) => {
     const end = addMonths(startDate, months);
     const free = S.units.filter((u) => u.facilityId === facilityId && u.unitTypeId === unitTypeId && u.status === "AVAILABLE").length;
-    const held = S.reservations.filter((r) => r.facilityId === facilityId && r.unitTypeId === unitTypeId && ["PENDING_PAYMENT", "CONFIRMED"].includes(r.status) && r.startDate < end && r.expectedEndDate > startDate).length;
+    const held = S.reservations.filter((r) => r.facilityId === facilityId && r.unitTypeId === unitTypeId && ["PENDING_PAYMENT", "PENDING_VERIFICATION", "CONFIRMED"].includes(r.status) && r.startDate < end && r.expectedEndDate > startDate).length;
     return Math.max(0, free - held);
   };
 
@@ -425,6 +425,19 @@ export function startMockApi(port = 5199, { verbose = false, ops = process.env.M
       const r = { reservationId: S.reservations.length + 1, customerId: me, facilityId: body.facilityId, unitTypeId: body.unitTypeId, startDate: body.startDate, expectedEndDate: addMonths(body.startDate, body.rentalPeriodMonths), rentalPeriodMonths: body.rentalPeriodMonths, quotedMonthlyRate: rate.monthlyRate, estimatedAmount: rate.monthlyRate * body.rentalPeriodMonths, requiredDeposit: rate.monthlyRate, status: "PENDING_PAYMENT", createdAt: new Date(), expiresAt: new Date(Date.now() + 24 * 3600000), cancelledAt: null, cancellationReason: null };
       S.reservations.push(r);
       return send(201, { ...resDto(r), createdAt: iso(r.createdAt), expiresAt: iso(r.expiresAt) });
+    }
+    if (req.method === "POST" && (m = path.match(/^\/api\/reservations\/(\d+)\/confirm-transfer$/))) {
+      // Giống ReservationService.ConfirmTransferAsync: PENDING_PAYMENT → PENDING_VERIFICATION; quá hạn giữ chỗ → 400 code EXPIRED
+      const r = S.reservations.find((x) => x.reservationId === +m[1] && x.customerId === me);
+      if (!r) return send(404, { error: "Không tìm thấy đơn đặt chỗ." });
+      if (r.status === "PENDING_VERIFICATION") return send(200, resDto(r));
+      if (r.status !== "PENDING_PAYMENT") return bad("Đơn đặt chỗ này không còn chờ chuyển khoản.");
+      if (r.expiresAt && r.expiresAt <= new Date()) {
+        Object.assign(r, { status: "EXPIRED", cancelledAt: new Date(), cancellationReason: "Quá thời gian giữ chỗ chưa xác nhận chuyển khoản" });
+        return send(400, { error: "Đơn đặt chỗ đã hết thời gian giữ chỗ.", code: "EXPIRED" });
+      }
+      r.status = "PENDING_VERIFICATION";
+      return send(200, resDto(r));
     }
     if (req.method === "POST" && (m = path.match(/^\/api\/reservations\/(\d+)\/cancel$/))) {
       const r = S.reservations.find((x) => x.reservationId === +m[1] && x.customerId === me);

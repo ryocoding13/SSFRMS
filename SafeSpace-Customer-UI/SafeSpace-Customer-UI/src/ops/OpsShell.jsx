@@ -148,7 +148,7 @@ export default function OpsShell({ role, active, children }) {
       </nav>
       {mode === "api" && source === "local" && (
         <p className="ops-banner" role="status">
-          Backend chưa có API cho khu vận hành (GET /api/ops/board trả 404) — đang hiển thị dữ liệu mẫu lưu trong trình duyệt.
+          Chưa kết nối được dữ liệu vận hành của cơ sở. Thao tác trên màn hình này đang được lưu tạm trên trình duyệt.
         </p>
       )}
       {children}

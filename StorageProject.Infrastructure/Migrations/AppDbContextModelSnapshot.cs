@@ -865,7 +865,7 @@ namespace StorageProject.Infrastructure.Migrations
 
                             t.HasCheckConstraint("CK_reservations_required_deposit", "[RequiredDeposit] >= 0");
 
-                            t.HasCheckConstraint("CK_reservations_status", "[Status] IN ('PENDING_PAYMENT','CONFIRMED','UNIT_ASSIGNED','CHECKED_IN','CANCELLED','EXPIRED','NO_SHOW')");
+                            t.HasCheckConstraint("CK_reservations_status", "[Status] IN ('PENDING_PAYMENT','PENDING_VERIFICATION','CONFIRMED','UNIT_ASSIGNED','CHECKED_IN','CANCELLED','EXPIRED','NO_SHOW')");
                         });
                 });
 

@@ -441,7 +441,18 @@ function ApiProvider({ children }) {
             if (!r) return fail("Không tìm thấy đơn đặt chỗ.", "NOT_FOUND");
             if (r.status === "CANCELLED") return fail("Đơn đặt chỗ đã hết thời gian giữ chỗ.", "EXPIRED");
             if (r.status !== "PENDING_PAYMENT") return { ok: true, reservation_id: r.reservation_id };
-            updateOverlay((o) => ({ ...o, transfers: { ...o.transfers, [r.api_id]: Date.now() } }));
+            try {
+              await api.confirmTransfer(r.api_id);
+            } catch (e) {
+              if (e instanceof ApiError && e.data?.code === "EXPIRED") {
+                await loadCustomer().catch(() => {});
+                return fail(e.message, "EXPIRED");
+              }
+              // Backend cũ chưa có confirm-transfer: ghi nhận tạm trên trình duyệt như trước
+              if (!(e instanceof ApiError && (e.status === 404 || e.status === 405))) throw e;
+              updateOverlay((o) => ({ ...o, transfers: { ...o.transfers, [r.api_id]: Date.now() } }));
+            }
+            await loadCustomer().catch(() => {});
             remember("Đã nhận thông tin đặt chỗ", `${shortCode(r.reservation_id)} · Chờ nhân viên đối soát chuyển khoản.`, "reservations", `Đơn ${shortCode(r.reservation_id)} đã gửi — chờ đối soát thanh toán`);
             return { ok: true, reservation_id: r.reservation_id };
           }

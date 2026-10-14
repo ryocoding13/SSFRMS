@@ -17,13 +17,16 @@ loại kho từ `/api/availability/check`.
 
 ## A. Ưu tiên 1 — chặn luồng chính
 
+> **Đã làm (14/10/2026, nhánh `feature/ops-backend`, D18):** toàn bộ A1–A4 theo đúng bảng dưới. Tài liệu API:
+> `docs/facility-ops-api.md`. Còn lại: chạy thử với SQL Server rồi đổi F03, F11–F21 sang `passing`.
+
 ### A1. Dữ liệu seed & phân quyền
-- [ ] `DbSeeder`: thêm tài khoản **quản lý cơ sở** `manager01 / Manager@123` (role `MANAGER`); hiện chỉ có `staff01`.
-- [ ] Gán `UserFacility` cho `staff01` và `manager01` (ví dụ cơ sở SafeSpace Nguyễn Lương Bằng). Mọi endpoint mục A2–A3
+- [x] `DbSeeder`: thêm tài khoản **quản lý cơ sở** `manager01 / Manager@123` (role `MANAGER`); hiện chỉ có `staff01`.
+- [x] Gán `UserFacility` cho `staff01` và `manager01` (ví dụ cơ sở SafeSpace Nguyễn Lương Bằng). Mọi endpoint mục A2–A3
       chỉ trả / cho sửa dữ liệu của cơ sở được gán.
-- [ ] Gán quyền cho role `STAFF` (`HANDOVER_MANAGE`, `RETURN_MANAGE`, `TICKET_MANAGE`, `PAYMENT_CONFIRM`) và `MANAGER`
+- [x] Gán quyền cho role `STAFF` (`HANDOVER_MANAGE`, `RETURN_MANAGE`, `TICKET_MANAGE`, `PAYMENT_CONFIRM`) và `MANAGER`
       (thêm `UNIT_MANAGE`, `ASSIGNMENT_MANAGE`, `RENEWAL_MANAGE`, `REPORT_VIEW`). Hiện chỉ `ADMIN` có quyền.
-- [ ] Endpoint mục A2 cho role `STAFF` **và** `MANAGER`; mục A3 chỉ `MANAGER` (sai vai trò → **403**).
+- [x] Endpoint mục A2 cho role `STAFF` **và** `MANAGER`; mục A3 chỉ `MANAGER` (sai vai trò → **403**).
 
 ### A2. Khu Nhân viên cơ sở (Figma S01–S09) — chưa có endpoint nào
 Bảng trong DB đã có sẵn (`HandoverRecord`, `ReturnInspection`, `UnitAssignment`, `MaintenanceRequest`, `Payment`,
@@ -49,14 +52,14 @@ Bảng trong DB đã có sẵn (`HandoverRecord`, `ReturnInspection`, `UnitAssig
 | M03 | `POST /api/ops/renewals/{id}/reject` | `{ reason }` | `reason` rỗng → 400; gửi lý do cho khách |
 | M07 | `POST /api/ops/contracts/{id}/reminders` | `{ note }` | Ghi lịch sử nhắc khách (`OverdueCase`) |
 | M07 | `POST /api/ops/contracts/{id}/refund` | — | Chỉ sau biên bản trả kho. Hoàn cọc = cọc − khoản còn nợ; kho → `AVAILABLE`; hợp đồng đóng |
-| M01/M02/M04 | (trong `GET /api/ops/board`) | — | `units` (86 kho của cơ sở), `revenue` 6 tháng + cơ cấu theo loại kho, tỷ lệ lấp đầy tính từ `units` |
+| M01/M02/M04 | (trong `GET /api/ops/board`) | — | `units` (12 ô của cơ sở, D17), `revenue` 6 tháng + cơ cấu theo loại kho, tỷ lệ lấp đầy tính từ `units` |
 
 Luật nghiệp vụ chi tiết (điều kiện chặn, chuyển trạng thái) xem `src/ops/reducer.js` — có test `tests/ops.test.js`.
 
 ### A4. Khách báo đã chuyển khoản (Figma C04)
-- [ ] `POST /api/reservations/{id}/confirm-transfer` → đơn `PENDING_PAYMENT` chuyển `PENDING_VERIFICATION` (để hiện ở
+- [x] `POST /api/reservations/{id}/confirm-transfer` → đơn `PENDING_PAYMENT` chuyển `PENDING_VERIFICATION` (để hiện ở
       S09 của nhân viên). Hiện giao diện chỉ lưu trong trình duyệt nên **nhân viên không thấy khách đã chuyển**.
-- [ ] Thêm trạng thái `PENDING_VERIFICATION` cho `Reservation` (entity hiện liệt kê `PENDING_PAYMENT, CONFIRMED, UNIT_ASSIGNED, CHECKED_IN, CANCELLED, EXPIRED, NO_SHOW`).
+- [x] Thêm trạng thái `PENDING_VERIFICATION` cho `Reservation` (entity hiện liệt kê `PENDING_PAYMENT, CONFIRMED, UNIT_ASSIGNED, CHECKED_IN, CANCELLED, EXPIRED, NO_SHOW`).
 
 ---
 

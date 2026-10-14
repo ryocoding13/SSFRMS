@@ -1,6 +1,8 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using StorageProject.Core.DTOs.Reservation;
 using StorageProject.Core.Entities;
+using StorageProject.Core.Exceptions;
 using StorageProject.Core.Interfaces;
 using StorageProject.Infrastructure.Data;
 
@@ -121,7 +123,7 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         var existingReservationsCount = await dbContext.Reservations
             .CountAsync(r => r.FacilityId == request.FacilityId 
                           && r.UnitTypeId == request.UnitTypeId
-                          && (r.Status == "PENDING_PAYMENT" || r.Status == "CONFIRMED")
+                          && (r.Status == "PENDING_PAYMENT" || r.Status == "PENDING_VERIFICATION" || r.Status == "CONFIRMED")
                           && r.StartDate < expectedEndDate
                           && r.ExpectedEndDate > request.StartDate, ct);
 
@@ -195,4 +197,65 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
 
         await dbContext.SaveChangesAsync(ct);
     }
+
+    /// <summary>
+    /// C04 / F03: khách bấm "Tôi đã chuyển khoản" → đơn chờ nhân viên đối soát (S09).
+    /// Gọi lại khi đơn đã chờ đối soát thì trả về đơn như cũ (an toàn khi bấm hai lần).
+    /// </summary>
+    public async Task<ReservationDto> ConfirmTransferAsync(long customerId, long reservationId, CancellationToken ct = default)
+    {
+        var reservation = await dbContext.Reservations
+            .Include(r => r.Facility)
+            .Include(r => r.UnitType)
+            .FirstOrDefaultAsync(r => r.ReservationId == reservationId && r.CustomerId == customerId, ct)
+            ?? throw new KeyNotFoundException("Không tìm thấy đơn đặt chỗ.");
+
+        if (reservation.Status == "PENDING_VERIFICATION") return ToDto(reservation);
+        if (reservation.Status != "PENDING_PAYMENT")
+        {
+            throw new InvalidOperationException("Đơn đặt chỗ này không còn chờ chuyển khoản.");
+        }
+
+        var now = DateTime.UtcNow;
+        if (reservation.ExpiresAt.HasValue && reservation.ExpiresAt.Value <= now)
+        {
+            reservation.Status = "EXPIRED";
+            reservation.CancelledAt = now;
+            reservation.CancellationReason = "Quá thời gian giữ chỗ chưa xác nhận chuyển khoản";
+            await dbContext.SaveChangesAsync(ct);
+            throw new ReservationExpiredException("Đơn đặt chỗ đã hết thời gian giữ chỗ.");
+        }
+
+        reservation.Status = "PENDING_VERIFICATION";
+        dbContext.ActivityLogs.Add(new ActivityLog
+        {
+            UserId = customerId,
+            Action = "TRANSFER_REPORTED",
+            EntityType = "RESERVATION",
+            EntityId = reservation.ReservationId,
+            NewValue = JsonSerializer.Serialize(new { amount = reservation.EstimatedAmount + reservation.RequiredDeposit }),
+            LoggedAt = now
+        });
+        await dbContext.SaveChangesAsync(ct);
+        return ToDto(reservation);
+    }
+
+    private static ReservationDto ToDto(Reservation r) => new(
+        r.ReservationId,
+        r.FacilityId,
+        r.Facility.Name,
+        r.UnitTypeId,
+        r.UnitType.TypeName,
+        r.StartDate,
+        r.ExpectedEndDate,
+        r.RentalPeriodMonths,
+        r.QuotedMonthlyRate,
+        r.EstimatedAmount,
+        r.RequiredDeposit,
+        r.Status,
+        r.ExpiresAt,
+        r.CancelledAt,
+        r.CancellationReason,
+        r.CreatedAt
+    );
 }
