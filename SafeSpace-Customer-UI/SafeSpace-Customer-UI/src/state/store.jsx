@@ -8,7 +8,7 @@ import { createEmptyData, createSeedData } from "../data/seed";
 import { RENTAL_PLANS, offerByKey } from "../lib/catalog";
 import { isEmail, localDate, shortCode, timeoutLabel } from "../lib/format";
 import { TICKET_TOPICS } from "../lib/status";
-import { isAdminRoles, isCustomerRoles, isOpsRoles, rolesFromToken } from "../lib/roles";
+import { isAdminRoles, isCustomerRoles, isOpsRoles, isBusinessRoles, rolesFromToken } from "../lib/roles";
 import { OPS_ACCOUNTS, OPS_PASSWORD } from "../ops/data";
 import { reduce, sweepExpired, validateRegister } from "./reducer";
 import { pendingRenewal, pendingReturn } from "./selectors";
@@ -284,7 +284,7 @@ function ApiProvider({ children }) {
     try {
       await loadCatalog();
       if (refs.current.session) {
-        if (isAdminRoles(refs.current.session.roles) || isOpsRoles(refs.current.session.roles)) setRemote(EMPTY_REMOTE);
+        if (isAdminRoles(refs.current.session.roles) || isOpsRoles(refs.current.session.roles) || isBusinessRoles(refs.current.session.roles)) setRemote(EMPTY_REMOTE);
         else await loadCustomer();
       }
     } catch (e) {
@@ -329,7 +329,7 @@ function ApiProvider({ children }) {
       refs.current.overlay = saved;
       setOverlay(saved);
       setSession(next);
-      if (isAdminRoles(next.roles) || isOpsRoles(next.roles)) {
+      if (isAdminRoles(next.roles) || isOpsRoles(next.roles) || isBusinessRoles(next.roles)) {
         refs.current.remote = EMPTY_REMOTE;
         setRemote(EMPTY_REMOTE);
       } else await loadCustomer();
@@ -344,7 +344,7 @@ function ApiProvider({ children }) {
       try {
         const res = await api.login(id.includes("@") ? id.toLowerCase() : id, password);
         const roles = rolesFromToken(res.token);
-        if (!isAdminRoles(roles) && !isCustomerRoles(roles) && !isOpsRoles(roles)) {
+        if (!isAdminRoles(roles) && !isCustomerRoles(roles) && !isOpsRoles(roles) && !isBusinessRoles(roles)) {
           return fail("Tài khoản này chưa được gán vai trò trên giao diện SafeSpace. Vui lòng liên hệ quản trị viên.");
         }
         await startSession(res);

@@ -89,6 +89,7 @@ export const isStaffRoles = (roles = []) => roles.includes("STAFF");
 export const isManagerRoles = (roles = []) => roles.includes("MANAGER");
 // Vai trò làm việc tại cơ sở (không dùng giao diện khách hàng)
 export const isOpsRoles = (roles = []) => isStaffRoles(roles) || isManagerRoles(roles);
+export const isBusinessRoles = (roles = []) => roles.includes("OPERATIONS");
 // Trang chính sau đăng nhập theo vai trò (ưu tiên quyền cao hơn khi có nhiều vai trò)
 export const homeFor = (roles = []) =>
-  isAdminRoles(roles) ? "admin" : isManagerRoles(roles) ? "manager" : isStaffRoles(roles) ? "staff" : "overview";
+  isAdminRoles(roles) ? "admin" : isBusinessRoles(roles) ? "business" : isManagerRoles(roles) ? "manager" : isStaffRoles(roles) ? "staff" : "overview";

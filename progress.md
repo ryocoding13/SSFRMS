@@ -1,3 +1,16 @@
+## 2026-10-15 — F31: Frontend vận hành KD, không sửa backend/database
+
+- Bản gốc: SSFRMS(1).zip mới; API: operations-api(3).md; thiết kế B01–B05 section 436:13803.
+- Thêm src/business, src/api/business, assets cục bộ và mock frontend opt-in dev:business.
+- Chỉ nối role OPERATIONS vào router/session hiện có; giữ nguyên điều kiện các role cũ.
+- B02 gom 8 ô thành 5 type/scope để đúng API; quy định phụ là dòng có nhãn trong ruleDescription;
+  409 phải xác nhận trước khi thay thế. Không sửa backend để cho nhiều policy xung đột cùng tồn tại.
+- Kiểm chứng: npm test 38/38; test:business 8/8; test:render 76 route; build/init FE PASS;
+  Chromium 13 nhóm PASS; 14/14 màn các role khác giống từng pixel; 4 XLSX mở bằng openpyxl.
+- 77 file source/config backend nguyên byte so ZIP đầu vào; không sửa DB, migration, seeder hoặc endpoint.
+- Phạm vi người dùng chỉ frontend nên không build .NET, không thử SQL Server thật.
+- Xem BUSINESS_FRONTEND_README.md, BUSINESS_FRONTEND_REVIEW.md, BUSINESS-FLOW-COVERAGE.md trong frontend.
+
 # Nhật ký tiến độ (progress.md)
 
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
