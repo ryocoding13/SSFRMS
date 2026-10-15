@@ -92,12 +92,13 @@ export function handleBusiness({ req, res, path, url, body, S, me, send }) {
       pricedUnitTypes: new Set(S.rates.filter((r) => r.facilityId === f.facilityId && (r.status ?? "ACTIVE") === "ACTIVE").map((r) => r.unitTypeId)).size,
       assignedStaff: f.facilityId === 1 ? 2 : 0, managerName: f.facilityId === 1 ? "Phạm Thu Hà" : null,
       createdAt: "2026-09-15T12:40:41", updatedAt: "2026-09-15T12:40:41",
+      latitude: f.latitude ?? null, longitude: f.longitude ?? null,
     };
   };
   if (req.method === "GET" && path === "/api/operations/facilities") return send(200, S.facilities.map(facilityDto)), true;
   if (req.method === "POST" && path === "/api/operations/facilities") {
     if (!body?.name?.trim() || !body?.address?.trim()) return bad("Tên và địa chỉ cơ sở là bắt buộc.");
-    const f = { facilityId: S.facilities.length + 1, name: body.name.trim(), address: body.address.trim(), contactPhone: body.contactPhone, openingTime: body.openingTime, closingTime: body.closingTime, status: "ACTIVE" };
+    const f = { facilityId: S.facilities.length + 1, name: body.name.trim(), address: body.address.trim(), contactPhone: body.contactPhone, openingTime: body.openingTime, closingTime: body.closingTime, status: "ACTIVE", latitude: body.latitude ?? null, longitude: body.longitude ?? null };
     S.facilities.push(f);
     return send(201, { facility: facilityDto(f), warnings: ["Cơ sở đang hoạt động nhưng chưa có bảng giá, ô kho hoặc nhân sự."] }), true;
   }
@@ -111,7 +112,8 @@ export function handleBusiness({ req, res, path, url, body, S, me, send }) {
       return send(200, { facility: facilityDto(f), warnings: [] }), true;
     }
     if (req.method === "PUT") {
-      Object.assign(f, { name: body.name, address: body.address, contactPhone: body.contactPhone, openingTime: body.openingTime, closingTime: body.closingTime });
+      if ((body.latitude == null) !== (body.longitude == null)) return bad("Cần nhập cả vĩ độ và kinh độ, hoặc để trống cả hai.");
+      Object.assign(f, { name: body.name, address: body.address, contactPhone: body.contactPhone, openingTime: body.openingTime, closingTime: body.closingTime, latitude: body.latitude ?? null, longitude: body.longitude ?? null });
       return send(200, { facility: facilityDto(f), warnings: [] }), true;
     }
     if (req.method === "GET") return send(200, facilityDto(f)), true;

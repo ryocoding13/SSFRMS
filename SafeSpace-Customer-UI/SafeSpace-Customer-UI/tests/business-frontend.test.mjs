@@ -6,6 +6,7 @@ import { homeFor, isBusinessRoles, isOpsRoles } from '../src/lib/roles.js';
 import { policyFields, fieldValue, fieldPolicy, policyJobs } from '../src/business/policy-fields.js';
 import { activateWithConfirm, replacePolicy } from '../src/business/actions.js';
 import { parseCsv, workbookBytes } from '../src/business/export.js';
+import { facilityToForm, formToRequest, splitCoordinates } from '../src/business/facility-form.js';
 import { startMockApi } from '../mock/mock-api.mjs';
 const field = key => policyFields.find(f => f.key === key);
 const day='2026-10-15';
@@ -66,4 +67,17 @@ test('strict contract: conflict cancellation never sends replaceExisting; confir
   const draft=(await businessApi.policies({status:'DRAFT'})).find(x=>x.policyType==='OVERDUE');
   assert.equal(await activateWithConfirm(draft,async()=>true),true);active=await businessApi.policies({status:'ACTIVE'});assert.ok(active.some(x=>x.policyId===draft.policyId));assert.ok(!active.some(x=>x.policyId===old.policyId));
  }finally{setToken(null);server.close();}
+});
+
+test('B05a: toạ độ cơ sở — dán cặp số, bắt buộc đủ hai ô, trong Việt Nam, làm tròn 6 chữ số',()=>{
+ assert.deepEqual(splitCoordinates('10.6935, 106.7222'),{latitude:'10.6935',longitude:'106.7222'});
+ assert.equal(splitCoordinates('Phú Xuân'),null);
+ const base=facilityToForm({facilityId:3,name:'SafeSpace Phú Xuân',address:'Đường Nguyễn Hữu Thọ',contactPhone:null,openingTime:'06:00',closingTime:'22:00',latitude:null,longitude:null});
+ assert.equal(base.latitude,'');
+ assert.deepEqual(formToRequest(base).body,{name:'SafeSpace Phú Xuân',address:'Đường Nguyễn Hữu Thọ',contactPhone:null,openingTime:'06:00',closingTime:'22:00',status:null,latitude:null,longitude:null});
+ assert.ok(formToRequest({...base,latitude:'10.69'}).errors.coords);
+ assert.ok(formToRequest({...base,latitude:'106.7222',longitude:'10.6935'}).errors.coords);
+ const ok=formToRequest({...base,latitude:'10,69351234',longitude:'106.7222'}).body;
+ assert.equal(ok.latitude,10.693512);assert.equal(ok.longitude,106.7222);
+ assert.ok(formToRequest({...base,openingTime:'22:00',closingTime:'06:00'}).errors.hours);
 });

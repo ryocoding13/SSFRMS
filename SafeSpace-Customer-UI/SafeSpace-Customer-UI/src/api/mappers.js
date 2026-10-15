@@ -81,6 +81,9 @@ export function mapCatalog({ facilities = [], unitTypes = [], rates = [] }) {
         district,
         city,
         phone: f.contactPhone || "",
+        // Toạ độ ghim bản đồ từ backend; null thì config/geo.js dùng toạ độ dự phòng theo tên
+        lat: f.latitude ?? null,
+        lng: f.longitude ?? null,
         hours: open && close ? `${open}–${close}` : "06:00–22:00",
         distance_km: null,
         camera: true,

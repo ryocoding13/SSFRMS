@@ -117,6 +117,15 @@ test("phần lưu cục bộ: tên hiển thị, lịch trả kho, thông báo �
   assert.equal(d.notifications.length, 1);
 });
 
+test("toạ độ cơ sở: lấy latitude / longitude từ backend, thiếu thì để null", () => {
+  const base = catalogDto.facilities[0];
+  const withCoords = mapCatalog({ ...catalogDto, facilities: [{ ...base, latitude: 10.6935, longitude: 106.7222 }] });
+  assert.equal(withCoords.facilities[0].lat, 10.6935);
+  assert.equal(withCoords.facilities[0].lng, 106.7222);
+  const without = mapCatalog({ ...catalogDto, facilities: [base] });
+  assert.equal(without.facilities[0].lat, null);
+});
+
 test("tên đăng nhập backend sinh từ email (≤ 50 ký tự)", () => {
   assert.equal(usernameFromEmail(" Mai.Tran@Example.com "), "mai.tran@example.com");
   assert.ok(usernameFromEmail(`${"a".repeat(60)}@example.com`).length <= 50);

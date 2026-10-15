@@ -61,6 +61,8 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
             ContactPhone = input.Phone,
             OpeningTime = input.Opening,
             ClosingTime = input.Closing,
+            Latitude = input.Latitude,
+            Longitude = input.Longitude,
             Status = status,
             CreatedAt = now,
             UpdatedAt = now
@@ -89,6 +91,8 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
         facility.ContactPhone = input.Phone;
         facility.OpeningTime = input.Opening;
         facility.ClosingTime = input.Closing;
+        facility.Latitude = input.Latitude;
+        facility.Longitude = input.Longitude;
         facility.UpdatedAt = DateTime.UtcNow;
 
         var newStatus = NormalizeFacilityStatus(request.Status);
@@ -202,7 +206,9 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
                 pricedTypes.Count(r => r.FacilityId == f.FacilityId),
                 staff.Count(s => s.FacilityId == f.FacilityId),
                 f.CreatedAt,
-                f.UpdatedAt);
+                f.UpdatedAt,
+                f.Latitude,
+                f.Longitude);
         }).ToList();
     }
 
@@ -242,7 +248,8 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
         return warnings;
     }
 
-    private sealed record FacilityInput(string Name, string Address, string? Phone, TimeOnly? Opening, TimeOnly? Closing);
+    private sealed record FacilityInput(string Name, string Address, string? Phone, TimeOnly? Opening, TimeOnly? Closing,
+        decimal? Latitude, decimal? Longitude);
 
     private static FacilityInput ValidateFacility(UpsertFacilityRequest request)
     {
@@ -276,7 +283,21 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
             throw new ArgumentException("Giờ mở cửa phải trước giờ đóng cửa.");
         }
 
-        return new FacilityInput(name, address, phone, opening, closing);
+        var (latitude, longitude) = ValidateCoordinates(request.Latitude, request.Longitude);
+
+        return new FacilityInput(name, address, phone, opening, closing, latitude, longitude);
+    }
+
+    // Toạ độ ghim bản đồ: nhập cả hai hoặc để trống cả hai; phải nằm trong khung lãnh thổ Việt Nam
+    // (vĩ độ 8–24, kinh độ 102–110) để bắt lỗi nhập ngược hai ô. Làm tròn 6 chữ số thập phân (~0,1 m).
+    private static (decimal? Latitude, decimal? Longitude) ValidateCoordinates(decimal? latitude, decimal? longitude)
+    {
+        if (latitude is null && longitude is null) return (null, null);
+        if (latitude is null || longitude is null)
+            throw new ArgumentException("Cần nhập cả vĩ độ và kinh độ, hoặc để trống cả hai.");
+        if (latitude < 8m || latitude > 24m || longitude < 102m || longitude > 110m)
+            throw new ArgumentException("Toạ độ phải nằm trong Việt Nam (vĩ độ 8–24, kinh độ 102–110). Kiểm tra có nhập ngược hai ô không.");
+        return (Math.Round(latitude.Value, 6), Math.Round(longitude.Value, 6));
     }
 
     private static TimeOnly? ParseTime(string? value, string label)
@@ -318,7 +339,9 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
         f.ContactPhone,
         OpeningTime = f.OpeningTime?.ToString("HH:mm"),
         ClosingTime = f.ClosingTime?.ToString("HH:mm"),
-        f.Status
+        f.Status,
+        f.Latitude,
+        f.Longitude
     };
 
     [GeneratedRegex(@"[\s.\-()]")]

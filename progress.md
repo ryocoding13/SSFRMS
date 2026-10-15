@@ -16,6 +16,17 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## 2026-10-15 — Toạ độ bản đồ (B05a, C02m) — Claude (việc của Thắng)
+
+- Figma: B05 thêm dòng "Vị trí bản đồ" + nút "Sửa thông tin cơ sở"; hộp thoại mới B05a.
+- Backend: `Facility.Latitude/Longitude` + check constraint, trả trong `FacilityDto` và `OpsFacilityDto`, nhận trong
+  `UpsertFacilityRequest` (kiểm tra trong khung Việt Nam), `FacilityCoordinateSeeder` điền 12 cơ sở còn trống.
+- Frontend: `mapCatalog` gán `lat/lng`; B05a (`src/business/facility-form.js` + `Facilities.jsx`); mock business có toạ độ.
+- Kiểm chứng: `npm test` 39/39, `npm run test:business` 9/9, `npm run test:render` PASS, `npm run build` PASS;
+  biên dịch thử các service bằng stub EF (không tải được NuGet trong môi trường AI); Playwright: sửa toạ độ ở B05a qua mock → lưu thành công.
+- Phiên sau: `dotnet ef migrations add AddFacilityCoordinates --project StorageProject.Infrastructure --startup-project StorageProject.Api`,
+  `dotnet build StorageProject.slnx`, chạy API, kiểm tra `GET /api/facilities` có toạ độ và bản đồ Tìm kho đúng vị trí.
+
 ## Mẫu một mục
 
 ```

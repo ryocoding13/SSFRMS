@@ -19,7 +19,9 @@ public record OpsFacilityDto(
     int PricedUnitTypes,         // số loại kho đang có giá áp dụng hôm nay
     int AssignedStaff,           // số nhân sự (STAFF/MANAGER) đang được phân công
     DateTime CreatedAt,
-    DateTime UpdatedAt
+    DateTime UpdatedAt,
+    decimal? Latitude = null,
+    decimal? Longitude = null
 );
 
 public record UpsertFacilityRequest(
@@ -28,7 +30,9 @@ public record UpsertFacilityRequest(
     string? ContactPhone,
     string? OpeningTime,         // "HH:mm"
     string? ClosingTime,         // "HH:mm"
-    string? Status               // chỉ dùng khi tạo mới; đổi trạng thái dùng endpoint /status
+    string? Status,              // chỉ dùng khi tạo mới; đổi trạng thái dùng endpoint /status
+    decimal? Latitude = null,    // toạ độ ghim bản đồ; nhập cả hai hoặc để trống cả hai
+    decimal? Longitude = null
 );
 
 public record ChangeFacilityStatusRequest(string Status, string? Reason);

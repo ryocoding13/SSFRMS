@@ -16,7 +16,7 @@ Quy ước chung:
 |---|---|---|---|
 | GET | `/api/operations/facilities` | `?status=ACTIVE&search=quận 7` | Gồm cả cơ sở INACTIVE / TEMPORARILY_CLOSED |
 | GET | `/api/operations/facilities/{id}` | — | |
-| POST | `/api/operations/facilities` | `{ name, address, contactPhone, openingTime, closingTime, status? }` | `201` + `{ facility, warnings[] }` |
+| POST | `/api/operations/facilities` | `{ name, address, contactPhone, openingTime, closingTime, status?, latitude?, longitude? }` | `201` + `{ facility, warnings[] }` |
 | PUT | `/api/operations/facilities/{id}` | như trên | Sửa thông tin; `status` nếu gửi thì đi qua cùng kiểm tra như endpoint dưới |
 | PUT | `/api/operations/facilities/{id}/status` | `{ status, reason? }` | `ACTIVE` · `TEMPORARILY_CLOSED` · `INACTIVE` |
 
@@ -28,6 +28,8 @@ Một cơ sở trả về:
   "name": "SafeSpace Nguyễn Lương Bằng",
   "address": "12 Nguyễn Lương Bằng, Phường Tân Phú, Quận 7, TP. Hồ Chí Minh",
   "contactPhone": "02837001012",
+  "latitude": 10.7295,
+  "longitude": 106.7219,
   "openingTime": "06:00",
   "closingTime": "22:00",
   "status": "ACTIVE",
@@ -148,3 +150,10 @@ Bộ lọc chung: `from`, `to` (`yyyy-MM-dd`, giờ Việt Nam; mặc định t�
 
 Giả định của bản cơ bản (D16): bảng `payments` chưa có `original_payment_id`, và hoàn tiền hiện chỉ có hoàn cọc sau trả kho,
 nên mọi khoản REFUND trừ vào "Cọc còn giữ"; "Doanh thu thuê và phí" không trừ REFUND.
+
+### Toạ độ cơ sở (B05a, C02m)
+- `latitude`, `longitude` (số thập phân, 6 chữ số) có trong `POST`/`PUT /api/operations/facilities`, `GET /api/operations/facilities`
+  và `GET /api/facilities` (công khai). Nhập cả hai hoặc để trống cả hai; phải nằm trong Việt Nam (vĩ độ 8–24, kinh độ 102–110).
+- `PUT` ghi đè toạ độ theo đúng giá trị gửi lên (gửi `null` cả hai = xoá toạ độ). Form B05a luôn gửi lại toạ độ đang có.
+- Khi khởi động, `FacilityCoordinateSeeder` điền toạ độ cho 12 cơ sở SafeSpace còn trống (không ghi đè toạ độ đã sửa).
+
