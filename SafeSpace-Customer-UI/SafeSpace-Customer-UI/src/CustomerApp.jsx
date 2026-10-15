@@ -24,7 +24,8 @@ import Payments from "./pages/Payments";
 import Profile from "./pages/Profile";
 import { Guide, Pricing } from "./pages/Public";
 import AdminApp from "./admin/AdminApp";
-import { homeFor, isManagerRoles, isOpsRoles, isStaffRoles } from "./lib/roles";
+import BusinessApp from "./business/BusinessApp";
+import { homeFor, isBusinessRoles, isManagerRoles, isOpsRoles, isStaffRoles } from "./lib/roles";
 import OpsApp from "./ops/OpsApp";
 import { OpsProvider } from "./ops/store";
 import Reservations from "./pages/Reservations";
@@ -46,6 +47,7 @@ const TITLES = {
   reservations: "Đơn đặt chỗ",
   payments: "Thanh toán & lịch hẹn",
   sent: "Đã gửi yêu cầu",
+  business: "Quản lý vận hành kinh doanh",
   admin: "Quản trị hệ thống",
   staff: "Nhân viên cơ sở",
   manager: "Quản lý cơ sở",
@@ -94,9 +96,11 @@ function Shell() {
   const isAdminPage = route.page === "admin";
   const isOpsPage = route.page === "staff" || route.page === "manager";
   const opsRole = route.page === "staff" ? "STAFF" : "MANAGER";
+  const isBusinessPage = route.page === "business";
+  const businessAllowed = isBusinessRoles(roles);
   const isOps = isOpsRoles(roles);
   const opsAllowed = route.page === "staff" ? isStaffRoles(roles) || isManagerRoles(roles) : isManagerRoles(roles);
-  const needsLogin = (PRIVATE.includes(route.page) || isOpsPage || (isAdminPage && mode === "api")) && !authed;
+  const needsLogin = (PRIVATE.includes(route.page) || isOpsPage || ((isAdminPage || isBusinessPage) && mode === "api")) && !authed;
 
   useEffect(() => {
     document.title = `${TITLES[route.page] || "SafeSpace"} · SafeSpace`;
@@ -105,14 +109,20 @@ function Shell() {
     if (!needsLogin) return;
     // Đăng xuất rồi chuyển trang: hash có thể đã đổi sang trang công khai, khi đó không ép quay lại đăng nhập
     const current = parseRoute(window.location.hash);
-    if (!PRIVATE.includes(current.page) && !["admin", "staff", "manager"].includes(current.page)) return;
+    if (!PRIVATE.includes(current.page) && !["admin", "staff", "manager", "business"].includes(current.page)) return;
     go(`login?next=${encodeURIComponent(current.raw)}`, { replace: true });
   }, [needsLogin, route.raw]);
 
   // Tài khoản quản trị / nhân viên / quản lý không dùng các trang khách hàng
   useEffect(() => {
-    if ((isAdmin || isOps) && (PRIVATE.includes(route.page) || route.page === "login" || route.page === "register")) go(homeFor(roles), { replace: true });
-  }, [isAdmin, isOps, roles, route.page]);
+    if ((isAdmin || isOps || businessAllowed) && (PRIVATE.includes(route.page) || route.page === "login" || route.page === "register")) go(homeFor(roles), { replace: true });
+  }, [isAdmin, isOps, businessAllowed, roles, route.page]);
+
+  const businessBody = mode !== "api" ? (
+    <main className="container page"><Empty title="Khu vận hành kinh doanh cần kết nối máy chủ" text="Chạy npm run dev:business để xem giao diện khi chưa có backend, hoặc bật chế độ API và chạy máy chủ của bạn." /></main>
+  ) : authed && !businessAllowed ? (
+    <main className="container page"><Empty title="Không có quyền truy cập" text="Khu này dành cho tài khoản Quản lý vận hành kinh doanh."><LinkButton to={homeFor(roles)}>Về trang của tôi</LinkButton></Empty></main>
+  ) : null;
 
   const adminBody =
     mode !== "api" ? (
@@ -132,7 +142,7 @@ function Shell() {
   return (
     <div className="app">
       <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>Chuyển đến nội dung</a>
-      {!(isAdminPage && !adminBody && authed) && !(isOpsPage && authed && opsAllowed) && <Header page={route.page} />}
+      {!(isAdminPage && !adminBody && authed) && !(isOpsPage && authed && opsAllowed) && !(isBusinessPage && !businessBody && authed) && <Header page={route.page} />}
       <div id="main" tabIndex={-1} key={route.raw.split("?")[0]}>
         {needsLogin ? null : loadError && !ready ? (
           <main className="container page">
@@ -147,6 +157,8 @@ function Shell() {
           </main>
         ) : isAdminPage ? (
           adminBody || <AdminApp parts={route.parts} />
+        ) : isBusinessPage ? (
+          businessBody || <BusinessApp parts={route.parts} query={route.query} />
         ) : isOpsPage ? (
           opsAllowed ? (
             <OpsProvider notify={notify} mode={mode} onApiError={onApiError}>

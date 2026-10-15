@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Button, Field, Icon, Modal } from "../components/UI";
 import { go, href } from "../lib/router";
 import { isEmail } from "../lib/format";
-import { homeFor, isOpsRoles } from "../lib/roles";
+import { homeFor, isOpsRoles, isBusinessRoles } from "../lib/roles";
 import { useApp } from "../state/store";
 
 const safeNext = (next) => (next && !/^(login|register)/.test(next) ? next : "overview");
@@ -54,7 +54,7 @@ export function Login({ query }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (authed) go(isAdmin || isOpsRoles(roles) ? homeFor(roles) : next, { replace: true });
+    if (authed) go(isAdmin || isOpsRoles(roles) || isBusinessRoles(roles) ? homeFor(roles) : next, { replace: true });
   }, [authed, isAdmin, roles, next]);
 
   const set = (k, v) => {
