@@ -86,3 +86,9 @@
   "Cọc còn giữ"; "Doanh thu thuê và phí" không trừ REFUND. Khi thêm hoàn tiền thuê/phí thì phải thêm liên kết khoản gốc.
 - Cơ sở `TEMPORARILY_CLOSED` chặn đặt chỗ mới; `INACTIVE` chỉ khi không còn hợp đồng / đơn đang xử lý. Không xoá cơ sở.
 
+## D20 — Toạ độ cơ sở lưu trong database, Vận hành KD sửa ở B05a — Đã chốt (15/10/2026)
+- Bảng `facilities` thêm `Latitude`, `Longitude` (decimal(9,6), cùng có hoặc cùng trống). API cơ sở công khai và `/api/operations/facilities` trả / nhận hai trường này.
+- Màn B05 thêm nút "Sửa thông tin cơ sở" mở hộp thoại B05a (tên, địa chỉ, điện thoại, giờ ra vào, vĩ độ, kinh độ). Dán cặp toạ độ copy từ Google Maps vào một ô thì tự tách hai ô.
+- Bản đồ Tìm kho (C02m) đọc toạ độ từ API; `src/config/geo.js` chỉ còn là toạ độ dự phòng cho cơ sở chưa nhập.
+- Toạ độ khởi tạo của 12 cơ sở lấy giống `geo.js` (ước lượng); Vận hành KD nên kiểm tra lại trên Google Maps và sửa ở B05a.
+

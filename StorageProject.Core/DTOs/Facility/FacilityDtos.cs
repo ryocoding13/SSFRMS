@@ -7,7 +7,9 @@ public record FacilityDto(
     string? ContactPhone,
     string? OpeningTime,
     string? ClosingTime,
-    string Status
+    string Status,
+    decimal? Latitude = null,   // toạ độ ghim bản đồ (C02m); null = chưa nhập
+    decimal? Longitude = null
 );
 
 public record UnitTypeDto(
