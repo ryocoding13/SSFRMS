@@ -31,6 +31,7 @@ public interface IReservationService
     Task<ReservationDetailDto?> GetReservationDetailAsync(long customerId, long reservationId, CancellationToken ct = default);
     Task<ReservationDto> CreateReservationAsync(long customerId, CreateReservationRequest request, CancellationToken ct = default);
     Task CancelReservationAsync(long customerId, long reservationId, string reason, CancellationToken ct = default);
+    Task<ReservationDto> ConfirmTransferAsync(long customerId, long reservationId, CancellationToken ct = default);
 }
 
 public interface IContractService

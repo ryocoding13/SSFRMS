@@ -17,6 +17,8 @@
 9. **Không xoá/sửa test để cho pass.** Test sai → ghi lý do trong `progress.md` rồi mới sửa.
 10. Làm trên nhánh `feature/<tên>` → Pull Request vào `main`. Không push thẳng `main`.
 11. Tiếng Việt cho giao diện và tài liệu; tên biến, hàm, API bằng tiếng Anh.
+12. **AI không được tự `git push`, tạo Pull Request hay merge lên repo này.** Chỉ sửa code và commit trên máy;
+    giao lại cho thành viên nhóm (patch / file zip / hướng dẫn lệnh) để người đó tự kiểm tra rồi tự push.
 
 ## 2. Dự án là gì
 
@@ -40,6 +42,7 @@ Hệ thống quản lý và cho thuê kho tự phục vụ **SafeSpace** cho 5 n
 | `…/src/api/` | Gọi API + `mappers.js` chuyển dữ liệu backend → giao diện |
 | `…/BE-CONTRACT.md` | Endpoint giao diện cần backend bổ sung |
 | `…/BACKEND-TODO.md` | Việc backend còn thiếu, xếp ưu tiên A/B/C, mẫu JSON `GET /api/ops/board` |
+| `docs/facility-ops-api.md`, `docs/operations-api.md` | API khu Nhân viên / Quản lý cơ sở và khu Vận hành KD |
 | `…/CUSTOMER-FLOW-COVERAGE.md`, `ADMIN-FLOW-COVERAGE.md`, `OPS-FLOW-COVERAGE.md` | Đối chiếu màn Figma ↔ route ↔ component ↔ API |
 
 ## 4. Đọc thêm khi cần (tiết lộ dần)
@@ -64,7 +67,8 @@ cd SafeSpace-Customer-UI/SafeSpace-Customer-UI && npm run dev     # UI:  http://
 ```
 
 Cần: .NET SDK 10 (project đặt `net10.0`), Node ≥ 22.12, SQL Server (mặc định `.\SQLEXPRESS`).
-Tài khoản seed: `customer01`/`Customer@123`, `staff01`/`Staff@123`, `ops01`/`Ops@123` (Vận hành KD), `admin`/`Admin@123`.
+Tài khoản seed: `customer01`…`customer06`/`Customer@123`, `staff01`, `staff02`/`Staff@123`, `manager01`/`Manager@123`
+(cả ba phụ trách SafeSpace Nguyễn Lương Bằng), `ops01`/`Ops@123` (Vận hành KD), `admin`/`Admin@123`.
 Không có backend: tạo `.env.local` với `VITE_USE_API=false`, hoặc `MOCK_OPS=1 npm run dev:mock` (máy chủ giả có cả `/api/ops/*`,
 thêm `manager01`/`Manager@123`).
 

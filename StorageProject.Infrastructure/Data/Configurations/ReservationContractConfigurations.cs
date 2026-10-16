@@ -15,7 +15,7 @@ public class ReservationConfiguration : IEntityTypeConfiguration<Reservation>
             t.HasCheckConstraint("CK_reservations_estimated_amount", "[EstimatedAmount] >= 0");
             t.HasCheckConstraint("CK_reservations_required_deposit", "[RequiredDeposit] >= 0");
             t.HasCheckConstraint("CK_reservations_status",
-                "[Status] IN ('PENDING_PAYMENT','CONFIRMED','UNIT_ASSIGNED','CHECKED_IN','CANCELLED','EXPIRED','NO_SHOW')");
+                "[Status] IN ('PENDING_PAYMENT','PENDING_VERIFICATION','CONFIRMED','UNIT_ASSIGNED','CHECKED_IN','CANCELLED','EXPIRED','NO_SHOW')");
         });
         b.HasKey(r => r.ReservationId);
         b.Property(r => r.ReservationId).UseIdentityColumn();

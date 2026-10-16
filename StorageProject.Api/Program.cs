@@ -90,6 +90,7 @@ builder.Services.AddScoped<IHandoverService, HandoverService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IOperationsService, OperationsService>();
 builder.Services.AddScoped<IOperationsReportService, OperationsReportService>();
+builder.Services.AddScoped<IFacilityOpsService, FacilityOpsService>();
 
 var app = builder.Build();
 
@@ -120,6 +121,7 @@ app.MapRenewalEndpoints();
 app.MapSupportTicketEndpoints();
 app.MapAdminEndpoints();
 app.MapOperationsEndpoints();
+app.MapFacilityOpsEndpoints();
 
 // Root status check
 app.MapGet("/health", () => Results.Ok(new

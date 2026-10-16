@@ -58,8 +58,8 @@ test("danh mục: cơ sở, quận / thành phố, giờ mở cửa và gói kho
   assert.equal(tb.city, "TP. Hồ Chí Minh");
   assert.equal(tb.hours, "07:00–22:00");
   assert.deepEqual(tb.offers.map((o) => [o.unit_type_id, o.type, o.band, o.monthly_rate]), [
-    [1, "normal", "S", 500000],
-    [2, "climate", "S", 1500000],
+    [1, "normal", "M", 500000],
+    [2, "climate", "M", 1500000],
     [3, "climate", "M", 3000000],
   ]);
   assert.equal(tb.offers[1].size_label, "4 m²");
@@ -129,4 +129,13 @@ test("toạ độ cơ sở: lấy latitude / longitude từ backend, thiếu th�
 test("tên đăng nhập backend sinh từ email (≤ 50 ký tự)", () => {
   assert.equal(usernameFromEmail(" Mai.Tran@Example.com "), "mai.tran@example.com");
   assert.ok(usernameFromEmail(`${"a".repeat(60)}@example.com`).length <= 50);
+});
+
+test("backend trả PENDING_VERIFICATION (confirm-transfer) → chờ đối soát, không bị huỷ theo giờ giữ chỗ trong trình duyệt", () => {
+  const verifying = { ...remote, reservations: remote.reservations.map((r) => (r.reservationId === 2 ? { ...r, status: "PENDING_VERIFICATION" } : r)) };
+  const hold = { holds: { 2: NOW.getTime() - 10000 } };
+  const later = new Date(NOW.getTime() + 55000);
+  const d = composeData({ catalog, remote: verifying, overlay: hold, session, timeoutSeconds: 60, now: later });
+  assert.equal(d.reservations[1].status, "PENDING_VERIFICATION");
+  assert.equal(reservationsToExpire({ remote: verifying, overlay: { holds: hold.holds, transfers: {} }, timeoutSeconds: 60, now: later }).length, 0);
 });
