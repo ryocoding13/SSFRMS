@@ -73,6 +73,6 @@ returns, tickets`. Quản lý nhận thêm: `allocations, renewals, contracts, a
 1. Xoá database cũ cho sạch (seed D17 chỉ thêm phần thiếu, không xoá dữ liệu cũ): trong SSMS xoá database
    `SSFRMS` (tên trong chuỗi kết nối `appsettings.json`), rồi chạy API — migration + seed tự chạy.
 2. `dotnet run --project StorageProject.Api --launch-profile http`, rồi `npm run dev` ở thư mục giao diện.
-3. Khách `customer01` → "Đơn đặt chỗ" → đơn chờ chuyển khoản → "Tôi đã chuyển khoản".
-4. `staff01` → Đối soát → xác nhận đơn vừa báo. `manager01` → Phân bổ → chọn ô trống đúng loại → Phân công cho `staff01`.
+3. Khách `customer01` đặt kho → C04 chọn "Tại cửa hàng" → "Xác nhận đặt chỗ" (đơn vào hàng chờ thu tiền). Thanh toán QR PayOS tự xác nhận qua webhook, không vào S09 (D19, D21).
+4. `staff01` → Thu tiền → "Xác nhận đã thu" đơn vừa đặt. `manager01` → Phân bổ → chọn ô trống đúng loại → Phân công cho `staff01`.
 5. `staff01` → Xác minh khách → Bàn giao. Ô chuyển "Đang hoạt động" ở `manager01` → Ô kho.

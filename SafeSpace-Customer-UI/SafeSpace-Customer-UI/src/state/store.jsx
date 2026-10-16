@@ -1,6 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/endpoints";
 import { ApiError, setToken } from "../api/http";
+import { isUnsupported, localAccessCode, normAccess, normCancelPreview, normPayos, normScan } from "../api/payment-access";
+import { bankAccount } from "../config/payment";
+import { vietQrPayload } from "../lib/vietqr";
 import { composeData, emptyOverlay, mapCatalog, reservationCode, reservationsToExpire, ticketCode, usernameFromEmail } from "../api/mappers";
 import { API_URL, USE_API } from "../config/api";
 import { paymentTimeoutSeconds } from "../config/media";
@@ -10,7 +13,7 @@ import { isEmail, localDate, shortCode, timeoutLabel } from "../lib/format";
 import { TICKET_TOPICS } from "../lib/status";
 import { isAdminRoles, isCustomerRoles, isOpsRoles, isBusinessRoles, rolesFromToken } from "../lib/roles";
 import { OPS_ACCOUNTS, OPS_PASSWORD } from "../ops/data";
-import { reduce, sweepExpired, validateRegister } from "./reducer";
+import { cancelPreviewOf, reduce, sweepExpired, validateRegister } from "./reducer";
 import { pendingRenewal, pendingReturn } from "./selectors";
 
 const AppContext = createContext(null);
@@ -145,6 +148,59 @@ function LocalProvider({ children }) {
 
   const logout = useCallback(async () => commit({ ...ref.current, authed: false, opsUser: null }), [commit]);
 
+  // Thanh toán QR / QR mở cửa khi chạy không có backend: mô phỏng phía trình duyệt.
+  // Mã QR là VietQR tới tài khoản cấu hình trong config/payment.js; sau vài giây tự ghi nhận "đã thanh toán"
+  // giống webhook PayOS để đi hết luồng C04 → C05 và C11q → C11b.
+  const simulated = useRef(new Set());
+  const services = useMemo(
+    () => ({
+      async startPayos({ kind, item }) {
+        const content = kind === "payment" ? item.ref.replaceAll("-", "") : item.reservation_id.replaceAll("-", "");
+        const key = kind === "payment" ? `p:${item.ref}` : `r:${item.reservation_id}`;
+        if (!simulated.current.has(key)) {
+          simulated.current.add(key);
+          setTimeout(() => {
+            simulated.current.delete(key);
+            const out = reduce(ref.current.data, { type: "PAYOS_PAID", payload: kind === "payment" ? { ref: item.ref } : { reservation_id: item.reservation_id } }, { now: new Date(), timeoutSeconds: paymentTimeoutSeconds });
+            if (!out.error && out.state !== ref.current.data) commit({ ...ref.current, data: out.state });
+          }, 8000);
+        }
+        return {
+          ok: true,
+          checkout: { order_code: content, amount: item.amount ?? item.initial_total, qr: vietQrPayload({ bin: bankAccount.bin, accountNo: bankAccount.accountNo, amount: item.amount ?? item.initial_total, content }), url: null, expires_at: null, description: content, paid: false },
+        };
+      },
+      async checkPaid({ kind, item }) {
+        const d = ref.current.data;
+        if (kind === "payment") return { ok: true, paid: d.ledger.find((l) => l.ref === item.ref)?.status === "RECONCILED" };
+        const r = d.reservations.find((x) => x.reservation_id === item.reservation_id);
+        return { ok: true, paid: Boolean(r && ["CONFIRMED", "CHECKED_IN"].includes(r.status)), cancelled: r?.status === "CANCELLED" };
+      },
+      async accessQr(contract) {
+        if (!contract.handed_over || contract.status === "ENDED") return { ok: false, error: "QR mở cửa chỉ dùng được sau khi nhận kho và khi hợp đồng còn hiệu lực." };
+        return { ok: true, access: localAccessCode(contract) };
+      },
+      async scan(code) {
+        const d = ref.current.data;
+        const clean = String(code || "").replace(/\s/g, "");
+        const c = d.contracts.find((x) => {
+          const a = localAccessCode(x);
+          return a.code === code || a.backup.replace(/\s/g, "") === clean;
+        });
+        const now = new Date().toISOString();
+        if (!c) return { ok: true, scan: { result: "DENIED", unit: null, customer: null, contract: null, at: now, reason: "Mã không đúng. Kiểm tra lại mã trên ứng dụng hoặc mã dự phòng." } };
+        if (c.status === "ENDED") return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Mã đã hết hiệu lực — hợp đồng đã trả kho." } };
+        if (!c.handed_over) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Kho chưa được bàn giao cho khách." } };
+        if (c.end_date < localDate(new Date())) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Hợp đồng đã quá hạn. Vui lòng gia hạn hoặc liên hệ cơ sở." } };
+        return { ok: true, scan: { result: "OPEN", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: null } };
+      },
+      async cancelPreview(r) {
+        return { ok: true, preview: r.status === "CONFIRMED" ? cancelPreviewOf(r) : { paid: 0, fee: 0, refund: 0, policy: null } };
+      },
+    }),
+    [commit],
+  );
+
   const value = useMemo(
     () => ({
       mode: "local",
@@ -163,13 +219,14 @@ function LocalProvider({ children }) {
       roles: store.authed ? (store.opsUser ? [store.opsUser.role] : ["CUSTOMER"]) : [],
       isAdmin: false,
       supports: { changePassword: true, forgotPassword: true },
+      services,
       toast,
       notify,
       dismissToast,
       storageError,
       timeoutSeconds: paymentTimeoutSeconds,
     }),
-    [store, dispatch, login, register, logout, toast, notify, dismissToast, storageError],
+    [store, dispatch, login, register, logout, services, toast, notify, dismissToast, storageError],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
@@ -177,7 +234,7 @@ function LocalProvider({ children }) {
 
 // =====================================================================
 // Chế độ API (VITE_USE_API=true)
-// Luồng backend đã có → gọi API. Luồng backend chưa có (báo chuyển khoản, trả kho, lịch trả kho,
+// Luồng backend đã có → gọi API. Luồng backend chưa có (trả kho, lịch trả kho,
 // thông báo, đổi tên hiển thị) → lưu trong trình duyệt theo từng tài khoản ("overlay").
 // =====================================================================
 function readSession() {
@@ -309,7 +366,7 @@ function ApiProvider({ children }) {
         cancelling.current.add(r.reservationId);
         const seconds = refs.current.overlay.holds[r.reservationId] ? paymentTimeoutSeconds : 24 * 3600;
         api
-          .cancelReservation(r.reservationId, `Quá ${timeoutLabel(seconds)} chưa xác nhận chuyển khoản`)
+          .cancelReservation(r.reservationId, `Quá ${timeoutLabel(seconds)} chưa thanh toán`)
           .catch(() => {})
           .then(() => loadCustomer().catch(() => {}));
       }
@@ -436,24 +493,40 @@ function ApiProvider({ children }) {
             await loadCustomer();
             return { ok: true, reservation_id: reservationCode(dto) };
           }
+          case "PAY_AT_FACILITY":
           case "CONFIRM_TRANSFER": {
             const r = d.reservations.find((x) => x.reservation_id === p.reservation_id);
             if (!r) return fail("Không tìm thấy đơn đặt chỗ.", "NOT_FOUND");
             if (r.status === "CANCELLED") return fail("Đơn đặt chỗ đã hết thời gian giữ chỗ.", "EXPIRED");
             if (r.status !== "PENDING_PAYMENT") return { ok: true, reservation_id: r.reservation_id };
-            try {
-              await api.confirmTransfer(r.api_id);
-            } catch (e) {
+            const expired = async (e) => {
               if (e instanceof ApiError && e.data?.code === "EXPIRED") {
                 await loadCustomer().catch(() => {});
                 return fail(e.message, "EXPIRED");
               }
-              // Backend cũ chưa có confirm-transfer: ghi nhận tạm trên trình duyệt như trước
-              if (!(e instanceof ApiError && (e.status === 404 || e.status === 405))) throw e;
-              updateOverlay((o) => ({ ...o, transfers: { ...o.transfers, [r.api_id]: Date.now() } }));
+              return null;
+            };
+            // Ưu tiên endpoint pay-at-facility; backend chưa có → dùng confirm-transfer để đơn vẫn vào hàng chờ thu tiền S09
+            const calls = [() => api.payAtFacility(r.api_id), () => api.confirmTransfer(r.api_id)];
+            let done = false;
+            for (const call of calls) {
+              try {
+                await call();
+                done = true;
+                break;
+              } catch (e) {
+                const exp = await expired(e);
+                if (exp) return exp;
+                if (!(e instanceof ApiError && (e.status === 404 || e.status === 405))) throw e;
+              }
             }
+            updateOverlay((o) => ({
+              ...o,
+              atFacility: { ...o.atFacility, [r.api_id]: Date.now() },
+              transfers: done ? o.transfers : { ...o.transfers, [r.api_id]: Date.now() },
+            }));
             await loadCustomer().catch(() => {});
-            remember("Đã nhận thông tin đặt chỗ", `${shortCode(r.reservation_id)} · Chờ nhân viên đối soát chuyển khoản.`, "reservations", `Đơn ${shortCode(r.reservation_id)} đã gửi — chờ đối soát thanh toán`);
+            remember("Đã giữ chỗ cho bạn", `${shortCode(r.reservation_id)} · Thanh toán tại cửa hàng khi nhận kho.`, `reservations/${r.reservation_id}`, `Đơn ${shortCode(r.reservation_id)} chờ thanh toán tại cửa hàng`);
             return { ok: true, reservation_id: r.reservation_id };
           }
           case "EXPIRE_RESERVATION": {
@@ -464,7 +537,7 @@ function ApiProvider({ children }) {
               if (!cancelling.current.has(r.api_id)) {
                 cancelling.current.add(r.api_id);
                 api
-                  .cancelReservation(r.api_id, `Quá ${timeoutLabel(r.timeout_seconds || paymentTimeoutSeconds)} chưa xác nhận chuyển khoản`)
+                  .cancelReservation(r.api_id, `Quá ${timeoutLabel(r.timeout_seconds || paymentTimeoutSeconds)} chưa thanh toán`)
                   .catch(() => {})
                   .then(() => loadCustomer().catch(() => {}));
               }
@@ -577,6 +650,55 @@ function ApiProvider({ children }) {
     }
   }, []);
 
+  // Màn mới gọi API trực tiếp: PayOS (C04, C11q), QR mở cửa (C07q), máy quét (C07r), xem trước hoàn tiền (C14a).
+  // Backend chưa có endpoint (404/405) → trả { unsupported: true } để màn hiện thông báo phù hợp, không báo lỗi.
+  const services = useMemo(() => {
+    const guard = async (fn) => {
+      try {
+        return await fn();
+      } catch (e) {
+        if (isUnsupported(e)) return { ok: false, unsupported: true };
+        return handleError(e);
+      }
+    };
+    return {
+      startPayos: ({ kind, item }) =>
+        guard(async () => {
+          const dto = kind === "payment" ? await api.paymentPayos(item.api_id) : await api.reservationPayos(item.api_id);
+          const checkout = normPayos(dto);
+          if (!checkout) return fail("Máy chủ chưa trả mã QR thanh toán. Vui lòng thử lại.");
+          if (checkout.paid) await loadCustomer().catch(() => {});
+          return { ok: true, checkout };
+        }),
+      checkPaid: ({ kind, item }) =>
+        guard(async () => {
+          if (kind === "payment") {
+            const p = await api.payment(item.api_id);
+            const paid = p?.status === "PAID";
+            if (paid) await loadCustomer().catch(() => {});
+            return { ok: true, paid };
+          }
+          const r = await api.reservation(item.api_id);
+          const status = String(r?.status || "");
+          const paid = ["PAID", "CONFIRMED", "UNIT_ASSIGNED", "CHECKED_IN", "COMPLETED"].includes(status);
+          const cancelled = ["CANCELLED", "EXPIRED"].includes(status);
+          if (paid || cancelled) await loadCustomer().catch(() => {});
+          return { ok: true, paid, cancelled };
+        }),
+      accessQr: (contract) =>
+        guard(async () => {
+          const access = normAccess(await api.accessQr(contract.api_id));
+          return access ? { ok: true, access } : fail("Máy chủ chưa trả mã mở cửa.");
+        }),
+      scan: (code) => guard(async () => ({ ok: true, scan: normScan(await api.scanAccess({ code: String(code || "").trim() })) })),
+      cancelPreview: (r) =>
+        guard(async () => {
+          const preview = normCancelPreview(await api.cancelPreview(r.api_id));
+          return preview ? { ok: true, preview } : { ok: false, unsupported: true };
+        }),
+    };
+  }, [handleError, loadCustomer]);
+
   const ready = Boolean(catalog) && (!session || Boolean(remote));
 
   const value = useMemo(
@@ -599,13 +721,14 @@ function ApiProvider({ children }) {
       isAdmin: isAdminRoles(session?.roles),
       session,
       supports: { changePassword: true, forgotPassword: false },
+      services,
       toast,
       notify,
       dismissToast,
       storageError,
       timeoutSeconds: paymentTimeoutSeconds,
     }),
-    [ready, loadError, loadAll, session, data, dispatch, login, register, logout, checkAvailability, onApiError, toast, notify, dismissToast, storageError],
+    [ready, loadError, loadAll, session, data, dispatch, login, register, logout, checkAvailability, onApiError, services, toast, notify, dismissToast, storageError],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

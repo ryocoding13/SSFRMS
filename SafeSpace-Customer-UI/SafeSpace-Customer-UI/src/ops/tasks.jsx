@@ -12,7 +12,7 @@ const slot = (iso) => slotLabel(iso).replace(/^Hôm nay/, "hôm nay");
 
 // Danh sách việc của nhân viên dạng thẻ, lưới 3x3 (Figma S01 / S09a / S02a / S03a / S04a / S05a).
 export const KINDS = {
-  reconcile: { label: "ĐỐI SOÁT", route: "staff/reconcile" },
+  reconcile: { label: "THU TIỀN", route: "staff/reconcile" },
   handover: { label: "BÀN GIAO", route: "staff/handover" },
   verify: { label: "XÁC MINH", route: "staff/verify" },
   support: { label: "HỖ TRỢ", route: "staff/support" },
@@ -21,11 +21,12 @@ export const KINDS = {
 
 // Tiêu đề + mô tả + trạng thái trống của từng tab
 export const LIST_TEXT = {
-  all: { empty: ["Chưa có công việc nào hôm nay", "Khi khách báo chuyển khoản, đến nhận / trả kho hoặc gửi yêu cầu hỗ trợ, công việc sẽ hiện ở đây."] },
+  all: { empty: ["Chưa có công việc nào hôm nay", "Khi khách chọn thanh toán tại cửa hàng, đến nhận / trả kho hoặc gửi yêu cầu hỗ trợ, công việc sẽ hiện ở đây."] },
+  // S09a · Thu tiền tại kho: đơn khách chọn "Thanh toán tại cửa hàng" (đơn trả qua PayOS tự xác nhận, không hiện ở đây)
   reconcile: {
-    title: "Đối soát thanh toán",
-    sub: (n) => (n ? `${n} khoản khách báo đã chuyển khoản · đối chiếu với sao kê trước khi xác nhận đã thu.` : "Đối chiếu khoản khách báo đã chuyển khoản với sao kê."),
-    empty: ["Chưa có khoản nào cần đối soát", "Khoản khách báo “Tôi đã chuyển khoản” sẽ hiện ở đây."],
+    title: "Thu tiền tại kho",
+    sub: (n) => (n ? `${n} đơn khách chọn thanh toán tại cửa hàng · thu đủ tiền và xác nhận trước khi bàn giao.` : "Đơn khách chọn thanh toán tại cửa hàng sẽ hiện ở đây."),
+    empty: ["Chưa có đơn nào cần thu tại kho", "Khi khách chọn \"Thanh toán tại cửa hàng\", đơn sẽ hiện ở đây để thu tiền."],
   },
   verify: {
     title: "Xác minh khách hàng",
@@ -58,9 +59,10 @@ export function staffTasks(ops, me, kind = "all") {
       .filter((p) => p.status === "PENDING")
       .forEach((p) =>
         list.push({
-          key: p.id, kind: "reconcile", status: ["Chờ đối soát", "amber"], title: `Đơn #${p.id}`,
-          meta: `${p.customer} · ${p.offer}`, when: `${money(p.amount)} · Khách báo ${slot(p.reported_at).replace(" · ", " lúc ")}`,
-          cta: "Đối soát ngay", to: `staff/reconcile?id=${p.id}`, sort: p.reported_at,
+          key: p.id, kind: "reconcile", status: ["Chờ thu tại kho", "amber"], title: `Đơn #${p.id}`,
+          meta: kind === "all" ? `${p.customer} · Tại kho · ${money(p.amount)}` : `${p.customer} · ${p.offer}`,
+          when: kind === "all" ? `Khách đặt ${slot(p.reported_at).replace(" · ", " lúc ")}` : `${money(p.amount)} · Chờ thu khi nhận kho`,
+          cta: "Thu tiền", to: `staff/reconcile?id=${p.id}`, sort: p.reported_at,
         }),
       );
   if (kind === "all" || kind === "handover")
@@ -165,7 +167,7 @@ export function TaskEmpty({ title, text, action }) {
   );
 }
 
-// Trang danh sách của một tab nhân viên (Đối soát / Xác minh / Bàn giao / Trả kho / Hỗ trợ)
+// Trang danh sách của một tab nhân viên (Thu tiền / Xác minh / Bàn giao / Trả kho / Hỗ trợ)
 export function StaffTaskList({ kind, query, me }) {
   const { ops } = useOps();
   const tasks = staffTasks(ops, me, kind);
