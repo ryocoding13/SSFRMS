@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import AccessQr from "../components/AccessQr";
 import { EmptyInline } from "../components/Inline";
 import { DatePicker, Select } from "../components/Pickers";
 import { Button, Empty, Field, LinkButton, Notice, PageHeader, StatusTag, Tag } from "../components/UI";
@@ -112,6 +113,7 @@ export function UnitDetail({ id }) {
         </section>
         <aside className="panel booking">
           <h2>Bạn cần làm gì?</h2>
+          <AccessQr contract={c} facility={f} user={data.user} />
           {renewal && <Notice>Yêu cầu gia hạn thêm {renewal.months} tháng đang chờ cơ sở duyệt.</Notice>}
           {ret && <Notice>Yêu cầu trả kho ngày {dateLabel(ret.date)} đang chờ cơ sở xác nhận.</Notice>}
           <div className="stack stack--col">
