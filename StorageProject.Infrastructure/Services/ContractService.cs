@@ -119,4 +119,64 @@ public class ContractService(AppDbContext dbContext) : IContractService
             renewals
         );
     }
+
+    public async Task<MoveOutResponseDto> RegisterMoveOutAsync(long customerId, long contractId, MoveOutRequest request, CancellationToken ct = default)
+    {
+        var contract = await dbContext.RentalContracts
+            .Include(c => c.Unit)
+                .ThenInclude(u => u.Facility)
+            .Include(c => c.Customer)
+            .FirstOrDefaultAsync(c => c.ContractId == contractId && c.CustomerId == customerId, ct);
+
+        if (contract == null)
+        {
+            throw new KeyNotFoundException($"Không tìm thấy hợp đồng #{contractId}.");
+        }
+
+        if (contract.Status is not ("ACTIVE" or "EXPIRING"))
+        {
+            throw new InvalidOperationException($"Không thể đăng ký trả kho với hợp đồng ở trạng thái {contract.Status}.");
+        }
+
+        // Parse scheduled datetime
+        var timePart = new TimeOnly(9, 0);
+        if (!string.IsNullOrWhiteSpace(request.Slot))
+        {
+            var firstTime = request.Slot.Split(['-', '–'])[0].Trim();
+            if (TimeOnly.TryParse(firstTime, out var parsedTime))
+            {
+                timePart = parsedTime;
+            }
+        }
+        var scheduledAt = request.Date.ToDateTime(timePart);
+
+        // Find a staff member at the facility or system staff
+        var staffUser = await dbContext.Users
+            .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+            .FirstOrDefaultAsync(u => u.UserRoles.Any(ur => ur.Role.RoleName == "STAFF"), ct)
+            ?? contract.Customer;
+
+        var inspection = new StorageProject.Core.Entities.ReturnInspection
+        {
+            ContractId = contract.ContractId,
+            StaffId = staffUser.UserId,
+            ScheduledAt = scheduledAt,
+            Status = "SCHEDULED",
+            Notes = request.Note,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        dbContext.ReturnInspections.Add(inspection);
+        contract.Status = "RETURN_PENDING";
+        await dbContext.SaveChangesAsync(ct);
+
+        return new MoveOutResponseDto(
+            inspection.InspectionId,
+            contract.ContractId,
+            inspection.Status,
+            inspection.ScheduledAt,
+            "Đăng ký lịch trả kho thành công. Nhân viên sẽ tiến hành kiểm tra kho theo lịch hẹn."
+        );
+    }
 }

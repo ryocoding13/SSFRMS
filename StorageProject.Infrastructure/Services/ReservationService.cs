@@ -195,4 +195,27 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
 
         await dbContext.SaveChangesAsync(ct);
     }
+
+    public async Task ConfirmTransferAsync(long customerId, long reservationId, CancellationToken ct = default)
+    {
+        var reservation = await dbContext.Reservations
+            .Where(r => r.ReservationId == reservationId && r.CustomerId == customerId)
+            .FirstOrDefaultAsync(ct)
+            ?? throw new InvalidOperationException("Không tìm thấy đơn đặt chỗ hợp lệ.");
+
+        if (reservation.ExpiresAt.HasValue && reservation.ExpiresAt.Value < DateTime.UtcNow)
+        {
+            reservation.Status = "EXPIRED";
+            await dbContext.SaveChangesAsync(ct);
+            throw new InvalidOperationException("EXPIRED");
+        }
+
+        if (reservation.Status != "PENDING_PAYMENT")
+        {
+            throw new InvalidOperationException($"Không thể xác nhận chuyển khoản cho đơn ở trạng thái '{reservation.Status}'.");
+        }
+
+        reservation.Status = "PENDING_VERIFICATION";
+        await dbContext.SaveChangesAsync(ct);
+    }
 }

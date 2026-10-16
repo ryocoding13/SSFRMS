@@ -149,7 +149,7 @@ function Shell() {
           adminBody || <AdminApp parts={route.parts} />
         ) : isOpsPage ? (
           opsAllowed ? (
-            <OpsProvider notify={notify} mode={mode} onApiError={onApiError}>
+            <OpsProvider notify={notify} mode={mode} onApiError={onApiError} role={opsRole}>
               <OpsApp role={opsRole} parts={route.parts} query={route.query} />
             </OpsProvider>
           ) : (

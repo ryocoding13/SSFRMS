@@ -46,23 +46,29 @@ export function createState() {
     { unitTypeId: 2, typeName: "Kho Tiêu Chuẩn M (2m x 2m)", length: 2, width: 2, height: 2.8, area: 4, climateControlled: true, description: "Kho điều hòa mát mẻ, phù hợp đồ nội thất, thiết bị điện tử, hàng shop online", status: "ACTIVE" },
     { unitTypeId: 3, typeName: "Kho Lớn L (3m x 3m)", length: 3, width: 3, height: 3, area: 9, climateControlled: true, description: "Kho điều hòa sức chứa lớn, phù hợp lưu trữ đồ chuyển nhà 2-3 phòng ngủ", status: "ACTIVE" },
     { unitTypeId: 4, typeName: "Kho Doanh Nghiệp XL (4m x 4m)", length: 4, width: 4, height: 3.2, area: 16, climateControlled: true, description: "Kho chuyên biệt cho doanh nghiệp", status: "ACTIVE" },
+    { unitTypeId: 5, typeName: "Tủ Locker Cá Nhân (0.5m x 0.5m)", length: 0.5, width: 0.5, height: 1, area: 0.25, climateControlled: false, description: "Ngăn tủ locker cá nhân thông minh, bảo mật cao, cất giữ giấy tờ, phụ kiện hoặc balo", status: "ACTIVE" },
   ];
   const eff = dateOnly(days(-30));
   const round10k = (v) => Math.round(v / 10000) * 10000;
   const rateRows = [
-    [1, 1, 500000], [1, 2, 1500000], [1, 3, 3000000],
-    [2, 1, 550000], [2, 2, 1600000], [2, 3, 3200000], [2, 4, 5500000],
+    [1, 5, 1000], [1, 1, 500000], [1, 2, 1500000], [1, 3, 3000000],
+    [2, 5, 1000], [2, 1, 550000], [2, 2, 1600000], [2, 3, 3200000], [2, 4, 5500000],
   ];
   NETWORK.forEach(([, , , , rateM, xl], i) => {
     const fid = i + 3;
     rateRows.push([fid, 1, round10k(rateM * 0.4)], [fid, 2, rateM], [fid, 3, round10k(rateM * 2)]);
     if (xl) rateRows.push([fid, 4, round10k(rateM * 3.5)]);
   });
+  rateRows.push([3, 5, 1000]); // Nguyễn Lương Bằng có Tủ Locker 1k VND
   const rates = rateRows.map(([facilityId, unitTypeId, monthlyRate], i) => ({ rateId: i + 1, facilityId, facilityName: facilities[facilityId - 1].name, unitTypeId, unitTypeName: unitTypes[unitTypeId - 1].typeName, monthlyRate, effectiveFrom: eff, effectiveTo: null }));
   const units = [
-    [1, 1, 1, "TB-S-101", "AVAILABLE"], [2, 1, 1, "TB-S-102", "AVAILABLE"], [3, 1, 2, "TB-M-103", "OCCUPIED"], [4, 1, 2, "TB-M-104", "AVAILABLE"],
-    [5, 1, 3, "TB-L-201", "AVAILABLE"], [6, 1, 3, "TB-L-202", "AVAILABLE"], [7, 2, 1, "Q7-S-101", "AVAILABLE"], [8, 2, 1, "Q7-S-102", "AVAILABLE"],
-    [9, 2, 2, "Q7-M-103", "AVAILABLE"], [10, 2, 2, "Q7-M-104", "AVAILABLE"], [11, 2, 3, "Q7-L-201", "AVAILABLE"], [12, 2, 4, "Q7-XL-301", "AVAILABLE"],
+    [1, 1, 5, "TB-LK-101", "AVAILABLE"], [2, 1, 5, "TB-LK-102", "AVAILABLE"],
+    [3, 1, 1, "TB-S-101", "AVAILABLE"], [4, 1, 1, "TB-S-102", "AVAILABLE"], [5, 1, 2, "TB-M-103", "OCCUPIED"], [6, 1, 2, "TB-M-104", "AVAILABLE"],
+    [7, 1, 3, "TB-L-201", "AVAILABLE"], [8, 1, 3, "TB-L-202", "AVAILABLE"],
+    [9, 2, 5, "Q7-LK-101", "AVAILABLE"], [10, 2, 5, "Q7-LK-102", "AVAILABLE"],
+    [11, 2, 1, "Q7-S-101", "AVAILABLE"], [12, 2, 1, "Q7-S-102", "AVAILABLE"],
+    [13, 2, 2, "Q7-M-103", "AVAILABLE"], [14, 2, 2, "Q7-M-104", "AVAILABLE"], [15, 2, 3, "Q7-L-201", "AVAILABLE"], [16, 2, 4, "Q7-XL-301", "AVAILABLE"],
+    [17, 3, 5, "NLB-LK-101", "AVAILABLE"], [18, 3, 5, "NLB-LK-102", "AVAILABLE"],
   ].map(([unitId, facilityId, unitTypeId, unitNumber, status]) => ({ unitId, facilityId, unitTypeId, unitNumber, status }));
   NETWORK.forEach(([code, , , , , xl], i) => {
     const fid = i + 3;
@@ -75,9 +81,10 @@ export function createState() {
   const reservations = [
     { reservationId: 1, customerId: 3, facilityId: 1, unitTypeId: 2, startDate: start1, expectedEndDate: addMonths(start1, 3), rentalPeriodMonths: 3, quotedMonthlyRate: 1500000, estimatedAmount: 4500000, requiredDeposit: 1500000, status: "CHECKED_IN", createdAt: days(-16), expiresAt: days(-15), cancelledAt: null, cancellationReason: null },
     { reservationId: 2, customerId: 3, facilityId: 1, unitTypeId: 1, startDate: start2, expectedEndDate: addMonths(start2, 1), rentalPeriodMonths: 1, quotedMonthlyRate: 500000, estimatedAmount: 500000, requiredDeposit: 500000, status: "PENDING_PAYMENT", createdAt: new Date(), expiresAt: new Date(Date.now() + 24 * 3600000), cancelledAt: null, cancellationReason: null },
+    { reservationId: 3, customerId: 3, facilityId: 1, unitTypeId: 5, startDate: start2, expectedEndDate: addMonths(start2, 1), rentalPeriodMonths: 1, quotedMonthlyRate: 1000, estimatedAmount: 1000, requiredDeposit: 0, status: "PENDING_PAYMENT", createdAt: new Date(), expiresAt: new Date(Date.now() + 30 * 86400000), cancelledAt: null, cancellationReason: null },
   ];
   const contracts = [
-    { contractId: 1, reservationId: 1, customerId: 3, unitId: 3, startDate: start1, endDate: addMonths(start1, 3), agreedMonthlyRate: 1500000, depositAmount: 1500000, status: "ACTIVE", createdAt: days(-15), activatedAt: days(-15) },
+    { contractId: 1, reservationId: 1, customerId: 3, unitId: 5, startDate: start1, endDate: addMonths(start1, 3), agreedMonthlyRate: 1500000, depositAmount: 1500000, status: "ACTIVE", createdAt: days(-15), activatedAt: days(-15) },
   ];
   const handovers = [{ handoverId: 1, contractId: 1, status: "HANDED_OVER", scheduledAt: days(-15), handoverAt: days(-15), customerConfirmed: true, staffConfirmed: true }];
   const payments = [
@@ -113,18 +120,24 @@ const mapKeys = (v, fn) =>
 const STAFF_PARTS = ["facility", "staff", "units", "payments", "verifications", "handovers", "returns", "tickets"];
 const OPS_ROUTES = [
   // [method, regex, role, action, payload(body, id)]
-  ["POST", /^\/api\/ops\/payments\/([^/]+)\/confirm$/, "STAFF", "CONFIRM_PAYMENT", (b, id) => ({ id })],
-  ["POST", /^\/api\/ops\/payments\/([^/]+)\/mismatch$/, "STAFF", "REPORT_MISMATCH", (b, id) => ({ id, note: b?.note })],
-  ["POST", /^\/api\/ops\/verifications\/([^/]+)$/, "STAFF", "VERIFY_CUSTOMER", (b, id) => ({ id, doc_type: b?.docType, doc_no: b?.docNumber, photo_ok: b?.photoMatched, info_ok: b?.infoMatched })],
-  ["POST", /^\/api\/ops\/handovers\/([^/]+)\/complete$/, "STAFF", "HANDOVER", (b, id) => ({ id, method: b?.unlockMethod })],
-  ["POST", /^\/api\/ops\/returns\/([^/]+)\/inspection$/, "STAFF", "SUBMIT_RETURN", (b, id) => ({ id, report: mapKeys(b || {}, snake) })],
-  ["POST", /^\/api\/ops\/tickets\/([^/]+)\/responses$/, "STAFF", "TICKET_RESPONSE", (b, id, me) => ({ id, note: b?.note, next: b?.nextStatus, staff: me })],
-  ["POST", /^\/api\/ops\/renewals\/([^/]+)\/approve$/, "MANAGER", "DECIDE_RENEWAL", (b, id) => ({ id, approve: true })],
-  ["POST", /^\/api\/ops\/renewals\/([^/]+)\/reject$/, "MANAGER", "DECIDE_RENEWAL", (b, id) => ({ id, approve: false, reason: b?.reason })],
-  ["POST", /^\/api\/ops\/allocations\/([^/]+)$/, "MANAGER", "ALLOCATE", (b, id) => ({ id, unit: b?.unitCode })],
-  ["PUT", /^\/api\/ops\/assignments\/([^/]+)$/, "MANAGER", "ASSIGN", (b, id) => ({ id, staff: b?.staffId })],
-  ["POST", /^\/api\/ops\/contracts\/([^/]+)\/reminders$/, "MANAGER", "REMIND", (b, id) => ({ id, note: b?.note })],
-  ["POST", /^\/api\/ops\/contracts\/([^/]+)\/refund$/, "MANAGER", "CONFIRM_REFUND", (b, id) => ({ id })],
+  ["POST", /^\/api\/(?:ops|staff)\/payments\/([^/]+)\/confirm$/, "STAFF", "CONFIRM_PAYMENT", (b, id) => ({ id })],
+  ["POST", /^\/api\/(?:ops|staff)\/payments\/([^/]+)\/mismatch$/, "STAFF", "REPORT_MISMATCH", (b, id) => ({ id, note: b?.note })],
+  ["POST", /^\/api\/(?:ops|staff)\/verifications\/([^/]+)$/, "STAFF", "VERIFY_CUSTOMER", (b, id) => ({ id, doc_type: b?.docType, doc_no: b?.docNumber, photo_ok: b?.photoMatched, info_ok: b?.infoMatched })],
+  ["POST", /^\/api\/(?:ops|staff)\/handovers\/([^/]+)\/complete$/, "STAFF", "HANDOVER", (b, id) => ({ id, method: b?.unlockMethod })],
+  ["POST", /^\/api\/(?:ops|staff)\/returns\/([^/]+)\/inspection$/, "STAFF", "SUBMIT_RETURN", (b, id) => ({ id, report: mapKeys(b || {}, snake) })],
+  ["POST", /^\/api\/(?:ops|staff)\/tickets\/([^/]+)\/responses$/, "STAFF", "TICKET_RESPONSE", (b, id, me) => ({ id, note: b?.note, next: b?.nextStatus, staff: me })],
+  ["PUT", /^\/api\/(?:ops|staff)\/units\/([^/]+)\/status$/, "STAFF", "UPDATE_UNIT_STATUS", (b, id) => ({ id, status: b?.status, reason: b?.reason })],
+  ["POST", /^\/api\/(?:ops|staff)\/credentials\/([^/]+)\/revoke$/, "STAFF", "REVOKE_CREDENTIAL", (b, id) => ({ id })],
+  ["POST", /^\/api\/(?:ops|staff)\/credentials\/reissue$/, "STAFF", "REISSUE_CREDENTIAL", (b) => ({ unit: b?.unitCode, type: b?.credentialType, reason: b?.reason })],
+  ["POST", /^\/api\/(?:ops|manager)\/renewals\/([^/]+)\/approve$/, "MANAGER", "DECIDE_RENEWAL", (b, id) => ({ id, approve: true })],
+  ["POST", /^\/api\/(?:ops|manager)\/renewals\/([^/]+)\/reject$/, "MANAGER", "DECIDE_RENEWAL", (b, id) => ({ id, approve: false, reason: b?.reason })],
+  ["POST", /^\/api\/(?:ops|manager)\/allocations\/([^/]+)$/, "MANAGER", "ALLOCATE", (b, id) => ({ id, unit: b?.unitCode })],
+  ["PUT", /^\/api\/(?:ops|manager)\/assignments\/([^/]+)$/, "MANAGER", "ASSIGN", (b, id) => ({ id, staff: b?.staffId })],
+  ["POST", /^\/api\/(?:ops|manager)\/contracts\/([^/]+)\/reminders$/, "MANAGER", "REMIND", (b, id) => ({ id, note: b?.note })],
+  ["POST", /^\/api\/(?:ops|manager)\/contracts\/([^/]+)\/refund$/, "MANAGER", "CONFIRM_REFUND", (b, id) => ({ id })],
+  ["POST", /^\/api\/(?:ops|manager)\/units$/, "MANAGER", "CREATE_UNIT", (b) => b],
+  ["PUT", /^\/api\/(?:ops|manager)\/units\/([^/]+)$/, "MANAGER", "UPDATE_UNIT", (b, id) => ({ id, ...b })],
+  ["POST", /^\/api\/(?:ops|manager)\/units\/([^/]+)\/lock$/, "MANAGER", "LOCK_UNIT", (b, id) => ({ id, reason: b?.reason })],
 ];
 
 export function startMockApi(port = 5199, { verbose = false, ops = process.env.MOCK_OPS === "1" } = {}) {
@@ -223,6 +236,28 @@ export function startMockApi(port = 5199, { verbose = false, ops = process.env.M
       const h = [...S.loginHistory].reverse().find((x) => x.userId === u.userId && !x.logoutAt);
       if (h) h.logoutAt = new Date();
       return send(200, { message: "Đăng xuất thành công." });
+    }
+    if (req.method === "GET" && path === "/api/auth/profile") {
+      const u = auth();
+      if (!u) return send(401);
+      const roleNames = S.userRoles.filter((r) => r.userId === u.userId).map((r) => S.roles.find((x) => x.roleId === r.roleId).roleName);
+      return send(200, { userId: u.userId, username: u.username, fullName: u.fullName, email: u.email, phone: u.phone || null, status: u.status, roles: roleNames });
+    }
+    if (req.method === "PUT" && path === "/api/auth/profile") {
+      const u = auth();
+      if (!u) return send(401);
+      if (body.fullName) u.fullName = body.fullName.trim();
+      if (body.phone !== undefined) u.phone = body.phone;
+      const roleNames = S.userRoles.filter((r) => r.userId === u.userId).map((r) => S.roles.find((x) => x.roleId === r.roleId).roleName);
+      return send(200, { userId: u.userId, username: u.username, fullName: u.fullName, email: u.email, phone: u.phone || null, status: u.status, roles: roleNames });
+    }
+    if (req.method === "POST" && path === "/api/auth/change-password") {
+      const u = auth();
+      if (!u) return send(401);
+      if (u.password !== body.currentPassword) return bad("Mật khẩu hiện tại không chính xác.");
+      if (!body.newPassword || body.newPassword.length < 6) return bad("Mật khẩu mới phải có ít nhất 6 ký tự.");
+      u.password = body.newPassword;
+      return send(200, { message: "Đổi mật khẩu thành công." });
     }
 
     // ---- Công khai
@@ -433,6 +468,26 @@ export function startMockApi(port = 5199, { verbose = false, ops = process.env.M
       Object.assign(r, { status: "CANCELLED", cancelledAt: new Date(), cancellationReason: body?.reason });
       return send(200, { message: "Đã hủy đơn đặt chỗ thành công." });
     }
+    if (req.method === "POST" && (path === "/api/v1/reservations/create-payos-qr" || path === "/api/reservations/create-payos-qr")) {
+      const resId = body?.reservationId;
+      const r = S.reservations.find((x) => x.reservationId === resId);
+      const amount = body?.amount || (r ? (r.requiredDeposit > 0 ? r.requiredDeposit : r.estimatedAmount) : 1000000);
+      const orderCode = Date.now() % 1000000000;
+      const checkoutUrl = `https://pay.payos.vn/web/mock-${resId || orderCode}`;
+      return send(200, {
+        reservationId: resId || 1,
+        orderCode,
+        checkoutUrl,
+        qrCode: checkoutUrl,
+        amount,
+      });
+    }
+    if (req.method === "GET" && (m = path.match(/^\/api(?:\/v1)?\/reservations\/(\d+)\/status$/))) {
+      const r = S.reservations.find((x) => x.reservationId === +m[1]);
+      if (!r) return send(404, { error: "Không tìm thấy đơn đặt chỗ." });
+      const isPaid = r.status === "CONFIRMED" || r.status === "PAID";
+      return send(200, { reservationId: r.reservationId, status: r.status, isPaid, paidAt: isPaid ? iso(new Date()) : null });
+    }
 
     // ---- Hợp đồng
     if (req.method === "GET" && path === "/api/contracts") return send(200, S.contracts.filter((c) => c.customerId === me).map(contractSummary));
@@ -459,6 +514,12 @@ export function startMockApi(port = 5199, { verbose = false, ops = process.env.M
       h.customerConfirmed = true;
       return send(200, { message: "Đã xác nhận bàn giao." });
     }
+    if (req.method === "POST" && (m = path.match(/^\/api\/contracts\/(\d+)\/move-out$/))) {
+      const c = S.contracts.find((x) => x.contractId === +m[1] && x.customerId === me);
+      if (!c) return send(404, { error: "Không tìm thấy hợp đồng." });
+      c.status = "RETURN_PENDING";
+      return send(200, { inspectionId: 1, contractId: c.contractId, status: "SCHEDULED", message: "Đăng ký trả kho thành công." });
+    }
 
     // ---- Hỗ trợ
     if (req.method === "GET" && path === "/api/tickets") return send(200, S.tickets.filter((t) => t.customerId === me).map(ticketDto));
@@ -482,14 +543,14 @@ export function startMockApi(port = 5199, { verbose = false, ops = process.env.M
       return send(200, { message: "Đã hủy yêu cầu hỗ trợ." });
     }
     // ---- Khu vận hành (chỉ khi bật ops)
-    if (O && path.startsWith("/api/ops/")) {
+    if (O && (path.startsWith("/api/ops/") || path.startsWith("/api/staff/") || path.startsWith("/api/manager/"))) {
       const u = auth();
       if (!u) return send(401);
       const roleNames = S.userRoles.filter((r) => r.userId === u.userId).map((r) => S.roles.find((x) => x.roleId === r.roleId).roleName);
       const isManager = roleNames.includes("MANAGER");
       if (!isManager && !roleNames.includes("STAFF")) return send(403, { error: "Chỉ nhân viên hoặc quản lý cơ sở được truy cập." });
       const me = O.staff.find((x) => x.full_name === u.fullName) || null;
-      if (req.method === "GET" && path === "/api/ops/board") {
+      if (req.method === "GET" && (path === "/api/ops/board" || path === "/api/staff/board" || path === "/api/manager/board")) {
         const { log: _log, version: _v, ...all } = O;
         const board = isManager ? all : Object.fromEntries(STAFF_PARTS.map((k) => [k, O[k]]));
         return send(200, mapKeys({ ...board, me }, camel));

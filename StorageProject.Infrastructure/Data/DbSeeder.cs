@@ -8,22 +8,29 @@ public static class DbSeeder
     public static async Task SeedAsync(AppDbContext context)
     {
         // 1. Roles
-        if (!await context.Roles.AnyAsync())
+        var requiredRoles = new List<(string Name, string Description)>
         {
-            var roles = new List<Role>
+            ("ADMIN", "Quản trị viên toàn quyền hệ thống"),
+            ("MANAGER", "Quản lý cơ sở kho"),
+            ("STAFF", "Nhân viên vận hành, bàn giao và kiểm tra kho"),
+            ("BUSINESS_OPERATOR", "Quản lý vận hành kinh doanh toàn hệ thống"),
+            ("CUSTOMER", "Khách hàng thuê kho tự quản")
+        };
+
+        foreach (var r in requiredRoles)
+        {
+            if (!await context.Roles.AnyAsync(x => x.RoleName == r.Name))
             {
-                new() { RoleName = "ADMIN", Description = "Quản trị viên toàn quyền hệ thống" },
-                new() { RoleName = "MANAGER", Description = "Quản lý cơ sở kho" },
-                new() { RoleName = "STAFF", Description = "Nhân viên vận hành, bàn giao và kiểm tra kho" },
-                new() { RoleName = "CUSTOMER", Description = "Khách hàng thuê kho tự quản" }
-            };
-            context.Roles.AddRange(roles);
-            await context.SaveChangesAsync();
+                context.Roles.Add(new Role { RoleName = r.Name, Description = r.Description });
+            }
         }
+        await context.SaveChangesAsync();
 
         var customerRole = await context.Roles.FirstAsync(r => r.RoleName == "CUSTOMER");
         var adminRole = await context.Roles.FirstAsync(r => r.RoleName == "ADMIN");
         var staffRole = await context.Roles.FirstAsync(r => r.RoleName == "STAFF");
+        var managerRole = await context.Roles.FirstAsync(r => r.RoleName == "MANAGER");
+        var businessOpRole = await context.Roles.FirstAsync(r => r.RoleName == "BUSINESS_OPERATOR");
 
         // 1.1 Permissions & RolePermissions
         if (!await context.Permissions.AnyAsync())
@@ -60,74 +67,73 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
+        // Ensure STAFF, MANAGER & BUSINESS_OPERATOR permissions
+        var allPermsList = await context.Permissions.ToListAsync();
+        var staffPermCodes = new[] { "HANDOVER_MANAGE", "RETURN_MANAGE", "TICKET_MANAGE", "PAYMENT_CONFIRM" };
+        var managerPermCodes = new[] { "HANDOVER_MANAGE", "RETURN_MANAGE", "TICKET_MANAGE", "PAYMENT_CONFIRM", "UNIT_MANAGE", "ASSIGNMENT_MANAGE", "RENEWAL_MANAGE", "REPORT_VIEW" };
+        var bizOpPermCodes = new[] { "REPORT_VIEW", "AUDIT_LOG_VIEW", "FACILITY_MANAGE", "UNIT_MANAGE", "RENEWAL_MANAGE" };
 
-        // 2. Users
-        if (!await context.Users.AnyAsync())
+        foreach (var code in staffPermCodes)
         {
-            var adminUser = new User
+            var p = allPermsList.FirstOrDefault(x => x.PermissionCode == code);
+            if (p != null && !await context.RolePermissions.AnyAsync(rp => rp.RoleId == staffRole.RoleId && rp.PermissionId == p.PermissionId))
             {
-                Username = "admin",
-                Email = "admin@storage.vn",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
-                FullName = "Hệ Thống Admin",
-                Phone = "0900000001",
-                Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            var staffUser = new User
+                context.RolePermissions.Add(new RolePermission { RoleId = staffRole.RoleId, PermissionId = p.PermissionId });
+            }
+        }
+        foreach (var code in managerPermCodes)
+        {
+            var p = allPermsList.FirstOrDefault(x => x.PermissionCode == code);
+            if (p != null && !await context.RolePermissions.AnyAsync(rp => rp.RoleId == managerRole.RoleId && rp.PermissionId == p.PermissionId))
             {
-                Username = "staff01",
-                Email = "staff01@storage.vn",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Staff@123"),
-                FullName = "Trần Nhân Viên",
-                Phone = "0900000002",
-                Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            var customer01 = new User
+                context.RolePermissions.Add(new RolePermission { RoleId = managerRole.RoleId, PermissionId = p.PermissionId });
+            }
+        }
+        foreach (var code in bizOpPermCodes)
+        {
+            var p = allPermsList.FirstOrDefault(x => x.PermissionCode == code);
+            if (p != null && !await context.RolePermissions.AnyAsync(rp => rp.RoleId == businessOpRole.RoleId && rp.PermissionId == p.PermissionId))
             {
-                Username = "customer01",
-                Email = "an.nguyen@example.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Customer@123"),
-                FullName = "Nguyễn Văn An",
-                Phone = "0901234567",
-                Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
+                context.RolePermissions.Add(new RolePermission { RoleId = businessOpRole.RoleId, PermissionId = p.PermissionId });
+            }
+        }
+        await context.SaveChangesAsync();
 
-            var customer02 = new User
+        // 2. Users (Ensure essential admin, staff, manager, operator, and customer users)
+        async Task<User> EnsureUserAsync(string username, string email, string fullName, string phone, string plainPassword, Role role)
+        {
+            var u = await context.Users.FirstOrDefaultAsync(x => x.Username == username);
+            if (u == null)
             {
-                Username = "customer02",
-                Email = "mai.tran@example.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Customer@123"),
-                FullName = "Trần Thị Mai",
-                Phone = "0912345678",
-                Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
+                u = new User
+                {
+                    Username = username,
+                    Email = email,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(plainPassword),
+                    FullName = fullName,
+                    Phone = phone,
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                context.Users.Add(u);
+                await context.SaveChangesAsync();
+            }
 
-            context.Users.AddRange(adminUser, staffUser, customer01, customer02);
-            await context.SaveChangesAsync();
-
-            // Assign User Roles
-            context.UserRoles.AddRange(
-                new UserRole { UserId = adminUser.UserId, RoleId = adminRole.RoleId, AssignedAt = DateTime.UtcNow },
-                new UserRole { UserId = staffUser.UserId, RoleId = staffRole.RoleId, AssignedAt = DateTime.UtcNow },
-                new UserRole { UserId = customer01.UserId, RoleId = customerRole.RoleId, AssignedAt = DateTime.UtcNow },
-                new UserRole { UserId = customer02.UserId, RoleId = customerRole.RoleId, AssignedAt = DateTime.UtcNow }
-            );
-            await context.SaveChangesAsync();
+            if (!await context.UserRoles.AnyAsync(ur => ur.UserId == u.UserId && ur.RoleId == role.RoleId))
+            {
+                context.UserRoles.Add(new UserRole { UserId = u.UserId, RoleId = role.RoleId, AssignedAt = DateTime.UtcNow });
+                await context.SaveChangesAsync();
+            }
+            return u;
         }
 
-        var admin = await context.Users.FirstAsync(u => u.Username == "admin");
-        var staff = await context.Users.FirstAsync(u => u.Username == "staff01");
-        var cust1 = await context.Users.FirstAsync(u => u.Username == "customer01");
+        var admin = await EnsureUserAsync("admin", "admin@storage.vn", "Hệ Thống Admin", "0900000001", "Admin@123", adminRole);
+        var staff = await EnsureUserAsync("staff01", "staff01@storage.vn", "Trần Nhân Viên", "0900000002", "Staff@123", staffRole);
+        var manager = await EnsureUserAsync("manager01", "manager01@storage.vn", "Phạm Thu Hà", "0900000003", "Manager@123", managerRole);
+        var operatorUser = await EnsureUserAsync("operator01", "operator01@storage.vn", "Lê Vận Hành Kinh Doanh", "0900000004", "Operator@123", businessOpRole);
+        var cust1 = await EnsureUserAsync("customer01", "an.nguyen@example.com", "Nguyễn Văn An", "0901234567", "Customer@123", customerRole);
+        var cust2 = await EnsureUserAsync("customer02", "mai.tran@example.com", "Trần Thị Mai", "0912345678", "Customer@123", customerRole);
 
         // 3. Facilities
         if (!await context.Facilities.AnyAsync())
@@ -168,6 +174,19 @@ public static class DbSeeder
         {
             var types = new List<UnitType>
             {
+                new()
+                {
+                    TypeName = "Tủ Locker Cá Nhân (0.5m x 0.5m)",
+                    Length = 0.5m,
+                    Width = 0.5m,
+                    Height = 1.0m,
+                    Area = 0.25m,
+                    ClimateControlled = false,
+                    Description = "Ngăn tủ locker cá nhân thông minh, bảo mật cao, cất giữ giấy tờ, phụ kiện hoặc balo",
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
                 new()
                 {
                     TypeName = "Kho Mini S (1m x 1m)",
@@ -226,6 +245,26 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
+        var typeLocker = await context.UnitTypes.FirstOrDefaultAsync(t => t.TypeName.Contains("Tủ Locker"));
+        if (typeLocker == null)
+        {
+            typeLocker = new UnitType
+            {
+                TypeName = "Tủ Locker Cá Nhân (0.5m x 0.5m)",
+                Length = 0.5m,
+                Width = 0.5m,
+                Height = 1.0m,
+                Area = 0.25m,
+                ClimateControlled = false,
+                Description = "Ngăn tủ locker cá nhân thông minh, bảo mật cao, cất giữ giấy tờ, phụ kiện hoặc balo",
+                Status = "ACTIVE",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            context.UnitTypes.Add(typeLocker);
+            await context.SaveChangesAsync();
+        }
+
         var typeS = await context.UnitTypes.FirstAsync(t => t.TypeName.Contains("Kho Mini S"));
         var typeM = await context.UnitTypes.FirstAsync(t => t.TypeName.Contains("Kho Tiêu Chuẩn M"));
         var typeL = await context.UnitTypes.FirstAsync(t => t.TypeName.Contains("Kho Lớn L"));
@@ -237,9 +276,11 @@ public static class DbSeeder
             var today = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30));
             var rates = new List<RentalRate>
             {
+                new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeLocker.UnitTypeId, SetBy = admin.UserId, MonthlyRate = 1000m, EffectiveFrom = today, Status = "ACTIVE", CreatedAt = DateTime.UtcNow },
                 new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeS.UnitTypeId, SetBy = admin.UserId, MonthlyRate = 500000m, EffectiveFrom = today, Status = "ACTIVE", CreatedAt = DateTime.UtcNow },
                 new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeM.UnitTypeId, SetBy = admin.UserId, MonthlyRate = 1500000m, EffectiveFrom = today, Status = "ACTIVE", CreatedAt = DateTime.UtcNow },
                 new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeL.UnitTypeId, SetBy = admin.UserId, MonthlyRate = 3000000m, EffectiveFrom = today, Status = "ACTIVE", CreatedAt = DateTime.UtcNow },
+                new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeLocker.UnitTypeId, SetBy = admin.UserId, MonthlyRate = 1000m, EffectiveFrom = today, Status = "ACTIVE", CreatedAt = DateTime.UtcNow },
                 new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeS.UnitTypeId, SetBy = admin.UserId, MonthlyRate = 550000m, EffectiveFrom = today, Status = "ACTIVE", CreatedAt = DateTime.UtcNow },
                 new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeM.UnitTypeId, SetBy = admin.UserId, MonthlyRate = 1600000m, EffectiveFrom = today, Status = "ACTIVE", CreatedAt = DateTime.UtcNow },
                 new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeL.UnitTypeId, SetBy = admin.UserId, MonthlyRate = 3200000m, EffectiveFrom = today, Status = "ACTIVE", CreatedAt = DateTime.UtcNow },
@@ -247,6 +288,38 @@ public static class DbSeeder
             };
 
             context.RentalRates.AddRange(rates);
+            await context.SaveChangesAsync();
+        }
+
+        var rateDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30));
+        // Đảm bảo có bảng giá 1.000 VND/tháng cho Tủ Locker tại Tân Bình (dùng để test thanh toán payOS)
+        if (!await context.RentalRates.AnyAsync(r => r.FacilityId == tanBinhFac.FacilityId && r.UnitTypeId == typeLocker.UnitTypeId))
+        {
+            context.RentalRates.Add(new RentalRate
+            {
+                FacilityId = tanBinhFac.FacilityId,
+                UnitTypeId = typeLocker.UnitTypeId,
+                SetBy = admin.UserId,
+                MonthlyRate = 1000m,
+                EffectiveFrom = rateDate,
+                Status = "ACTIVE",
+                CreatedAt = DateTime.UtcNow
+            });
+            await context.SaveChangesAsync();
+        }
+        // Đảm bảo có bảng giá 1.000 VND/tháng cho Tủ Locker tại Quận 7
+        if (!await context.RentalRates.AnyAsync(r => r.FacilityId == quan7Fac.FacilityId && r.UnitTypeId == typeLocker.UnitTypeId))
+        {
+            context.RentalRates.Add(new RentalRate
+            {
+                FacilityId = quan7Fac.FacilityId,
+                UnitTypeId = typeLocker.UnitTypeId,
+                SetBy = admin.UserId,
+                MonthlyRate = 1000m,
+                EffectiveFrom = rateDate,
+                Status = "ACTIVE",
+                CreatedAt = DateTime.UtcNow
+            });
             await context.SaveChangesAsync();
         }
 
@@ -287,20 +360,24 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // 7. Storage Units
+        // 7. Storage Units (Tất cả ô kho đều AVAILABLE khi mới mở hệ thống)
         if (!await context.StorageUnits.AnyAsync())
         {
             var units = new List<StorageUnit>
             {
                 // Tân Bình
+                new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeLocker.UnitTypeId, UnitNumber = "TB-LK-101", Floor = "Tầng 1", Zone = "Khu Locker", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeLocker.UnitTypeId, UnitNumber = "TB-LK-102", Floor = "Tầng 1", Zone = "Khu Locker", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
                 new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeS.UnitTypeId, UnitNumber = "TB-S-101", Floor = "Tầng 1", Zone = "Khu A", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
                 new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeS.UnitTypeId, UnitNumber = "TB-S-102", Floor = "Tầng 1", Zone = "Khu A", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeM.UnitTypeId, UnitNumber = "TB-M-103", Floor = "Tầng 1", Zone = "Khu B", Status = "OCCUPIED", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeM.UnitTypeId, UnitNumber = "TB-M-103", Floor = "Tầng 1", Zone = "Khu B", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
                 new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeM.UnitTypeId, UnitNumber = "TB-M-104", Floor = "Tầng 1", Zone = "Khu B", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
                 new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeL.UnitTypeId, UnitNumber = "TB-L-201", Floor = "Tầng 2", Zone = "Khu C", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
                 new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeL.UnitTypeId, UnitNumber = "TB-L-202", Floor = "Tầng 2", Zone = "Khu C", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
 
                 // Quận 7
+                new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeLocker.UnitTypeId, UnitNumber = "Q7-LK-101", Floor = "Tầng 1", Zone = "Khu Locker", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeLocker.UnitTypeId, UnitNumber = "Q7-LK-102", Floor = "Tầng 1", Zone = "Khu Locker", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
                 new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeS.UnitTypeId, UnitNumber = "Q7-S-101", Floor = "Tầng 1", Zone = "Khu 1", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
                 new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeS.UnitTypeId, UnitNumber = "Q7-S-102", Floor = "Tầng 1", Zone = "Khu 1", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
                 new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeM.UnitTypeId, UnitNumber = "Q7-M-103", Floor = "Tầng 1", Zone = "Khu 2", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
@@ -313,137 +390,87 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // 7b. Mạng lưới 12 cơ sở SafeSpace theo thiết kế Figma.
-        //     Chạy lại nhiều lần vẫn an toàn: chỉ thêm cơ sở / bảng giá / phòng kho còn thiếu,
-        //     nên database đã tạo từ trước cũng được bổ sung khi khởi động lại API.
+        // Đảm bảo ô kho Tủ Locker luôn có sẵn (AVAILABLE) trên DB đã seed trước đó
+        if (!await context.StorageUnits.AnyAsync(u => u.FacilityId == tanBinhFac.FacilityId && u.UnitNumber == "TB-LK-101"))
+        {
+            context.StorageUnits.AddRange(
+                new StorageUnit { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeLocker.UnitTypeId, UnitNumber = "TB-LK-101", Floor = "Tầng 1", Zone = "Khu Locker", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new StorageUnit { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeLocker.UnitTypeId, UnitNumber = "TB-LK-102", Floor = "Tầng 1", Zone = "Khu Locker", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+            );
+            await context.SaveChangesAsync();
+        }
+        if (!await context.StorageUnits.AnyAsync(u => u.FacilityId == quan7Fac.FacilityId && u.UnitNumber == "Q7-LK-101"))
+        {
+            context.StorageUnits.AddRange(
+                new StorageUnit { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeLocker.UnitTypeId, UnitNumber = "Q7-LK-101", Floor = "Tầng 1", Zone = "Khu Locker", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new StorageUnit { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeLocker.UnitTypeId, UnitNumber = "Q7-LK-102", Floor = "Tầng 1", Zone = "Khu Locker", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+            );
+            await context.SaveChangesAsync();
+        }
+
+        // 7b. Mạng lưới 12 cơ sở SafeSpace theo thiết kế Figma (Tất cả ô kho đều AVAILABLE)
         await SeedSafeSpaceNetworkAsync(context, admin.UserId, typeS, typeM, typeL, typeXL);
 
-        // 8. Sample Customer Data (Reservation, Contract, Payment, SupportTicket for customer01)
-        if (!await context.Reservations.AnyAsync())
+        // 7c. UserFacility: phân công cơ sở cho staff01, manager01, operator01
+        var nlbFac = await context.Facilities.FirstOrDefaultAsync(f => f.Name.Contains("Nguyễn Lương Bằng"))
+                     ?? await context.Facilities.FirstAsync();
+
+        if (!await context.UserFacilities.AnyAsync(uf => uf.UserId == staff.UserId && uf.FacilityId == nlbFac.FacilityId))
         {
-            var occupiedUnit = await context.StorageUnits.FirstAsync(u => u.UnitNumber == "TB-M-103");
-
-            // Reservation 1: Converted to Contract
-            var startDate1 = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-15));
-            var endDate1 = startDate1.AddMonths(3);
-
-            var res1 = new Reservation
+            context.UserFacilities.Add(new UserFacility
             {
-                CustomerId = cust1.UserId,
-                FacilityId = tanBinhFac.FacilityId,
-                UnitTypeId = typeM.UnitTypeId,
-                StartDate = startDate1,
-                ExpectedEndDate = endDate1,
-                RentalPeriodMonths = 3,
-                QuotedMonthlyRate = 1500000m,
-                EstimatedAmount = 4500000m,
-                RequiredDeposit = 1500000m,
-                Status = "CHECKED_IN",
-                CreatedAt = DateTime.UtcNow.AddDays(-16),
-                ExpiresAt = DateTime.UtcNow.AddDays(-15)
-            };
-            context.Reservations.Add(res1);
-            await context.SaveChangesAsync();
-
-            // Contract for Reservation 1
-            var contract = new RentalContract
-            {
-                ReservationId = res1.ReservationId,
-                CustomerId = cust1.UserId,
-                UnitId = occupiedUnit.UnitId,
-                StartDate = startDate1,
-                EndDate = endDate1,
-                AgreedMonthlyRate = 1500000m,
-                DepositAmount = 1500000m,
+                UserId = staff.UserId,
+                FacilityId = nlbFac.FacilityId,
+                AssignedFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
                 Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow.AddDays(-15),
-                ActivatedAt = DateTime.UtcNow.AddDays(-15)
-            };
-            context.RentalContracts.Add(contract);
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+        if (!await context.UserFacilities.AnyAsync(uf => uf.UserId == manager.UserId && uf.FacilityId == nlbFac.FacilityId))
+        {
+            context.UserFacilities.Add(new UserFacility
+            {
+                UserId = manager.UserId,
+                FacilityId = nlbFac.FacilityId,
+                AssignedFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
+                Status = "ACTIVE",
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+        if (!await context.UserFacilities.AnyAsync(uf => uf.UserId == operatorUser.UserId && uf.FacilityId == nlbFac.FacilityId))
+        {
+            context.UserFacilities.Add(new UserFacility
+            {
+                UserId = operatorUser.UserId,
+                FacilityId = nlbFac.FacilityId,
+                AssignedFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
+                Status = "ACTIVE",
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+        await context.SaveChangesAsync();
+
+        // Đảm bảo Nguyễn Lương Bằng cũng có bảng giá 1.000 VND và ô kho Tủ Locker
+        if (!await context.RentalRates.AnyAsync(r => r.FacilityId == nlbFac.FacilityId && r.UnitTypeId == typeLocker.UnitTypeId))
+        {
+            context.RentalRates.Add(new RentalRate
+            {
+                FacilityId = nlbFac.FacilityId,
+                UnitTypeId = typeLocker.UnitTypeId,
+                SetBy = admin.UserId,
+                MonthlyRate = 1000m,
+                EffectiveFrom = rateDate,
+                Status = "ACTIVE",
+                CreatedAt = DateTime.UtcNow
+            });
             await context.SaveChangesAsync();
-
-            // Handover Record
-            var handover = new HandoverRecord
-            {
-                ContractId = contract.ContractId,
-                StaffId = staff.UserId,
-                InitialCondition = "Kho sạch sẽ, hệ thống điều hòa hoạt động tốt, đã bàn giao khóa",
-                ScheduledAt = DateTime.UtcNow.AddDays(-15),
-                HandoverAt = DateTime.UtcNow.AddDays(-15),
-                CustomerConfirmed = true,
-                StaffConfirmed = true,
-                Status = "HANDED_OVER",
-                CreatedAt = DateTime.UtcNow.AddDays(-15)
-            };
-            context.HandoverRecords.Add(handover);
-
-            // Payments (Deposit + Rent)
-            var depositPayment = new Payment
-            {
-                ContractId = contract.ContractId,
-                PaymentType = "DEPOSIT",
-                Amount = 1500000m,
-                Currency = "VND",
-                PaymentMethod = "BANK_TRANSFER",
-                TransactionReference = "VNPAY-DEP-10001",
-                DueDate = startDate1,
-                PaidAt = DateTime.UtcNow.AddDays(-15),
-                Status = "PAID",
-                CreatedAt = DateTime.UtcNow.AddDays(-15),
-                UpdatedAt = DateTime.UtcNow.AddDays(-15)
-            };
-
-            var rentPayment = new Payment
-            {
-                ContractId = contract.ContractId,
-                PaymentType = "RENT",
-                Amount = 1500000m,
-                Currency = "VND",
-                PaymentMethod = "BANK_TRANSFER",
-                TransactionReference = "VNPAY-RENT-10002",
-                DueDate = startDate1,
-                PaidAt = DateTime.UtcNow.AddDays(-15),
-                Status = "PAID",
-                CreatedAt = DateTime.UtcNow.AddDays(-15),
-                UpdatedAt = DateTime.UtcNow.AddDays(-15)
-            };
-
-            context.Payments.AddRange(depositPayment, rentPayment);
-
-            // Support Ticket
-            var ticket = new SupportTicket
-            {
-                CustomerId = cust1.UserId,
-                ContractId = contract.ContractId,
-                UnitId = occupiedUnit.UnitId,
-                IssueType = "UNIT",
-                Title = "Kiểm tra nhiệt độ phòng kho",
-                Description = "Nhờ nhân viên kiểm tra lại nhiệt độ kho TB-M-103 vào buổi trưa",
-                Priority = "NORMAL",
-                Status = "OPEN",
-                CreatedAt = DateTime.UtcNow.AddDays(-2)
-            };
-            context.SupportTickets.Add(ticket);
-
-            // Reservation 2: Pending payment for customer01
-            var startDate2 = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5));
-            var res2 = new Reservation
-            {
-                CustomerId = cust1.UserId,
-                FacilityId = tanBinhFac.FacilityId,
-                UnitTypeId = typeS.UnitTypeId,
-                StartDate = startDate2,
-                ExpectedEndDate = startDate2.AddMonths(1),
-                RentalPeriodMonths = 1,
-                QuotedMonthlyRate = 500000m,
-                EstimatedAmount = 500000m,
-                RequiredDeposit = 500000m,
-                Status = "PENDING_PAYMENT",
-                CreatedAt = DateTime.UtcNow,
-                ExpiresAt = DateTime.UtcNow.AddHours(24)
-            };
-            context.Reservations.Add(res2);
-
+        }
+        if (!await context.StorageUnits.AnyAsync(u => u.FacilityId == nlbFac.FacilityId && u.UnitNumber == "NLB-LK-101"))
+        {
+            context.StorageUnits.AddRange(
+                new StorageUnit { FacilityId = nlbFac.FacilityId, UnitTypeId = typeLocker.UnitTypeId, UnitNumber = "NLB-LK-101", Floor = "Tầng 1", Zone = "Khu Locker", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+                new StorageUnit { FacilityId = nlbFac.FacilityId, UnitTypeId = typeLocker.UnitTypeId, UnitNumber = "NLB-LK-102", Floor = "Tầng 1", Zone = "Khu Locker", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+            );
             await context.SaveChangesAsync();
         }
     }

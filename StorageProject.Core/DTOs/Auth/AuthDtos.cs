@@ -26,3 +26,23 @@ public record AuthUserDto(
     string Email,
     string Status
 );
+
+public record UserProfileDto(
+    long UserId,
+    string Username,
+    string FullName,
+    string Email,
+    string? Phone,
+    string Status,
+    IReadOnlyList<string> Roles
+);
+
+public record UpdateProfileRequest(
+    string FullName,
+    string? Phone
+);
+
+public record ChangePasswordRequest(
+    string CurrentPassword,
+    string NewPassword
+);

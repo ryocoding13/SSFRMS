@@ -27,6 +27,11 @@ public class ReservationConfiguration : IEntityTypeConfiguration<Reservation>
         b.Property(r => r.RequiredDeposit).IsRequired().HasColumnType("decimal(15,2)");
         b.Property(r => r.Status).IsRequired().HasMaxLength(30).HasDefaultValue("PENDING_PAYMENT");
         b.Property(r => r.CancellationReason).HasMaxLength(500);
+        b.Property(r => r.OrderCode);
+        b.HasIndex(r => r.OrderCode).IsUnique().HasFilter("[OrderCode] IS NOT NULL");
+        b.Property(r => r.PaymentQrUrl).HasMaxLength(2000);
+        b.Property(r => r.CheckoutUrl).HasMaxLength(2000);
+        b.Property(r => r.PaidAt);
         b.Property(r => r.CreatedAt).IsRequired();
 
         b.HasOne(r => r.Customer).WithMany(u => u.Reservations)
@@ -48,6 +53,7 @@ public class UnitAssignmentConfiguration : IEntityTypeConfiguration<UnitAssignme
         });
         b.HasKey(ua => ua.AssignmentId);
         b.Property(ua => ua.AssignmentId).UseIdentityColumn();
+        b.Property(ua => ua.AssignedBy).IsRequired(false);
         b.Property(ua => ua.Status).IsRequired().HasMaxLength(20).HasDefaultValue("ACTIVE");
         b.Property(ua => ua.AssignedAt).IsRequired();
         b.Property(ua => ua.Reason).HasMaxLength(255);
@@ -57,7 +63,7 @@ public class UnitAssignmentConfiguration : IEntityTypeConfiguration<UnitAssignme
         b.HasOne(ua => ua.Unit).WithMany(su => su.UnitAssignments)
             .HasForeignKey(ua => ua.UnitId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne(ua => ua.AssignedByUser).WithMany()
-            .HasForeignKey(ua => ua.AssignedBy).OnDelete(DeleteBehavior.Restrict);
+            .HasForeignKey(ua => ua.AssignedBy).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
     }
 }
 
