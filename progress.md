@@ -16,6 +16,25 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## 2026-10-16 — F32 + F29: đồng bộ giao diện Figma 16/10 (việc 9 của Thắng) — Claude
+
+- Nhánh làm việc gộp `main` + `feature/ops-backend` + `feature/facility-coordinates` (xung đột duy nhất ở `DECISIONS.md`: giữ cả D17–D18 và D20).
+- Khách: C04 chọn Thanh toán QR (PayOS, hỏi trạng thái 3 giây, tự sang C05) / Tại cửa hàng (C04c → C05c); bỏ "Tôi đã chuyển khoản";
+  giữ chỗ QR 10 phút. C07 theo F29 + "Mở cửa kho" (C07q) + màn máy quét `#/door` (C07r1/r2). C11 nút "Thanh toán" khoản gia hạn
+  (C11q → C11b). C12 dòng phản hồi nhân viên. C14 "Huỷ đơn" + hộp thoại C14a (số tiền hoàn), C14b. C03b / C02m nút "Chỉ đường".
+- Nhân viên / quản lý: S09 "Thu tiền tại kho", S01 ô "Chờ thu tiền tại kho", thẻ "THU TIỀN"; M02 cột "Thao tác" + hộp thoại M02a (F12 phía giao diện).
+- Chữ "đối soát" đổi sang "thanh toán" / "thu tiền" ở mọi màn (khách, nhân viên, quản lý, Vận hành KD).
+- API: endpoint mới gọi sẵn theo `SafeSpace-Customer-UI/BACKEND-TODO.md` mục "Mới 16/10" (P PayOS – Đạt, Q QR – Tiến,
+  R/H phản hồi + hoàn tiền – Ngọc Mai, U trạng thái ô – Thắng). Backend chưa có → thông báo thay thế, không lỗi (D21).
+- Mock: đủ endpoint mới, PayOS giả lập tự trả sau `MOCK_PAYOS_AUTOPAY` giây; `MOCK_LEGACY=1` tắt endpoint mới để thử như backend hiện tại.
+- Test: sửa 1 kiểm tra trong `tests/reducer.test.js` (seed SS-0142 nay là đơn đã thanh toán QR theo Figma C14, không còn `PENDING_VERIFICATION`);
+  thêm `tests/payment-access.test.js`, `tests/payment-api.test.mjs`, mở rộng `tests/render.test.mjs` (92 route).
+- Kiểm chứng: `npm test` 56/56, `npm run test:render` 92 route PASS, `npm run test:business` PASS, `npm run build` PASS.
+  Chromium + `dev:mock`: đi hết C04 → C05, C04c → C05c, C11q → C11b, C07q → máy quét, C14a, S09, M02a; với `MOCK_LEGACY=1`
+  mọi màn mới hiện thông báo thay thế, không lỗi JavaScript. **Chưa chạy với .NET + SQL Server** (môi trường AI không có .NET).
+- Phiên sau: Đạt chạy thử trên máy có .NET (flow cũ + thanh toán tại cửa hàng dùng `confirm-transfer`); từng người làm endpoint
+  của mình theo BACKEND-TODO mục "Mới 16/10", chạy `tests/payment-api.test.mjs` vẫn pass với mock để giữ đúng hợp đồng.
+
 ## 2026-10-15 — Toạ độ bản đồ (B05a, C02m) — Claude (việc của Thắng)
 
 - Figma: B05 thêm dòng "Vị trí bản đồ" + nút "Sửa thông tin cơ sở"; hộp thoại mới B05a.

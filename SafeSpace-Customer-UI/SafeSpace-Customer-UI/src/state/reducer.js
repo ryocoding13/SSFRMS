@@ -69,6 +69,15 @@ const hasPending = (state, contract_id) => ({
   ret: state.returns.some((r) => r.contract_id === contract_id && ["PENDING", "SCHEDULED"].includes(r.status)),
 });
 
+// C14a · Ước tính hoàn tiền khi huỷ đơn đã thanh toán (chế độ trình duyệt). Chế độ API lấy từ
+// GET /api/reservations/{id}/cancel-preview theo chính sách CANCELLATION ở B02.
+export const CANCEL_FEE_RATE = 0.1; // 10% tiền thuê, hoàn đủ tiền cọc (Figma C14a)
+export function cancelPreviewOf(r) {
+  const paid = r.initial_total || 0;
+  const fee = Math.round((r.rent_total || 0) * CANCEL_FEE_RATE);
+  return { paid, fee, refund: Math.max(0, paid - fee), policy: null };
+}
+
 const handlers = {
   CREATE_RESERVATION(state, p, ctx) {
     const facility = state.facilities.find((f) => f.facility_id === Number(p.facility_id));
@@ -152,8 +161,62 @@ const handlers = {
         },
       ],
     };
-    next = notify(next, "Đã nhận thông tin đặt chỗ", `${shortCode(r.reservation_id)} · Chờ nhân viên đối soát chuyển khoản.`, "reservations", ctx.now);
-    next = log(next, `Đơn ${shortCode(r.reservation_id)} đã gửi — chờ đối soát thanh toán`, "amber", ctx.now);
+    next = notify(next, "Đã nhận thông tin đặt chỗ", `${shortCode(r.reservation_id)} · Chờ cơ sở xác nhận thanh toán.`, "reservations", ctx.now);
+    next = log(next, `Đơn ${shortCode(r.reservation_id)} đã gửi — chờ xác nhận thanh toán`, "amber", ctx.now);
+    return { state: next, result: { reservation_id: r.reservation_id } };
+  },
+
+  // C04c → C05c: khách chọn thanh toán tại cửa hàng. Đơn giữ chỗ chờ nhân viên thu tiền ở S09.
+  PAY_AT_FACILITY(state, p, ctx) {
+    const out = handlers.CONFIRM_TRANSFER(state, p, ctx);
+    const r = out.state.reservations.find((x) => x.reservation_id === p.reservation_id);
+    if (!r || r.pay_at_facility) return out;
+    let next = {
+      ...out.state,
+      // Bỏ thông báo / hoạt động kiểu "chờ đối soát" của bước chuyển khoản cũ
+      notifications: out.state.notifications.slice(1),
+      activities: out.state.activities.slice(1),
+      reservations: out.state.reservations.map((x) => (x.reservation_id === r.reservation_id ? { ...x, pay_at_facility: true } : x)),
+    };
+    next = notify(next, "Đã giữ chỗ cho bạn", `${shortCode(r.reservation_id)} · Thanh toán tại cửa hàng khi nhận kho.`, `reservations/${r.reservation_id}`, ctx.now);
+    next = log(next, `Đơn ${shortCode(r.reservation_id)} chờ thanh toán tại cửa hàng`, "amber", ctx.now);
+    return { state: next, result: out.result };
+  },
+
+  // PayOS báo đã thanh toán (webhook ở backend; chế độ trình duyệt tự gọi để mô phỏng).
+  // reservation_id → đơn đặt chỗ đã trả tiền thuê + cọc; ref → khoản gia hạn ở C11.
+  PAYOS_PAID(state, p, ctx) {
+    if (p.ref) {
+      const l = state.ledger.find((x) => x.ref === p.ref);
+      if (!l) fail("Không tìm thấy khoản thanh toán.", "NOT_FOUND");
+      if (l.status === "RECONCILED") return { state, result: { ref: l.ref } };
+      const c = contractOf(state, l.contract_id);
+      let next = {
+        ...state,
+        ledger: state.ledger.map((x) => (x.ref === l.ref ? { ...x, status: "RECONCILED", payable: false } : x)),
+        contracts: state.contracts.map((x) => (c && x.contract_id === c.contract_id && l.period?.to ? { ...x, end_date: l.period.to, status: "ACTIVE" } : x)),
+      };
+      next = notify(next, "Đã thanh toán gia hạn", `Kho ${l.unit_number || c?.unit_number || ""} · gia hạn đến ${l.period?.to ? dateLabel(l.period.to) : "kỳ mới"}.`, "payments", ctx.now);
+      next = log(next, `Đã thanh toán gia hạn ${l.unit_number || ""} qua QR`, "green", ctx.now);
+      return { state: next, result: { ref: l.ref } };
+    }
+    const r = state.reservations.find((x) => x.reservation_id === p.reservation_id);
+    if (!r) fail("Không tìm thấy đơn đặt chỗ.", "NOT_FOUND");
+    if (r.status !== "PENDING_PAYMENT") return { state, result: { reservation_id: r.reservation_id } };
+    const base = refBase(r.reservation_id);
+    let next = {
+      ...state,
+      reservations: state.reservations.map((x) =>
+        x.reservation_id === r.reservation_id ? { ...x, status: "CONFIRMED", paid_at: iso(ctx.now), expires_at: null } : x,
+      ),
+      ledger: [
+        ...state.ledger,
+        { ref: `${base}-RENT`, kind: "RENT", label: `Thuê kho · ${r.months} tháng`, reservation_id: r.reservation_id, amount: r.rent_total, status: "RECONCILED" },
+        { ref: `${base}-DEP`, kind: "DEPOSIT", label: "Cọc hợp đồng", reservation_id: r.reservation_id, amount: r.deposit, status: "DEPOSIT_HELD" },
+      ],
+    };
+    next = notify(next, "Đã thanh toán đặt chỗ", `${shortCode(r.reservation_id)} · Cơ sở sẽ phân bổ kho và xác nhận lịch nhận kho.`, `reservations/${r.reservation_id}`, ctx.now);
+    next = log(next, `Đơn ${shortCode(r.reservation_id)} đã thanh toán qua QR`, "green", ctx.now);
     return { state: next, result: { reservation_id: r.reservation_id } };
   },
 
@@ -166,18 +229,33 @@ const handlers = {
   CANCEL_RESERVATION(state, p, ctx) {
     const r = state.reservations.find((x) => x.reservation_id === p.reservation_id);
     if (!r) fail("Không tìm thấy đơn đặt chỗ.", "NOT_FOUND");
-    if (r.status !== "PENDING_PAYMENT") fail("Đơn này đã gửi thông tin thanh toán, vui lòng liên hệ cơ sở để huỷ.");
-    return {
-      state: {
-        ...state,
-        reservations: state.reservations.map((x) =>
-          x.reservation_id === r.reservation_id
-            ? { ...x, status: "CANCELLED", cancel_reason: p.reason || "Khách hàng huỷ đặt chỗ", cancelled_at: iso(ctx.now) }
-            : x,
-        ),
-      },
-      result: { reservation_id: r.reservation_id },
+    const contract = state.contracts.find((c) => c.reservation_id === r.reservation_id);
+    // Giống backend: huỷ được đơn chờ thanh toán hoặc đã thanh toán nhưng chưa nhận kho (C14a)
+    if (r.status !== "PENDING_PAYMENT" && !(r.status === "CONFIRMED" && !contract?.handed_over))
+      fail(r.status === "PENDING_VERIFICATION" ? "Đơn chờ thanh toán tại cửa hàng, vui lòng liên hệ cơ sở để huỷ." : "Đơn đã nhận kho, không huỷ được.");
+    const preview = r.status === "CONFIRMED" ? cancelPreviewOf(r) : null;
+    let next = {
+      ...state,
+      reservations: state.reservations.map((x) =>
+        x.reservation_id === r.reservation_id
+          ? {
+              ...x,
+              status: "CANCELLED",
+              cancel_reason: p.reason || "Khách hàng huỷ đặt chỗ",
+              cancelled_at: iso(ctx.now),
+              refund_amount: preview?.refund ?? null,
+              refund_status: preview?.refund ? "PENDING" : null,
+            }
+          : x,
+      ),
+      contracts: contract ? state.contracts.map((c) => (c === contract ? { ...c, status: "ENDED" } : c)) : state.contracts,
+      appointments: state.appointments.map((a) => (a.reservation_id === r.reservation_id && a.status !== "DONE" ? { ...a, status: "CANCELLED" } : a)),
     };
+    if (preview?.refund) {
+      next = notify(next, "Đã huỷ đơn đặt chỗ", `${shortCode(r.reservation_id)} · Đang hoàn ${preview.refund.toLocaleString("vi-VN")} đ.`, "reservations", ctx.now);
+      next = log(next, `Đã huỷ đơn ${shortCode(r.reservation_id)} — đang hoàn tiền`, "gray", ctx.now);
+    }
+    return { state: next, result: { reservation_id: r.reservation_id, refund: preview?.refund ?? 0 } };
   },
 
   REQUEST_RENEWAL(state, p, ctx) {
@@ -322,11 +400,11 @@ const handlers = {
     };
   },
 
-  // Nghiệp vụ phía nhân viên (Figma S09 Đối soát thanh toán): xác nhận chuyển khoản, tạo hợp đồng + lịch nhận kho.
+  // Nghiệp vụ phía nhân viên (Figma S09 Thu tiền tại kho): xác nhận chuyển khoản, tạo hợp đồng + lịch nhận kho.
   // Giao diện khách hàng không gọi lệnh này.
   STAFF_CONFIRM_PAYMENT(state, p, ctx) {
     const r = state.reservations.find((x) => x.reservation_id === p.reservation_id);
-    if (!r || r.status !== "PENDING_VERIFICATION") fail("Chỉ đối soát được đơn đang chờ đối soát.");
+    if (!r || r.status !== "PENDING_VERIFICATION") fail("Chỉ xác nhận thu được đơn đang chờ thanh toán tại cửa hàng.");
     const facility = state.facilities.find((f) => f.facility_id === r.facility_id);
     const n = state.contracts.length + 1;
     const prefix = r.type === "climate" ? "B" : "A";
@@ -376,7 +454,7 @@ const handlers = {
       ),
     };
     next = notify(next, "Lịch nhận kho đã xác nhận", `${dateLabel(appointment.date)} · 09:00 tại ${facility.name.replace("SafeSpace ", "")}.`, "payments", ctx.now);
-    next = log(next, `Thanh toán ${shortCode(r.reservation_id)} đã đối soát`, "green", ctx.now);
+    next = log(next, `Đã thu tiền đơn ${shortCode(r.reservation_id)} tại cửa hàng`, "green", ctx.now);
     return { state: next, result: { contract_id: contract.contract_id } };
   },
 };

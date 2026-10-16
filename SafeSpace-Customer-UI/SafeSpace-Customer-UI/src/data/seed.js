@@ -67,7 +67,7 @@ export function createSeedData(t = today()) {
         deposit: 1150000,
         rent_total: 3450000,
         initial_total: 4600000,
-        status: "PENDING_VERIFICATION",
+        status: "CONFIRMED", // đã thanh toán qua QR PayOS, chờ nhận kho (Figma C14)
         created_at: at(addDays(t, -6), "09:12"),
       },
       {
@@ -157,6 +157,18 @@ export function createSeedData(t = today()) {
         amount: 1380000,
         status: "DEPOSIT_HELD",
       },
+      {
+        // C11: gia hạn đã được cơ sở duyệt, chờ khách thanh toán qua QR PayOS (C11q)
+        ref: "SS-0086-REN",
+        kind: "RENEWAL",
+        label: "Gia hạn B-015 · 3 tháng",
+        contract_id: "HĐ-2026-0086",
+        unit_number: "B-015",
+        amount: 4140000,
+        status: "UNPAID",
+        payable: true,
+        period: { from: b015End, to: addMonths(b015End, 3), months: 3 },
+      },
     ],
     appointments: [
       {
@@ -172,7 +184,18 @@ export function createSeedData(t = today()) {
         note: "Mang giấy đăng ký và mã đặt chỗ. Nhân viên xác minh, hướng dẫn và bàn giao kho.",
       },
     ],
-    renewals: [],
+    renewals: [
+      {
+        renewal_id: "GH-0012",
+        contract_id: "HĐ-2026-0086",
+        months: 3,
+        old_end: b015End,
+        new_end: addMonths(b015End, 3),
+        amount: 4140000,
+        status: "APPROVED",
+        requested_at: at(addDays(t, -2), "10:20"),
+      },
+    ],
     returns: [],
     tickets: [
       {
@@ -182,7 +205,14 @@ export function createSeedData(t = today()) {
         description: "Thẻ ra vào chưa mở được cổng cơ sở.",
         attachments: [],
         status: "IN_PROGRESS",
-        staff_note: "Nhân viên Trần Minh đang kiểm tra.",
+        staff_note: "Nhân viên Trần Văn Long đang kiểm tra.",
+        responses: [
+          {
+            text: "Thẻ cũ bị lỗi từ. Bạn qua quầy lễ tân nhận thẻ mới, mang theo CCCD giúp mình nhé.",
+            by: "Trần Văn Long",
+            at: at(addDays(t, -6), "11:02"),
+          },
+        ],
         created_at: at(addDays(t, -6), "09:40"),
         updated_at: at(addDays(t, -6), "10:15"),
       },
@@ -222,7 +252,7 @@ export function createSeedData(t = today()) {
       },
       {
         id: "A-2",
-        text: "Thanh toán thuê kho 3 tháng đã đối soát",
+        text: "Thanh toán thuê kho 3 tháng qua QR thành công",
         tone: "green",
         at: addDays(t, -6),
       },
