@@ -30,6 +30,28 @@
 
 ---
 
+## Phiên 5 — 2026-10-14 — Backend khu Nhân viên / Quản lý cơ sở + seed D17 (Claude)
+
+- Tính năng: F03, F11–F21 (phần backend) + seed theo D17. Nhánh `feature/ops-backend` (tách từ `feature/figma-1410-sync`). Quyết định D18.
+- Đã xong:
+  - `DbSeeder` tách 3 file: 4 loại kho (thường/lạnh × M 15 m²/L 30 m²), 12 cơ sở, 12 ô K01–K12 mỗi cơ sở, giá theo
+    `lib/catalog.js`; loại kho / cơ sở đời cũ chuyển ngừng dùng. Quyền STAFF, MANAGER; tài khoản `manager01`, `staff02`,
+    `customer03`–`customer06`; gán cơ sở Nguyễn Lương Bằng; dữ liệu vận hành mẫu (2 khoản chờ đối soát, 1 đơn chờ phân bổ,
+    1 khách chờ bàn giao, 1 gia hạn chờ duyệt, 1 hợp đồng quá hạn, 1 lịch trả kho, 1 yêu cầu hỗ trợ).
+  - `/api/ops/*` (`FacilityOpsEndpoints.cs`, `FacilityOpsService*.cs`): board + 12 thao tác đúng `src/ops/api.js`.
+  - `POST /api/reservations/{id}/confirm-transfer` + trạng thái `PENDING_VERIFICATION` (migration viết tay).
+  - Sửa lỗi CHECK cũ: `HandoverService` (`COMPLETED` → `HANDED_OVER`), `RenewalService` (`PENDING_PAYMENT` → `PENDING`).
+  - Giao diện: "Tôi đã chuyển khoản" gọi API thật; `ops/data.js` còn 12 ô; bỏ chữ "dữ liệu mẫu" trên banner khu vận hành.
+  - Tài liệu: `docs/facility-ops-api.md`, `BACKEND-TODO.md` mục A, README / AGENTS (tài khoản).
+- Kiểm chứng:
+  - `npm test` → 41/41 pass (thêm test confirm-transfer qua mock, test mapper PENDING_VERIFICATION, test 12 ô)
+  - `npm run test:render` → 76 route PASS · `npm run build` → OK
+  - Backend: máy làm không tải được NuGet → **chưa chạy `dotnet build` thật**; đã biên dịch kiểm kiểu các file sửa
+    với bản giả lập EF Core → 0 lỗi. **Chưa chạy với SQL Server.**
+- Bị chặn / rủi ro: cần một bạn chạy `dotnet build` + chạy API trên máy có SQL Server, đi luồng ở
+  `docs/facility-ops-api.md` mục 5. Nên xoá database cũ trước (seed chỉ thêm phần thiếu).
+- Phiên sau nên: chạy thử luồng trên; pass thì đổi F03, F11–F21 sang `passing`. Sau đó giao diện B01–B05 (Vận hành KD).
+
 ## Phiên 4 — 2026-10-14 — Đồng bộ giao diện với Figma 14/10 (Claude)
 
 - Tính năng: F30 (sơ đồ ô kho) + trang chủ, danh mục kho, header khu vận hành. Nhánh `feature/figma-1410-sync`. Quyết định D17.

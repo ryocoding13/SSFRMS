@@ -51,14 +51,14 @@ public class RenewalService(AppDbContext dbContext) : IRenewalService
             .FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("Không tìm thấy hợp đồng hợp lệ.");
 
-        if (contract.Status != "ACTIVE")
+        if (contract.Status != "ACTIVE" && contract.Status != "EXPIRING")
         {
             throw new InvalidOperationException($"Chỉ hợp đồng ở trạng thái 'ACTIVE' mới có thể gia hạn. Trạng thái hiện tại: {contract.Status}");
         }
 
         // Check if there is already a pending renewal
         var hasPendingRenewal = await dbContext.ContractRenewals
-            .AnyAsync(r => r.ContractId == contractId && (r.Status == "PENDING_PAYMENT" || r.Status == "PENDING_APPROVAL"), ct);
+            .AnyAsync(r => r.ContractId == contractId && r.Status == "PENDING", ct);
 
         if (hasPendingRenewal)
         {
@@ -88,7 +88,7 @@ public class RenewalService(AppDbContext dbContext) : IRenewalService
             OldMonthlyRate = contract.AgreedMonthlyRate,
             NewMonthlyRate = newRate,
             RenewalAmount = renewalAmount,
-            Status = "PENDING_PAYMENT",
+            Status = "PENDING", // chờ quản lý cơ sở duyệt (M03); CHECK chỉ cho PENDING/APPROVED/REJECTED/PAID/CANCELLED
             RequestedAt = DateTime.UtcNow,
             CreatedAt = DateTime.UtcNow
         };

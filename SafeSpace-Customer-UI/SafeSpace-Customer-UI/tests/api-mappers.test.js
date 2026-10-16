@@ -121,3 +121,12 @@ test("tên đăng nhập backend sinh từ email (≤ 50 ký tự)", () => {
   assert.equal(usernameFromEmail(" Mai.Tran@Example.com "), "mai.tran@example.com");
   assert.ok(usernameFromEmail(`${"a".repeat(60)}@example.com`).length <= 50);
 });
+
+test("backend trả PENDING_VERIFICATION (confirm-transfer) → chờ đối soát, không bị huỷ theo giờ giữ chỗ trong trình duyệt", () => {
+  const verifying = { ...remote, reservations: remote.reservations.map((r) => (r.reservationId === 2 ? { ...r, status: "PENDING_VERIFICATION" } : r)) };
+  const hold = { holds: { 2: NOW.getTime() - 10000 } };
+  const later = new Date(NOW.getTime() + 55000);
+  const d = composeData({ catalog, remote: verifying, overlay: hold, session, timeoutSeconds: 60, now: later });
+  assert.equal(d.reservations[1].status, "PENDING_VERIFICATION");
+  assert.equal(reservationsToExpire({ remote: verifying, overlay: { holds: hold.holds, transfers: {} }, timeoutSeconds: 60, now: later }).length, 0);
+});

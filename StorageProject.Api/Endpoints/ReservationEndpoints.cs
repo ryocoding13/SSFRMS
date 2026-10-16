@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using StorageProject.Api.Extensions;
 using StorageProject.Core.DTOs.Reservation;
+using StorageProject.Core.Exceptions;
 using StorageProject.Core.Interfaces;
 
 namespace StorageProject.Api.Endpoints;
@@ -56,6 +57,29 @@ public static class ReservationEndpoints
                 return Results.BadRequest(new { error = ex.Message });
             }
         });
+
+        // C04 / F03: khách báo đã chuyển khoản → PENDING_VERIFICATION (nhân viên đối soát ở S09)
+        group.MapPost("/{id:long}/confirm-transfer", async (long id, ClaimsPrincipal user, IReservationService reservationService, CancellationToken ct) =>
+        {
+            try
+            {
+                var reservation = await reservationService.ConfirmTransferAsync(user.GetUserId(), id, ct);
+                return Results.Ok(reservation);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return Results.NotFound(new { error = ex.Message });
+            }
+            catch (ReservationExpiredException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message, code = "EXPIRED" });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        })
+        .WithSummary("Khách báo đã chuyển khoản: đơn chuyển sang chờ nhân viên đối soát (PENDING_VERIFICATION)");
 
         return group;
     }

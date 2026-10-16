@@ -1,6 +1,6 @@
-// API khu vận hành (Nhân viên cơ sở / Quản lý cơ sở). Backend StorageProject.Api CHƯA có các endpoint này;
-// hợp đồng đề xuất nằm ở BE-CONTRACT.md mục 5 và được mock/mock-api.mjs làm mẫu chạy được.
-// Khi backend trả 404 cho GET /api/ops/board, giao diện tự dùng dữ liệu mẫu trong trình duyệt.
+// API khu vận hành (Nhân viên cơ sở / Quản lý cơ sở): StorageProject.Api/Endpoints/FacilityOpsEndpoints.cs,
+// tài liệu ở docs/facility-ops-api.md; mock/mock-api.mjs (MOCK_OPS=1) chạy cùng hợp đồng để thử không cần .NET.
+// Backend cũ trả 404 cho GET /api/ops/board → giao diện dùng dữ liệu cục bộ trong trình duyệt (ops/store.jsx).
 import { request } from "../api/http.js";
 
 const enc = encodeURIComponent;
