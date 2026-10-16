@@ -248,6 +248,7 @@
       "behavior": "Frontend B01–B05 và tích hợp API theo operations-api(3).md; không sửa backend/database",
       "verification": "_fe; npm run test:business; kiểm tra trình duyệt và đối chiếu source backend",
       "state": "passing", "depends_on": [], "evidence": "2026-10-15: phạm vi chỉ frontend. npm test 38/38, test:business 8/8, render 76 route, build/init FE PASS. Browser 13 nhóm PASS; 14 màn role khác giống từng pixel. 77 file source/config backend giữ nguyên byte. Không xác nhận backend/DB thật."
-    }
+    },
+    {"id": "F32", "flow": 2, "uc": [], "actor": "Khách hàng", "behavior": "Frontend C07 xem QR và mô phỏng quét theo Figma; không bao gồm API/DB QR", "state": "passing", "verification": "node --test tests/access.test.js; npm test; npm run test:render; npm run build; kiểm tra browser C07", "evidence": "2026-10-16: 42 test gốc + 10 test QR + 9 test business PASS; 76 route SSR PASS; build PASS; browser popup 480x598, success/denial, mobile, guards PASS. Backend QR chưa triển khai, ngoài phạm vi."}
   ]
 }
