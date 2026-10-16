@@ -615,7 +615,7 @@ export function startMockApi(
         if (r.status !== "PENDING_PAYMENT") return bad("Đơn đặt chỗ này không còn chờ thanh toán.");
         return send(200, { reservationId: r.reservationId, ...payosOrder("reservation", r.reservationId, r.estimatedAmount + r.requiredDeposit, `SS${String(r.reservationId).padStart(4, "0")}`) });
       }
-      const amount = body?.amount || (r ? (r.requiredDeposit > 0 ? r.requiredDeposit : r.estimatedAmount) : 1000000);
+      const amount = body?.amount || (r ? (r.estimatedAmount + (r.requiredDeposit > 0 ? r.requiredDeposit : 0)) : 1000000);
       const orderCode = Date.now() % 1000000000;
       const checkoutUrl = `https://pay.payos.vn/web/mock-${resId || orderCode}`;
       return send(200, {

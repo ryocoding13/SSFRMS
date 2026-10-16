@@ -16,6 +16,25 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên 9 — 2026-10-16 — Sửa lỗi tính tiền thanh toán đơn đặt chỗ (tiền thuê + cọc)
+
+- **Vấn đề:** Khách hàng vào màn hình thanh toán đơn đặt chỗ (PayOS QR), tổng thanh toán hiển thị chỉ có tiền cọc (1.000 đ) mà không cộng tiền thuê 3 tháng (3.000 đ), link PayOS cũng chỉ thu 1.000 đ thay vì 4.000 đ.
+- **Nguyên nhân:**
+  - Trong `StorageProject.Infrastructure/Services/PayOSService.cs` (dòng 128), biểu thức tính `amount` sử dụng toán tử 3 ngôi sai:
+    `int amount = (int)(reservation.RequiredDeposit > 0 ? reservation.RequiredDeposit : reservation.EstimatedAmount);`
+    Khi có tiền cọc (`RequiredDeposit > 0`), hệ thống chỉ lấy tiền cọc mà bỏ qua toàn bộ tiền thuê (`EstimatedAmount`).
+  - Trong `SafeSpace-Customer-UI/SafeSpace-Customer-UI/mock/mock-api.mjs` (dòng 618), fallback cho mock endpoint cũng có biểu thức toán tử 3 ngôi tương tự.
+- **Đã sửa:**
+  - `PayOSService.cs`: Sửa thành `int amount = (int)(reservation.EstimatedAmount + (reservation.RequiredDeposit > 0 ? reservation.RequiredDeposit : 0));`.
+  - `mock-api.mjs`: Sửa dòng fallback khớp logic tính tổng `estimatedAmount + (requiredDeposit > 0 ? requiredDeposit : 0)`.
+- **Kiểm chứng:**
+  - Chạy script kiểm thử API thực tế với SQL Server & backend (`POST /api/reservations/create-payos-qr`):
+    - Đơn 3 tháng: Tiền thuê = 3.000 đ, Tiền cọc = 1.000 đ.
+    - Kết quả trả về `amount = 4000` đúng tổng tiền thuê + cọc, link PayOS sinh đúng 4.000 đ.
+  - Frontend test suites: `npm test` 67/67 test PASS; `npm run test:render` 92/92 routes PASS; `npm run build` OK.
+  - Backend: `dotnet build StorageProject.slnx` 0 Warning 0 Error.
+  - Chạy `./init.ps1` kiểm tra toàn bộ môi trường và test: PASS toàn bộ.
+
 ## Phiên 8 — 2026-10-16 — Triển khai Backend QR mở cửa (C07q, C07r) và kết nối Frontend
 
 - **Tính năng:** F34 — Backend QR mở cửa kho: sinh mã HMAC-SHA256 và mã dự phòng 8 số; endpoint máy quét mô phỏng tại cửa kho; kết nối trực tiếp với nút "Mở cửa kho" trên frontend.
