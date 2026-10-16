@@ -103,7 +103,7 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 | Màn | Endpoint đề xuất | Thay ở |
 |---|---|---|
 | C03b-sđ | `GET /api/facilities/{id}/units` → `unitNumber, zone, floor, sizeM2, unitTypeId, status` (StorageUnit) | `unitsFor()` trong `src/lib/units.js`; `fromBackendStatus()` đã map trạng thái |
-| C02m | Thêm `latitude, longitude` vào `GET /api/facilities` | `coordsOf()` trong `src/config/geo.js` |
+| C02m | **Đã có** `latitude, longitude` trong `GET /api/facilities` (nhập ở B05a) | `mapCatalog` gán `lat/lng`; `coordsOf()` trong `src/config/geo.js` chỉ dùng toạ độ dự phòng khi cơ sở chưa có toạ độ |
 | S01–S09, M01–M08 | `/api/ops/*` — **đã chốt hợp đồng ở `BACKEND-TODO.md` mục A2–A3**, giao diện gọi qua `src/ops/api.js` | `src/ops/store.jsx` |
 
 Hình dạng dữ liệu giao diện đang dùng nằm ở `src/ops/data.js`; nghiệp vụ (điều kiện chặn, chuyển trạng thái) ở
