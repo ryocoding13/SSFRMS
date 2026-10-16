@@ -91,6 +91,9 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IOperationsService, OperationsService>();
 builder.Services.AddScoped<IOperationsReportService, OperationsReportService>();
 builder.Services.AddScoped<IFacilityOpsService, FacilityOpsService>();
+builder.Services.AddScoped<IPayOSService, PayOSService>();
+builder.Services.AddScoped<IStaffService, StaffService>();
+builder.Services.AddScoped<IManagerService, ManagerService>();
 
 var app = builder.Build();
 
@@ -122,6 +125,8 @@ app.MapSupportTicketEndpoints();
 app.MapAdminEndpoints();
 app.MapOperationsEndpoints();
 app.MapFacilityOpsEndpoints();
+app.MapStaffEndpoints();
+app.MapManagerEndpoints();
 
 // Root status check
 app.MapGet("/health", () => Results.Ok(new

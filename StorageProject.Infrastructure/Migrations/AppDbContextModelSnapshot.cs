@@ -817,6 +817,10 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Property<DateTime?>("CheckInAppointmentAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("CheckoutUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -834,6 +838,16 @@ namespace StorageProject.Infrastructure.Migrations
 
                     b.Property<long>("FacilityId")
                         .HasColumnType("bigint");
+
+                    b.Property<long?>("OrderCode")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PaymentQrUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<decimal>("QuotedMonthlyRate")
                         .HasColumnType("decimal(15,2)");
@@ -862,6 +876,10 @@ namespace StorageProject.Infrastructure.Migrations
                     b.HasIndex("CustomerId");
 
                     b.HasIndex("FacilityId");
+
+                    b.HasIndex("OrderCode")
+                        .IsUnique()
+                        .HasFilter("[OrderCode] IS NOT NULL");
 
                     b.HasIndex("UnitTypeId");
 
@@ -1141,7 +1159,7 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Property<DateTime>("AssignedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<long>("AssignedBy")
+                    b.Property<long?>("AssignedBy")
                         .HasColumnType("bigint");
 
                     b.Property<string>("Reason")
@@ -1764,8 +1782,7 @@ namespace StorageProject.Infrastructure.Migrations
                     b.HasOne("StorageProject.Core.Entities.User", "AssignedByUser")
                         .WithMany()
                         .HasForeignKey("AssignedBy")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("StorageProject.Core.Entities.Reservation", "Reservation")
                         .WithMany("UnitAssignments")

@@ -62,8 +62,9 @@ Hệ thống quản lý và cho thuê kho tự phục vụ **SafeSpace** cho 5 n
 ```bash
 ./init.sh                     # Linux/macOS/Git Bash — kiểm tra môi trường + test + build
 ./init.ps1                    # Windows PowerShell — tương đương
-dotnet run --project StorageProject.Api --launch-profile http     # API: http://localhost:5151
-cd SafeSpace-Customer-UI/SafeSpace-Customer-UI && npm run dev     # UI:  http://127.0.0.1:5173
+npm run dev                   # Khởi chạy đồng thời Backend (:5151), Frontend (:5173) và Ngrok tunnel
+dotnet run --project StorageProject.Api --launch-profile http     # API riêng lẻ: http://localhost:5151
+cd SafeSpace-Customer-UI/SafeSpace-Customer-UI && npm run dev     # UI riêng lẻ:  http://127.0.0.1:5173
 ```
 
 Cần: .NET SDK 10 (project đặt `net10.0`), Node ≥ 22.12, SQL Server (mặc định `.\SQLEXPRESS`).

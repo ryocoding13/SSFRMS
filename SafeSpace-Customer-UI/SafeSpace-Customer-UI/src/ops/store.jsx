@@ -28,7 +28,7 @@ function appendLog(state, text, to) {
   return { ...state, log: [{ id: `L-${at.getTime()}`, text, to, role: "ALL", at: at.toISOString(), read: false }, ...(state.log || [])].slice(0, 60) };
 }
 
-export function OpsProvider({ children, notify, mode = "local", onApiError }) {
+export function OpsProvider({ children, notify, mode = "local", onApiError, role }) {
   // source: "loading" | "api" | "local"
   const [source, setSource] = useState(mode === "api" ? "loading" : "local");
   const [state, setState] = useState(() => (mode === "api" ? null : readOps()));
@@ -44,20 +44,19 @@ export function OpsProvider({ children, notify, mode = "local", onApiError }) {
   const reload = useCallback(async () => {
     setLoadError(null);
     try {
-      const board = await loadBoard();
+      const board = await loadBoard(role);
       commit({ ...board, log: ref.current?.log || [] });
       setSource("api");
     } catch (e) {
-      if (e instanceof ApiError && (e.status === 404 || e.status === 405)) {
-        // Backend không có endpoint vận hành (bản cũ) → dữ liệu cục bộ
+      if (mode !== "api" && e instanceof ApiError && (e.status === 404 || e.status === 405)) {
         commit(readOps());
         setSource("local");
       } else {
         onApiError?.(e);
-        setLoadError(e?.message || "Không tải được dữ liệu vận hành.");
+        setLoadError(e?.message || "Không tải được dữ liệu vận hành từ máy chủ.");
       }
     }
-  }, [commit, onApiError]);
+  }, [commit, onApiError, role, mode]);
 
   useEffect(() => {
     if (mode === "api") reload();

@@ -47,3 +47,17 @@ public record HandoverSummaryDto(
     bool CustomerConfirmed,
     bool StaffConfirmed
 );
+
+public record MoveOutRequest(
+    DateOnly Date,
+    string? Slot,
+    string? Note
+);
+
+public record MoveOutResponseDto(
+    long InspectionId,
+    long ContractId,
+    string Status,
+    DateTime? ScheduledAt,
+    string Message
+);

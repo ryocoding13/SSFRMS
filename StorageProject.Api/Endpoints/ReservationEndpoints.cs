@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using StorageProject.Api.Extensions;
+using StorageProject.Core.DTOs.Payment;
 using StorageProject.Core.DTOs.Reservation;
 using StorageProject.Core.Exceptions;
 using StorageProject.Core.Interfaces;
@@ -80,6 +81,51 @@ public static class ReservationEndpoints
             }
         })
         .WithSummary("Khách báo đã chuyển khoản: đơn chuyển sang chờ nhân viên đối soát (PENDING_VERIFICATION)");
+
+        // PayOS integration endpoints: create QR and check payment status
+        group.MapPost("/create-payos-qr", async (CreatePayOSQrRequest request, ClaimsPrincipal user, IPayOSService payOSService, CancellationToken ct) =>
+        {
+            try
+            {
+                var customerId = user.GetUserId();
+                var response = await payOSService.CreatePaymentQrAsync(customerId, request, ct);
+                return Results.Ok(response);
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
+        group.MapGet("/{id:long}/status", async (long id, IPayOSService payOSService, CancellationToken ct) =>
+        {
+            var status = await payOSService.GetReservationPaymentStatusAsync(id, ct);
+            return status is not null ? Results.Ok(status) : Results.NotFound(new { error = "Không tìm thấy thông tin đặt chỗ." });
+        }).AllowAnonymous();
+
+        // Also map /api/v1/reservations endpoints for compatibility
+        var v1Group = app.MapGroup("/api/v1/reservations")
+            .WithTags("Reservations (v1)");
+
+        v1Group.MapPost("/create-payos-qr", async (CreatePayOSQrRequest request, ClaimsPrincipal user, IPayOSService payOSService, CancellationToken ct) =>
+        {
+            try
+            {
+                var customerId = user.GetUserId();
+                var response = await payOSService.CreatePaymentQrAsync(customerId, request, ct);
+                return Results.Ok(response);
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        }).RequireAuthorization();
+
+        v1Group.MapGet("/{id:long}/status", async (long id, IPayOSService payOSService, CancellationToken ct) =>
+        {
+            var status = await payOSService.GetReservationPaymentStatusAsync(id, ct);
+            return status is not null ? Results.Ok(status) : Results.NotFound(new { error = "Không tìm thấy thông tin đặt chỗ." });
+        }).AllowAnonymous();
 
         return group;
     }

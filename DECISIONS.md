@@ -116,3 +116,9 @@
 - Seed D17: 4 loại kho, 12 cơ sở, 12 ô K01–K12 mỗi cơ sở, giá cùng công thức `src/lib/catalog.js`. Loại kho S/M/L/XL và
   cơ sở "Quận 7" đời cũ chỉ chuyển ngừng dùng (không xoá). Muốn dữ liệu sạch: xoá database rồi chạy lại API.
 
+## D19 — Kết nối 100% dữ liệu vận hành & khách hàng trực tiếp từ SQL Server — Đã chốt (16/10/2026)
+- Xoá bỏ hoàn toàn mock store RAM `FacilityOpsStateStore.GetOrCreateState` và mock data fallback trong `OpsProvider`.
+- Mọi dữ liệu hiển thị trên bảng làm việc của Nhân viên (`GET /api/staff/board`) và Quản lý (`GET /api/manager/board`) đều được truy vấn trực tiếp từ các bảng SQL Server (`Reservations`, `StorageUnits`, `RentalContracts`, `UnitAssignments`, `HandoverRecords`, `ReturnInspections`, `SupportTickets`, `UserFacilities`, `Payments`).
+- Mọi thao tác ghi nhận (đối soát, phân bổ kho, bàn giao, kiểm tra trả kho, gia hạn, hoàn cọc) đều được lưu vĩnh viễn vào SQL Server qua `dbContext.SaveChangesAsync()`.
+- Các hành động của khách hàng (`REQUEST_RETURN`, `UPDATE_NAME`, `CHANGE_PASSWORD`) được kết nối trực tiếp đến các endpoint backend (`POST /api/contracts/{id}/move-out`, `PUT /api/auth/profile`, `POST /api/auth/change-password`).
+

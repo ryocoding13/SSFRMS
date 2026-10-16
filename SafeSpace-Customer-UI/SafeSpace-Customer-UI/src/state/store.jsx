@@ -526,10 +526,33 @@ function ApiProvider({ children }) {
             await loadCustomer();
             return { ok: true };
           }
-          case "CHANGE_PASSWORD":
-            return fail("Máy chủ chưa hỗ trợ đổi mật khẩu. Vui lòng liên hệ quản trị viên SafeSpace.", "UNSUPPORTED");
-          case "REQUEST_RETURN":
-          case "UPDATE_NAME":
+          case "CHANGE_PASSWORD": {
+            await api.changePassword({ currentPassword: p.current_password, newPassword: p.new_password });
+            notify("Đã đổi mật khẩu thành công.");
+            return { ok: true };
+          }
+          case "UPDATE_NAME": {
+            const profile = await api.updateProfile({ fullName: p.name, phone: session?.user?.phone || null });
+            if (session) {
+              const updatedUser = { ...session.user, fullName: profile.fullName };
+              const updatedSession = { ...session, user: updatedUser };
+              writeJson(SESSION_KEY, updatedSession);
+              refs.current.session = updatedSession;
+              setSession(updatedSession);
+            }
+            runLocal(type, p);
+            return { ok: true, name: profile.fullName };
+          }
+          case "REQUEST_RETURN": {
+            const c = d.contracts.find((x) => x.contract_id === p.contract_id);
+            if (!c) return fail("Không tìm thấy hợp đồng.");
+            if (pendingRenewal(d, c.contract_id)) return fail("Hợp đồng đang có yêu cầu gia hạn.");
+            if (p.date < localDate(new Date())) return fail("Ngày hẹn không được ở quá khứ.");
+            await api.requestMoveOut(c.api_id, { date: p.date, slot: p.slot, note: p.notes });
+            remember("Đã đặt lịch trả kho", `Kho ${c.unit_number} · ${p.date} (${p.slot || "giờ hành chính"})`, `units/${c.contract_id}`, `Lịch trả kho ${c.unit_number} đã được ghi nhận`);
+            await loadCustomer();
+            return { ok: true, return_id: `TK-${c.api_id}` };
+          }
           case "MARK_READ": {
             const out = runLocal(type, p);
             return out.error ? fail(out.error.message, out.error.code) : { ok: true, ...out.result };
@@ -575,7 +598,7 @@ function ApiProvider({ children }) {
       roles: session?.roles || [],
       isAdmin: isAdminRoles(session?.roles),
       session,
-      supports: { changePassword: false, forgotPassword: false },
+      supports: { changePassword: true, forgotPassword: false },
       toast,
       notify,
       dismissToast,

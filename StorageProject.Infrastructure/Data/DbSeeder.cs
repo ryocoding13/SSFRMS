@@ -7,29 +7,38 @@ namespace StorageProject.Infrastructure.Data;
 /// Dữ liệu khởi tạo. Mọi bước đều "chỉ thêm phần còn thiếu", nên chạy lại nhiều lần vẫn an toàn và
 /// database tạo từ trước cũng được bổ sung khi khởi động lại API.
 /// - Danh mục kho theo D17 (Figma 14/10): xem DbSeeder.Catalog.cs
-/// - Tài khoản nhân viên / quản lý cơ sở và dữ liệu vận hành mẫu: xem DbSeeder.FacilityOps.cs
+/// - Tài khoản nhân viên / quản lý cơ sở: xem DbSeeder.FacilityOps.cs
 /// </summary>
 public static partial class DbSeeder
 {
     public static async Task SeedAsync(AppDbContext context)
     {
         // 1. Roles
-        if (!await context.Roles.AnyAsync())
+        var requiredRoles = new List<(string Name, string Description)>
         {
-            var roles = new List<Role>
+            ("ADMIN", "Quản trị viên toàn quyền hệ thống"),
+            ("MANAGER", "Quản lý cơ sở kho"),
+            ("STAFF", "Nhân viên vận hành, bàn giao và kiểm tra kho"),
+            ("OPERATIONS", "Quản lý vận hành kinh doanh toàn hệ thống"),
+            ("BUSINESS_OPERATOR", "Quản lý vận hành kinh doanh toàn hệ thống"),
+            ("CUSTOMER", "Khách hàng thuê kho tự quản")
+        };
+
+        foreach (var r in requiredRoles)
+        {
+            if (!await context.Roles.AnyAsync(x => x.RoleName == r.Name))
             {
-                new() { RoleName = "ADMIN", Description = "Quản trị viên toàn quyền hệ thống" },
-                new() { RoleName = "MANAGER", Description = "Quản lý cơ sở kho" },
-                new() { RoleName = "STAFF", Description = "Nhân viên vận hành, bàn giao và kiểm tra kho" },
-                new() { RoleName = "CUSTOMER", Description = "Khách hàng thuê kho tự quản" }
-            };
-            context.Roles.AddRange(roles);
-            await context.SaveChangesAsync();
+                context.Roles.Add(new Role { RoleName = r.Name, Description = r.Description });
+            }
         }
+        await context.SaveChangesAsync();
 
         var customerRole = await context.Roles.FirstAsync(r => r.RoleName == "CUSTOMER");
         var adminRole = await context.Roles.FirstAsync(r => r.RoleName == "ADMIN");
         var staffRole = await context.Roles.FirstAsync(r => r.RoleName == "STAFF");
+        var managerRole = await context.Roles.FirstAsync(r => r.RoleName == "MANAGER");
+        var businessOpRole = await context.Roles.FirstAsync(r => r.RoleName == "BUSINESS_OPERATOR");
+        var opsRole = await context.Roles.FirstAsync(r => r.RoleName == "OPERATIONS");
 
         // 1.1 Permissions & RolePermissions
         if (!await context.Permissions.AnyAsync())
@@ -48,7 +57,10 @@ public static partial class DbSeeder
                 new() { PermissionCode = "RENEWAL_MANAGE", PermissionName = "Duyệt gia hạn", Description = "Kiểm tra và phê duyệt yêu cầu gia hạn hợp đồng" },
                 new() { PermissionCode = "TICKET_MANAGE", PermissionName = "Xử lý hỗ trợ", Description = "Tiếp nhận và xử lý sự cố hỗ trợ khách hàng" },
                 new() { PermissionCode = "PAYMENT_CONFIRM", PermissionName = "Xác nhận thanh toán", Description = "Xác nhận thu tiền mặt và chuyển khoản" },
-                new() { PermissionCode = "REPORT_VIEW", PermissionName = "Xem báo cáo", Description = "Xem báo cáo kinh doanh và tỷ lệ sử dụng kho" }
+                new() { PermissionCode = "REPORT_VIEW", PermissionName = "Xem báo cáo", Description = "Xem báo cáo kinh doanh và tỷ lệ sử dụng kho" },
+                new() { PermissionCode = "POLICY_MANAGE", PermissionName = "Quản lý chính sách", Description = "Thiết lập chính sách thuê, khung giá, phí, giảm giá và miễn phí" },
+                new() { PermissionCode = "REPORT_SYSTEM", PermissionName = "Xem báo cáo toàn hệ thống", Description = "Xem doanh thu và hiệu suất của mọi cơ sở" },
+                new() { PermissionCode = "REPORT_EXPORT", PermissionName = "Xuất báo cáo", Description = "Xuất báo cáo toàn hệ thống ra tệp CSV" }
             };
             context.Permissions.AddRange(permissions);
             await context.SaveChangesAsync();
@@ -66,77 +78,84 @@ public static partial class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // 2. Users
-        if (!await context.Users.AnyAsync())
+        // Ensure STAFF, MANAGER, OPERATIONS & BUSINESS_OPERATOR permissions
+        var allPermsList = await context.Permissions.ToListAsync();
+        var staffPermCodes = new[] { "HANDOVER_MANAGE", "RETURN_MANAGE", "TICKET_MANAGE", "PAYMENT_CONFIRM" };
+        var managerPermCodes = new[] { "HANDOVER_MANAGE", "RETURN_MANAGE", "TICKET_MANAGE", "PAYMENT_CONFIRM", "UNIT_MANAGE", "ASSIGNMENT_MANAGE", "RENEWAL_MANAGE", "REPORT_VIEW" };
+        var bizOpPermCodes = new[] { "REPORT_VIEW", "AUDIT_LOG_VIEW", "FACILITY_MANAGE", "UNIT_MANAGE", "RENEWAL_MANAGE", "POLICY_MANAGE", "REPORT_SYSTEM", "REPORT_EXPORT" };
+
+        foreach (var code in staffPermCodes)
         {
-            var adminUser = new User
+            var p = allPermsList.FirstOrDefault(x => x.PermissionCode == code);
+            if (p != null && !await context.RolePermissions.AnyAsync(rp => rp.RoleId == staffRole.RoleId && rp.PermissionId == p.PermissionId))
             {
-                Username = "admin",
-                Email = "admin@storage.vn",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
-                FullName = "Hệ Thống Admin",
-                Phone = "0900000001",
-                Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            var staffUser = new User
+                context.RolePermissions.Add(new RolePermission { RoleId = staffRole.RoleId, PermissionId = p.PermissionId });
+            }
+        }
+        foreach (var code in managerPermCodes)
+        {
+            var p = allPermsList.FirstOrDefault(x => x.PermissionCode == code);
+            if (p != null && !await context.RolePermissions.AnyAsync(rp => rp.RoleId == managerRole.RoleId && rp.PermissionId == p.PermissionId))
             {
-                Username = "staff01",
-                Email = "staff01@storage.vn",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Staff@123"),
-                FullName = "Trần Nhân Viên",
-                Phone = "0900000002",
-                Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            var customer01 = new User
+                context.RolePermissions.Add(new RolePermission { RoleId = managerRole.RoleId, PermissionId = p.PermissionId });
+            }
+        }
+        foreach (var code in bizOpPermCodes)
+        {
+            var p = allPermsList.FirstOrDefault(x => x.PermissionCode == code);
+            if (p != null)
             {
-                Username = "customer01",
-                Email = "an.nguyen@example.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Customer@123"),
-                FullName = "Nguyễn Văn An",
-                Phone = "0901234567",
-                Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
+                if (!await context.RolePermissions.AnyAsync(rp => rp.RoleId == businessOpRole.RoleId && rp.PermissionId == p.PermissionId))
+                {
+                    context.RolePermissions.Add(new RolePermission { RoleId = businessOpRole.RoleId, PermissionId = p.PermissionId });
+                }
+                if (!await context.RolePermissions.AnyAsync(rp => rp.RoleId == opsRole.RoleId && rp.PermissionId == p.PermissionId))
+                {
+                    context.RolePermissions.Add(new RolePermission { RoleId = opsRole.RoleId, PermissionId = p.PermissionId });
+                }
+            }
+        }
+        await context.SaveChangesAsync();
 
-            var customer02 = new User
+        // 2. Users (Ensure essential admin, staff, manager, operator, and customer users)
+        async Task<User> EnsureUserAsync(string username, string email, string fullName, string phone, string plainPassword, Role role)
+        {
+            var u = await context.Users.FirstOrDefaultAsync(x => x.Username == username);
+            if (u == null)
             {
-                Username = "customer02",
-                Email = "mai.tran@example.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Customer@123"),
-                FullName = "Trần Thị Mai",
-                Phone = "0912345678",
-                Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
+                u = new User
+                {
+                    Username = username,
+                    Email = email,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(plainPassword),
+                    FullName = fullName,
+                    Phone = phone,
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                context.Users.Add(u);
+                await context.SaveChangesAsync();
+            }
 
-            context.Users.AddRange(adminUser, staffUser, customer01, customer02);
-            await context.SaveChangesAsync();
-
-            // Assign User Roles
-            context.UserRoles.AddRange(
-                new UserRole { UserId = adminUser.UserId, RoleId = adminRole.RoleId, AssignedAt = DateTime.UtcNow },
-                new UserRole { UserId = staffUser.UserId, RoleId = staffRole.RoleId, AssignedAt = DateTime.UtcNow },
-                new UserRole { UserId = customer01.UserId, RoleId = customerRole.RoleId, AssignedAt = DateTime.UtcNow },
-                new UserRole { UserId = customer02.UserId, RoleId = customerRole.RoleId, AssignedAt = DateTime.UtcNow }
-            );
-            await context.SaveChangesAsync();
+            if (!await context.UserRoles.AnyAsync(ur => ur.UserId == u.UserId && ur.RoleId == role.RoleId))
+            {
+                context.UserRoles.Add(new UserRole { UserId = u.UserId, RoleId = role.RoleId, AssignedAt = DateTime.UtcNow });
+                await context.SaveChangesAsync();
+            }
+            return u;
         }
 
-        // 2b. Vai trò Quản lý vận hành KD (OPERATIONS) + tài khoản ops01
+        var admin = await EnsureUserAsync("admin", "admin@storage.vn", "Hệ Thống Admin", "0900000001", "Admin@123", adminRole);
+        var staff = await EnsureUserAsync("staff01", "staff01@storage.vn", "Trần Nhân Viên", "0900000002", "Staff@123", staffRole);
+        var cust1 = await EnsureUserAsync("customer01", "an.nguyen@example.com", "Nguyễn Văn An", "0901234567", "Customer@123", customerRole);
+        var cust2 = await EnsureUserAsync("customer02", "mai.tran@example.com", "Trần Thị Mai", "0912345678", "Customer@123", customerRole);
+
+        // 2b. Vai trò Quản lý vận hành KD (OPERATIONS & BUSINESS_OPERATOR) + tài khoản ops01, operator01
         await EnsureOperationsRoleAsync(context);
 
         // 2c. Quyền của STAFF / MANAGER + tài khoản manager01, staff02 (BACKEND-TODO A1)
         await EnsureFacilityRolesAsync(context);
-
-        var admin = await context.Users.FirstAsync(u => u.Username == "admin");
 
         // 3. Danh mục kho theo D17: 4 loại kho, 12 cơ sở, mỗi cơ sở 12 ô + bảng giá
         var catalog = await EnsureCatalogAsync(context, admin.UserId);
@@ -148,12 +167,11 @@ public static partial class DbSeeder
             {
                 new()
                 {
-                    CreatedBy = admin.UserId,
-                    PolicyName = "Chính sách tiền đặt cọc thuê kho",
+                    PolicyName = "Tiền đặt cọc tiêu chuẩn",
                     PolicyType = "DEPOSIT",
-                    CalculationType = "FIXED",
-                    Value = 1.0m, // 1 tháng
-                    RuleDescription = "Yêu cầu khách hàng đặt cọc tương đương 1 tháng tiền thuê khi ký hợp đồng",
+                    CalculationType = "PERCENTAGE",
+                    Value = 100.0m, // 100% của 1 tháng tiền thuê
+                    RuleDescription = "Khách hàng phải thanh toán tiền cọc tương đương 1 tháng tiền thuê khi ký hợp đồng",
                     EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
                     Status = "ACTIVE",
                     CreatedAt = DateTime.UtcNow,
@@ -161,7 +179,30 @@ public static partial class DbSeeder
                 },
                 new()
                 {
-                    CreatedBy = admin.UserId,
+                    PolicyName = "Phí hủy đặt chỗ",
+                    PolicyType = "CANCELLATION",
+                    CalculationType = "PERCENTAGE",
+                    Value = 0.0m, // Miễn phí hủy trước khi check-in
+                    RuleDescription = "Miễn phí hủy đơn đặt chỗ trước thời điểm bắt đầu thuê",
+                    EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new()
+                {
+                    PolicyName = "Phí phạt quá hạn thanh toán",
+                    PolicyType = "OVERDUE",
+                    CalculationType = "PERCENTAGE",
+                    Value = 5.0m, // 5% mỗi tuần trễ hạn
+                    RuleDescription = "Tính phí phạt 5% trên số tiền nợ cho mỗi tuần quá hạn",
+                    EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new()
+                {
                     PolicyName = "Thời gian giữ chỗ đặt trước",
                     PolicyType = "RENEWAL",
                     CalculationType = "FIXED",
@@ -178,9 +219,28 @@ public static partial class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // 5. Phân công cơ sở (SRS A06: mỗi nhân viên / quản lý 1 cơ sở) + dữ liệu vận hành mẫu tại cơ sở đó
+        // 5. Phân công cơ sở (SRS A06: mỗi nhân viên / quản lý 1 cơ sở)
         await EnsureFacilityAssignmentsAsync(context, catalog.Home.FacilityId, admin.UserId);
-        await SeedFacilityOperationsAsync(context, catalog);
+
+        // Phân công cơ sở cho ops01 và operator01
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        foreach (var opUsername in new[] { "ops01", "operator01" })
+        {
+            var opUser = await context.Users.FirstOrDefaultAsync(u => u.Username == opUsername);
+            if (opUser != null && !await context.UserFacilities.AnyAsync(uf => uf.UserId == opUser.UserId && uf.FacilityId == catalog.Home.FacilityId))
+            {
+                context.UserFacilities.Add(new UserFacility
+                {
+                    UserId = opUser.UserId,
+                    FacilityId = catalog.Home.FacilityId,
+                    AssignedBy = admin.UserId,
+                    AssignedFrom = today.AddDays(-30),
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+        }
+        await context.SaveChangesAsync();
     }
 
     // ------------------------------------------------------------------------------------------
@@ -193,6 +253,14 @@ public static partial class DbSeeder
         {
             opsRole = new Role { RoleName = "OPERATIONS", Description = "Quản lý vận hành kinh doanh toàn hệ thống" };
             context.Roles.Add(opsRole);
+            await context.SaveChangesAsync();
+        }
+
+        var bizOpRole = await context.Roles.FirstOrDefaultAsync(r => r.RoleName == "BUSINESS_OPERATOR");
+        if (bizOpRole == null)
+        {
+            bizOpRole = new Role { RoleName = "BUSINESS_OPERATOR", Description = "Quản lý vận hành kinh doanh toàn hệ thống" };
+            context.Roles.Add(bizOpRole);
             await context.SaveChangesAsync();
         }
 
@@ -213,7 +281,7 @@ public static partial class DbSeeder
 
         // ADMIN giữ toàn bộ quyền như thiết lập ban đầu
         var adminRole = await context.Roles.FirstOrDefaultAsync(r => r.RoleName == "ADMIN");
-        var opsCodes = new[] { "FACILITY_MANAGE", "POLICY_MANAGE", "REPORT_VIEW", "REPORT_SYSTEM", "REPORT_EXPORT" };
+        var opsCodes = new[] { "FACILITY_MANAGE", "POLICY_MANAGE", "REPORT_VIEW", "REPORT_SYSTEM", "REPORT_EXPORT", "UNIT_MANAGE", "RENEWAL_MANAGE", "AUDIT_LOG_VIEW" };
         var allPermissions = await context.Permissions.ToListAsync();
         var existingPairs = await context.RolePermissions.Select(rp => new { rp.RoleId, rp.PermissionId }).ToListAsync();
 
@@ -223,13 +291,21 @@ public static partial class DbSeeder
             {
                 context.RolePermissions.Add(new RolePermission { RoleId = adminRole.RoleId, PermissionId = perm.PermissionId });
             }
-            if (opsCodes.Contains(perm.PermissionCode) && !existingPairs.Any(x => x.RoleId == opsRole.RoleId && x.PermissionId == perm.PermissionId))
+            if (opsCodes.Contains(perm.PermissionCode))
             {
-                context.RolePermissions.Add(new RolePermission { RoleId = opsRole.RoleId, PermissionId = perm.PermissionId });
+                if (!existingPairs.Any(x => x.RoleId == opsRole.RoleId && x.PermissionId == perm.PermissionId))
+                {
+                    context.RolePermissions.Add(new RolePermission { RoleId = opsRole.RoleId, PermissionId = perm.PermissionId });
+                }
+                if (!existingPairs.Any(x => x.RoleId == bizOpRole.RoleId && x.PermissionId == perm.PermissionId))
+                {
+                    context.RolePermissions.Add(new RolePermission { RoleId = bizOpRole.RoleId, PermissionId = perm.PermissionId });
+                }
             }
         }
         await context.SaveChangesAsync();
 
+        // Ensure user ops01
         var opsUser = await context.Users.FirstOrDefaultAsync(u => u.Username == "ops01");
         if (opsUser == null)
         {
@@ -247,10 +323,33 @@ public static partial class DbSeeder
             context.Users.Add(opsUser);
             await context.SaveChangesAsync();
         }
-
         if (!await context.UserRoles.AnyAsync(ur => ur.UserId == opsUser.UserId && ur.RoleId == opsRole.RoleId))
         {
             context.UserRoles.Add(new UserRole { UserId = opsUser.UserId, RoleId = opsRole.RoleId, AssignedAt = DateTime.UtcNow });
+            await context.SaveChangesAsync();
+        }
+
+        // Ensure user operator01 (mapped to BUSINESS_OPERATOR)
+        var operatorUser = await context.Users.FirstOrDefaultAsync(u => u.Username == "operator01");
+        if (operatorUser == null)
+        {
+            operatorUser = new User
+            {
+                Username = "operator01",
+                Email = "operator01@storage.vn",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Operator@123"),
+                FullName = "Lê Vận Hành Kinh Doanh",
+                Phone = "0900000004",
+                Status = "ACTIVE",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            context.Users.Add(operatorUser);
+            await context.SaveChangesAsync();
+        }
+        if (!await context.UserRoles.AnyAsync(ur => ur.UserId == operatorUser.UserId && ur.RoleId == bizOpRole.RoleId))
+        {
+            context.UserRoles.Add(new UserRole { UserId = operatorUser.UserId, RoleId = bizOpRole.RoleId, AssignedAt = DateTime.UtcNow });
             await context.SaveChangesAsync();
         }
     }
