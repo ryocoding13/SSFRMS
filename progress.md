@@ -16,6 +16,40 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên 8 — 2026-10-16 — Triển khai Backend QR mở cửa (C07q, C07r) và kết nối Frontend
+
+- **Tính năng:** F33 — Backend QR mở cửa kho: sinh mã HMAC-SHA256 và mã dự phòng 8 số; endpoint máy quét mô phỏng tại cửa kho; kết nối trực tiếp với nút "Mở cửa kho" trên frontend.
+- **Đã xong:**
+  - **Core DTOs (`StorageProject.Core/DTOs/Access/AccessDtos.cs`):** Khai báo `AccessQrDto`, `ScanAccessRequest`, `ScanResultDto`, `AccessQrOptions`.
+  - **Core Interface (`StorageProject.Core/Interfaces/IServices.cs`):** Bổ sung `IAccessService` (`GetQrAsync`, `ScanAsync`).
+  - **Infrastructure Service (`StorageProject.Infrastructure/Services/AccessService.cs`):**
+    - Sinh mã bảo mật HMAC-SHA256 không trạng thái từ `ContractId + CredentialId + IssuedAt` và Secret key (`JwtSettings:Secret` hoặc `AccessQr:Secret`).
+    - Format mã QR: `SSQR-<contractId>-<8 ký tự hex>` (ví dụ: `SSQR-1-1733D3D0`).
+    - Format mã PIN dự phòng: 8 chữ số (ví dụ: `03502103`, hiển thị dạng `0350 2103`).
+    - Endpoint kiểm mã `POST /api/access/scan` kiểm tra đa dạng (mã QR hoặc mã 8 số có/không có dấu cách), kiểm tra thứ tự từ chối nghiệp vụ chuẩn (thẻ thu hồi, đã trả kho, chưa bàn giao, hợp đồng quá hạn/hết hiệu lực) và ghi nhật ký ra vào `ACCESS_SCANNED` vào bảng `activity_logs`.
+  - **API Endpoints (`StorageProject.Api/Endpoints/AccessEndpoints.cs`):**
+    - `GET /api/contracts/{id}/access-qr`: Yêu cầu xác thực chủ hợp đồng, hỗ trợ cả `id` số nguyên lẫn mã chuỗi `HĐ-...`.
+    - `POST /api/access/scan`: Endpoint công khai cho máy quét/thiết bị tại cửa, luôn trả về 200 kèm `result: "OPEN" | "DENIED"` và lý do từ chối.
+  - **Cấu hình & DI (`Program.cs`):** Đăng ký `AccessQrOptions`, `IAccessService` và map `app.MapAccessEndpoints()`.
+  - **Cải thiện `StaffService.CompleteHandoverAsync`:** Hỗ trợ hoàn tất bàn giao theo `HandoverId` và tự động kích hoạt `AccessCredential` với `Status = "ACTIVE"`.
+  - **Frontend Integration (`endpoints.js` & `useAccessQr.js`):**
+    - Thêm `accessQr` và `scanAccess` vào `src/api/endpoints.js`.
+    - Cập nhật `src/state/useAccessQr.js` kết nối trực tiếp API khi `USE_API = true`, đồng thời bảo toàn logic giả lập ngoại tuyến khi `USE_API = false`.
+- **Kiểm chứng:**
+  - `dotnet build StorageProject.slnx` thành công 0 lỗi.
+  - Chạy `test_full_flow.ps1` kiểm chứng luồng thực tế trên máy chủ Backend & SQL Server:
+    - Nhân viên `staff01` hoàn tất bàn giao kho K01 (`POST /api/staff/handovers/1/complete`).
+    - Khách hàng `customer01` gọi `GET /api/contracts/1/access-qr` nhận thành công mã `SSQR-1-1733D3D0` và mã dự phòng `03502103`.
+    - Quét mã QR trả về `OPEN` | Cửa kho K01 | Khách hàng Nguyễn Văn An.
+    - Quét mã dự phòng (kể cả có dấu cách `0350 2103`) trả về `OPEN`.
+    - Quét mã sai trả về `DENIED` kèm lý do rõ ràng.
+    - SQL Server bảng `activity_logs` ghi nhận đầy đủ các bản ghi hành động `ACCESS_SCANNED`.
+  - Frontend test suites:
+    - `npm test`: 42/42 unit test PASS.
+    - `node --test tests/access.test.js`: 10/10 access test PASS.
+    - `npm run test:render`: 76/76 routes SSR PASS.
+    - `npm run build`: Production bundle Vite build thành công 100%.
+
 ## 2026-10-15 — Toạ độ bản đồ (B05a, C02m) — Claude (việc của Thắng)
 
 - Figma: B05 thêm dòng "Vị trí bản đồ" + nút "Sửa thông tin cơ sở"; hộp thoại mới B05a.

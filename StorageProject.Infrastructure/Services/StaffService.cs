@@ -361,6 +361,60 @@ public class StaffService(AppDbContext dbContext) : IStaffService
 
     public async Task CompleteHandoverAsync(long userId, string id, CompleteHandoverRequest request, CancellationToken ct = default)
     {
+        var num = FacilityOpsStateStore.ParseIdNumber(id);
+        var now = DateTime.UtcNow;
+
+        // 1. Thử tìm theo HandoverId hoặc ContractId
+        var handover = await dbContext.HandoverRecords
+            .Include(h => h.Contract).ThenInclude(c => c.Unit)
+            .Include(h => h.Contract).ThenInclude(c => c.AccessCredentials)
+            .Include(h => h.Contract).ThenInclude(c => c.Reservation)
+            .FirstOrDefaultAsync(h => h.HandoverId == num || h.ContractId == num, ct);
+
+        if (handover != null)
+        {
+            handover.Status = "HANDED_OVER";
+            handover.StaffConfirmed = true;
+            handover.CustomerConfirmed = true;
+            handover.StaffId = userId;
+            handover.HandoverAt = now;
+            handover.Notes = $"Phương thức mở khóa: {request.UnlockMethod}";
+
+            var contract = handover.Contract;
+            if (contract != null)
+            {
+                contract.Status = "ACTIVE";
+                contract.ActivatedAt ??= now;
+                if (contract.Unit != null)
+                {
+                    contract.Unit.Status = "OCCUPIED";
+                    contract.Unit.UpdatedAt = now;
+                }
+                if (contract.Reservation != null)
+                {
+                    contract.Reservation.Status = "CHECKED_IN";
+                }
+
+                if (!contract.AccessCredentials.Any(a => a.Status == "ACTIVE"))
+                {
+                    var method = (request.UnlockMethod ?? "CARD").ToUpperInvariant();
+                    dbContext.AccessCredentials.Add(new AccessCredential
+                    {
+                        ContractId = contract.ContractId,
+                        UnitId = contract.UnitId,
+                        IssuedBy = userId,
+                        CredentialType = method == "CARD" ? "ACCESS_CARD" : "ACCESS_CODE",
+                        CredentialReference = $"{method}-{contract.Unit?.UnitNumber ?? "K01"}-{now.AddHours(7):yyMMdd}",
+                        IssuedAt = now,
+                        Status = "ACTIVE"
+                    });
+                }
+            }
+            await dbContext.SaveChangesAsync(ct);
+            return;
+        }
+
+        // 2. Thử tìm theo Reservation
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
         var r = await FacilityOpsStateStore.FindReservationByIdAsync(dbContext, id, fac.FacilityId, ct);
         if (r != null)
@@ -370,12 +424,16 @@ public class StaffService(AppDbContext dbContext) : IStaffService
             {
                 var unit = assignment.Unit;
                 unit.Status = "OCCUPIED";
-                unit.UpdatedAt = DateTime.UtcNow;
+                unit.UpdatedAt = now;
 
-                var existingContract = await dbContext.RentalContracts.FirstOrDefaultAsync(c => c.ReservationId == r.ReservationId, ct);
-                if (existingContract == null)
+                var contract = await dbContext.RentalContracts
+                    .Include(c => c.HandoverRecord)
+                    .Include(c => c.AccessCredentials)
+                    .FirstOrDefaultAsync(c => c.ReservationId == r.ReservationId, ct);
+
+                if (contract == null)
                 {
-                    var contract = new RentalContract
+                    contract = new RentalContract
                     {
                         ReservationId = r.ReservationId,
                         CustomerId = r.CustomerId,
@@ -385,21 +443,58 @@ public class StaffService(AppDbContext dbContext) : IStaffService
                         AgreedMonthlyRate = r.QuotedMonthlyRate,
                         DepositAmount = r.RequiredDeposit,
                         Status = "ACTIVE",
-                        CreatedAt = DateTime.UtcNow,
-                        ActivatedAt = DateTime.UtcNow
+                        CreatedAt = now,
+                        ActivatedAt = now
                     };
                     dbContext.RentalContracts.Add(contract);
                     await dbContext.SaveChangesAsync(ct);
+                }
+                else
+                {
+                    contract.Status = "ACTIVE";
+                    contract.ActivatedAt ??= now;
+                }
 
-                    dbContext.HandoverRecords.Add(new HandoverRecord
+                var hRecord = contract.HandoverRecord ?? await dbContext.HandoverRecords.FirstOrDefaultAsync(h => h.ContractId == contract.ContractId, ct);
+                if (hRecord == null)
+                {
+                    hRecord = new HandoverRecord
                     {
                         ContractId = contract.ContractId,
                         StaffId = userId,
-                        ScheduledAt = DateTime.UtcNow,
-                        VerifiedAt = DateTime.UtcNow,
-                        HandoverAt = DateTime.UtcNow,
+                        ScheduledAt = now,
+                        VerifiedAt = now,
+                        HandoverAt = now,
                         InitialCondition = "Đã kiểm tra và bàn giao kho",
-                        Notes = $"Phương thức mở khóa: {request.UnlockMethod}"
+                        Notes = $"Phương thức mở khóa: {request.UnlockMethod}",
+                        CustomerConfirmed = true,
+                        StaffConfirmed = true,
+                        Status = "HANDED_OVER"
+                    };
+                    dbContext.HandoverRecords.Add(hRecord);
+                }
+                else
+                {
+                    hRecord.StaffId = userId;
+                    hRecord.StaffConfirmed = true;
+                    hRecord.CustomerConfirmed = true;
+                    hRecord.HandoverAt = now;
+                    hRecord.Status = "HANDED_OVER";
+                    hRecord.Notes = $"Phương thức mở khóa: {request.UnlockMethod}";
+                }
+
+                if (!contract.AccessCredentials.Any(a => a.Status == "ACTIVE"))
+                {
+                    var method = (request.UnlockMethod ?? "CARD").ToUpperInvariant();
+                    dbContext.AccessCredentials.Add(new AccessCredential
+                    {
+                        ContractId = contract.ContractId,
+                        UnitId = unit.UnitId,
+                        IssuedBy = userId,
+                        CredentialType = method == "CARD" ? "ACCESS_CARD" : "ACCESS_CODE",
+                        CredentialReference = $"{method}-{unit.UnitNumber}-{now.AddHours(7):yyMMdd}",
+                        IssuedAt = now,
+                        Status = "ACTIVE"
                     });
                 }
             }
