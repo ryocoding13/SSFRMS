@@ -233,6 +233,17 @@
       "verification": "_fe; npm run test:business; kiểm tra trình duyệt và đối chiếu source backend",
       "state": "passing", "depends_on": [], "evidence": "2026-10-15: phạm vi chỉ frontend. npm test 38/38, test:business 8/8, render 76 route, build/init FE PASS. Browser 13 nhóm PASS; 14 màn role khác giống từng pixel. 77 file source/config backend giữ nguyên byte. Không xác nhận backend/DB thật."
     },
-    {"id": "F32", "flow": 2, "uc": [], "actor": "Khách hàng", "behavior": "Frontend C07 xem QR và mô phỏng quét theo Figma; không bao gồm API/DB QR", "state": "passing", "verification": "node --test tests/access.test.js; npm test; npm run test:render; npm run build; kiểm tra browser C07", "evidence": "2026-10-16: 42 test gốc + 10 test QR + 9 test business PASS; 76 route SSR PASS; build PASS; browser popup 480x598, success/denial, mobile, guards PASS. Backend QR chưa triển khai, ngoài phạm vi."}
+    {"id": "F32", "flow": 2, "uc": [], "actor": "Khách hàng", "behavior": "Frontend C07 xem QR và mô phỏng quét theo Figma; không bao gồm API/DB QR", "state": "passing", "verification": "node --test tests/access.test.js; npm test; npm run test:render; npm run build; kiểm tra browser C07", "evidence": "2026-10-16: 42 test gốc + 10 test QR + 9 test business PASS; 76 route SSR PASS; build PASS; browser popup 480x598, success/denial, mobile, guards PASS. Backend QR chưa triển khai, ngoài phạm vi."},
+    {
+      "id": "F33",
+      "flow": 2,
+      "uc": ["UC07"],
+      "actor": "Khách hàng / Hệ thống",
+      "behavior": "Backend QR mở cửa (C07q, C07r): GET /api/contracts/{id}/access-qr sinh mã HMAC-SHA256 và mã dự phòng; POST /api/access/scan kiểm mã máy quét mô phỏng, ghi activity_logs; kết nối frontend",
+      "verification": "dotnet build StorageProject.slnx; node --test tests/access.test.js; npm test; npm run build",
+      "state": "passing",
+      "depends_on": ["F32"],
+      "evidence": "2026-10-16: Đã triển khai IAccessService, AccessService (HMAC-SHA256 sinh QR và backupCode), AccessEndpoints (GET /api/contracts/{id}/access-qr, POST /api/access/scan); kết nối useAccessQr.js và endpoints.js; test_full_flow.ps1 kiểm chứng thành công từ bàn giao kho đến quét mã mở cửa và ghi activity_logs; dotnet build và npm test pass."
+    }
   ]
 }

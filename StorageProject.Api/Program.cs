@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using StorageProject.Api.Endpoints;
+using StorageProject.Core.DTOs.Access;
 using StorageProject.Core.Interfaces;
 using StorageProject.Infrastructure.Data;
 using StorageProject.Infrastructure.Services;
@@ -92,6 +93,10 @@ builder.Services.AddScoped<IOperationsService, OperationsService>();
 builder.Services.AddScoped<IOperationsReportService, OperationsReportService>();
 builder.Services.AddScoped<IFacilityOpsService, FacilityOpsService>();
 builder.Services.AddScoped<IPayOSService, PayOSService>();
+builder.Services.AddSingleton(new AccessQrOptions(
+    builder.Configuration["AccessQr:Secret"] ?? jwtSecret,
+    !bool.TryParse(builder.Configuration["AccessQr:DenyOverdue"], out var denyOverdue) || denyOverdue));
+builder.Services.AddScoped<IAccessService, AccessService>();
 builder.Services.AddScoped<IStaffService, StaffService>();
 builder.Services.AddScoped<IManagerService, ManagerService>();
 
@@ -127,6 +132,7 @@ app.MapOperationsEndpoints();
 app.MapFacilityOpsEndpoints();
 app.MapStaffEndpoints();
 app.MapManagerEndpoints();
+app.MapAccessEndpoints();
 
 // Root status check
 app.MapGet("/health", () => Results.Ok(new

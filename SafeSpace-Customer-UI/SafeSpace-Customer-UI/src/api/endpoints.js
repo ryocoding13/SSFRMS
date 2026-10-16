@@ -21,9 +21,11 @@ export const api = {
   // C04: khách báo đã chuyển khoản → PENDING_VERIFICATION (nhân viên đối soát ở S09)
   confirmTransfer: (id) => request(`/api/reservations/${id}/confirm-transfer`, { method: "POST" }),
 
-  // Hợp đồng, thanh toán, gia hạn, bàn giao, trả kho
+  // Hợp đồng, thanh toán, gia hạn, bàn giao, trả kho, QR mở cửa
   contracts: () => request("/api/contracts"),
   contract: (id) => request(`/api/contracts/${id}`),
+  accessQr: (contractId) => request(`/api/contracts/${contractId}/access-qr`),
+  scanAccess: (code) => request("/api/access/scan", { method: "POST", body: { code }, auth: false }),
   requestRenewal: (contractId, months) =>
     request(`/api/contracts/${contractId}/renewals`, { method: "POST", body: { renewalPeriodMonths: months } }),
   confirmHandover: (handoverId) => request(`/api/handovers/${handoverId}/confirm`, { method: "POST" }),

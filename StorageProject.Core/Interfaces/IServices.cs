@@ -1,3 +1,4 @@
+using StorageProject.Core.DTOs.Access;
 using StorageProject.Core.DTOs.Auth;
 using StorageProject.Core.DTOs.Contract;
 using StorageProject.Core.DTOs.Facility;
@@ -42,6 +43,12 @@ public interface IContractService
     Task<IReadOnlyList<ContractSummaryDto>> GetMyContractsAsync(long customerId, CancellationToken ct = default);
     Task<ContractDetailDto?> GetContractDetailAsync(long customerId, long contractId, CancellationToken ct = default);
     Task<MoveOutResponseDto> RegisterMoveOutAsync(long customerId, long contractId, MoveOutRequest request, CancellationToken ct = default);
+}
+
+public interface IAccessService
+{
+    Task<AccessQrDto> GetQrAsync(long customerId, long contractId, CancellationToken ct = default);
+    Task<ScanResultDto> ScanAsync(string? code, string? ipAddress, CancellationToken ct = default);
 }
 
 public interface IPaymentService
