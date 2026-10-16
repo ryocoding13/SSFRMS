@@ -2,8 +2,9 @@
 // Xem BE-CONTRACT.md để đối chiếu với trạng thái backend.
 
 export const RESERVATION_STATUS = {
-  PENDING_PAYMENT: ["Chờ chuyển khoản", "amber"],
-  PENDING_VERIFICATION: ["Chờ đối soát", "amber"],
+  PENDING_PAYMENT: ["Chờ thanh toán", "amber"],
+  // Từ khi có PayOS (D19), đơn chờ xác nhận chỉ còn là đơn khách chọn trả tại cửa hàng (C04c/C05c)
+  PENDING_VERIFICATION: ["Chờ thanh toán tại cửa hàng", "amber"],
   CONFIRMED: ["Đã xác nhận", "green"],
   CHECKED_IN: ["Đã nhận kho", "green"],
   CANCELLED: ["Đã huỷ đặt chỗ", "gray"],
@@ -17,11 +18,11 @@ export const CONTRACT_STATUS = {
 };
 
 export const LEDGER_STATUS = {
-  RECONCILED: ["Đã đối soát", "green"],
-  PENDING_VERIFICATION: ["Chờ đối soát", "amber"],
+  RECONCILED: ["Đã thanh toán", "green"],
+  PENDING_VERIFICATION: ["Chờ thanh toán tại cửa hàng", "amber"],
   DEPOSIT_HELD: ["Đang giữ cọc", "blue"],
   RENEWAL_PENDING: ["Chờ duyệt yêu cầu", "amber"],
-  UNPAID: ["Chưa thanh toán", "red"],
+  UNPAID: ["Chờ thanh toán", "red"],
   REFUNDED: ["Đã hoàn", "gray"],
 };
 
@@ -40,10 +41,10 @@ export const TICKET_STATUS = {
 };
 
 export const TICKET_TOPICS = {
-  ACCESS: { label: "Thẻ ra vào / mã truy cập", title: "Lỗi mã truy cập" },
+  ACCESS: { label: "Thẻ ra vào / mã truy cập", title: "Lỗi thẻ ra vào" },
   LOCK: { label: "Khóa / chìa khóa", title: "Khóa / chìa khóa" },
   UNIT: { label: "Tình trạng kho", title: "Tình trạng kho" },
-  PAYMENT: { label: "Thanh toán / đối soát", title: "Thanh toán / đối soát" },
+  PAYMENT: { label: "Thanh toán", title: "Thanh toán" },
   ITEMS: { label: "Đồ đạc lưu trữ", title: "Đồ đạc lưu trữ" },
   SCHEDULE: { label: "Đổi lịch hẹn", title: "Đổi lịch hẹn" },
   OTHER: { label: "Vấn đề khác", title: "Yêu cầu hỗ trợ" },

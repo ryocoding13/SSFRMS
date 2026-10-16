@@ -54,5 +54,6 @@ Giao diện khách hàng hiện dùng tập trạng thái đơn giản hơn (vd.
 
 ## Luồng đặt chỗ đã chốt theo Figma
 
-Chuyển khoản QR lúc đặt → "Chờ đối soát" → nhân viên đối soát → quản lý phân bổ kho → nhận kho theo lịch (D02).
+Thanh toán lúc đặt (D02, cập nhật D19/D21): QR PayOS tự xác nhận → "Đã thanh toán", hoặc tại cửa hàng → nhân viên thu tiền ở S09 →
+quản lý phân bổ kho → nhận kho theo lịch. Cọc = 1 tháng tiền thuê; gia hạn chỉ trả tiền thuê kỳ mới.
 SRS mục A03 cần sửa cho khớp. Hợp đồng chưa bàn giao không cho gia hạn / trả kho (D11).
