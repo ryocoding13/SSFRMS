@@ -79,7 +79,7 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 | C03b | `POST /api/quotes` `{facilityId, type, band, months, startDate}` | → `monthlyRate, rentTotal, deposit, initialTotal, endDate, available` |
 | C03c | `GET /api/facilities/{id}/photos` | 4+ ảnh kèm chú thích (mặt tiền, sơ đồ, ...) |
 | C04 | `POST /api/reservations` | Tạo đơn `PENDING_PAYMENT`, trả `reservationId, expiresAt, timeoutSeconds, transferAmount, transferContent` (UI tự tạo VietQR từ tài khoản nhận) |
-| C04 | `POST /api/reservations/{id}/confirm-transfer` | → `PENDING_VERIFICATION`; sau `expiresAt` trả lỗi mã `EXPIRED` |
+| C04 | `POST /api/reservations/{id}/confirm-transfer` | → `PENDING_VERIFICATION`; sau `expiresAt` trả lỗi mã `EXPIRED` — **đã có** (D18) |
 | C04b | (job nền) | Tự chuyển `PENDING_PAYMENT` quá hạn sang `CANCELLED`, `cancelReason` kiểu "Quá 1 phút chưa xác nhận" |
 | C14, C05 | `GET /api/reservations`, `GET /api/reservations/{id}` | |
 | C06, C07 | `GET /api/contracts`, `GET /api/contracts/{id}` | Thêm `unitNumber, sizeM2, location, handedOver, depositAmount` |

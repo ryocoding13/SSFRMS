@@ -86,9 +86,33 @@
   "Cọc còn giữ"; "Doanh thu thuê và phí" không trừ REFUND. Khi thêm hoàn tiền thuê/phí thì phải thêm liên kết khoản gốc.
 - Cơ sở `TEMPORARILY_CLOSED` chặn đặt chỗ mới; `INACTIVE` chỉ khi không còn hợp đồng / đơn đang xử lý. Không xoá cơ sở.
 
-## D20 — Toạ độ cơ sở lưu trong database, Vận hành KD sửa ở B05a — Đã chốt (15/10/2026)
-- Bảng `facilities` thêm `Latitude`, `Longitude` (decimal(9,6), cùng có hoặc cùng trống). API cơ sở công khai và `/api/operations/facilities` trả / nhận hai trường này.
-- Màn B05 thêm nút "Sửa thông tin cơ sở" mở hộp thoại B05a (tên, địa chỉ, điện thoại, giờ ra vào, vĩ độ, kinh độ). Dán cặp toạ độ copy từ Google Maps vào một ô thì tự tách hai ô.
-- Bản đồ Tìm kho (C02m) đọc toạ độ từ API; `src/config/geo.js` chỉ còn là toạ độ dự phòng cho cơ sở chưa nhập.
-- Toạ độ khởi tạo của 12 cơ sở lấy giống `geo.js` (ước lượng); Vận hành KD nên kiểm tra lại trên Google Maps và sửa ở B05a.
+## D17 — Mô hình kho theo Figma 14/10: 2 cỡ, mọi cơ sở có kho lạnh, gợi ý theo khu vực — Đã chốt (14/10/2026)
+- Chỉ còn 2 cỡ kho: **Cỡ M · 15 m²** và **Cỡ L · 30 m²** (bỏ cỡ S). Loại kho từ backend: diện tích ≤ 20 m² là M, lớn hơn là L.
+- Cả 12 cơ sở đều có kho thường và kho lạnh. Mỗi cơ sở 12 ô: 8 kho thường (4 M + 4 L) và 4 kho lạnh (2 M + 2 L).
+  Sơ đồ ô kho: dãy A cỡ M (K01–K04 thường, K05–K06 lạnh), dãy B cỡ L (K07–K10 thường, K11–K12 lạnh).
+- Gợi ý cơ sở theo **khu vực khách chọn**, không theo vị trí người dùng: bỏ "Gần bạn nhất" và "Cách bạn … km".
+- Tên loại kho hiển thị là "Kho lạnh" (thay "Kiểm soát nhiệt độ") cho khớp Figma.
+- Nhân viên / quản lý cơ sở thấy tên cơ sở phụ trách dưới vai trò trên header (SRS A06: mỗi người 1 cơ sở).
+- Trang chủ theo Figma mới: hero ảnh + tìm theo khu vực, số liệu, 4 loại kho, 3 bước, cơ sở theo khu vực, kêu gọi, footer.
+- Backend đổi seed cho khớp (4 loại kho, 12 cơ sở, 12 ô mỗi cơ sở) — đã làm ở D18.
+
+## D18 — Backend khu Nhân viên / Quản lý cơ sở (`/api/ops/*`) và seed theo D17 — Đã chốt (14/10/2026)
+- Làm đúng hợp đồng giao diện đã có (`src/ops/api.js`, mẫu JSON trong `BACKEND-TODO.md`); tài liệu `docs/facility-ops-api.md`.
+- Id trong API là **mã hiển thị** (`SS-…`, `XM-`/`BG-`, `TK-`, `HT-`, `GH-`, `HĐ-…`, `PC-<mã việc>`, `NV-<userId>`), backend đọc số cuối.
+- Phạm vi: chỉ cơ sở đang phân công trong `user_facilities` (A06); khác cơ sở trả 404, chưa phân công trả 403.
+- Không thêm bảng mới. Phần bảng chưa có cột (loại giấy tờ + 4 số cuối, biên bản trả kho 4 mục, phản hồi hỗ trợ,
+  lý do từ chối gia hạn, lần nhắc khách, thời điểm khách báo chuyển khoản, báo sai lệch) lưu và đọc lại từ `activity_logs`.
+- `handover_records.StaffId` và `return_inspections.StaffId` bắt buộc: việc **chưa giao** tạm ghi người tạo (quản lý);
+  bảng M06 coi người không có role STAFF là "chưa giao" (`OPEN`).
+- Trạng thái hỗ trợ: giao diện `WAITING_CUSTOMER` = DB `RESOLVED`, `DONE` = DB `CLOSED`.
+- Mở khoá: `CARD` → `ACCESS_CARD`; `PIN`, `FINGER` → `ACCESS_CODE` (mã tham chiếu ghi phương thức, **không lưu bí mật**).
+- Báo sai lệch thanh toán không đổi trạng thái đơn (vẫn `PENDING_VERIFICATION`); sau khi quản lý làm rõ, nhân viên xác nhận lại.
+- Phân bổ ô: ô phải trống và **đúng loại kho** của đơn; lúc này mới tạo hợp đồng `DRAFT` và ghi khoản cọc + tiền thuê `PAID`
+  (bảng `payments` bắt buộc có hợp đồng nên không ghi được lúc nhân viên đối soát).
+- Hoàn cọc: khoản còn nợ được trừ vào cọc (đánh dấu `PAID`, ghi chú "Trừ vào tiền cọc"), phần còn lại tạo khoản `REFUND`.
+- Thêm trạng thái đơn `PENDING_VERIFICATION` (migration viết tay `20261014150000_ReservationPendingVerification`).
+- Sửa lỗi cũ: `HandoverService` ghi `COMPLETED` và `RenewalService` ghi `PENDING_PAYMENT` — cả hai vi phạm CHECK trong DB;
+  nay ghi `HANDED_OVER` và `PENDING` (gia hạn chờ quản lý duyệt ở M03).
+- Seed D17: 4 loại kho, 12 cơ sở, 12 ô K01–K12 mỗi cơ sở, giá cùng công thức `src/lib/catalog.js`. Loại kho S/M/L/XL và
+  cơ sở "Quận 7" đời cũ chỉ chuyển ngừng dùng (không xoá). Muốn dữ liệu sạch: xoá database rồi chạy lại API.
 

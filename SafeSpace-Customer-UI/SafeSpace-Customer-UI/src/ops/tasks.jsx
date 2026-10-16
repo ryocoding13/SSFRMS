@@ -73,7 +73,7 @@ export function staffTasks(ops, me, kind = "all") {
         list.push({
           key: h.id, kind: "handover", status: ready ? ["Sẵn sàng bàn giao", "green"] : ["Chờ xác minh", "gray"],
           title: `Kho #${h.unit} · ${h.customer}`,
-          meta: `${ready ? "Đã xác minh khách · " : ""}${unit?.type === "climate" ? "Kiểm soát nhiệt độ" : "Kho thường"}${unit ? ` · ${unit.area} m²` : ""}`,
+          meta: `${ready ? "Đã xác minh khách · " : ""}${unit?.type === "climate" ? "Kho lạnh" : "Kho thường"}${unit ? ` · ${unit.area} m²` : ""}`,
           when: v ? `Hẹn ${slot(v.appointment)}` : "Chưa có lịch hẹn",
           cta: ready ? "Bàn giao" : "Xác minh trước", outline: !ready,
           to: ready ? `staff/handover?id=${h.id}` : `staff/verify?id=${v?.id}`, sort: v?.appointment || "",

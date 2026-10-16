@@ -85,7 +85,6 @@ export function mapCatalog({ facilities = [], unitTypes = [], rates = [] }) {
         lat: f.latitude ?? null,
         lng: f.longitude ?? null,
         hours: open && close ? `${open}–${close}` : "06:00–22:00",
-        distance_km: null,
         camera: true,
         has_climate: offers.some((o) => o.type === "climate"),
         offers,
@@ -98,6 +97,7 @@ export function mapCatalog({ facilities = [], unitTypes = [], rates = [] }) {
 // ---------- Trạng thái ----------
 const RESERVATION = {
   PENDING_PAYMENT: "PENDING_PAYMENT",
+  PENDING_VERIFICATION: "PENDING_VERIFICATION",
   UNIT_ASSIGNED: "CONFIRMED",
   CONFIRMED: "CONFIRMED",
   CHECKED_IN: "CHECKED_IN",
@@ -113,7 +113,7 @@ const TICKET_NOTE = {
   RESOLVED: "Yêu cầu đã được xử lý.",
   CANCELLED: "Bạn đã huỷ yêu cầu này.",
 };
-const RENEWAL = { PENDING_PAYMENT: "PENDING", PENDING_APPROVAL: "PENDING", APPROVED: "APPROVED", COMPLETED: "APPROVED", REJECTED: "REJECTED", CANCELLED: "REJECTED" };
+const RENEWAL = { PENDING: "PENDING", PENDING_PAYMENT: "PENDING", PENDING_APPROVAL: "PENDING", PAID: "APPROVED", APPROVED: "APPROVED", COMPLETED: "APPROVED", REJECTED: "REJECTED", CANCELLED: "REJECTED" };
 
 function offerOfType(unitTypes, id, name) {
   const t = unitTypes.find((x) => x.unitTypeId === id) || unitTypes.find((x) => x.typeName === name);

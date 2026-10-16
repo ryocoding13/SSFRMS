@@ -1,7 +1,7 @@
 // Sơ đồ & tình trạng từng ô kho của một cơ sở (Figma C03b-sđ).
 // Backend chưa có API danh sách ô kho → sinh cố định theo mã cơ sở. Khi có API,
 // thay unitsFor() bằng dữ liệu StorageUnit (UnitNumber, Floor, Zone, Status, UnitType).
-import { offerByKey } from "./catalog.js";
+import { SIZE_BANDS } from "./catalog.js";
 
 // Trạng thái ô kho hiển thị cho khách (map từ StorageUnit.Status của backend)
 export const UNIT_STATUS = {
@@ -16,42 +16,38 @@ export const LEGEND = ["FREE", "RENTED", "HELD", "SERVICE"];
 export const fromBackendStatus = (s) =>
   s === "AVAILABLE" ? "FREE" : s === "RESERVED" || s === "ASSIGNED" ? "HELD" : ["MAINTENANCE", "INSPECTION", "OUT_OF_SERVICE"].includes(s) ? "SERVICE" : "RENTED";
 
-// Bố cục theo Figma: dãy A (K01–K05, 5 m²) và dãy B (K06–K10, 10 m²), hành lang ở giữa
+// Bố cục theo Figma 14/10: 12 ô, hành lang ở giữa.
+// Dãy A cỡ M: K01–K04 kho thường, K05–K06 kho lạnh. Dãy B cỡ L: K07–K10 kho thường, K11–K12 kho lạnh.
 const LAYOUT = [
-  ["K01", "A", 5], ["K02", "A", 5], ["K03", "A", 5], ["K04", "A", 5], ["K05", "A", 5],
-  ["K06", "B", 10], ["K07", "B", 10], ["K08", "B", 10], ["K09", "B", 10], ["K10", "B", 10],
+  ["K01", "A", "normal", "M"], ["K02", "A", "normal", "M"], ["K03", "A", "normal", "M"], ["K04", "A", "normal", "M"],
+  ["K05", "A", "climate", "M"], ["K06", "A", "climate", "M"],
+  ["K07", "B", "normal", "L"], ["K08", "B", "normal", "L"], ["K09", "B", "normal", "L"], ["K10", "B", "normal", "L"],
+  ["K11", "B", "climate", "L"], ["K12", "B", "climate", "L"],
 ];
 // Tình trạng mẫu của Figma, xoay vòng theo mã cơ sở để mỗi cơ sở khác nhau nhưng luôn ổn định
-const PATTERN = ["FREE", "RENTED", "FREE", "HELD", "FREE", "RENTED", "FREE", "SERVICE", "FREE", "RENTED"];
-const COLD = ["K04", "K05", "K09", "K10"];
+const PATTERN = ["FREE", "RENTED", "FREE", "HELD", "FREE", "RENTED", "FREE", "SERVICE", "FREE", "RENTED", "FREE", "RENTED"];
 
 const NON_FREE = ["RENTED", "HELD", "SERVICE"];
 const areaText = (n) => `${String(n).replace(".", ",")} m²`;
+const BAND_AREA = Object.fromEntries(SIZE_BANDS.map((b) => [b.id, b.area]));
 
-// Gán gói kho cho 10 ô: dữ liệu cục bộ theo bố cục Figma (5 m² / 10 m²);
-// dữ liệu backend (gói theo UnitType) → dãy A nhận các loại nhỏ, dãy B các loại lớn.
+// Gán gói kho cho 12 ô theo loại (thường / lạnh) và cỡ (M / L).
+// Dữ liệu backend chưa đủ 4 loại thì ô lấy gói gần nhất: cùng loại + cùng cỡ → cùng cỡ → cùng loại → gói bất kỳ.
 function offersForLayout(facility) {
   const offers = facility.offers || [];
-  if (!offers.some((o) => o.unit_type_id)) {
-    return LAYOUT.map(([code, , area]) => {
-      const wantCold = facility.has_climate !== false && COLD.includes(code);
-      const band = area <= 5 ? "S" : "M";
-      return { offer: offerByKey(facility, `${wantCold ? "climate" : "normal"}-${band}`) || offerByKey(facility, `normal-${band}`), area };
-    });
-  }
-  const sorted = [...offers].sort((x, y) => (x.area || 0) - (y.area || 0));
-  const half = Math.max(1, Math.ceil(sorted.length / 2));
-  const small = sorted.slice(0, half);
-  const large = sorted.length > 1 ? sorted.slice(half) : sorted;
-  return LAYOUT.map(([, row], i) => {
-    const pool = row === "A" ? small : large;
-    const offer = pool[(row === "A" ? i : i - 5) % pool.length];
-    return { offer, area: offer?.area ?? (row === "A" ? 5 : 10) };
+  return LAYOUT.map(([, , type, band]) => {
+    const offer =
+      offers.find((o) => o.type === type && o.band === band) ||
+      offers.find((o) => o.band === band) ||
+      offers.find((o) => o.type === type) ||
+      offers[0] ||
+      null;
+    return { offer, area: offer?.area ?? BAND_AREA[band] };
   });
 }
 
 /**
- * 10 ô kho của một cơ sở.
+ * 12 ô kho của một cơ sở.
  * `stock` (không bắt buộc): { [offer.key]: số ô trống } lấy từ POST /api/availability/check —
  * khi có, số ô "Còn trống" của mỗi loại khớp đúng số backend trả về.
  */

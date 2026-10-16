@@ -18,6 +18,8 @@ export const api = {
   reservation: (id) => request(`/api/reservations/${id}`),
   createReservation: (body) => request("/api/reservations", { method: "POST", body }),
   cancelReservation: (id, reason) => request(`/api/reservations/${id}/cancel`, { method: "POST", body: { reason } }),
+  // C04: khách báo đã chuyển khoản → PENDING_VERIFICATION (nhân viên đối soát ở S09)
+  confirmTransfer: (id) => request(`/api/reservations/${id}/confirm-transfer`, { method: "POST" }),
 
   // Hợp đồng, thanh toán, gia hạn, bàn giao
   contracts: () => request("/api/contracts"),

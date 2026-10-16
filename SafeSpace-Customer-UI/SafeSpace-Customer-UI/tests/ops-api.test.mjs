@@ -59,7 +59,7 @@ test("khu vận hành qua API: nhân viên xử lý, quản lý phân bổ / duy
 
     board = fromApi((await call("GET", "/api/ops/board", undefined, manager)).data);
     assert.equal(board.units.find((u) => u.code === unit.code).status, "WAITING_HANDOVER");
-    assert.equal(board.units.find((u) => u.code === "A-102").status, "ACTIVE");
+    assert.equal(board.units.find((u) => u.code === "K01").status, "ACTIVE");
     assert.equal(board.contracts.find((c) => c.id === "HĐ-0098").state, "CLOSED");
     assert.ok(board.revenue.by_type.length === 2, "báo cáo có cơ cấu theo loại kho");
   } finally {
@@ -74,6 +74,28 @@ test("backend chưa bật ops → GET /api/ops/board trả 404 (giao diện chuy
     const { token } = await (await fetch(`${url}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "staff01", password: "Staff@123" }) })).json();
     const res = await fetch(`${url}/api/ops/board`, { headers: { Authorization: `Bearer ${token}` } });
     assert.equal(res.status, 404);
+  } finally {
+    server.close();
+  }
+});
+
+test("khách báo đã chuyển khoản qua API → PENDING_VERIFICATION, gọi lại vẫn an toàn; đơn không còn chờ thì báo lỗi", async () => {
+  const { server } = await startMockApi(PORT + 2);
+  try {
+    const url = `http://localhost:${PORT + 2}`;
+    const post = async (path, token) => {
+      const res = await fetch(url + path, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      return { status: res.status, data: await res.json() };
+    };
+    const { token } = await (await fetch(`${url}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "customer01", password: "Customer@123" }) })).json();
+    let out = await post("/api/reservations/2/confirm-transfer", token);
+    assert.equal(out.status, 200);
+    assert.equal(out.data.status, "PENDING_VERIFICATION");
+    out = await post("/api/reservations/2/confirm-transfer", token);
+    assert.equal(out.status, 200, "bấm hai lần không lỗi");
+    out = await post("/api/reservations/1/confirm-transfer", token);
+    assert.equal(out.status, 400, "đơn đã nhận kho không còn chờ chuyển khoản");
+    assert.equal((await post("/api/reservations/999/confirm-transfer", token)).status, 404);
   } finally {
     server.close();
   }

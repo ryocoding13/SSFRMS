@@ -15,10 +15,12 @@ const addLog = (state, now, text, to, role = "ALL") => ({
   log: [{ id: `L-${now.getTime()}-${state.log.length}`, text, to, role, at: iso(now), read: false }, ...state.log].slice(0, 60),
 });
 
-// Diện tích từ nhãn gói ("Kho thường · 10–20 m²") → khoảng m²
+// Diện tích từ nhãn gói → khoảng m² ("Kho lạnh · Cỡ M · 15 m²" → [15, 15]; nhãn cũ "10–20 m²" → [10, 20])
 export function areaRange(offer = "") {
   const m = offer.match(/(\d+)\s*[–-]\s*(\d+)\s*m²/);
   if (m) return [Number(m[1]), Number(m[2])];
+  const one = offer.match(/(\d+)\s*m²/);
+  if (one) return [Number(one[1]), Number(one[1])];
   if (/Trên\s*20/.test(offer)) return [20, 999];
   return [0, 999];
 }
