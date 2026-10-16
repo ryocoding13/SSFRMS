@@ -26,7 +26,7 @@ console.log(`
     customer01  / Customer@123   → Khách hàng
     staff01     / Staff@123      → Nhân viên cơ sở (#/staff)
     manager01   / Manager@123    → Quản lý cơ sở (#/manager) — chỉ khi chạy với MOCK_OPS=1
-  MOCK_OPS=1 bật các endpoint /api/ops/* (backend thật CHƯA có, xem BE-CONTRACT.md mục 5).
-  Không bật: khu vận hành báo "backend chưa có API" và dùng dữ liệu mẫu trong trình duyệt.
+  MOCK_OPS=1 bật các endpoint /api/ops/* (giống backend thật, xem docs/facility-ops-api.md).
+  Không bật: khu vận hành dùng dữ liệu cục bộ trong trình duyệt.
   Mỗi lời gọi API sẽ hiện bên dưới (xanh = thành công, đỏ = lỗi từ máy chủ).
 `);

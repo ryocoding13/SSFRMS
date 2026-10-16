@@ -93,7 +93,10 @@ Hệ thống đã tạo sẵn các tài khoản để kiểm thử quy trình:
 |-----------|--------------------------|---------------------|-------|
 | **CUSTOMER** | `customer01` | `Customer@123` | Khách hàng mẫu (Nguyễn Văn An) |
 | **CUSTOMER** | `customer02` | `Customer@123` | Khách hàng mẫu (Trần Thị Mai) |
-| **STAFF** | `staff01` | `Staff@123` | Nhân viên vận hành |
+| **CUSTOMER** | `customer03` … `customer06` | `Customer@123` | Khách đang thuê / chờ bàn giao / quá hạn tại cơ sở mẫu |
+| **STAFF** | `staff01`, `staff02` | `Staff@123` | Nhân viên cơ sở SafeSpace Nguyễn Lương Bằng (`#/staff`) |
+| **MANAGER** | `manager01` | `Manager@123` | Quản lý cơ sở SafeSpace Nguyễn Lương Bằng (`#/manager`) |
+| **OPERATIONS** | `ops01` | `Ops@123` | Quản lý vận hành kinh doanh |
 | **ADMIN** | `admin` | `Admin@123` | Quản trị viên hệ thống |
 
 *(Bạn cũng có thể bấm nút **"Đăng ký"** trực tiếp trên giao diện để tạo tài khoản mới)*.

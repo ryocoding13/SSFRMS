@@ -2,7 +2,7 @@
   "_readme": "Danh sách tính năng = ranh giới phạm vi cho AI agent. Mỗi mục: behavior (hành vi), verification (lệnh/cách kiểm chứng), state. state: not_started -> active -> passing | blocked. Chỉ đổi sang passing khi verification pass và ghi evidence. Mỗi phiên chỉ một mục active.",
   "_fe": "cd SafeSpace-Customer-UI/SafeSpace-Customer-UI && npm test && npm run test:render && npm run build",
   "_be": "dotnet build StorageProject.slnx",
-  "updated": "2026-10-01",
+  "updated": "2026-10-14",
   "features": [
     {
       "id": "F01", "flow": 1, "uc": ["UC01"], "actor": "Khách hàng",
@@ -23,7 +23,7 @@
       "behavior": "Khách bấm 'Tôi đã chuyển khoản' → đơn chuyển PENDING_VERIFICATION trên backend",
       "verification": "_be; POST /api/reservations/{id}/confirm-transfer trả 200, sau expiresAt trả lỗi EXPIRED; _fe",
       "state": "blocked",
-      "blocked_reason": "Backend chưa có endpoint confirm-transfer và đối soát (luồng đã chốt theo Figma, DECISIONS D02); phía nhân viên đối soát (S09) đã có giao diện, chờ /api/ops/payments/{id}/confirm",
+      "blocked_reason": "Code backend đã có trên nhánh feature/ops-backend (D18, docs/facility-ops-api.md); chưa chạy với SQL Server. Chạy luồng ở docs/facility-ops-api.md mục 5 rồi đổi passing.",
       "evidence": null
     },
     {
@@ -86,7 +86,7 @@
       "state": "blocked",
       "depends_on": ["F21"],
       "evidence": "2026-10-01: FE xong trên nhánh feature/figma-3009-staff-manager (npm test 38/38, test:render 76 route PASS, build OK; chạy luồng với mock MOCK_OPS=1). Chưa chạy với backend thật.",
-      "blocked_reason": "FE đã xong (khu #/staff, #/manager); chờ backend làm /api/ops/* theo BACKEND-TODO.md mục A. Trong lúc chờ, thao tác lưu trên trình duyệt (D04, D15)."
+      "blocked_reason": "Code backend đã có trên nhánh feature/ops-backend (D18, docs/facility-ops-api.md); chưa chạy với SQL Server. Chạy luồng ở docs/facility-ops-api.md mục 5 rồi đổi passing."
     },
     {
       "id": "F12", "flow": 5, "uc": ["UC09"], "actor": "Nhân viên cơ sở",
@@ -95,7 +95,7 @@
       "state": "blocked",
       "depends_on": ["F21"],
       "evidence": "2026-10-01: FE xong trên nhánh feature/figma-3009-staff-manager (npm test 38/38, test:render 76 route PASS, build OK; chạy luồng với mock MOCK_OPS=1). Chưa chạy với backend thật.",
-      "blocked_reason": "FE đã xong (khu #/staff, #/manager); chờ backend làm /api/ops/* theo BACKEND-TODO.md mục A. Trong lúc chờ, thao tác lưu trên trình duyệt (D04, D15)."
+      "blocked_reason": "Code backend đã có trên nhánh feature/ops-backend (D18, docs/facility-ops-api.md); chưa chạy với SQL Server. Chạy luồng ở docs/facility-ops-api.md mục 5 rồi đổi passing."
     },
     {
       "id": "F13", "flow": 3, "uc": ["UC10"], "actor": "Nhân viên cơ sở",
@@ -104,7 +104,7 @@
       "state": "blocked",
       "depends_on": ["F06", "F12"],
       "evidence": "2026-10-01: FE xong trên nhánh feature/figma-3009-staff-manager (npm test 38/38, test:render 76 route PASS, build OK; chạy luồng với mock MOCK_OPS=1). Chưa chạy với backend thật.",
-      "blocked_reason": "FE đã xong (khu #/staff, #/manager); chờ backend làm /api/ops/* theo BACKEND-TODO.md mục A. Trong lúc chờ, thao tác lưu trên trình duyệt (D04, D15)."
+      "blocked_reason": "Code backend đã có trên nhánh feature/ops-backend (D18, docs/facility-ops-api.md); chưa chạy với SQL Server. Chạy luồng ở docs/facility-ops-api.md mục 5 rồi đổi passing."
     },
     {
       "id": "F14", "flow": 7, "uc": ["UC11"], "actor": "Nhân viên cơ sở",
@@ -113,7 +113,7 @@
       "state": "blocked",
       "depends_on": ["F21"],
       "evidence": "2026-10-01: FE xong trên nhánh feature/figma-3009-staff-manager (npm test 38/38, test:render 76 route PASS, build OK; chạy luồng với mock MOCK_OPS=1). Chưa chạy với backend thật.",
-      "blocked_reason": "FE đã xong (khu #/staff, #/manager); chờ backend làm /api/ops/* theo BACKEND-TODO.md mục A. Trong lúc chờ, thao tác lưu trên trình duyệt (D04, D15)."
+      "blocked_reason": "Code backend đã có trên nhánh feature/ops-backend (D18, docs/facility-ops-api.md); chưa chạy với SQL Server. Chạy luồng ở docs/facility-ops-api.md mục 5 rồi đổi passing."
     },
     {
       "id": "F15", "flow": 5, "uc": ["UC12"], "actor": "Nhân viên cơ sở",
@@ -122,7 +122,7 @@
       "state": "blocked",
       "depends_on": ["F11", "F14"],
       "evidence": "2026-10-01: FE xong trên nhánh feature/figma-3009-staff-manager (npm test 38/38, test:render 76 route PASS, build OK; chạy luồng với mock MOCK_OPS=1). Chưa chạy với backend thật.",
-      "blocked_reason": "FE đã xong (khu #/staff, #/manager); chờ backend làm /api/ops/* theo BACKEND-TODO.md mục A. Trong lúc chờ, thao tác lưu trên trình duyệt (D04, D15)."
+      "blocked_reason": "Code backend đã có trên nhánh feature/ops-backend (D18, docs/facility-ops-api.md); chưa chạy với SQL Server. Chạy luồng ở docs/facility-ops-api.md mục 5 rồi đổi passing."
     },
     {
       "id": "F16", "flow": 5, "uc": ["UC13"], "actor": "Quản lý cơ sở",
@@ -131,7 +131,7 @@
       "state": "blocked",
       "depends_on": ["F21"],
       "evidence": "2026-10-01: FE xong trên nhánh feature/figma-3009-staff-manager (npm test 38/38, test:render 76 route PASS, build OK; chạy luồng với mock MOCK_OPS=1). Chưa chạy với backend thật.",
-      "blocked_reason": "FE đã xong (khu #/staff, #/manager); chờ backend làm /api/ops/* theo BACKEND-TODO.md mục A. Trong lúc chờ, thao tác lưu trên trình duyệt (D04, D15)."
+      "blocked_reason": "Code backend đã có trên nhánh feature/ops-backend (D18, docs/facility-ops-api.md); chưa chạy với SQL Server. Chạy luồng ở docs/facility-ops-api.md mục 5 rồi đổi passing."
     },
     {
       "id": "F17", "flow": 1, "uc": ["UC14"], "actor": "Quản lý cơ sở",
@@ -140,7 +140,7 @@
       "state": "blocked",
       "depends_on": ["F16"],
       "evidence": "2026-10-01: FE xong trên nhánh feature/figma-3009-staff-manager (npm test 38/38, test:render 76 route PASS, build OK; chạy luồng với mock MOCK_OPS=1). Chưa chạy với backend thật.",
-      "blocked_reason": "FE đã xong (khu #/staff, #/manager); chờ backend làm /api/ops/* theo BACKEND-TODO.md mục A. Trong lúc chờ, thao tác lưu trên trình duyệt (D04, D15)."
+      "blocked_reason": "Code backend đã có trên nhánh feature/ops-backend (D18, docs/facility-ops-api.md); chưa chạy với SQL Server. Chạy luồng ở docs/facility-ops-api.md mục 5 rồi đổi passing."
     },
     {
       "id": "F18", "flow": 3, "uc": ["UC15", "UC16"], "actor": "Quản lý cơ sở",
@@ -149,7 +149,7 @@
       "state": "blocked",
       "depends_on": ["F17"],
       "evidence": "2026-10-01: FE xong trên nhánh feature/figma-3009-staff-manager (npm test 38/38, test:render 76 route PASS, build OK; chạy luồng với mock MOCK_OPS=1). Chưa chạy với backend thật.",
-      "blocked_reason": "FE đã xong (khu #/staff, #/manager); chờ backend làm /api/ops/* theo BACKEND-TODO.md mục A. Trong lúc chờ, thao tác lưu trên trình duyệt (D04, D15)."
+      "blocked_reason": "Code backend đã có trên nhánh feature/ops-backend (D18, docs/facility-ops-api.md); chưa chạy với SQL Server. Chạy luồng ở docs/facility-ops-api.md mục 5 rồi đổi passing."
     },
     {
       "id": "F19", "flow": 5, "uc": ["UC17"], "actor": "Quản lý cơ sở",
@@ -158,7 +158,7 @@
       "state": "blocked",
       "depends_on": ["F11", "F14"],
       "evidence": "2026-10-01: FE xong trên nhánh feature/figma-3009-staff-manager (npm test 38/38, test:render 76 route PASS, build OK; chạy luồng với mock MOCK_OPS=1). Chưa chạy với backend thật.",
-      "blocked_reason": "FE đã xong (khu #/staff, #/manager); chờ backend làm /api/ops/* theo BACKEND-TODO.md mục A. Trong lúc chờ, thao tác lưu trên trình duyệt (D04, D15)."
+      "blocked_reason": "Code backend đã có trên nhánh feature/ops-backend (D18, docs/facility-ops-api.md); chưa chạy với SQL Server. Chạy luồng ở docs/facility-ops-api.md mục 5 rồi đổi passing."
     },
     {
       "id": "F20", "flow": 4, "uc": ["UC18"], "actor": "Quản lý cơ sở",
@@ -167,7 +167,7 @@
       "state": "blocked",
       "depends_on": ["F18"],
       "evidence": "2026-10-01: FE xong trên nhánh feature/figma-3009-staff-manager (npm test 38/38, test:render 76 route PASS, build OK; chạy luồng với mock MOCK_OPS=1). Chưa chạy với backend thật.",
-      "blocked_reason": "FE đã xong (khu #/staff, #/manager); chờ backend làm /api/ops/* theo BACKEND-TODO.md mục A. Trong lúc chờ, thao tác lưu trên trình duyệt (D04, D15)."
+      "blocked_reason": "Code backend đã có trên nhánh feature/ops-backend (D18, docs/facility-ops-api.md); chưa chạy với SQL Server. Chạy luồng ở docs/facility-ops-api.md mục 5 rồi đổi passing."
     },
     {
       "id": "F21", "flow": null, "uc": ["UC24", "UC26"], "actor": "Chung",
@@ -175,7 +175,7 @@
       "verification": "_be; _fe; staff01 đăng nhập vào được khu nhân viên",
       "state": "blocked",
       "evidence": "2026-10-01: FE xong trên nhánh feature/figma-3009-staff-manager (npm test 38/38, test:render 76 route PASS, build OK; chạy luồng với mock MOCK_OPS=1). Chưa chạy với backend thật. staff01 vào #/staff.",
-      "blocked_reason": "FE đã xong (đăng nhập STAFF → #/staff, MANAGER → #/manager); backend chưa có tài khoản seed vai trò MANAGER và chưa lọc dữ liệu theo cơ sở được phân công (UserFacility) — BACKEND-TODO.md mục A."
+      "blocked_reason": "Code backend đã có trên nhánh feature/ops-backend (D18, docs/facility-ops-api.md); chưa chạy với SQL Server. Chạy luồng ở docs/facility-ops-api.md mục 5 rồi đổi passing."
     },
     {
       "id": "F22", "flow": 4, "uc": ["UC19", "UC20", "UC21"], "actor": "Quản lý vận hành KD",
