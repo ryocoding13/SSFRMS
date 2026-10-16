@@ -156,3 +156,10 @@
     (`services/`, `customer.css`); nhắc tag "BẢN DEMO UI" không còn trong code.
 - Phiên sau nên: chạy `./init.sh` đầy đủ trên máy có .NET; sau đó làm F28 (test backend) hoặc F21
   (khu Nhân viên / Quản lý) tuỳ nhóm ưu tiên.
+
+## C07 QR frontend — 2026-10-16 — Tiến / Codex
+- Thêm component QR riêng + 2 dòng vào Units.jsx; không sửa nghiệp vụ cũ, API hoặc DB.
+- C07q xem QR, C07r1/C07r2 kết quả quét; mô phỏng chỉ VITE_USE_API=false, API thật báo chưa hỗ trợ.
+- Kiểm chứng: 42 test gốc, 10 test QR, 9 test business pass; 76 route SSR pass; Vite build pass.
+- Browser Chromium: popup 480x598, QR, kết quả mở cửa, từ chối hết hạn, icon 96px, Escape, Đóng, khóa chưa bàn giao, mobile 390px, không pageerror.
+- Chưa có backend QR; hướng dẫn C07-QR-HUONG-DAN.md.
