@@ -4,11 +4,13 @@ export const ROLE_LABELS = {
   CUSTOMER: "Khách hàng",
   STAFF: "Nhân viên cơ sở",
   MANAGER: "Quản lý cơ sở",
+  BUSINESS_OPERATOR: "Vận hành KD",
+  BUSSINESS_OPERATOR: "Vận hành KD",
   OPERATIONS: "Vận hành KD",
   OPERATION_MANAGER: "Vận hành KD",
   ADMIN: "Quản trị",
 };
-export const ROLE_ORDER = ["CUSTOMER", "STAFF", "MANAGER", "OPERATIONS", "OPERATION_MANAGER", "ADMIN"];
+export const ROLE_ORDER = ["CUSTOMER", "STAFF", "MANAGER", "BUSINESS_OPERATOR", "BUSSINESS_OPERATOR", "OPERATIONS", "OPERATION_MANAGER", "ADMIN"];
 export const roleLabel = (name) => ROLE_LABELS[name] || name;
 export const sortRoles = (list, key = (x) => x) =>
   [...list].sort((a, b) => {
@@ -26,6 +28,8 @@ export const ROLE_SCOPE = {
   CUSTOMER: "Chỉ dữ liệu của chính mình",
   STAFF: "Dữ liệu tại cơ sở được gán",
   MANAGER: "Dữ liệu tại cơ sở được gán",
+  BUSINESS_OPERATOR: "Toàn bộ dữ liệu hệ thống (không gồm tài khoản)",
+  BUSSINESS_OPERATOR: "Toàn bộ dữ liệu hệ thống (không gồm tài khoản)",
   OPERATIONS: "Toàn bộ dữ liệu hệ thống (không gồm tài khoản)",
   OPERATION_MANAGER: "Toàn bộ dữ liệu hệ thống (không gồm tài khoản)",
   ADMIN: "Toàn bộ dữ liệu hệ thống, gồm cả tài khoản",
@@ -87,8 +91,10 @@ export const isCustomerRoles = (roles = []) => roles.length === 0 || roles.inclu
 
 export const isStaffRoles = (roles = []) => roles.includes("STAFF");
 export const isManagerRoles = (roles = []) => roles.includes("MANAGER");
-// Vai trò làm việc tại cơ sở (không dùng giao diện khách hàng)
-export const isOpsRoles = (roles = []) => isStaffRoles(roles) || isManagerRoles(roles);
+export const isBusinessRoles = (roles = []) =>
+  roles.includes("BUSINESS_OPERATOR") || roles.includes("BUSSINESS_OPERATOR") || roles.includes("OPERATIONS") || roles.includes("OPERATION_MANAGER");
+// Vai trò làm việc tại cơ sở / vận hành (không dùng giao diện khách hàng)
+export const isOpsRoles = (roles = []) => isStaffRoles(roles) || isManagerRoles(roles) || isBusinessRoles(roles);
 // Trang chính sau đăng nhập theo vai trò (ưu tiên quyền cao hơn khi có nhiều vai trò)
 export const homeFor = (roles = []) =>
-  isAdminRoles(roles) ? "admin" : isManagerRoles(roles) ? "manager" : isStaffRoles(roles) ? "staff" : "overview";
+  isAdminRoles(roles) ? "admin" : (isManagerRoles(roles) || isBusinessRoles(roles)) ? "manager" : isStaffRoles(roles) ? "staff" : "overview";

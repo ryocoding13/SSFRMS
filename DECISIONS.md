@@ -75,3 +75,10 @@
 - Backend trả 404 cho `/api/ops/board` → giao diện chuyển sang lưu trên trình duyệt (`safespace.ops.v1`) và hiện dòng
   "Khu vận hành chưa kết nối được máy chủ. Thao tác đang được lưu trên trình duyệt này." (không dùng chữ "dữ liệu mẫu", theo D07).
 - Mock `npm run dev:mock` với `MOCK_OPS=1` có đủ endpoint này để thử; backend làm xong thì không cần sửa giao diện.
+
+## D16 — Kết nối 100% dữ liệu vận hành & khách hàng trực tiếp từ SQL Server — Đã chốt (16/10/2026)
+- Xoá bỏ hoàn toàn mock store RAM `FacilityOpsStateStore.GetOrCreateState` và mock data fallback trong `OpsProvider`.
+- Mọi dữ liệu hiển thị trên bảng làm việc của Nhân viên (`GET /api/staff/board`) và Quản lý (`GET /api/manager/board`) đều được truy vấn trực tiếp từ các bảng SQL Server (`Reservations`, `StorageUnits`, `RentalContracts`, `UnitAssignments`, `HandoverRecords`, `ReturnInspections`, `SupportTickets`, `UserFacilities`, `Payments`).
+- Mọi thao tác ghi nhận (đối soát, phân bổ kho, bàn giao, kiểm tra trả kho, gia hạn, hoàn cọc) đều được lưu vĩnh viễn vào SQL Server qua `dbContext.SaveChangesAsync()`.
+- Các hành động của khách hàng (`REQUEST_RETURN`, `UPDATE_NAME`, `CHANGE_PASSWORD`) được kết nối trực tiếp đến các endpoint backend (`POST /api/contracts/{id}/move-out`, `PUT /api/auth/profile`, `POST /api/auth/change-password`).
+

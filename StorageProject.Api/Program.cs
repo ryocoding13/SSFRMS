@@ -88,8 +88,16 @@ builder.Services.AddScoped<IRenewalService, RenewalService>();
 builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
 builder.Services.AddScoped<IHandoverService, HandoverService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IPayOSService, PayOSService>();
+builder.Services.AddScoped<IStaffService, StaffService>();
+builder.Services.AddScoped<IManagerService, ManagerService>();
+
 
 var app = builder.Build();
+
+
+
+
 
 // 6. Middleware Pipeline
 app.UseHttpsRedirection();
@@ -117,6 +125,8 @@ app.MapPaymentEndpoints();
 app.MapRenewalEndpoints();
 app.MapSupportTicketEndpoints();
 app.MapAdminEndpoints();
+app.MapStaffEndpoints();
+app.MapManagerEndpoints();
 
 // Root status check
 app.MapGet("/health", () => Results.Ok(new

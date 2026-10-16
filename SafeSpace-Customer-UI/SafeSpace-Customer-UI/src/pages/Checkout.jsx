@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Photo } from "../components/Photo";
 import { Button, DetailList, Empty, Icon, LinkButton, Notice } from "../components/UI";
 import PaymentQr from "../components/PaymentQr";
+import PayOSEmbeddedModal from "../components/PayOSEmbeddedModal";
+import { api } from "../api/endpoints";
 import { bandLabel, typeLabel } from "../lib/catalog";
 import { distanceLabel } from "../lib/format";
 import { dateLabel, formatCountdown, money, rangeLabel } from "../lib/format";
@@ -21,7 +23,7 @@ function NotFound() {
   );
 }
 
-// C04 — Đặt chỗ & Thanh toán chuyển khoản, đếm ngược giữ chỗ
+// C04 — Đặt chỗ & Thanh toán chuyển khoản, đếm ngược giữ chỗ với payOS VietQR Integration
 export function Checkout({ id }) {
   const { data, dispatch, timeoutSeconds } = useApp();
   const r = data.reservations.find((x) => x.reservation_id === id);
@@ -29,8 +31,70 @@ export function Checkout({ id }) {
   const now = useNow(250);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [payOSData, setPayOSData] = useState(null);
+  const [loadingPayOS, setLoadingPayOS] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+
   const total = r?.timeout_seconds || timeoutSeconds;
   const remaining = r?.expires_at ? (new Date(r.expires_at) - now) / 1000 : 0;
+
+  // 1. Fetch payOS QR details from Backend
+  useEffect(() => {
+    if (!r || r.status !== "PENDING_PAYMENT") {
+      setLoadingPayOS(false);
+      return;
+    }
+    let alive = true;
+    setLoadingPayOS(true);
+
+    const numericReservationId = r.api_id || (typeof id === "number" ? id : !isNaN(Number(id)) ? Number(id) : null);
+
+    api.createPayOSQr({ reservationId: numericReservationId, amount: r.initial_total })
+      .then((res) => {
+        if (alive && res) {
+          setPayOSData({
+            reservationId: res.reservationId || id,
+            orderCode: res.orderCode,
+            checkoutUrl: res.checkoutUrl,
+            qrCode: res.qrCode,
+            amount: res.amount || r.initial_total,
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not load backend payOS QR details:", err);
+      })
+      .finally(() => {
+        if (alive) setLoadingPayOS(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [id, r?.status, r?.initial_total, r?.api_id]);
+
+  // 2. Poll Backend status every 3s to auto-detect payment completion
+  useEffect(() => {
+    if (!r || r.status !== "PENDING_PAYMENT") return;
+
+    const numericReservationId = r.api_id || (typeof id === "number" ? id : !isNaN(Number(id)) ? Number(id) : null);
+    if (!numericReservationId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.reservationStatus(numericReservationId);
+        if (res && (res.isPaid || res.status === "CONFIRMED" || res.status === "PAID")) {
+          clearInterval(interval);
+          await dispatch("CONFIRM_TRANSFER", { reservation_id: id });
+          go(`confirmation/${id}`);
+        }
+      } catch (err) {
+        // Silent polling fail
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [id, r?.status, r?.api_id, dispatch]);
 
   useEffect(() => {
     if (!r) return;
@@ -54,6 +118,13 @@ export function Checkout({ id }) {
     setBusy(false);
     if (res.code === "EXPIRED") return go(`checkout/${id}/failed`, { replace: true });
     setError(res.error);
+  };
+
+  const handleSuccessModal = () => {
+    setShowModal(false);
+    dispatch("CONFIRM_TRANSFER", { reservation_id: id }).then(() => {
+      go(`confirmation/${id}`);
+    });
   };
 
   const pct = Math.max(0, Math.min(100, (remaining / total) * 100));
@@ -86,27 +157,66 @@ export function Checkout({ id }) {
           </section>
         </div>
         <aside className="panel booking">
-          <h2>Thanh toán chuyển khoản</h2>
-          <p className="hint">Quét mã QR bằng ứng dụng ngân hàng để thanh toán đơn đặt chỗ.</p>
-          <PaymentQr amount={r.initial_total} content={r.reservation_id} />
+          <h2>Thanh toán qua liên kết payOS (VietQR)</h2>
+          <p className="hint">Quét mã QR bên dưới bằng camera hoặc ứng dụng để mở liên kết thanh toán payOS tự động.</p>
+
+          <PaymentQr
+            amount={r.initial_total}
+            content={payOSData?.orderCode ? `#${payOSData.orderCode}` : r.reservation_id}
+            checkoutUrl={payOSData?.checkoutUrl}
+            payOSQrCode={payOSData?.checkoutUrl || payOSData?.qrCode}
+            loading={loadingPayOS}
+          />
+
           <dl className="pay-rows">
             <div><dt>Số tiền cần chuyển</dt><dd className="pay-rows__amount">{money(r.initial_total)}</dd></div>
-            <div><dt>Nội dung chuyển khoản</dt><dd>{r.reservation_id}</dd></div>
+            <div><dt>Nội dung chuyển khoản</dt><dd>{payOSData?.orderCode ? `#${payOSData.orderCode}` : r.reservation_id}</dd></div>
           </dl>
+
+          {payOSData?.checkoutUrl && (
+            <div style={{ marginBottom: "16px", textAlign: "center" }}>
+              <Button
+                variant="outline"
+                size="sm"
+                block
+                onClick={() => setShowModal(true)}
+                style={{ marginBottom: "8px" }}
+              >
+                Mở Modal Thanh Toán payOS
+              </Button>
+              <a
+                href={payOSData.checkoutUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontSize: "0.85rem", color: "#2563eb", textDecoration: "underline" }}
+              >
+                Mở trang payOS Checkout riêng biệt ↗
+              </a>
+            </div>
+          )}
+
           <div className="countdown" role="timer" aria-label="Thời gian còn lại để xác nhận">
             <div className="countdown__row">
-              <span>Thời gian còn lại để xác nhận</span>
+              <span>Thời gian còn lại để giữ chỗ</span>
               <strong>{formatCountdown(remaining)}</strong>
             </div>
             <div className="countdown__bar" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={Math.round(Math.max(0, remaining))}>
               <span style={{ width: `${pct}%` }} />
             </div>
-            <p>Đơn đặt chỗ sẽ tự huỷ nếu hết thời gian mà chưa xác nhận chuyển khoản.</p>
+            <p>Đơn đặt chỗ sẽ tự động cập nhật ngay khi nhận được thanh toán từ payOS.</p>
           </div>
           {error && <Notice tone="error">{error}</Notice>}
           <Button block onClick={confirm} disabled={busy}>Tôi đã chuyển khoản</Button>
         </aside>
       </div>
+
+      {showModal && payOSData && (
+        <PayOSEmbeddedModal
+          reservationData={payOSData}
+          onSuccess={handleSuccessModal}
+          onClose={() => setShowModal(false)}
+        />
+      )}
     </main>
   );
 }

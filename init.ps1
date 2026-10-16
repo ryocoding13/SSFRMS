@@ -1,46 +1,71 @@
-# init.ps1 — bản Windows của init.sh. Chạy ĐẦU mỗi phiên làm việc với AI.
-# Dùng: .\init.ps1            (đầy đủ)
-#       .\init.ps1 -FeOnly    (bỏ qua backend)
-# Nếu bị chặn: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+# init.ps1 - Windows version of init.sh. Run at start of session.
 param([switch]$FeOnly)
 $ErrorActionPreference = "Stop"
 $Root = $PSScriptRoot
 $Fe = Join-Path $Root "SafeSpace-Customer-UI\SafeSpace-Customer-UI"
 
-function Step($t) { Write-Host "`n=== $t ===" -ForegroundColor Cyan }
-function Fail($t) { Write-Host "`n[LỖI] $t" -ForegroundColor Red; exit 1 }
-function Run($cmd) { & cmd /c $cmd; if ($LASTEXITCODE -ne 0) { Fail "Lệnh thất bại: $cmd" } }
+function Step {
+    param([string]$t)
+    Write-Host ""
+    Write-Host "=== $t ===" -ForegroundColor Cyan
+}
 
-Step "1. Kiểm tra công cụ"
-if (-not (Get-Command node -ErrorAction SilentlyContinue)) { Fail "Chưa cài Node.js (cần >= 22.12)" }
+function Fail {
+    param([string]$t)
+    Write-Host ""
+    Write-Host "[ERROR] $t" -ForegroundColor Red
+    exit 1
+}
+
+function Run {
+    param([string]$cmd)
+    & cmd /c $cmd
+    if ($LASTEXITCODE -ne 0) {
+        Fail "Command failed: $cmd"
+    }
+}
+
+Step "1. Checking tools"
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) { Fail "Node.js not found (need >= 22.12)" }
 $v = (node -v).TrimStart("v").Split(".") | ForEach-Object { [int]$_ }
-if ($v[0] -lt 22 -or ($v[0] -eq 22 -and $v[1] -lt 12)) { Fail "Node $(node -v) quá cũ, cần >= 22.12" }
+if ($v[0] -lt 22 -or ($v[0] -eq 22 -and $v[1] -lt 12)) { Fail "Node $(node -v) is too old, need >= 22.12" }
 Write-Host "Node $(node -v)"
 $HasDotnet = [bool](Get-Command dotnet -ErrorAction SilentlyContinue)
 if ($HasDotnet) { Write-Host ".NET $(dotnet --version)" }
-if (-not $FeOnly -and -not $HasDotnet) { Fail "Chưa cài .NET SDK 10, hoặc chạy .\init.ps1 -FeOnly" }
+if (-not $FeOnly -and -not $HasDotnet) { Fail ".NET SDK 10 not found, or run .\init.ps1 -FeOnly" }
 
-Step "2. Frontend: cài thư viện"
+Step "2. Frontend: npm ci check"
 Push-Location $Fe
-if (-not (Test-Path node_modules)) { Run "npm ci" } else { Write-Host "node_modules đã có" }
+if (-not (Test-Path node_modules)) { Run "npm ci" } else { Write-Host "node_modules exists" }
 
-Step "3. Frontend: test nghiệp vụ";        Run "npm test"
-Step "4. Frontend: render toàn bộ route";  Run "npm run test:render"
-Step "5. Frontend: build";                 Run "npm run build"
+Step "3. Frontend: npm test"
+Run "npm test"
+
+Step "4. Frontend: npm run test:render"
+Run "npm run test:render"
+
+Step "5. Frontend: npm run build"
+Run "npm run build"
+
 Pop-Location
 
 if (-not $FeOnly) {
-  Step "6. Backend: khôi phục công cụ + build"
+  Step "6. Backend: dotnet tool restore & build"
   Push-Location $Root
   Run "dotnet tool restore"
   Run "dotnet build StorageProject.slnx --nologo -v quiet"
-  if (Get-ChildItem -Directory -Filter "*Tests*" -ErrorAction SilentlyContinue) {
-    Step "7. Backend: test"; Run "dotnet test StorageProject.slnx --nologo"
-  } else { Write-Host "(Chưa có project test backend — xem F28 trong feature_list.json)" }
+  $testDirs = Get-ChildItem -Directory -Filter "*Tests*" -ErrorAction SilentlyContinue
+  if ($testDirs) {
+    Step "7. Backend: test"
+    Run "dotnet test StorageProject.slnx --nologo"
+  } else {
+    Write-Host "(No backend test project yet - see F28 in feature_list.json)"
+  }
   Pop-Location
 }
 
-Step "Trạng thái repo"
+Step "Repo Status"
 git -C $Root status --short
 git -C $Root log --oneline -5
-Write-Host "`n=== MÔI TRƯỜNG ỔN — đọc progress.md và feature_list.json để chọn việc ===" -ForegroundColor Green
+Write-Host ""
+Write-Host "=== ENVIRONMENT OK - check progress.md and feature_list.json ===" -ForegroundColor Green
