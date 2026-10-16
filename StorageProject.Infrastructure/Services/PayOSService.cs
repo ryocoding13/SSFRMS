@@ -125,7 +125,7 @@ public class PayOSService : IPayOSService
         }
 
         long orderCode = reservation.OrderCode ?? long.Parse(DateTime.UtcNow.ToString("yyMMddHHmmss") + Random.Shared.Next(10, 99));
-        int amount = (int)(reservation.RequiredDeposit > 0 ? reservation.RequiredDeposit : reservation.EstimatedAmount);
+        int amount = (int)(reservation.EstimatedAmount + (reservation.RequiredDeposit > 0 ? reservation.RequiredDeposit : 0));
         if (request.Amount.HasValue && request.Amount.Value > 0)
         {
             amount = (int)request.Amount.Value;
