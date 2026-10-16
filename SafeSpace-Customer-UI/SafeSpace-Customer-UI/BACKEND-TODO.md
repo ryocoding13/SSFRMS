@@ -7,6 +7,79 @@ API ngay khi backend có — không cần sửa giao diện nếu làm đúng h�
 Chạy thử hợp đồng không cần .NET: `MOCK_OPS=1 npm run dev:mock` (máy chủ giả lập `mock/mock-api.mjs` đã làm đủ các
 endpoint mục A–B; `tests/ops-api.test.mjs` kiểm tra từng endpoint). Backend làm đúng như mock là giao diện chạy.
 
+## Mới 16/10/2026 — API cho các màn đồng bộ Figma (PayOS, thanh toán tại kho, QR mở cửa, F12)
+
+Giao diện **đã gọi sẵn** các endpoint dưới đây (`src/api/endpoints.js`, `src/api/payment-access.js`, `src/ops/api.js`).
+Backend chưa có route → giao diện **không báo lỗi**: hiện thông báo thay thế (bảng cột "Khi chưa có") cho tới khi backend
+làm xong. Máy chủ giả lập đã làm đủ (`npm run dev:mock`), `tests/payment-api.test.mjs` kiểm tra từng endpoint. Làm đúng
+tên route + tên trường JSON là giao diện chạy ngay, không phải sửa giao diện. JSON camelCase như các endpoint đang có.
+
+| Mục | Endpoint | Người làm | Khi chưa có (404/405) |
+|---|---|---|---|
+| P1 | ~~`POST /api/reservations/{id}/payos`~~ — **đã nối** vào `POST /api/reservations/create-payos-qr` `{ reservationId }` có sẵn trên main (16/10) | Đạt | — |
+| P2 | `POST /api/reservations/{id}/pay-at-facility` → `ReservationDto` | Đạt | Giao diện gọi `confirm-transfer` (đã có) → đơn vẫn vào S09 chờ thu tiền |
+| P3 | `POST /api/payments/{id}/payos` → `PayosCheckoutDto`; `GET /api/payments/{id}` (đã có) để hỏi trạng thái | Đạt | Popup C11q báo "đang tạm gián đoạn, thanh toán tại quầy" |
+| P4 | Webhook PayOS — **đã có** `POST /api/payments/payos-webhook` (webhook đổi đơn sang `CONFIRMED`) | Đạt | — (giao diện hỏi trạng thái 3 giây/lần) |
+| Q1 | `GET /api/contracts/{id}/access-qr` → `AccessQrDto` | Tiến | Popup C07q báo "Mã QR đang được cơ sở kích hoạt" |
+| Q2 | `POST /api/access/scan` `{ code }` → `ScanResultDto` (cho phép không đăng nhập — máy quét ở cửa) | Tiến | Màn `#/door` báo "Máy quét chưa kết nối được hệ thống" |
+| R1 | `GET /api/tickets/{id}` trả thêm `responses[]` | Ngọc Mai | C12 không hiện dòng phản hồi |
+| H1 | `GET /api/reservations/{id}/cancel-preview` → `CancelPreviewDto`; `ReservationDto` thêm `refundAmount`, `refundStatus` | Ngọc Mai | C14a ghi "Theo chính sách hiện hành / Cơ sở xác nhận sau khi huỷ" |
+| U1 | **Đã nối** `PUT /api/staff/units/{mã}/status` `{ status, reason }` có sẵn trên main (nhân viên + quản lý). Còn thiếu: kiểm chuyển tiếp hợp lệ, bắt buộc lý do, trạng thái `INSPECTION` | Thắng | — |
+
+### P · PayOS (D19) và thanh toán tại cửa hàng
+```json
+// PayosCheckoutDto — P1, P3 (gọi lại khi đơn PayOS còn hạn thì trả lại đúng đơn cũ, không tạo mới)
+{ "orderCode": 100001, "amount": 4600000, "description": "SS0142", "status": "PENDING",
+  "qrCode": "000201010212385700...6304ABCD", "checkoutUrl": "https://pay.payos.vn/web/...", "expiredAt": "2026-10-16T08:10:00Z" }
+```
+- `qrCode`, `checkoutUrl` lấy nguyên từ PayOS SDK (`createPaymentLink`). Giao diện vẽ `qrCode` thành ảnh QR, kèm link `checkoutUrl`.
+- `amount` của P1 = `estimatedAmount + requiredDeposit` (thuê cả kỳ + cọc 1 tháng). P3 = số tiền khoản `RENEWAL`.
+- `expiredAt` = thời gian giữ chỗ. Giao diện đếm ngược theo giá trị nhỏ hơn giữa `expiredAt` và 10 phút (`VITE_PAYMENT_TIMEOUT_SECONDS=600`);
+  hết giờ giao diện gọi `POST /api/reservations/{id}/cancel` như cũ. **Backend đặt `expiredAt` 10 phút** cho khớp Figma C04.
+- Webhook (P4): kiểm chữ ký bằng SDK + Checksum Key, đúng `orderCode`, đúng `amount`, gửi trùng chỉ ghi một lần. Đặt chỗ: đơn
+  `PENDING_PAYMENT` → `CONFIRMED` (hoặc `PAID`; giao diện coi cả hai là "Đã thanh toán", `UNIT_ASSIGNED` cũng vậy) và ghi khoản
+  thuê + cọc `PAID`. Gia hạn: payment `RENEWAL` → `PAID`, renewal → `PAID`, `contracts.end_date` = `newEndDate`.
+- Giao diện hỏi trạng thái bằng `GET /api/reservations/{id}` (đặt chỗ) và `GET /api/payments/{id}` (gia hạn, `status: "PAID"`).
+- Lúc quản lý phân bổ ô (M05) với đơn đã trả qua PayOS: gắn các khoản đã thu vào hợp đồng, **không tạo khoản mới**.
+- P2 thanh toán tại cửa hàng: đơn `PENDING_PAYMENT` → trạng thái chờ thu (dùng `PENDING_VERIFICATION` sẵn có, hoặc trạng thái mới
+  `PENDING_AT_FACILITY` — giao diện hiểu cả hai), ghi `paymentMethod: "AT_FACILITY"` trong `ReservationDto`, giữ chỗ 24 giờ
+  (job nền tự huỷ khi quá hạn), huỷ link PayOS đang mở của đơn. `GET /api/ops/board` phải đưa đơn này vào `payments[]` để hiện
+  ở S09; nhân viên xác nhận bằng `POST /api/ops/payments/{id}/confirm` (đã có). Đơn trả PayOS **không** vào `payments[]`.
+- Board `payments[]` nên trả thêm `rent`, `deposit`, `months` (S09 dòng "Gồm"); chưa có thì giao diện tự tách từ `amount`.
+
+### Q · QR mở cửa (Tiến) — mô phỏng, không dùng thiết bị thật
+```json
+// AccessQrDto — Q1: chỉ chủ hợp đồng, hợp đồng đã bàn giao (HANDED_OVER) và còn hiệu lực; sai → 400 { "error": "..." }
+{ "contractId": 86, "code": "SSQR-86-4821", "backupCode": "4821 9037", "unitNumber": "B-015",
+  "unitType": "Kho lạnh", "location": "Tầng 1 · Dãy B", "validUntil": "2026-12-25" }
+// ScanResultDto — Q2: nhận code hoặc backupCode; luôn trả 200, kết quả nằm trong "result"; ghi activity_logs mỗi lần quét
+{ "result": "OPEN", "unitNumber": "B-015", "customerName": "Nguyễn Thị Mai", "contractCode": "HĐ-2026-0086",
+  "scannedAt": "2026-10-16T03:32:00Z", "reason": null }
+{ "result": "DENIED", "reason": "Mã đã hết hiệu lực — hợp đồng đã trả kho.", "unitNumber": "B-015", ... }
+```
+`code` chỉ là mã tham chiếu (không chứa bí mật). Hết hiệu lực khi biên bản trả kho được lập (S04) hoặc hợp đồng kết thúc.
+Hợp đồng quá hạn có khoá QR hay không: nhóm chốt (giao diện chỉ hiện `reason` backend trả về).
+
+### R · Phản hồi hỗ trợ (Ngọc Mai)
+`SupportTicketDetailDto` thêm `"responses": [{ "message": "Thẻ cũ bị lỗi từ…", "staffName": "Trần Văn Long", "createdAt": "2026-09-14T04:02:00" }]`
+(lấy từ phản hồi S05, hiện đang nằm trong `activity_logs`). Giao diện cũng đọc `note`/`content` nếu đặt tên khác.
+
+### H · Huỷ đơn đã thanh toán (Ngọc Mai)
+```json
+// CancelPreviewDto — theo chính sách CANCELLATION đang hiệu lực ở B02
+{ "paidAmount": 4600000, "cancellationFee": 345000, "refundAmount": 4255000, "policyName": "Huỷ trước ngày nhận kho: phí 10% tiền thuê" }
+```
+`POST /api/reservations/{id}/cancel` (đã có, nhận `PENDING_PAYMENT` / `CONFIRMED`) với đơn đã trả: ghi khoản `REFUND`, trả
+`refundAmount` + `refundStatus: "PENDING"` trong `ReservationDto` để C14b hiện "Đã huỷ · Đang hoàn tiền".
+
+### U · Đổi trạng thái ô kho — F12 (Thắng)
+`PUT /api/ops/units/{code}/status` `{ "status": "MAINTENANCE", "reason": "Hỏng khoá cửa" }` — chỉ `MANAGER`, đúng cơ sở.
+Trạng thái theo từ của board: `EMPTY` (DB `AVAILABLE`), `MAINTENANCE`, `INSPECTION`. Chỉ cho: `EMPTY ↔ MAINTENANCE`,
+`INSPECTION → EMPTY | MAINTENANCE`; ô đang có khách → 400. Thiếu lý do → 400. Ghi `unit_status_history` (dùng lại
+`FacilityOpsService.SetUnitStatus`). Board `units[]` nên trả thêm `history[]` `{ from, to, reason, by, at }` (không bắt buộc).
+
+---
+
 ## Đã nối API (không cần làm thêm)
 `/api/auth/register · login · logout`, `/api/facilities`, `/api/unit-types`, `/api/rates`, `/api/availability/check`,
 `/api/reservations` (tạo, xem, huỷ), `/api/contracts` (+ payments, renewals), `/api/handovers/{id}/confirm`,
@@ -77,7 +150,7 @@ Luật nghiệp vụ chi tiết (điều kiện chặn, chuyển trạng thái) 
 
 ## C. Ưu tiên 3 — chỉnh nhỏ
 - [ ] JSON `DateTime` trả kèm `Z` (UTC); hiện đọc từ DB không có múi giờ, giao diện phải tự coi là UTC.
-- [ ] Giữ chỗ đơn chờ chuyển khoản: backend 24 giờ, Figma 1 phút → thống nhất một con số (giao diện đọc `VITE_PAYMENT_TIMEOUT_SECONDS`).
+- [ ] Giữ chỗ: thanh toán QR 10 phút (Figma C04, `VITE_PAYMENT_TIMEOUT_SECONDS=600`), thanh toán tại cửa hàng 24 giờ (C04c) — backend đặt `ExpiresAt` / `expiredAt` PayOS theo hai con số này.
 - [ ] Khu quản trị: ~~role `OPERATIONS` (Vận hành KD)~~ (đã có), ghi lịch sử đăng nhập thất bại, lọc nhật ký nhiều `action`.
 - [x] API khu Vận hành KD (Figma B01–B05): `/api/operations/*`, role `OPERATIONS`, tài khoản `ops01` / `Ops@123` — hợp đồng ở `docs/operations-api.md`. Giao diện B01–B05 chưa có.
 

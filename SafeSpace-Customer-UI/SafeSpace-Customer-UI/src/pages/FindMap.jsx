@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Photo } from "../components/Photo";
 import SearchBar from "../components/SearchBar";
 import { ViewToggle } from "../components/Inline";
+import { directionsUrl } from "../api/payment-access";
 import { Icon, PageHeader } from "../components/UI";
 import { HCMC_CENTER, coordsOf } from "../config/geo";
 import { areaLabel, minRate, offerTypes, searchFacilities, typeLabel } from "../lib/catalog";
@@ -156,6 +157,9 @@ export default function FindMap({ query }) {
             <p className="price price--lg">Từ {money(minRate(current, filters) ?? 0)} / tháng</p>
             <a className="btn btn--primary btn--block" href={href(`find/${current.facility_id}${qs({ type: filters.type, band: filters.band })}`)}>
               Xem chi tiết cơ sở
+            </a>
+            <a className="btn btn--outline btn--block" href={directionsUrl(current)} target="_blank" rel="noreferrer">
+              <Icon name="pin" size={18} /> Chỉ đường
             </a>
           </aside>
         )}

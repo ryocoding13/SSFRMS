@@ -62,7 +62,8 @@ Muốn làm lại từ đầu: xoá `safespace.ops.v1` và `safespace.customer.v
 | Hợp đồng, khoản thu, lịch nhận kho, xác nhận bàn giao | `/api/contracts`, `/api/handovers/{id}/confirm` |
 | Gia hạn | `POST /api/contracts/{id}/renewals` |
 | Yêu cầu hỗ trợ (gửi, xem, huỷ) | `/api/tickets` |
-| Báo "Tôi đã chuyển khoản", đăng ký trả kho, thông báo, đổi tên hiển thị, ảnh đính kèm hỗ trợ | Backend **chưa có API** → lưu trong trình duyệt theo từng tài khoản |
+| Thanh toán QR PayOS (C04, C11q), thanh toán tại cửa hàng (C04c), QR mở cửa + máy quét `#/door` (C07q/C07r), phản hồi hỗ trợ (C12), xem trước hoàn tiền (C14a), đổi trạng thái ô (M02a) | Giao diện **gọi sẵn** endpoint theo `BACKEND-TODO.md` mục "Mới 16/10"; backend chưa có (404/405) → hiện thông báo thay thế, thanh toán tại cửa hàng tự dùng `confirm-transfer`. Thử đủ luồng: `MOCK_OPS=1 npm run dev:mock`; thử như backend chưa cập nhật: thêm `MOCK_LEGACY=1` |
+| Đăng ký trả kho, thông báo, đổi tên hiển thị, ảnh đính kèm hỗ trợ | Backend **chưa có API** → lưu trong trình duyệt theo từng tài khoản |
 | Đổi mật khẩu, quên mật khẩu | Backend chưa có API → giao diện hướng dẫn liên hệ quản trị viên |
 | Sơ đồ tình trạng 10 ô kho, toạ độ cơ sở trên bản đồ | Backend chưa có API → sinh cố định theo cơ sở (`src/lib/units.js`, `src/config/geo.js`) |
 | Toàn bộ khu Nhân viên / Quản lý cơ sở | Đăng nhập qua API (vai trò `STAFF` / `MANAGER` trong JWT); dữ liệu vận hành lưu trong trình duyệt (`src/ops/`) cho đến khi backend có API (xem mục 5 của `BE-CONTRACT.md`) |

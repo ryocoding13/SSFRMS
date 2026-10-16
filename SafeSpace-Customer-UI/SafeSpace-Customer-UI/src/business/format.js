@@ -160,8 +160,8 @@ export const CONTRACT_STATUS_LABELS = {
   CANCELLED: "Đã huỷ",
 };
 export const RESERVATION_STATUS_LABELS = {
-  PENDING_PAYMENT: "Chờ chuyển khoản",
-  PENDING_VERIFICATION: "Chờ đối soát",
+  PENDING_PAYMENT: "Chờ thanh toán",
+  PENDING_VERIFICATION: "Chờ thu tại kho",
   CONFIRMED: "Đã xác nhận, chờ phân bổ",
   UNIT_ASSIGNED: "Đã phân bổ ô",
   CHECKED_IN: "Đã nhận kho",

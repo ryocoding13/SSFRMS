@@ -78,7 +78,8 @@ test("sweepExpired chỉ huỷ đơn chờ chuyển khoản đã quá hạn", ()
   assert.equal(sweepExpired(state, new Date(NOW.getTime() + 59000)), state);
   const swept = sweepExpired(state, new Date(NOW.getTime() + 60000));
   assert.equal(swept.reservations[0].status, "CANCELLED");
-  assert.equal(swept.reservations.filter((r) => r.status === "PENDING_VERIFICATION").length, 1);
+  // Đơn khác giữ nguyên (seed theo Figma C14: SS-0142 đã thanh toán QR → CONFIRMED)
+  assert.equal(swept.reservations.filter((r) => r.status === "CONFIRMED").length, 1);
 });
 
 test("gia hạn: chỉ 1 yêu cầu chờ duyệt, chặn trả kho song song, hiện ở khoản thu", () => {
@@ -188,4 +189,49 @@ test("VietQR: CRC16-CCITT đúng chuẩn và payload đủ trường NAPAS", asy
   assert.ok(p.includes("0816SS-20260921-0143"));
   assert.equal(p.slice(-4), crc16(p.slice(0, -4)));
   assert.equal(cleanContent("Đơn #SS-01 thuê kho"), "Don SS-01 thue kho");
+});
+
+test("thanh toán tại cửa hàng (C04c): đơn chờ thu tiền, đánh dấu tại cửa hàng, thông báo giữ chỗ", () => {
+  const { state, result } = book(createSeedData(T));
+  const out = run(state, "PAY_AT_FACILITY", { reservation_id: result.reservation_id });
+  const r = out.state.reservations.find((x) => x.reservation_id === result.reservation_id);
+  assert.equal(r.status, "PENDING_VERIFICATION");
+  assert.equal(r.pay_at_facility, true);
+  assert.equal(r.expires_at, null);
+  assert.equal(out.state.notifications[0].title, "Đã giữ chỗ cho bạn");
+  // Hết giờ giữ chỗ QR thì không gửi được nữa
+  const late = run(state, "PAY_AT_FACILITY", { reservation_id: result.reservation_id }, new Date(NOW.getTime() + 61000));
+  assert.equal(late.error.code, "EXPIRED");
+});
+
+test("PayOS (C04 → C05): webhook báo đã trả → đơn xác nhận, sinh khoản thuê + cọc đã thanh toán", () => {
+  const { state, result } = book(createSeedData(T));
+  const out = run(state, "PAYOS_PAID", { reservation_id: result.reservation_id });
+  const r = out.state.reservations.find((x) => x.reservation_id === result.reservation_id);
+  assert.equal(r.status, "CONFIRMED");
+  const rows = out.state.ledger.filter((l) => l.reservation_id === result.reservation_id);
+  assert.deepEqual(rows.map((l) => l.status).sort(), ["DEPOSIT_HELD", "RECONCILED"]);
+  assert.equal(rows.reduce((s, l) => s + l.amount, 0), r.initial_total);
+  // Gọi lại (webhook gửi trùng) không ghi thêm
+  assert.equal(run(out.state, "PAYOS_PAID", { reservation_id: result.reservation_id }).state, out.state);
+});
+
+test("PayOS gia hạn (C11q → C11b): khoản gia hạn đã duyệt chuyển đã thanh toán, hợp đồng kéo dài", () => {
+  const s = createSeedData(T);
+  const row = s.ledger.find((l) => l.payable);
+  assert.equal(row.status, "UNPAID");
+  const out = run(s, "PAYOS_PAID", { ref: row.ref });
+  assert.equal(out.state.ledger.find((l) => l.ref === row.ref).status, "RECONCILED");
+  assert.equal(out.state.contracts.find((c) => c.contract_id === row.contract_id).end_date, row.period.to);
+});
+
+test("huỷ đơn (C14a): đơn đã thanh toán chưa nhận kho được huỷ và hoàn tiền trừ phí; đơn đã nhận kho thì không", () => {
+  const s = createSeedData(T);
+  const out = run(s, "CANCEL_RESERVATION", { reservation_id: "SS-20260914-0142", reason: "Đổi kế hoạch chuyển nhà" });
+  const r = out.state.reservations.find((x) => x.reservation_id === "SS-20260914-0142");
+  assert.equal(r.status, "CANCELLED");
+  assert.equal(r.refund_status, "PENDING");
+  assert.equal(r.refund_amount, 4600000 - 345000); // Figma C14a: phí huỷ 10% tiền thuê
+  assert.equal(out.state.contracts.find((c) => c.reservation_id === r.reservation_id).status, "ENDED");
+  assert.match(run(s, "CANCEL_RESERVATION", { reservation_id: "SS-20260615-0086" }).error.message, /nhận kho/);
 });

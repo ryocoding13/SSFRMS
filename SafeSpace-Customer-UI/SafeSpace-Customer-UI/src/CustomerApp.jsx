@@ -20,6 +20,7 @@ import FindList from "./pages/FindList";
 import FindMap from "./pages/FindMap";
 import Home from "./pages/Home";
 import Overview from "./pages/Overview";
+import Door from "./pages/Door";
 import Payments from "./pages/Payments";
 import Profile from "./pages/Profile";
 import { Guide, Pricing } from "./pages/Public";
@@ -53,6 +54,7 @@ const TITLES = {
   manager: "Quản lý cơ sở",
   support: "Hỗ trợ",
   profile: "Tài khoản",
+  door: "Máy quét cửa kho",
 };
 
 // Trang cần đăng nhập. Các trang công khai: home, login, register, pricing, guide, find (xem cơ sở).
@@ -79,6 +81,8 @@ function renderPage({ page, parts, query }) {
     case "payments": return <Payments />;
     case "support": return <Support query={query} />;
     case "profile": return <Profile />;
+    // C07r: máy quét ở cửa kho (mô phỏng), không cần đăng nhập như thiết bị gắn tại cơ sở
+    case "door": return <Door query={query} />;
     default:
       return (
         <main className="container page">
