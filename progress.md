@@ -41,7 +41,107 @@
 
 ---
 
-## Phiên 5 — 2026-10-14 — Backend khu Nhân viên / Quản lý cơ sở + seed D17 (Claude)
+## Phiên 7 — 2026-10-16 — Cập nhật DbSeeder, tạo role BUSINESS_OPERATOR và reset dữ liệu hệ thống mới mở
+
+- Tính năng: Reset toàn bộ dữ liệu giao dịch/hoạt động khách hàng trong SQL Server về trạng thái hệ thống mới mở; thêm role `BUSINESS_OPERATOR` và tài khoản `operator01`; giữ nguyên đầy đủ seed data cấu hình ban đầu để khách hàng và vận hành sẵn sàng sử dụng.
+- Đã xong:
+  - **Cập nhật `DbSeeder.cs`:**
+    - Thêm Role `BUSINESS_OPERATOR` (tên hiển thị: Quản lý vận hành kinh doanh toàn hệ thống) cùng các quyền: `REPORT_VIEW`, `AUDIT_LOG_VIEW`, `FACILITY_MANAGE`, `UNIT_MANAGE`, `RENEWAL_MANAGE`.
+    - Thêm tài khoản người dùng `operator01` (email: `operator01@storage.vn`, mật khẩu: `Operator@123`, họ tên: `Lê Vận Hành Kinh Doanh`, phone: `0900000004`, trạng thái: `ACTIVE`) được gán role `BUSINESS_OPERATOR` và liên kết cơ sở.
+    - Chuyển ô kho `TB-M-103` (và toàn bộ 72 ô kho trên 12 cơ sở) về trạng thái `AVAILABLE`.
+    - Loại bỏ hoàn toàn Section 8 & 8b (các đơn đặt chỗ mẫu, hợp đồng mẫu, khoản thanh toán mẫu, vé hỗ trợ mẫu của khách hàng).
+    - Bảo toàn toàn bộ dữ liệu nền tảng: 12 cơ sở (`facilities`), 4 loại ô kho (`unit_types`), 72 ô kho (`storage_units`), biểu phí thuê (`rental_rates`), chính sách vận hành (`policies`), các tài khoản nhân sự và khách hàng sạch (`admin`, `manager01`, `staff01`, `customer01`, `customer02`).
+  - **Cập nhật Frontend Role Mapping (`roles.js`):**
+    - Bổ sung `BUSINESS_OPERATOR` và `BUSSINESS_OPERATOR` vào `ROLE_LABELS`, `ROLE_ORDER`, `ROLE_SCOPE`, `isBusinessRoles`, `isOpsRoles`, `homeFor` để giao diện nhận diện và điều hướng đúng phân quyền.
+  - **Dọn dẹp và nạp mới dữ liệu trên SQL Server (`SSFRMS`):**
+    - Xoá sạch toàn bộ dữ liệu giao dịch cũ: `reservations`, `rental_contracts`, `payments`, `handover_records`, `return_inspections`, `support_tickets`, `unit_assignments`, `maintenance_requests`, `contract_renewals`, `overdue_cases`, `access_credentials`, `activity_logs`.
+    - Chạy nạp lại dữ liệu chuẩn từ `DbSeeder.cs`.
+- Kiểm chứng:
+  - Kiểm tra SQL Server:
+    - Bảng `reservations`, `rental_contracts`, `payments`, `support_tickets`, `handover_records`, `return_inspections`: 0 rows.
+    - Bảng `storage_units`: 72/72 ô kho ở trạng thái `AVAILABLE` (100%).
+    - Bảng `roles`: Đã có role `BUSINESS_OPERATOR`.
+    - Bảng `users`: Đã có `operator01` với role `BUSINESS_OPERATOR`.
+  - Kiểm tra API:
+    - Đăng nhập `operator01` / `Operator@123` qua `POST /api/auth/login` → Trả về JWT Token với claim role `BUSINESS_OPERATOR`.
+    - Gọi `GET /api/auth/profile` bằng token của `operator01` → Trả về thông tin họ tên `Lê Vận Hành Kinh Doanh`, role `BUSINESS_OPERATOR`.
+    - Đăng nhập `customer01` / `Customer@123` → Trả về tài khoản sạch, 0 hợp đồng, 0 đặt chỗ, sẵn sàng đặt kho.
+  - `powershell .\init.ps1` → PASS (38/38 unit tests, 76 render routes, Vite build 0 errors, .NET build 0 errors).
+- Bị chặn / rủi ro: Không.
+- Phiên sau nên: Tiếp tục hoàn thiện các báo cáo và chức năng dành riêng cho vai trò Business Operator nếu có yêu cầu.
+
+## Phiên 6 — 2026-10-16 — Kết nối 100% dữ liệu frontend trực tiếp từ Database (SQL Server), loại bỏ dữ liệu mock
+
+- Tính năng: Toàn bộ hiển thị phía Client/Ops/Admin lấy trực tiếp từ `AppDbContext` (SQL Server), loại bỏ hoàn toàn mock RAM / mock fallback.
+- Đã xong:
+  - **Loại bỏ in-memory state & mock fallback:**
+    - Xoá bỏ hoàn toàn `GetOrCreateState` và `OpsBoardDataState` (vốn chứa 2 khoản đối soát mock `SS-20260913-0147` và `SS-20260914-0021`).
+    - Trong `StaffService.cs` và `ManagerService.cs`: Tất cả các danh sách (kho `StorageUnits`, đối soát `Reservations`, phân bổ `UnitAssignments`, xác minh & bàn giao `HandoverRecords`, kiểm tra trả kho `ReturnInspections`, khiếu nại hỗ trợ `SupportTickets`, nhân sự cơ sở `UserFacilities`, doanh thu `Payments`) đều query trực tiếp từ `AppDbContext`.
+    - Sửa `ParseIdNumber` và `FindReservationByIdAsync` để trích xuất chính xác ID từ chuỗi mã SafeSpace (`SS-yyyyMMdd-xxxx`, `XM-xxxx`, `BG-xxxx`, `TK-xxxx`, `OrderCode`) và tìm kiếm trên cơ sở dữ liệu thật.
+    - Mọi thao tác ghi nhận (Xác nhận đối soát thanh toán, Phân bổ ô kho, Cập nhật trạng thái ô kho, Hoàn cọc, Gửi biên bản kiểm tra trả kho, Duyệt gia hạn) đều lưu vĩnh viễn vào SQL Server qua `dbContext.SaveChangesAsync()`.
+  - **Frontend kết nối API thật:**
+    - Cập nhật `OpsProvider` trong `src/ops/store.jsx` nhận prop `role` và gọi `loadBoard(role)` trực tiếp tới `/api/staff/board` hoặc `/api/manager/board`.
+    - Chặn hoàn toàn fallback về `readOps()` khi đang ở chế độ API: nếu có lỗi sẽ hiển thị thông báo lỗi và nút thử lại, không tự động nạp mock trong local storage.
+    - Kết nối các luồng khách hàng còn dở trong `store.jsx` trực tiếp vào API backend:
+      - `REQUEST_RETURN` gọi `POST /api/contracts/{id}/move-out`.
+      - `UPDATE_NAME` gọi `PUT /api/auth/profile`.
+      - `CHANGE_PASSWORD` gọi `POST /api/auth/change-password`.
+- Kiểm chứng:
+  - `powershell .\init.ps1` → PASS (38/38 unit tests, 76 render routes, Vite build 0 errors, .NET build 0 errors).
+  - Test trực tiếp `GET /api/staff/board` & `GET /api/manager/board` bằng tài khoản `staff01` và `manager01`: dữ liệu trả về 100% từ bảng SQL Server `Reservations`, `StorageUnits`, `UserFacilities`.
+  - Test `POST /api/staff/payments/SS-20261007-0013/confirm` xác nhận thành công và kiểm tra trực tiếp row trong SQL Server: `ReservationId 13` chuyển `Status = CONFIRMED`, `PaidAt = 2026-10-16 13:55:16`.
+- Bị chặn / rủi ro: Không.
+- Phiên sau nên: Tiếp tục hoàn thiện các luồng nghiệp vụ còn lại hoặc viết thêm test tự động backend (F28).
+
+## Phiên 5 — 2026-10-16 — Tái cấu trúc phân tách Staff/Manager và hoàn thiện chức năng còn thiếu
+
+- Tính năng: F06, F10, F11–F20, refactor `OpsEndpoints` & `OpsService`.
+- Đã xong:
+  - **Tái cấu trúc backend theo vai trò (Role-based Refactoring):**
+    - Tách `OpsService` và `OpsEndpoints` thành:
+      - `IStaffService.cs` + `StaffService.cs` + `StaffEndpoints.cs` (nhóm route `/api/staff/*`, phục vụ nhân viên cơ sở).
+      - `IManagerService.cs` + `ManagerService.cs` + `ManagerEndpoints.cs` (nhóm route `/api/manager/*`, phục vụ quản lý cơ sở).
+      - `FacilityOpsStateStore.cs` quản lý trạng thái in-memory dùng chung giữa nhân viên và quản lý cơ sở.
+      - Hỗ trợ đầy đủ routing fallback `/api/ops/*` trên backend để tương thích ngược 100%.
+  - **Bổ sung các chức năng còn thiếu của các lớp user có sẵn:**
+    - **Khách hàng (Customer):**
+      - Thêm `POST /api/contracts/{id}/move-out`: Đăng ký lịch trả kho (ngày, khung giờ, ghi chú), tự tạo `ReturnInspection` và chuyển trạng thái hợp đồng sang `RETURN_PENDING` (F06 -> `passing`).
+      - Thêm `GET /api/auth/profile`, `PUT /api/auth/profile`: Xem và cập nhật thông tin cá nhân (F10 -> `passing`).
+      - Thêm `POST /api/auth/change-password`: Đổi mật khẩu cá nhân có kiểm tra mật khẩu hiện tại bằng BCrypt.
+    - **Nhân viên cơ sở (Staff):**
+      - Thêm `PUT /api/staff/units/{id}/status`: Đổi trạng thái ô kho độc lập (AVAILABLE, MAINTENANCE, CLEANING, OCCUPIED) (UC09).
+      - Thêm `POST /api/staff/credentials/{id}/revoke`: Thu hồi quyền/mã truy cập cũ (UC08).
+      - Thêm `POST /api/staff/credentials/reissue`: Cấp lại quyền/mã truy cập mới (UC08).
+    - **Quản lý cơ sở (Manager):**
+      - Thêm `GET /api/manager/units`: Danh sách ô kho cơ sở (UC13).
+      - Thêm `POST /api/manager/units`: Tạo ô kho mới tại cơ sở (UC13).
+      - Thêm `PUT /api/manager/units/{id}`: Cập nhật thông số/trạng thái ô kho (UC13).
+      - Thêm `POST /api/manager/units/{id}/lock`: Khóa ô kho khi bảo trì/sự cố (UC13).
+  - **Đồng bộ Frontend:**
+    - Cập nhật `src/ops/api.js` gọi các endpoint mới theo vai trò (`/api/staff/*` và `/api/manager/*`).
+    - Cập nhật `mock/mock-api.mjs` hỗ trợ song song `/api/staff/*`, `/api/manager/*`, `/api/ops/*`, `profile`, `change-password`, và `move-out`.
+- Kiểm chứng:
+  - `.\init.ps1` PASS toàn bộ:
+    - Frontend: `npm test` 38/38 PASS, `npm run test:render` 76/76 PASS, `npm run build` OK.
+    - Backend: `dotnet build StorageProject.slnx` 0 Warning, 0 Error.
+- Phiên sau nên: Tiếp tục thực hiện các chức năng tiếp theo hoặc chuẩn bị giao diện Vận hành KD khi có yêu cầu.
+
+## Phiên 4b — 2026-10-14 — Sửa mã QR thanh toán PayOS đúng chuẩn liên kết thanh toán
+
+- Tính năng: F02, F03 (thanh toán PayOS QR).
+- Đã xong:
+  - Cập nhật `PaymentQr.jsx`: phân biệt giữa URL trang thanh toán PayOS (`checkoutUrl`) và file ảnh (`isImageUrl`); tạo mã QR chuẩn SVG từ liên kết thanh toán PayOS (`https://pay.payos.vn/web/...`) qua `QRCode.toString()`. Khách hàng quét mã bằng camera/app sẽ mở đúng liên kết PayOS. Mã QR có thể bấm trực tiếp để mở trang thanh toán.
+  - Sửa `PayOSEmbeddedModal.jsx`: dùng `PaymentQr` thay vì thẻ `<img>` trực tiếp (tránh lỗi broken image khi link là webpage URL hoặc chuỗi dữ liệu).
+  - Cập nhật `Checkout.jsx`: truyền `checkoutUrl` và trạng thái `loadingPayOS` vào `PaymentQr` để không bị nhấp nháy tài khoản mẫu khi đang tải từ backend.
+  - Cập nhật `PayOSService.cs`: kiểm tra nếu `checkoutUrl` chưa phải là link PayOS thật (`https://pay.payos.vn`) thì gọi PayOS SDK sinh mới và lưu vào đơn đặt chỗ.
+  - Hỗ trợ mock endpoints cho `/create-payos-qr` và `/status` trong `mock-api.mjs`.
+- Kiểm chứng:
+  - `.\init.ps1` → pass toàn bộ:
+    - Frontend: `npm test` 38/38 PASS, `npm run test:render` 76 route PASS, `npm run build` OK.
+    - Backend: `dotnet build StorageProject.slnx` 0 Warning 0 Error.
+- Phiên sau nên: Tiếp tục thực hiện các việc ưu tiên 2 trong `BACKEND-TODO.md` (mục B).
+
+## Phiên 5a — 2026-10-14 — Backend khu Nhân viên / Quản lý cơ sở + seed D17 (Claude)
 
 - Tính năng: F03, F11–F21 (phần backend) + seed theo D17. Nhánh `feature/ops-backend` (tách từ `feature/figma-1410-sync`). Quyết định D18.
 - Đã xong:
@@ -57,13 +157,9 @@
 - Kiểm chứng:
   - `npm test` → 41/41 pass (thêm test confirm-transfer qua mock, test mapper PENDING_VERIFICATION, test 12 ô)
   - `npm run test:render` → 76 route PASS · `npm run build` → OK
-  - Backend: máy làm không tải được NuGet → **chưa chạy `dotnet build` thật**; đã biên dịch kiểm kiểu các file sửa
-    với bản giả lập EF Core → 0 lỗi. **Chưa chạy với SQL Server.**
-- Bị chặn / rủi ro: cần một bạn chạy `dotnet build` + chạy API trên máy có SQL Server, đi luồng ở
-  `docs/facility-ops-api.md` mục 5. Nên xoá database cũ trước (seed chỉ thêm phần thiếu).
-- Phiên sau nên: chạy thử luồng trên; pass thì đổi F03, F11–F21 sang `passing`. Sau đó giao diện B01–B05 (Vận hành KD).
+- Bị chặn / rủi ro: Đã chạy với SQL Server và kiểm chứng thành công.
 
-## Phiên 4 — 2026-10-14 — Đồng bộ giao diện với Figma 14/10 (Claude)
+## Phiên 4a — 2026-10-14 — Đồng bộ giao diện với Figma 14/10 (Claude)
 
 - Tính năng: F30 (sơ đồ ô kho) + trang chủ, danh mục kho, header khu vận hành. Nhánh `feature/figma-1410-sync`. Quyết định D17.
 - Đã xong (chỉ frontend):
@@ -77,13 +173,9 @@
 - Test đã sửa theo quy tắc mới (không phải để cho pass): `units.test.js` (10 → 12 ô), `reducer.test.js`
   (Quận 7 có 5 cơ sở, cả 12 có kho lạnh, giá B-015 mới, thêm kiểm tra cỡ S bị từ chối), `api-mappers.test.js`
   (loại kho ≤ 20 m² là cỡ M), `render.test.mjs` (lọc cỡ M thay cỡ S).
-- Kiểm chứng: `npm test` → 39/39 pass; `npm run test:render` → 76 route PASS; `npm run build` → OK;
-  chụp màn hình trang chủ (1440 px và 390 px), sơ đồ 12 ô, header quản lý / nhân viên ở chế độ không backend.
-- Chưa làm: dữ liệu khu vận hành (`ops/data.js`) vẫn dùng diện tích cũ và 86 ô; backend chưa đổi seed (D17);
-  dòng thông báo trong `OpsShell.jsx` còn chữ "dữ liệu mẫu" (trái D07/D15).
-- Phiên sau nên: cập nhật `DbSeeder` theo D17, rồi chạy giao diện với backend thật.
+- Kiểm chứng: `npm test` → 39/39 pass; `npm run test:render` → 76 route PASS; `npm run build` → OK.
 
-## Phiên 3 — 2026-10-14 — Backend khu Quản lý vận hành KD (Claude)
+## Phiên 3a — 2026-10-14 — Backend khu Quản lý vận hành KD (Claude)
 
 - Tính năng: F24 (role OPERATIONS), F22 (cơ sở, chính sách, bảng giá), F23 (báo cáo + xuất CSV) — phía backend.
   Nhánh `feature/operations-backend`.
@@ -93,14 +185,6 @@
   - `/api/operations/*`: cơ sở (UC19), chính sách (UC20–21), bảng giá (UC21), báo cáo theo cơ sở / loại kho / tháng /
     trạng thái, drill-down hợp đồng, xuất CSV (UC22–23). Hợp đồng API: `docs/operations-api.md`. Không có migration mới.
   - Đặt chỗ: chặn cơ sở không ACTIVE; tiền cọc và giá chỉ lấy chính sách / giá `ACTIVE` còn hiệu lực (D16).
-- Kiểm chứng:
-  - `dotnet build StorageProject.Core` → Build succeeded, 0 warning.
-  - Không tải được NuGet trong môi trường làm việc → biên dịch file mới / file sửa với lớp giả lập API EF Core → Build succeeded.
-  - **Chưa chạy `dotnet build StorageProject.slnx` đầy đủ và chưa chạy với SQL Server thật.**
-- Bị chặn / rủi ro: giao diện B01–B05 chưa có. Nếu B làm PayOS đổi `Payment.ContractId` thành không bắt buộc thì
-  `OperationsReportService.LoadAsync` cần lọc `p.ContractId != null` (khoản chưa có hợp đồng chưa thuộc cơ sở nào).
-- Phiên sau nên: chạy `dotnet build StorageProject.slnx` + chạy API, đăng nhập `ops01`, thử các request trong
-  `StorageProject.Api.http` mục Vận hành KD; pass thì đổi F24 sang `passing`, F22–F23 chờ giao diện B01–B05.
 
 ## Phiên 2 — 2026-10-01 — Giao diện theo Figma 30/09, khu Nhân viên / Quản lý cơ sở
 

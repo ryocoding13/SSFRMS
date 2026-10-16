@@ -18,13 +18,22 @@ Trước khi chạy dự án, hãy đảm bảo máy tính đã cài đặt các
 
 ---
 
-## 🚀 Hướng Dẫn Cài Đặt & Khởi Chạy
+## ⚡ Khởi Chạy Nhanh Toàn Bộ Hệ Thống (1 Lệnh Duy Nhất)
 
-### 1. Clone Repository
+Sau khi cài đặt thư viện ở thư mục gốc (`npm install`), bạn có thể khởi chạy đồng thời **Backend (.NET)**, **Frontend (Vite React)** và **Ngrok tunnel** chỉ với một lệnh duy nhất:
+
 ```bash
-git clone https://github.com/ryocoding13/SSFRMS.git
-cd SSFRMS
+npm run dev
 ```
+
+* **[BACKEND]**: `http://localhost:5151`
+* **[FRONTEND]**: `http://127.0.0.1:5173`
+* **[NGROK]**: Tự động forward public domain tới `http://localhost:5151` (phục vụ webhook PayOS)
+* **Dừng toàn bộ**: Nhấn `Ctrl + C` trong terminal.
+
+---
+
+## 🚀 Hướng Dẫn Cài Đặt Chi Tiết
 
 ---
 

@@ -154,4 +154,91 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
             await dbContext.SaveChangesAsync(ct);
         }
     }
+
+    public async Task<UserProfileDto> GetUserProfileAsync(long userId, CancellationToken ct = default)
+    {
+        var user = await dbContext.Users
+            .AsNoTracking()
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
+            .FirstOrDefaultAsync(u => u.UserId == userId, ct);
+
+        if (user == null)
+        {
+            throw new KeyNotFoundException($"Không tìm thấy người dùng với ID: {userId}");
+        }
+
+        var roles = user.UserRoles.Select(ur => ur.Role.RoleName).ToList();
+
+        return new UserProfileDto(
+            user.UserId,
+            user.Username,
+            user.FullName,
+            user.Email,
+            user.Phone,
+            user.Status,
+            roles
+        );
+    }
+
+    public async Task<UserProfileDto> UpdateUserProfileAsync(long userId, UpdateProfileRequest request, CancellationToken ct = default)
+    {
+        var user = await dbContext.Users
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
+            .FirstOrDefaultAsync(u => u.UserId == userId, ct);
+
+        if (user == null)
+        {
+            throw new KeyNotFoundException($"Không tìm thấy người dùng với ID: {userId}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.FullName))
+        {
+            user.FullName = request.FullName.Trim();
+        }
+
+        if (request.Phone != null)
+        {
+            user.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
+        }
+
+        user.UpdatedAt = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(ct);
+
+        var roles = user.UserRoles.Select(ur => ur.Role.RoleName).ToList();
+
+        return new UserProfileDto(
+            user.UserId,
+            user.Username,
+            user.FullName,
+            user.Email,
+            user.Phone,
+            user.Status,
+            roles
+        );
+    }
+
+    public async Task ChangePasswordAsync(long userId, ChangePasswordRequest request, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
+        {
+            throw new ArgumentException("Mật khẩu mới phải có ít nhất 6 ký tự.");
+        }
+
+        var user = await dbContext.Users.FirstOrDefaultAsync(u => u.UserId == userId, ct);
+        if (user == null)
+        {
+            throw new KeyNotFoundException($"Không tìm thấy người dùng với ID: {userId}");
+        }
+
+        if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+        {
+            throw new InvalidOperationException("Mật khẩu hiện tại không chính xác.");
+        }
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(ct);
+    }
 }

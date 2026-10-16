@@ -21,16 +21,26 @@ export const api = {
   // C04: khách báo đã chuyển khoản → PENDING_VERIFICATION (nhân viên đối soát ở S09)
   confirmTransfer: (id) => request(`/api/reservations/${id}/confirm-transfer`, { method: "POST" }),
 
-  // Hợp đồng, thanh toán, gia hạn, bàn giao
+  // Hợp đồng, thanh toán, gia hạn, bàn giao, trả kho
   contracts: () => request("/api/contracts"),
   contract: (id) => request(`/api/contracts/${id}`),
   requestRenewal: (contractId, months) =>
     request(`/api/contracts/${contractId}/renewals`, { method: "POST", body: { renewalPeriodMonths: months } }),
   confirmHandover: (handoverId) => request(`/api/handovers/${handoverId}/confirm`, { method: "POST" }),
+  requestMoveOut: (contractId, body) => request(`/api/contracts/${contractId}/move-out`, { method: "POST", body }),
+
+  // Tài khoản & hồ sơ
+  getProfile: () => request("/api/auth/profile"),
+  updateProfile: (body) => request("/api/auth/profile", { method: "PUT", body }),
+  changePassword: (body) => request("/api/auth/change-password", { method: "POST", body }),
 
   // Hỗ trợ
   tickets: () => request("/api/tickets"),
   ticket: (id) => request(`/api/tickets/${id}`),
   createTicket: (body) => request("/api/tickets", { method: "POST", body }),
   cancelTicket: (id) => request(`/api/tickets/${id}/cancel`, { method: "POST" }),
+
+  // payOS VietQR Integration
+  createPayOSQr: (body) => request("/api/v1/reservations/create-payos-qr", { method: "POST", body }),
+  reservationStatus: (id) => request(`/api/v1/reservations/${id}/status`, { auth: false }),
 };

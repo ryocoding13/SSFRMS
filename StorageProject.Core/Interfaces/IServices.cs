@@ -13,6 +13,9 @@ public interface IAuthService
     Task<AuthUserDto> RegisterAsync(RegisterRequest request, CancellationToken ct = default);
     Task<LoginResponse> LoginAsync(LoginRequest request, string? ipAddress, string? deviceInfo, CancellationToken ct = default);
     Task LogoutAsync(long loginHistoryId, CancellationToken ct = default);
+    Task<UserProfileDto> GetUserProfileAsync(long userId, CancellationToken ct = default);
+    Task<UserProfileDto> UpdateUserProfileAsync(long userId, UpdateProfileRequest request, CancellationToken ct = default);
+    Task ChangePasswordAsync(long userId, ChangePasswordRequest request, CancellationToken ct = default);
 }
 
 public interface IFacilityService
@@ -38,6 +41,7 @@ public interface IContractService
 {
     Task<IReadOnlyList<ContractSummaryDto>> GetMyContractsAsync(long customerId, CancellationToken ct = default);
     Task<ContractDetailDto?> GetContractDetailAsync(long customerId, long contractId, CancellationToken ct = default);
+    Task<MoveOutResponseDto> RegisterMoveOutAsync(long customerId, long contractId, MoveOutRequest request, CancellationToken ct = default);
 }
 
 public interface IPaymentService

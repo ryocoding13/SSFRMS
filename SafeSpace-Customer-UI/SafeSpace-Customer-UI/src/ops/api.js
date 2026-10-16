@@ -16,9 +16,20 @@ function mapKeys(v, fn) {
 export const fromApi = (v) => mapKeys(v, toSnake);
 export const toApi = (v) => mapKeys(v, toCamel);
 
-// GET /api/ops/board — toàn bộ dữ liệu vận hành của cơ sở được gán cho tài khoản (lọc theo vai trò)
-export async function loadBoard() {
-  const data = fromApi(await request("/api/ops/board"));
+// GET /api/staff/board hoặc /api/manager/board (hỗ trợ /api/ops/board dự phòng)
+export async function loadBoard(role) {
+  let res;
+  const path = role === "MANAGER" ? "/api/manager/board" : (role === "STAFF" ? "/api/staff/board" : "/api/ops/board");
+  try {
+    res = await request(path);
+  } catch (err) {
+    if (path !== "/api/ops/board") {
+      res = await request("/api/ops/board");
+    } else {
+      throw err;
+    }
+  }
+  const data = fromApi(res);
   return {
     version: 1,
     log: [],
@@ -29,24 +40,31 @@ export async function loadBoard() {
   };
 }
 
-// Mỗi thao tác của giao diện → một endpoint. Thân request theo camelCase như các endpoint hiện có.
+// Mỗi thao tác của giao diện → một endpoint theo vai trò (staff / manager)
 export const OPS_ACTIONS = {
-  // Nhân viên
-  CONFIRM_PAYMENT: ({ id }) => ["POST", `/api/ops/payments/${enc(id)}/confirm`],
-  REPORT_MISMATCH: ({ id, note }) => ["POST", `/api/ops/payments/${enc(id)}/mismatch`, { note }],
+  // Nhân viên (Staff)
+  CONFIRM_PAYMENT: ({ id }) => ["POST", `/api/staff/payments/${enc(id)}/confirm`],
+  REPORT_MISMATCH: ({ id, note }) => ["POST", `/api/staff/payments/${enc(id)}/mismatch`, { note }],
   VERIFY_CUSTOMER: ({ id, doc_type, doc_no, photo_ok, info_ok }) => [
-    "POST", `/api/ops/verifications/${enc(id)}`, { docType: doc_type, docNumber: String(doc_no || "").trim(), photoMatched: Boolean(photo_ok), infoMatched: Boolean(info_ok) },
+    "POST", `/api/staff/verifications/${enc(id)}`, { docType: doc_type, docNumber: String(doc_no || "").trim(), photoMatched: Boolean(photo_ok), infoMatched: Boolean(info_ok) },
   ],
-  HANDOVER: ({ id, method }) => ["POST", `/api/ops/handovers/${enc(id)}/complete`, { unlockMethod: method }],
-  SUBMIT_RETURN: ({ id, report }) => ["POST", `/api/ops/returns/${enc(id)}/inspection`, toApi(report)],
-  TICKET_RESPONSE: ({ id, note, next }) => ["POST", `/api/ops/tickets/${enc(id)}/responses`, { note, nextStatus: next }],
-  // Quản lý
+  HANDOVER: ({ id, method }) => ["POST", `/api/staff/handovers/${enc(id)}/complete`, { unlockMethod: method }],
+  SUBMIT_RETURN: ({ id, report }) => ["POST", `/api/staff/returns/${enc(id)}/inspection`, toApi(report)],
+  TICKET_RESPONSE: ({ id, note, next }) => ["POST", `/api/staff/tickets/${enc(id)}/responses`, { note, nextStatus: next }],
+  UPDATE_UNIT_STATUS: ({ id, status, reason }) => ["PUT", `/api/staff/units/${enc(id)}/status`, { status, reason }],
+  REVOKE_CREDENTIAL: ({ id }) => ["POST", `/api/staff/credentials/${enc(id)}/revoke`],
+  REISSUE_CREDENTIAL: ({ unit, type, reason }) => ["POST", `/api/staff/credentials/reissue`, { unitCode: unit, credentialType: type, reason }],
+
+  // Quản lý (Manager)
   DECIDE_RENEWAL: ({ id, approve, reason }) =>
-    approve ? ["POST", `/api/ops/renewals/${enc(id)}/approve`] : ["POST", `/api/ops/renewals/${enc(id)}/reject`, { reason }],
-  ALLOCATE: ({ id, unit }) => ["POST", `/api/ops/allocations/${enc(id)}`, { unitCode: unit }],
-  ASSIGN: ({ id, staff }) => ["PUT", `/api/ops/assignments/${enc(id)}`, { staffId: staff }],
-  REMIND: ({ id, note }) => ["POST", `/api/ops/contracts/${enc(id)}/reminders`, { note: note || "" }],
-  CONFIRM_REFUND: ({ id }) => ["POST", `/api/ops/contracts/${enc(id)}/refund`],
+    approve ? ["POST", `/api/manager/renewals/${enc(id)}/approve`] : ["POST", `/api/manager/renewals/${enc(id)}/reject`, { reason }],
+  ALLOCATE: ({ id, unit }) => ["POST", `/api/manager/allocations/${enc(id)}`, { unitCode: unit }],
+  ASSIGN: ({ id, staff }) => ["PUT", `/api/manager/assignments/${enc(id)}`, { staffId: staff }],
+  REMIND: ({ id, note }) => ["POST", `/api/manager/contracts/${enc(id)}/reminders`, { note: note || "" }],
+  CONFIRM_REFUND: ({ id }) => ["POST", `/api/manager/contracts/${enc(id)}/refund`],
+  CREATE_UNIT: (data) => ["POST", `/api/manager/units`, toApi(data)],
+  UPDATE_UNIT: ({ id, ...data }) => ["PUT", `/api/manager/units/${enc(id)}`, toApi(data)],
+  LOCK_UNIT: ({ id, reason }) => ["POST", `/api/manager/units/${enc(id)}/lock`, { reason }],
 };
 
 export function callAction(type, payload) {
