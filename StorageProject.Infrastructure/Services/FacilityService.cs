@@ -20,7 +20,9 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
                 f.ContactPhone,
                 f.OpeningTime != null ? f.OpeningTime.Value.ToString(@"hh\:mm") : null,
                 f.ClosingTime != null ? f.ClosingTime.Value.ToString(@"hh\:mm") : null,
-                f.Status
+                f.Status,
+                f.Latitude,
+                f.Longitude
             ))
             .ToListAsync(ct);
     }
@@ -41,7 +43,9 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
             f.ContactPhone,
             f.OpeningTime != null ? f.OpeningTime.Value.ToString(@"hh\:mm") : null,
             f.ClosingTime != null ? f.ClosingTime.Value.ToString(@"hh\:mm") : null,
-            f.Status
+            f.Status,
+            f.Latitude,
+            f.Longitude
         );
     }
 

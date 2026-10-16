@@ -144,3 +144,8 @@
 .business-app .btn--outline { color: var(--text); }
 .business-app .bell { padding: 0; }
 .business-app .business-facilities .table tbody tr { background: var(--white); }
+
+/* B05a · Sửa thông tin cơ sở */
+.biz-form { display: grid; gap: 14px; }
+.biz-form__pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 520px) { .biz-form__pair { grid-template-columns: 1fr; } }
