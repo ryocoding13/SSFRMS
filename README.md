@@ -4,6 +4,10 @@ Hệ thống quản lý và cho thuê kho tự quản thông minh (SafeSpace Sel
 
 ---
 
+> **Quy định cho công cụ AI (Claude, Cursor, Copilot, Codex…):** AI chỉ được sửa code và commit trên máy,
+> **không được tự `git push`, tạo Pull Request hay merge** lên repo này. Thành viên nhóm tự kiểm tra rồi tự push.
+> Quy tắc đầy đủ cho AI nằm trong [`AGENTS.md`](AGENTS.md).
+
 ## 📋 Yêu Cầu Môi Trường (Prerequisites)
 
 Trước khi chạy dự án, hãy đảm bảo máy tính đã cài đặt các công cụ sau:

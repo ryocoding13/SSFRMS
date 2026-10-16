@@ -58,8 +58,8 @@ test("danh mục: cơ sở, quận / thành phố, giờ mở cửa và gói kho
   assert.equal(tb.city, "TP. Hồ Chí Minh");
   assert.equal(tb.hours, "07:00–22:00");
   assert.deepEqual(tb.offers.map((o) => [o.unit_type_id, o.type, o.band, o.monthly_rate]), [
-    [1, "normal", "S", 500000],
-    [2, "climate", "S", 1500000],
+    [1, "normal", "M", 500000],
+    [2, "climate", "M", 1500000],
     [3, "climate", "M", 3000000],
   ]);
   assert.equal(tb.offers[1].size_label, "4 m²");

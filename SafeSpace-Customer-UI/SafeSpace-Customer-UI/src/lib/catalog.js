@@ -2,18 +2,18 @@ import { addMonths } from "./format.js";
 
 export const UNIT_TYPES = [
   { id: "normal", label: "Kho thường" },
-  { id: "climate", label: "Kiểm soát nhiệt độ" },
+  { id: "climate", label: "Kho lạnh" },
 ];
 export const typeLabel = (id) => UNIT_TYPES.find((t) => t.id === id)?.label || "Kho thường";
 
-// Nhóm diện tích theo Figma (C03 "10 – 20 m²", P01 "2–5 m²" / "Trên 20 m²")
+// Hai cỡ kho theo Figma 14/10: mỗi cơ sở có 8 kho thường (4 M + 4 L) và 4 kho lạnh (2 M + 2 L)
 export const SIZE_BANDS = [
-  { id: "S", label: "2 – 5 m²", name: "Small", note: "Vali, tài liệu và đồ cá nhân" },
-  { id: "M", label: "10 – 20 m²", name: "Medium", note: "Đồ nội thất và hàng kinh doanh" },
-  { id: "L", label: "Trên 20 m²", name: "Large", note: "Nhiều hàng hóa và nhu cầu dài hạn" },
+  { id: "M", label: "Cỡ M · 15 m²", short: "15 m²", area: 15, name: "Cỡ M", note: "Đồ đạc một phòng, hàng shop online, hồ sơ giấy tờ" },
+  { id: "L", label: "Cỡ L · 30 m²", short: "30 m²", area: 30, name: "Cỡ L", note: "Đồ chuyển nhà 2–3 phòng ngủ, hàng tồn kho số lượng lớn" },
 ];
-export const bandLabel = (id) => SIZE_BANDS.find((b) => b.id === id)?.label || "10 – 20 m²";
-export const bandOfArea = (area) => (area <= 5 ? "S" : area <= 20 ? "M" : "L");
+export const bandLabel = (id) => SIZE_BANDS.find((b) => b.id === id)?.label || SIZE_BANDS[0].label;
+// Loại kho từ backend: đến 20 m² là cỡ M, lớn hơn là cỡ L
+export const bandOfArea = (area) => (area <= 20 ? "M" : "L");
 
 // Gói thuê trong Figma: 1 / 3 / 6 tháng
 export const RENTAL_PLANS = [1, 3, 6];
@@ -25,7 +25,7 @@ export const BUDGET_LIMIT = 1100000; // chip "Dưới 1.100.000 đ / tháng"
 // - Dữ liệu cục bộ: sinh từ giá gốc của cơ sở × loại kho × nhóm diện tích
 // - Backend: mỗi loại kho (UnitType) có bảng giá tại cơ sở là một offer
 
-const BAND_FACTOR = { S: 0.63, M: 1, L: 1.75 };
+const BAND_FACTOR = { M: 1, L: 1.75 };
 const TYPE_FACTOR = { normal: 1, climate: 1.2 };
 const round10k = (n) => Math.round(n / 10000) * 10000;
 
@@ -51,7 +51,7 @@ export const offerLabel = (o) => `${typeLabel(o.type)} · ${o.size_label}`;
 
 const matches = (o, f) => (!f.type || o.type === f.type) && (!f.band || o.band === f.band);
 
-// Gói hiển thị trên thẻ cơ sở: khớp bộ lọc; nếu chưa lọc thì ưu tiên "Kho thường · 10 – 20 m²" như Figma
+// Gói hiển thị trên thẻ cơ sở: khớp bộ lọc; nếu chưa lọc thì ưu tiên "Kho thường · Cỡ M" như Figma
 export function displayOffer(facility, filters = {}) {
   const list = (facility?.offers || []).filter((o) => matches(o, filters));
   if (!list.length) return null;
@@ -94,12 +94,6 @@ export const DEFAULT_FILTERS = { type: "", band: "", area: "", camera: false, bu
 
 export const hasActiveFilters = (f) => Boolean(f.type || f.band || f.area || f.camera || f.budget);
 
-// Theo khoảng cách; không có khoảng cách (dữ liệu backend) thì giữ thứ tự danh mục (sort ổn định)
-const byDistance = (a, b) => {
-  if (a.distance_km == null || b.distance_km == null) return (a.distance_km == null) - (b.distance_km == null);
-  return a.distance_km - b.distance_km;
-};
-
 // Lọc + sắp xếp danh sách cơ sở (C02 / C03)
 export function searchFacilities(facilities, filters) {
   const f = { ...DEFAULT_FILTERS, ...filters };
@@ -111,6 +105,8 @@ export function searchFacilities(facilities, filters) {
     if (f.budget && offer.monthly_rate >= BUDGET_LIMIT) return false;
     return true;
   });
+  // Gợi ý theo khu vực khách chọn (không theo vị trí): "Phù hợp nhất" giữ thứ tự danh mục, hoặc sắp theo giá
+  if (f.sort !== "price") return list;
   const price = (x) => displayOffer(x, f).monthly_rate;
-  return [...list].sort((a, b) => (f.sort === "price" ? price(a) - price(b) || byDistance(a, b) : byDistance(a, b)));
+  return [...list].sort((a, b) => price(a) - price(b));
 }

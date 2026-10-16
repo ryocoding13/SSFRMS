@@ -17,6 +17,8 @@
 9. **Không xoá/sửa test để cho pass.** Test sai → ghi lý do trong `progress.md` rồi mới sửa.
 10. Làm trên nhánh `feature/<tên>` → Pull Request vào `main`. Không push thẳng `main`.
 11. Tiếng Việt cho giao diện và tài liệu; tên biến, hàm, API bằng tiếng Anh.
+12. **AI không được tự `git push`, tạo Pull Request hay merge lên repo này.** Chỉ sửa code và commit trên máy;
+    giao lại cho thành viên nhóm (patch / file zip / hướng dẫn lệnh) để người đó tự kiểm tra rồi tự push.
 
 ## 2. Dự án là gì
 

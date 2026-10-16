@@ -86,3 +86,13 @@
   "Cọc còn giữ"; "Doanh thu thuê và phí" không trừ REFUND. Khi thêm hoàn tiền thuê/phí thì phải thêm liên kết khoản gốc.
 - Cơ sở `TEMPORARILY_CLOSED` chặn đặt chỗ mới; `INACTIVE` chỉ khi không còn hợp đồng / đơn đang xử lý. Không xoá cơ sở.
 
+## D17 — Mô hình kho theo Figma 14/10: 2 cỡ, mọi cơ sở có kho lạnh, gợi ý theo khu vực — Đã chốt (14/10/2026)
+- Chỉ còn 2 cỡ kho: **Cỡ M · 15 m²** và **Cỡ L · 30 m²** (bỏ cỡ S). Loại kho từ backend: diện tích ≤ 20 m² là M, lớn hơn là L.
+- Cả 12 cơ sở đều có kho thường và kho lạnh. Mỗi cơ sở 12 ô: 8 kho thường (4 M + 4 L) và 4 kho lạnh (2 M + 2 L).
+  Sơ đồ ô kho: dãy A cỡ M (K01–K04 thường, K05–K06 lạnh), dãy B cỡ L (K07–K10 thường, K11–K12 lạnh).
+- Gợi ý cơ sở theo **khu vực khách chọn**, không theo vị trí người dùng: bỏ "Gần bạn nhất" và "Cách bạn … km".
+- Tên loại kho hiển thị là "Kho lạnh" (thay "Kiểm soát nhiệt độ") cho khớp Figma.
+- Nhân viên / quản lý cơ sở thấy tên cơ sở phụ trách dưới vai trò trên header (SRS A06: mỗi người 1 cơ sở).
+- Trang chủ theo Figma mới: hero ảnh + tìm theo khu vực, số liệu, 4 loại kho, 3 bước, cơ sở theo khu vực, kêu gọi, footer.
+- Backend cần đổi seed cho khớp (4 loại kho, 12 cơ sở, 12 ô mỗi cơ sở) — chưa làm.
+

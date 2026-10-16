@@ -10,7 +10,7 @@ import { go, href, qs } from "../lib/router";
 import { useApp } from "../state/store";
 import { filtersFromQuery } from "./FindList";
 
-// Nhãn loại kho & diện tích trên thẻ / popup: "Kho thường · Kiểm soát nhiệt độ | 2 – 5 m² · 10 – 20 m²"
+// Nhãn loại kho & diện tích trên thẻ / popup: "Kho thường · Kho lạnh | Cỡ M · 15 m² · Cỡ L · 30 m²"
 function specLabel(f) {
   const types = offerTypes(f).map(typeLabel).join(" · ");
   const sizes = [...new Set(f.offers.map((o) => o.size_label.replaceAll(" – ", "–")))].slice(0, 2).join(" · ");

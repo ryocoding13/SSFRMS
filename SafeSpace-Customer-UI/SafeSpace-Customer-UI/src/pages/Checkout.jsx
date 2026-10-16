@@ -3,7 +3,6 @@ import { Photo } from "../components/Photo";
 import { Button, DetailList, Empty, Icon, LinkButton, Notice } from "../components/UI";
 import PaymentQr from "../components/PaymentQr";
 import { bandLabel, typeLabel } from "../lib/catalog";
-import { distanceLabel } from "../lib/format";
 import { dateLabel, formatCountdown, money, rangeLabel } from "../lib/format";
 import { useNow, shortName } from "../lib/hooks";
 import { go } from "../lib/router";
@@ -64,7 +63,6 @@ export function Checkout({ id }) {
           <h1>{facility.name}</h1>
           <p>
             {[facility.district, facility.city].filter(Boolean).join(", ") || facility.address}
-            {facility.distance_km != null && ` · Cách bạn ${distanceLabel(facility.distance_km)}`}
           </p>
         </div>
       </header>
