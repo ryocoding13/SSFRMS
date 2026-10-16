@@ -181,6 +181,16 @@ const ACTIONS = {
     return { state: addLog(next, now, `Đã xác nhận hoàn cọc ${money(refund)} · ${id}`, "manager/contracts", "MANAGER"), result: { id, refund } };
   },
 
+  // M02a · F12
+  UPDATE_UNIT_STATUS(state, { code, status, reason, by }, now) {
+    const u = state.units.find((x) => x.code === code) || fail("Không tìm thấy ô kho.");
+    if (!(UNIT_TRANSITIONS[u.status] || []).includes(status)) fail("Ô đang có khách thuê hoặc trạng thái này không chuyển được ở đây.");
+    if (!String(reason || "").trim()) fail("Nhập lý do đổi trạng thái.");
+    const entry = { from: u.status, to: status, reason: reason.trim(), by: by || null, at: iso(now) };
+    const next = { ...state, units: patchUnit(state.units, code, (x) => ({ status, history: [entry, ...(x.history || [])].slice(0, 20) })) };
+    return { state: addLog(next, now, `Ô ${code}: ${status === "MAINTENANCE" ? "chuyển sang bảo trì" : "mở lại cho thuê"}`, "manager/units", "MANAGER"), result: { code, status } };
+  },
+
   MARK_READ(state, { ids }) {
     return { state: { ...state, log: state.log.map((l) => (!ids || ids.includes(l.id) ? { ...l, read: true } : l)) }, result: {} };
   },
@@ -197,6 +207,14 @@ export function reduceOps(state, { type, payload = {} }, now = new Date()) {
   }
 }
 
+// Chuyển trạng thái ô quản lý được đổi tay ở M02a (SRS 8.1: INSPECTION → AVAILABLE hoặc MAINTENANCE; bảo trì xong mở lại).
+// Ô đang có khách (ACTIVE, EXPIRING, OVERDUE, WAITING_HANDOVER) không đổi ở đây.
+export const UNIT_TRANSITIONS = {
+  EMPTY: ["MAINTENANCE"],
+  MAINTENANCE: ["EMPTY"],
+  INSPECTION: ["EMPTY", "MAINTENANCE"],
+};
+
 export const TICKET_STATE = {
   OPEN: ["Chưa phân công", "red"],
   IN_PROGRESS: ["Đang xử lý", "blue"],
@@ -210,8 +228,8 @@ export const ASSIGN_STATE = {
   DONE: ["Đã hoàn tất", "green"],
 };
 export const PAYMENT_STATE = {
-  PENDING: ["Chờ đối soát", "amber"],
-  CONFIRMED: ["Đã xác nhận thu", "green"],
+  PENDING: ["Chờ thu tại kho", "amber"],
+  CONFIRMED: ["Đã thu tiền", "green"],
   MISMATCH: ["Báo sai lệch", "red"],
 };
 export const UNLOCK_METHODS = [

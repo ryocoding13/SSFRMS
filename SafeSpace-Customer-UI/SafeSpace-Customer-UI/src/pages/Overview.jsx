@@ -39,7 +39,7 @@ export default function Overview() {
       : { title: "Tìm kho mới", text: "Chọn loại kho và diện tích phù hợp", cta: "Bắt đầu tìm kho", to: "find" },
     firstContract
       ? { title: "Xem hợp đồng", text: `${firstContract.contract_id} · Kho ${firstContract.unit_number}`, cta: "Mở hợp đồng", to: `units/${firstContract.contract_id}` }
-      : { title: "Đơn đặt chỗ", text: "Theo dõi đơn và trạng thái đối soát", cta: "Xem đơn", to: "reservations" },
+      : { title: "Đơn đặt chỗ", text: "Theo dõi đơn và trạng thái thanh toán", cta: "Xem đơn", to: "reservations" },
     {
       title: "Thanh toán & lịch hẹn",
       text: nextAppt ? `${nextAppt.kind === "CHECK_IN" ? "Nhận kho" : "Trả kho"} ${nextAppt.unit_number} ngày ${dayMonth(nextAppt.date)} · ${nextAppt.slot.slice(0, 5)}` : "Xem khoản thu và lịch hẹn",

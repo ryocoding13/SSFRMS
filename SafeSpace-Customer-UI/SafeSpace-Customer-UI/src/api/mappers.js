@@ -98,6 +98,10 @@ export function mapCatalog({ facilities = [], unitTypes = [], rates = [] }) {
 const RESERVATION = {
   PENDING_PAYMENT: "PENDING_PAYMENT",
   PENDING_VERIFICATION: "PENDING_VERIFICATION",
+  // Trạng thái backend sẽ thêm cho thanh toán tại cửa hàng (BACKEND-TODO.md mục P2); giao diện coi như chờ thu tiền
+  PENDING_AT_FACILITY: "PENDING_VERIFICATION",
+  // PayOS webhook xác nhận đã trả (D19): backend có thể ghi PAID hoặc CONFIRMED
+  PAID: "CONFIRMED",
   UNIT_ASSIGNED: "CONFIRMED",
   CONFIRMED: "CONFIRMED",
   CHECKED_IN: "CHECKED_IN",
@@ -130,7 +134,8 @@ function offerOfType(unitTypes, id, name) {
 
 const EMPTY_OVERLAY = {
   holds: {}, // reservationId → thời điểm tạo trong trình duyệt này (ms), dùng cho đồng hồ giữ chỗ
-  transfers: {}, // reservationId → thời điểm khách bấm "Tôi đã chuyển khoản"
+  transfers: {}, // reservationId → thời điểm khách gửi đơn chờ thu tiền (bản cũ: "Tôi đã chuyển khoản")
+  atFacility: {}, // reservationId → khách chọn "Thanh toán tại cửa hàng" (khi backend chưa trả paymentMethod)
   expired: {}, // reservationId → hết thời gian giữ chỗ, đang huỷ trên máy chủ
   attachments: {}, // ticketId → tên file ảnh đính kèm
   returns: [],
@@ -197,6 +202,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       }
     }
     const offer = offerOfType(unitTypes, r.unitTypeId, r.unitTypeName);
+    const atFacility = r.paymentMethod === "AT_FACILITY" || r.status === "PENDING_AT_FACILITY" || Boolean(overlay.atFacility?.[id]);
     const rent = Number(r.estimatedAmount);
     const deposit = Number(r.requiredDeposit);
     return {
@@ -216,7 +222,12 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       deposit,
       initial_total: rent + deposit,
       status,
+      api_status: r.status,
+      pay_at_facility: atFacility,
       cancel_reason,
+      // C14b: backend trả khi huỷ đơn đã thanh toán (BACKEND-TODO.md mục H)
+      refund_amount: r.refundAmount != null ? Number(r.refundAmount) : null,
+      refund_status: r.refundStatus || null,
       created_at: created.toISOString(),
       expires_at,
       timeout_seconds,
@@ -261,19 +272,35 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       handover_pending_customer: Boolean(handover && !handover.customerConfirmed && handover.staffConfirmed),
     });
     const paidRenewals = new Set();
+    const renewalById = new Map((c.renewals || []).map((r) => [r.renewalId, r]));
     for (const p of c.payments || []) {
       if (p.renewalId) paidRenewals.add(p.renewalId);
       const kind = p.paymentType || "OTHER";
+      const ren = p.renewalId ? renewalById.get(p.renewalId) : null;
       const label =
-        kind === "RENT" ? `Thuê kho ${c.unitNumber}` : kind === "DEPOSIT" ? `Cọc hợp đồng ${c.unitNumber}` : kind === "RENEWAL" ? `Gia hạn kho ${c.unitNumber}` : `Khoản thu kho ${c.unitNumber}`;
+        kind === "RENT"
+          ? `Thuê kho ${c.unitNumber}`
+          : kind === "DEPOSIT"
+            ? `Cọc hợp đồng ${c.unitNumber}`
+            : kind === "RENEWAL"
+              ? `Gia hạn ${c.unitNumber}${ren?.renewalPeriodMonths ? ` · ${ren.renewalPeriodMonths} tháng` : ""}`
+              : kind === "REFUND"
+                ? `Hoàn cọc ${c.unitNumber}`
+                : `Khoản thu kho ${c.unitNumber}`;
       const paid = p.status === "PAID";
+      const status = paid ? (kind === "DEPOSIT" ? "DEPOSIT_HELD" : "RECONCILED") : p.status === "REFUNDED" || kind === "REFUND" ? "REFUNDED" : "UNPAID";
       ledger.push({
         ref: p.transactionReference || `TT-${pad(p.paymentId)}`,
+        api_id: p.paymentId,
         kind,
         label,
         contract_id: code,
+        unit_number: c.unitNumber,
         amount: Number(p.amount),
-        status: paid ? (kind === "DEPOSIT" ? "DEPOSIT_HELD" : "RECONCILED") : p.status === "REFUNDED" ? "REFUNDED" : "UNPAID",
+        status,
+        // C11: khoản gia hạn đã duyệt nhưng chưa trả → nút "Thanh toán" (QR PayOS)
+        payable: !paid && kind === "RENEWAL" && !["CANCELLED", "REFUNDED", "FAILED"].includes(p.status),
+        period: ren ? { from: dateOnly(ren.oldEndDate), to: dateOnly(ren.newEndDate), months: ren.renewalPeriodMonths } : null,
       });
     }
     for (const r of c.renewals || []) {
@@ -296,7 +323,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
   }
   for (const r of reservations) r.contract_id = r.contract_api_id ? contractCodeById.get(r.contract_api_id) || null : null;
 
-  // Khoản đã báo chuyển khoản, chờ nhân viên đối soát
+  // Đơn chọn thanh toán tại cửa hàng (hoặc bản cũ báo chuyển khoản), chờ nhân viên thu tiền ở S09
   for (const r of reservations.filter((x) => x.status === "PENDING_VERIFICATION")) {
     const refBase = `SS-${pad(r.api_id)}`;
     ledger.unshift(
@@ -340,6 +367,11 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       attachments: overlay.attachments[t.ticketId] || [],
       status,
       staff_note: TICKET_NOTE[status],
+      // C12: phản hồi của nhân viên (S05). Backend trả mảng responses trong GET /api/tickets/{id} (BACKEND-TODO.md mục R)
+      responses: (t.responses || [])
+        .map((x) => ({ text: x.message ?? x.note ?? x.content ?? "", by: x.staffName ?? x.responderName ?? null, at: isoOf(x.createdAt ?? x.respondedAt) }))
+        .filter((x) => x.text),
+      unit_number: t.contractUnitNumber || null,
       created_at: isoOf(t.createdAt),
       updated_at: isoOf(t.closedAt || t.resolvedAt || t.assignedAt || t.createdAt),
     };

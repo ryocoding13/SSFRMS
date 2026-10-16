@@ -5,7 +5,7 @@ import { typeLabel } from "../lib/catalog";
 import { dateLabel, dateTimeLabel, daysBetween, rangeLabel, today } from "../lib/format";
 import { go, href, qs } from "../lib/router";
 import { UNIT_STATE } from "./data";
-import { ASSIGN_STATE, candidateUnits } from "./reducer";
+import { ASSIGN_STATE, UNIT_TRANSITIONS, candidateUnits } from "./reducer";
 import { useOps } from "./store";
 import { QueuePicker, millions, slotLabel } from "./util";
 
@@ -31,7 +31,7 @@ export function ManagerOverview() {
   const g = growth(ops.revenue.months);
   const items = [
     renewals.length && { key: "r", title: `${renewals.length} yêu cầu gia hạn đang chờ duyệt`, sub: "Cần phản hồi trong vòng 24 giờ", to: "manager/renewals", label: "Xem yêu cầu", primary: true },
-    allocations.length && { key: "a", title: `${allocations.length} đơn đã đối soát chờ phân bổ kho`, sub: allocations.map((a) => a.id).join(", "), to: "manager/allocate", label: "Phân bổ kho", primary: true },
+    allocations.length && { key: "a", title: `${allocations.length} đơn đã thanh toán chờ phân bổ kho`, sub: allocations.map((a) => a.id).join(", "), to: "manager/allocate", label: "Phân bổ kho", primary: true },
     unassigned.length && { key: "u", title: `${unassigned.length} công việc chưa phân công`, sub: unassigned.map((a) => a.title).join(" · "), to: "manager/assign", label: "Phân công" },
     overdue.length && { key: "o", title: `${overdue.length} kho quá hạn thanh toán`, sub: `Kho ${overdue.map((u) => `#${u.code}`).join(", ")}`, to: "manager/units?tab=OVERDUE", label: "Xem danh sách kho" },
     returned.length && { key: "t", title: `${returned.length} biên bản trả kho chờ xác nhận hoàn cọc`, sub: returned.map((c) => `${c.unit} · ${c.customer}`).join(", "), to: "manager/contracts", label: "Xem hợp đồng" },
@@ -80,12 +80,61 @@ const UNIT_TABS = [
   ["EXPIRING", "Sắp hết hạn"],
   ["OVERDUE", "Quá hạn"],
   ["WAITING_HANDOVER", "Chờ bàn giao"],
+  ["MAINTENANCE", "Bảo trì"],
 ];
+
+const STATUS_HELP = {
+  MAINTENANCE: "Tạm khoá ô, khách không đặt được",
+  EMPTY: "Mở lại ô, khách đặt được và quản lý phân bổ được",
+};
+
+// M02a — Hộp thoại đổi trạng thái ô kho (F12)
+function UnitStatusDialog({ unit, onClose }) {
+  const { run } = useOps();
+  const options = UNIT_TRANSITIONS[unit.status] || [];
+  const [status, setStatus] = useState(options[0]);
+  const [reason, setReason] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [label] = UNIT_STATE[unit.status] || [unit.status];
+  const submit = async () => {
+    if (!reason.trim()) return setErr("Nhập lý do đổi trạng thái.");
+    setBusy(true);
+    const r = await run("UPDATE_UNIT_STATUS", { code: unit.code, status, reason }, `Đã đổi ô ${unit.code} sang ${UNIT_STATE[status][0].toLowerCase()}`);
+    setBusy(false);
+    if (r.ok) onClose();
+    else setErr(r.error);
+  };
+  return (
+    <Modal title={`Đổi trạng thái kho #${unit.code}`} onClose={onClose}>
+      <p className="modal__text modal__text--sub">Hiện tại: {label} · {unit.area} m² · {typeLabel(unit.type)}</p>
+      <fieldset className="radio-list">
+        <legend className="field__label">Trạng thái mới</legend>
+        {options.map((s) => (
+          <label key={s} className={`radio-card${status === s ? " is-on" : ""}`}>
+            <input type="radio" name="unit-status" value={s} checked={status === s} onChange={() => setStatus(s)} />
+            <span><strong>{UNIT_STATE[s][0]}</strong><small>{STATUS_HELP[s]}</small></span>
+          </label>
+        ))}
+      </fieldset>
+      <p className="hint">Chỉ hiện các trạng thái được phép chuyển: Trống ↔ Bảo trì. Ô đang có khách thuê không đổi được ở đây.</p>
+      <Field label="Lý do (bắt buộc)" error={err}>
+        <textarea rows={3} maxLength={255} value={reason} placeholder="Ví dụ: Hỏng khoá cửa, chờ thợ sửa" onChange={(e) => { setReason(e.target.value); setErr(""); }} />
+      </Field>
+      <p className="hint">Lần đổi này được ghi vào lịch sử trạng thái của ô.</p>
+      <div className="modal__actions modal__actions--end">
+        <Button variant="outline" onClick={onClose}>Huỷ</Button>
+        <Button onClick={submit} disabled={busy}>{busy ? "Đang lưu…" : "Xác nhận"}</Button>
+      </div>
+    </Modal>
+  );
+}
 const PER_PAGE = 12;
 export function ManagerUnits({ query }) {
   const { ops } = useOps();
   const tab = query.get("tab") || "";
   const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState(null);
   const page = Math.max(1, Number(query.get("page")) || 1);
   const list = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -113,9 +162,9 @@ export function ManagerUnits({ query }) {
       </div>
       <div className="panel table-wrap">
         <table className="table">
-          <thead><tr><th>Mã kho</th><th>Khách thuê</th><th>Loại kho</th><th>Diện tích</th><th>Trạng thái</th><th>Hết hạn</th></tr></thead>
+          <thead><tr><th>Mã kho</th><th>Khách thuê</th><th>Loại kho</th><th>Diện tích</th><th>Trạng thái</th><th>Hết hạn</th><th>Thao tác</th></tr></thead>
           <tbody>
-            {shown.length === 0 && <tr><td colSpan={6} className="table__empty">Không có kho phù hợp.</td></tr>}
+            {shown.length === 0 && <tr><td colSpan={7} className="table__empty">Không có kho phù hợp.</td></tr>}
             {shown.map((u) => {
               const [label, tone] = UNIT_STATE[u.status] || [u.status, "gray"];
               return (
@@ -126,6 +175,13 @@ export function ManagerUnits({ query }) {
                   <td>{u.area} m² · Tầng {u.floor}</td>
                   <td><Tag tone={tone}>{label}</Tag></td>
                   <td>{u.end ? dateLabel(u.end) : "—"}</td>
+                  <td>
+                    {UNIT_TRANSITIONS[u.status] ? (
+                      <button type="button" className="link-btn" onClick={() => setEditing(u)}>Đổi trạng thái</button>
+                    ) : (
+                      <span className="muted">{u.tenant ? "Đang có khách thuê" : "—"}</span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
@@ -133,6 +189,7 @@ export function ManagerUnits({ query }) {
         </table>
       </div>
       <Pagination page={cur} pages={pages} total={list.length} from={(cur - 1) * PER_PAGE + 1} to={(cur - 1) * PER_PAGE + shown.length} noun="kho" onPage={(n) => go(`manager/units${qs({ tab, page: n === 1 ? "" : n })}`, { replace: true })} />
+      {editing && <UnitStatusDialog unit={editing} onClose={() => setEditing(null)} />}
     </main>
   );
 }
@@ -148,7 +205,7 @@ export function ManagerAllocate({ query }) {
   if (!a)
     return (
       <main className="container page">
-        <Empty title="Không có đơn chờ phân bổ" text="Đơn đặt chỗ đã đối soát thanh toán sẽ hiện ở đây để chọn kho cụ thể.">
+        <Empty title="Không có đơn chờ phân bổ" text="Đơn đặt chỗ đã thanh toán sẽ hiện ở đây để chọn kho cụ thể.">
           <LinkButton to="manager">Về tổng quan</LinkButton>
         </Empty>
       </main>
@@ -162,7 +219,7 @@ export function ManagerAllocate({ query }) {
       <QueuePicker label="Đơn chờ phân bổ" items={pending} current={a.id} base="manager/allocate" render={(x) => `${x.id.slice(-4)} · ${x.customer}`} />
       <PageHeaderBlock title="Phân bổ kho cho đơn đặt chỗ" text={`Phạm vi: ${ops.facility.name} · Chỉ hiển thị kho trống trong toàn bộ kỳ thuê.`} />
       <section className="panel ops-order">
-        <Tag tone="green">Đã đối soát thanh toán</Tag>
+        <Tag tone="green">Đã thanh toán</Tag>
         <strong>{a.id} · {a.customer}</strong>
         <span className="muted">{a.offer} · {rangeLabel(a.start, a.end)}</span>
         <span className="muted">Lịch nhận dự kiến: {dateTimeLabel(a.pickup)}</span>

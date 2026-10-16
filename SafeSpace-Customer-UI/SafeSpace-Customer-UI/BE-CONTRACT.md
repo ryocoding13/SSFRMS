@@ -47,8 +47,8 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 
 | Điểm | Figma / giao diện hiện tại | Backend cũ (v3) |
 |---|---|---|
-| Thanh toán đặt chỗ | Khách chuyển khoản QR **ngay lúc đặt** (C04), bấm "Tôi đã chuyển khoản" → đơn "Chờ đối soát" | Đặt chỗ trước, thanh toán sau khi có hợp đồng |
-| Giữ chỗ | Đơn chờ chuyển khoản **tự huỷ sau N giây** (Figma: 60 giây) → C04b | Không có |
+| Thanh toán đặt chỗ | **QR PayOS** ngay lúc đặt (C04), tự xác nhận qua webhook, trang tự chuyển (D19); hoặc **thanh toán tại cửa hàng** (C04c) → nhân viên thu ở S09 | Đặt chỗ trước, thanh toán sau khi có hợp đồng |
+| Giữ chỗ | QR: **10 phút** (Figma C04) rồi tự huỷ → C04b; tại cửa hàng: 24 giờ (C04c) | Không có |
 | Số tiền chuyển | Tổng ban đầu = tiền thuê + cọc (cọc = 1 tháng) | — |
 | Gói thuê | 1 / 3 / 6 tháng | 1–24 tháng tuỳ nhập |
 | Đăng ký | Họ tên, email, SĐT, mật khẩu, xác nhận; **không có username** | Có `username` |
@@ -59,9 +59,9 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 
 ## 2. Trạng thái UI dùng (khoá → nhãn)
 
-- **Reservation**: `PENDING_PAYMENT` Chờ chuyển khoản · `PENDING_VERIFICATION` Chờ đối soát · `CONFIRMED` Đã xác nhận · `CHECKED_IN` Đã nhận kho · `CANCELLED` Đã huỷ đặt chỗ (kèm `cancel_reason`)
+- **Reservation**: `PENDING_PAYMENT` Chờ thanh toán · `PENDING_VERIFICATION` Chờ thanh toán tại cửa hàng (BE `PENDING_VERIFICATION` hoặc `PENDING_AT_FACILITY`) · `CONFIRMED` Đã xác nhận (BE `CONFIRMED` / `PAID` / `UNIT_ASSIGNED`) · `CHECKED_IN` Đã nhận kho · `CANCELLED` Đã huỷ đặt chỗ (kèm `cancel_reason`)
 - **Contract**: `ACTIVE`, `ENDED` lưu ở BE; `EXPIRING` (≤ 30 ngày) và `OVERDUE` UI tự suy ra từ `end_date`
-- **Ledger (khoản thu)**: `RECONCILED` Đã đối soát · `PENDING_VERIFICATION` Chờ đối soát · `DEPOSIT_HELD` Đang giữ cọc · `RENEWAL_PENDING` Chờ duyệt yêu cầu · `UNPAID` Chưa thanh toán · `REFUNDED`
+- **Ledger (khoản thu)**: `RECONCILED` Đã thanh toán · `PENDING_VERIFICATION` Chờ thanh toán tại cửa hàng · `DEPOSIT_HELD` Đang giữ cọc · `RENEWAL_PENDING` Chờ duyệt yêu cầu · `UNPAID` Chờ thanh toán (khoản `RENEWAL` chưa trả có nút "Thanh toán" → C11q) · `REFUNDED`
 - **Appointment**: `kind` = `CHECK_IN` | `MOVE_OUT`; `status` = `CONFIRMED` | `PENDING` | `DONE` | `CANCELLED`
 - **Ticket**: `OPEN` · `IN_PROGRESS` · `RESOLVED` · `CANCELLED`; `topic` = `ACCESS|LOCK|UNIT|PAYMENT|ITEMS|SCHEDULE|OTHER`
 - **Renewal**: `PENDING` | `APPROVED` | `REJECTED` — **Return**: `PENDING` | `SCHEDULED` | `COMPLETED`
@@ -79,7 +79,7 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 | C03b | `POST /api/quotes` `{facilityId, type, band, months, startDate}` | → `monthlyRate, rentTotal, deposit, initialTotal, endDate, available` |
 | C03c | `GET /api/facilities/{id}/photos` | 4+ ảnh kèm chú thích (mặt tiền, sơ đồ, ...) |
 | C04 | `POST /api/reservations` | Tạo đơn `PENDING_PAYMENT`, trả `reservationId, expiresAt, timeoutSeconds, transferAmount, transferContent` (UI tự tạo VietQR từ tài khoản nhận) |
-| C04 | `POST /api/reservations/{id}/confirm-transfer` | → `PENDING_VERIFICATION`; sau `expiresAt` trả lỗi mã `EXPIRED` — **đã có** (D18) |
+| C04 | `POST /api/reservations/{id}/payos`, `POST /api/reservations/{id}/pay-at-facility` | PayOS + thanh toán tại cửa hàng — hợp đồng JSON ở `BACKEND-TODO.md` mục "Mới 16/10". `confirm-transfer` (đã có) chỉ còn là dự phòng khi chưa có `pay-at-facility` |
 | C04b | (job nền) | Tự chuyển `PENDING_PAYMENT` quá hạn sang `CANCELLED`, `cancelReason` kiểu "Quá 1 phút chưa xác nhận" |
 | C14, C05 | `GET /api/reservations`, `GET /api/reservations/{id}` | |
 | C06, C07 | `GET /api/contracts`, `GET /api/contracts/{id}` | Thêm `unitNumber, sizeM2, location, handedOver, depositAmount` |

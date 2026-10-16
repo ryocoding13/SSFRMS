@@ -28,6 +28,25 @@ function TicketCard({ t }) {
         <br />
         Cập nhật: {dateTimeLabel(t.updated_at)}
       </p>
+      {(t.responses || []).length > 0 && (
+        <div className="reply">
+          <p className="reply__head">
+            Phản hồi của nhân viên
+            <span> · {[t.responses.at(-1).at && dateTimeLabel(t.responses.at(-1).at), t.responses.at(-1).by].filter(Boolean).join(" · ")}</span>
+          </p>
+          <p>{t.responses.at(-1).text}</p>
+          {t.responses.length > 1 && (
+            <details>
+              <summary>Xem {t.responses.length - 1} phản hồi trước</summary>
+              <ul>
+                {t.responses.slice(0, -1).reverse().map((x, i) => (
+                  <li key={i}><span className="muted">{[x.at && dateTimeLabel(x.at), x.by].filter(Boolean).join(" · ")}</span><br />{x.text}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
       {t.status !== "CANCELLED" && t.status !== "RESOLVED" && (
         <p className="muted">Nếu đang đứng tại cổng cơ sở, liên hệ nhân viên trực để được hỗ trợ ngay.</p>
       )}

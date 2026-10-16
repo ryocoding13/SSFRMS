@@ -121,4 +121,22 @@
 - Mọi dữ liệu hiển thị trên bảng làm việc của Nhân viên (`GET /api/staff/board`) và Quản lý (`GET /api/manager/board`) đều được truy vấn trực tiếp từ các bảng SQL Server (`Reservations`, `StorageUnits`, `RentalContracts`, `UnitAssignments`, `HandoverRecords`, `ReturnInspections`, `SupportTickets`, `UserFacilities`, `Payments`).
 - Mọi thao tác ghi nhận (đối soát, phân bổ kho, bàn giao, kiểm tra trả kho, gia hạn, hoàn cọc) đều được lưu vĩnh viễn vào SQL Server qua `dbContext.SaveChangesAsync()`.
 - Các hành động của khách hàng (`REQUEST_RETURN`, `UPDATE_NAME`, `CHANGE_PASSWORD`) được kết nối trực tiếp đến các endpoint backend (`POST /api/contracts/{id}/move-out`, `PUT /api/auth/profile`, `POST /api/auth/change-password`).
+## D20 — Toạ độ cơ sở lưu trong database, Vận hành KD sửa ở B05a — Đã chốt (15/10/2026)
+- Bảng `facilities` thêm `Latitude`, `Longitude` (decimal(9,6), cùng có hoặc cùng trống). API cơ sở công khai và `/api/operations/facilities` trả / nhận hai trường này.
+- Màn B05 thêm nút "Sửa thông tin cơ sở" mở hộp thoại B05a (tên, địa chỉ, điện thoại, giờ ra vào, vĩ độ, kinh độ). Dán cặp toạ độ copy từ Google Maps vào một ô thì tự tách hai ô.
+- Bản đồ Tìm kho (C02m) đọc toạ độ từ API; `src/config/geo.js` chỉ còn là toạ độ dự phòng cho cơ sở chưa nhập.
+- Toạ độ khởi tạo của 12 cơ sở lấy giống `geo.js` (ước lượng); Vận hành KD nên kiểm tra lại trên Google Maps và sửa ở B05a.
+
+## D21 — Giao diện thanh toán theo Figma 16/10: PayOS + tại cửa hàng, QR mở cửa mô phỏng — Đã chốt (16/10/2026)
+- C04 có hai lựa chọn: **Thanh toán QR** (PayOS, tự xác nhận qua webhook PayOS, giao diện hỏi trạng thái 3 giây/lần rồi tự
+  sang C05) và **Tại cửa hàng** (C04c → C05c, nhân viên thu ở S09). Bỏ nút "Tôi đã chuyển khoản"; chữ "đối soát" đổi thành
+  "thanh toán" / "thu tiền" trên mọi màn (S09 "Thu tiền tại kho").
+- Giữ chỗ khi thanh toán QR: **10 phút** (Figma C04; `VITE_PAYMENT_TIMEOUT_SECONDS=600`, trước là 60 giây). Tại cửa hàng: 24 giờ.
+- Thanh toán tại cửa hàng dùng lại trạng thái `PENDING_VERIFICATION` (hàng chờ S09 sẵn có). Backend chưa có
+  `pay-at-facility` thì giao diện gọi `confirm-transfer` — luồng vẫn chạy với backend hiện tại.
+- Endpoint mới chưa có trên backend (404/405 không kèm nội dung) → giao diện hiện thông báo thay thế, không báo lỗi
+  (`src/api/payment-access.js` `isUnsupported`). Hợp đồng JSON: `SafeSpace-Customer-UI/BACKEND-TODO.md` mục "Mới 16/10".
+- QR mở cửa: **mô phỏng** máy quét ở `#/door` (không cần đăng nhập, như thiết bị tại cơ sở); mã QR chỉ là mã tham chiếu.
+- Huỷ đơn đã thanh toán (C14a) lấy số tiền hoàn từ `cancel-preview`; chế độ trình duyệt tạm tính phí 10% tiền thuê như Figma.
+- M02a đổi trạng thái ô chỉ cho Trống ↔ Bảo trì và Chờ kiểm tra → Trống / Bảo trì (SRS 8.1); ô đang có khách không đổi ở đây.
 

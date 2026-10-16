@@ -7,7 +7,7 @@ import { useOps } from "./store";
 
 export const STAFF_TABS = [
   ["staff", "Công việc ngày"],
-  ["staff/reconcile", "Đối soát"],
+  ["staff/reconcile", "Thu tiền"],
   ["staff/verify", "Xác minh"],
   ["staff/handover", "Bàn giao"],
   ["staff/return", "Kiểm tra trả kho"],

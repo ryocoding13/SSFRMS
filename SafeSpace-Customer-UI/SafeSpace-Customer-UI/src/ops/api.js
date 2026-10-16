@@ -51,7 +51,8 @@ export const OPS_ACTIONS = {
   HANDOVER: ({ id, method }) => ["POST", `/api/staff/handovers/${enc(id)}/complete`, { unlockMethod: method }],
   SUBMIT_RETURN: ({ id, report }) => ["POST", `/api/staff/returns/${enc(id)}/inspection`, toApi(report)],
   TICKET_RESPONSE: ({ id, note, next }) => ["POST", `/api/staff/tickets/${enc(id)}/responses`, { note, nextStatus: next }],
-  UPDATE_UNIT_STATUS: ({ id, status, reason }) => ["PUT", `/api/staff/units/${enc(id)}/status`, { status, reason }],
+  // M02a · F12: đổi trạng thái ô (backend nhận mã ô hoặc id), dùng chung cho nhân viên và quản lý
+  UPDATE_UNIT_STATUS: ({ id, code, status, reason }) => ["PUT", `/api/staff/units/${enc(code ?? id)}/status`, { status, reason: String(reason || "").trim() }],
   REVOKE_CREDENTIAL: ({ id }) => ["POST", `/api/staff/credentials/${enc(id)}/revoke`],
   REISSUE_CREDENTIAL: ({ unit, type, reason }) => ["POST", `/api/staff/credentials/reissue`, { unitCode: unit, credentialType: type, reason }],
 

@@ -22,6 +22,10 @@ function readOps() {
   return createOpsData();
 }
 
+const UNSUPPORTED = {
+  UPDATE_UNIT_STATUS: "Máy chủ chưa hỗ trợ đổi trạng thái ô kho. Cập nhật backend có PUT /api/staff/units/{mã}/status rồi thử lại.",
+};
+
 // Nhật ký / thông báo trong ca chỉ giữ ở trình duyệt (backend chưa có API thông báo)
 function appendLog(state, text, to) {
   const at = new Date();
@@ -98,7 +102,9 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
           return { ok: true };
         } catch (e) {
           onApiError?.(e);
-          const error = e?.message || "Thao tác không thành công.";
+          // Route chưa có trên backend: ASP.NET trả 404/405 không kèm nội dung → báo rõ thay vì "Không tìm thấy dữ liệu."
+          const missing = e instanceof ApiError && (e.status === 404 || e.status === 405) && !e.data;
+          const error = missing ? UNSUPPORTED[type] || "Máy chủ chưa hỗ trợ thao tác này." : e?.message || "Thao tác không thành công.";
           notify?.(error, "error");
           return { ok: false, error };
         }
