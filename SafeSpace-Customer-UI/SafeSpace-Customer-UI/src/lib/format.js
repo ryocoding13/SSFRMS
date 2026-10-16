@@ -58,9 +58,6 @@ export function daysBetween(fromIso, toIso) {
   return Math.round((parse(toIso) - parse(fromIso)) / 86400000);
 }
 
-export const distanceLabel = (km) =>
-  `${new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(km)} km`;
-
 // Số điện thoại hiển thị dạng che bớt: 09•• ••• 142
 export function maskPhone(phone) {
   const digits = String(phone || "").replace(/\D/g, "");

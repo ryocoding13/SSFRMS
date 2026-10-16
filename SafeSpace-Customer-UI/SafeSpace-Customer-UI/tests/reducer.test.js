@@ -44,8 +44,11 @@ test("đặt chỗ: kiểm tra đầu vào", () => {
   const s = createSeedData(T);
   assert.match(book(s, { start_date: "2026-09-20" }).error.message, /quá khứ/);
   assert.match(book(s, { months: 2 }).error.message, /1, 3 hoặc 6/);
-  assert.match(book(s, { facility_id: 8, type: "climate" }).error.message, /chưa có loại kho/);
+  // Figma 14/10: cơ sở nào cũng có kho lạnh → giả lập một cơ sở thiếu loại kho để kiểm tra thông báo
+  const noCold = { ...s, facilities: s.facilities.map((f) => (f.facility_id === 8 ? { ...f, has_climate: false, offers: f.offers.filter((o) => o.type !== "climate") } : f)) };
+  assert.match(book(noCold, { facility_id: 8, type: "climate" }).error.message, /chưa có loại kho/);
   assert.match(book(s, { band: "X" }).error.message, /diện tích/);
+  assert.match(book(s, { band: "S" }).error.message, /diện tích/); // cỡ S đã bỏ, chỉ còn M và L
 });
 
 test("chuyển khoản trong hạn: chờ đối soát, sinh 2 khoản thu, thông báo", () => {
@@ -84,7 +87,7 @@ test("gia hạn: chỉ 1 yêu cầu chờ duyệt, chặn trả kho song song, h
   assert.equal(a.state.renewals[0].status, "PENDING");
   assert.equal(a.state.renewals[0].new_end, addMonths(s.contracts[1].end_date, 3));
   assert.equal(a.state.ledger.at(-1).status, "RENEWAL_PENDING");
-  assert.equal(a.state.ledger.at(-1).amount, 3 * 500000);
+  assert.equal(a.state.ledger.at(-1).amount, 3 * 1380000); // B-015: kho lạnh cỡ M tại Nguyễn Lương Bằng
   assert.match(run(a.state, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 1 }).error.message, /đang chờ/);
   assert.match(run(a.state, "REQUEST_RETURN", { contract_id: "HĐ-2026-0086", date: T, slot: "09:00–09:30" }).error.message, /gia hạn/);
   assert.match(run(s, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 2 }).error.message, /1, 3 hoặc 6/);
@@ -138,12 +141,12 @@ test("nhân viên đối soát: tạo hợp đồng + lịch nhận kho, khoản
   assert.deepEqual(mine, ["DEPOSIT_HELD", "RECONCILED"]);
 });
 
-test("tìm cơ sở: lọc khu vực Quận 7 → 3 cơ sở; kho lạnh loại bỏ cơ sở không có; sắp xếp giá", () => {
+test("tìm cơ sở: lọc khu vực Quận 7 → 5 cơ sở; cả 12 cơ sở có kho lạnh; sắp xếp giá", () => {
   const s = createSeedData(T);
   const q7 = searchFacilities(s.facilities, { area: "Quận 7, TP. Hồ Chí Minh" });
-  assert.deepEqual(q7.map((f) => f.facility_id), [1, 2, 3]);
+  assert.deepEqual(q7.map((f) => f.facility_id), [1, 2, 3, 4, 5]);
   const cold = searchFacilities(s.facilities, { type: "climate" });
-  assert.ok(cold.every((f) => f.has_climate) && cold.length === 9);
+  assert.ok(cold.every((f) => f.has_climate) && cold.length === 12);
   const cheap = searchFacilities(s.facilities, { sort: "price" });
   assert.equal(cheap[0].facility_id, 8); // Bình Chánh 790.000
   assert.equal(rateFor(s.facilities[0], "normal", "M"), 1150000);

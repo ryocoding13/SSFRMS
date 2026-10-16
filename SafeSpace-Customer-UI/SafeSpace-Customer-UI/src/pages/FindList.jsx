@@ -5,7 +5,7 @@ import { Photo } from "../components/Photo";
 import { Pagination, Select } from "../components/Pickers";
 import { Empty, LinkButton, PageHeader } from "../components/UI";
 import { BUDGET_LIMIT, areaLabel, displayOffer, searchFacilities, typeLabel } from "../lib/catalog";
-import { distanceLabel, money } from "../lib/format";
+import { money } from "../lib/format";
 import { go, href, qs } from "../lib/router";
 import { useApp } from "../state/store";
 
@@ -17,7 +17,7 @@ export const filtersFromQuery = (q) => ({
   area: q.get("area") || "",
   camera: q.get("camera") === "1",
   budget: q.get("budget") === "1",
-  sort: q.get("sort") || "best",
+  sort: q.get("sort") === "price" ? "price" : "best",
 });
 
 const compactLabel = (s) => s.replaceAll(" – ", "–");
@@ -74,15 +74,11 @@ export default function FindList({ query }) {
           <button type="button" className={`chip${filters.budget ? " is-on" : ""}`} aria-pressed={filters.budget} onClick={() => update({ budget: !filters.budget, page: "" })}>
             {filters.budget && "✓ "}Dưới {money(BUDGET_LIMIT)} / tháng
           </button>
-          <button type="button" className={`chip${filters.sort === "near" ? " is-on" : ""}`} aria-pressed={filters.sort === "near"} onClick={() => update({ sort: filters.sort === "near" ? "best" : "near", page: "" })}>
-            Gần bạn nhất
-          </button>
         </div>
         <label className="sort">
           Sắp xếp:
           <Select aria-label="Sắp xếp" value={filters.sort} onChange={(e) => update({ sort: e.target.value, page: "" })}>
             <option value="best">Phù hợp nhất</option>
-            <option value="near">Gần bạn nhất</option>
             <option value="price">Giá thấp đến cao</option>
           </Select>
         </label>
@@ -101,7 +97,7 @@ export default function FindList({ query }) {
                 <Photo facility={f} badge={filters.sort === "best" && current === 1 && i === 0 ? "Gợi ý phù hợp nhất" : null} />
                 <h3>{f.name}</h3>
                 <p className="muted">
-                  {f.distance_km != null ? `${f.city} · Cách bạn ${distanceLabel(f.distance_km)}` : [f.district, f.city].filter(Boolean).join(", ")}
+                  {[f.district, f.city].filter(Boolean).join(", ")}
                 </p>
                 <p className="facility-card__meta">
                   {compactLabel(offer.size_label)} · {typeLabel(offer.type)}

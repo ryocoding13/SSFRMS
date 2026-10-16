@@ -30,6 +30,26 @@
 
 ---
 
+## Phiên 4 — 2026-10-14 — Đồng bộ giao diện với Figma 14/10 (Claude)
+
+- Tính năng: F30 (sơ đồ ô kho) + trang chủ, danh mục kho, header khu vận hành. Nhánh `feature/figma-1410-sync`. Quyết định D17.
+- Đã xong (chỉ frontend):
+  - Trang chủ mới (`pages/Home.jsx`): hero ảnh + tìm theo khu vực / loại / cỡ, dải số liệu, 4 loại kho, 3 bước,
+    cơ sở theo chip khu vực, khối kêu gọi, footer. Bỏ CSS trang chủ cũ không còn dùng.
+  - Sơ đồ 12 ô (`lib/units.js`, `UnitMap.jsx`): dãy A cỡ M, dãy B cỡ L; dữ liệu backend gắn ô theo loại + cỡ.
+  - Bỏ cỡ S (`lib/catalog.js`), 2 cỡ M 15 m² / L 30 m²; bảng giá P01 còn 2 thẻ, có giá kho lạnh.
+  - Bỏ "Gần bạn nhất", "Cách bạn … km", `distance_km`, `distanceLabel`.
+  - 12 cơ sở đều có kho lạnh; sửa quận Tân Thuận, Phú Mỹ Hưng về Quận 7; đơn mẫu B-015 đổi sang kho lạnh cỡ M.
+  - Header khu Nhân viên / Quản lý hiện tên cơ sở phụ trách dưới vai trò.
+- Test đã sửa theo quy tắc mới (không phải để cho pass): `units.test.js` (10 → 12 ô), `reducer.test.js`
+  (Quận 7 có 5 cơ sở, cả 12 có kho lạnh, giá B-015 mới, thêm kiểm tra cỡ S bị từ chối), `api-mappers.test.js`
+  (loại kho ≤ 20 m² là cỡ M), `render.test.mjs` (lọc cỡ M thay cỡ S).
+- Kiểm chứng: `npm test` → 39/39 pass; `npm run test:render` → 76 route PASS; `npm run build` → OK;
+  chụp màn hình trang chủ (1440 px và 390 px), sơ đồ 12 ô, header quản lý / nhân viên ở chế độ không backend.
+- Chưa làm: dữ liệu khu vận hành (`ops/data.js`) vẫn dùng diện tích cũ và 86 ô; backend chưa đổi seed (D17);
+  dòng thông báo trong `OpsShell.jsx` còn chữ "dữ liệu mẫu" (trái D07/D15).
+- Phiên sau nên: cập nhật `DbSeeder` theo D17, rồi chạy giao diện với backend thật.
+
 ## Phiên 3 — 2026-10-14 — Backend khu Quản lý vận hành KD (Claude)
 
 - Tính năng: F24 (role OPERATIONS), F22 (cơ sở, chính sách, bảng giá), F23 (báo cáo + xuất CSV) — phía backend.
