@@ -64,7 +64,7 @@ cd SafeSpace-Customer-UI/SafeSpace-Customer-UI && npm run dev     # UI:  http://
 ```
 
 Cần: .NET SDK 10 (project đặt `net10.0`), Node ≥ 22.12, SQL Server (mặc định `.\SQLEXPRESS`).
-Tài khoản seed: `customer01`/`Customer@123`, `staff01`/`Staff@123`, `ops01`/`Ops@123` (Vận hành KD), `admin`/`Admin@123`.
+Tài khoản seed: `customer01`/`Customer@123`, `staff01`/`Staff@123`, `admin`/`Admin@123`.
 Không có backend: tạo `.env.local` với `VITE_USE_API=false`, hoặc `MOCK_OPS=1 npm run dev:mock` (máy chủ giả có cả `/api/ops/*`,
 thêm `manager01`/`Manager@123`).
 

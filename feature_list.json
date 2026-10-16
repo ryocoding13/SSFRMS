@@ -242,12 +242,6 @@
       "state": "passing",
       "evidence": "2026-10-01: npm test 38/38, test:render 76 route PASS, build OK; số ô trống lấy từ POST /api/availability/check (đã kiểm với mock)"
     },
-    {
-      "id": "F31", "flow": 4, "uc": ["UC19", "UC20", "UC21", "UC22", "UC23"],
-      "actor": "Quản lý vận hành KD",
-      "behavior": "Frontend B01–B05 và tích hợp API theo operations-api(3).md; không sửa backend/database",
-      "verification": "_fe; npm run test:business; kiểm tra trình duyệt và đối chiếu source backend",
-      "state": "passing", "depends_on": [], "evidence": "2026-10-15: phạm vi chỉ frontend. npm test 38/38, test:business 8/8, render 76 route, build/init FE PASS. Browser 13 nhóm PASS; 14 màn role khác giống từng pixel. 77 file source/config backend giữ nguyên byte. Không xác nhận backend/DB thật."
-    }
+    {"id": "F31", "flow": 2, "uc": [], "actor": "Khách hàng", "behavior": "QR mở cửa C07 và mô phỏng quét", "state": "active", "verification": "npm test; npm run test:render; npm run build; tích hợp backend + SQL Server sau", "evidence": "UI và mô phỏng đã có, 10 test QR pass; chưa có API cấp/kiểm/thu hồi mã."}
   ]
 }

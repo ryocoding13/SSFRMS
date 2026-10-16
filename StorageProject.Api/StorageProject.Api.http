@@ -1,67 +1,6 @@
 @StorageProject.Api_HostAddress = http://localhost:5151
 
-### ==== Quản lý vận hành KD (/api/operations) — đăng nhập ops01 / Ops@123 rồi dán token ====
-@opsToken = <dán giá trị "token" trả về từ /api/auth/login>
-
-POST {{StorageProject.Api_HostAddress}}/api/auth/login
-Content-Type: application/json
-
-{ "username": "ops01", "password": "Ops@123" }
-
-###
-GET {{StorageProject.Api_HostAddress}}/api/operations/facilities
-Authorization: Bearer {{opsToken}}
-
-###
-POST {{StorageProject.Api_HostAddress}}/api/operations/facilities
-Authorization: Bearer {{opsToken}}
-Content-Type: application/json
-
-{ "name": "SafeSpace Tân Phú", "address": "Đường Lũy Bán Bích, Quận Tân Phú, TP. Hồ Chí Minh", "contactPhone": "028 3700 1022", "openingTime": "06:00", "closingTime": "22:00", "status": "TEMPORARILY_CLOSED" }
-
-###
-PUT {{StorageProject.Api_HostAddress}}/api/operations/facilities/1/status
-Authorization: Bearer {{opsToken}}
-Content-Type: application/json
-
-{ "status": "TEMPORARILY_CLOSED", "reason": "Bảo trì hệ thống PCCC" }
-
-###
-GET {{StorageProject.Api_HostAddress}}/api/operations/policies?status=ACTIVE
-Authorization: Bearer {{opsToken}}
-
-###
-POST {{StorageProject.Api_HostAddress}}/api/operations/policies
-Authorization: Bearer {{opsToken}}
-Content-Type: application/json
-
-{ "policyName": "Khung giá kho Mini S", "policyType": "PRICE_RANGE", "calculationType": "RANGE", "minValue": 300000, "maxValue": 800000, "ruleDescription": "Giá thuê tháng kho Mini S tại mọi cơ sở", "facilityId": null, "unitTypeId": 1, "effectiveFrom": "2026-10-15", "effectiveTo": null }
-
-###
-POST {{StorageProject.Api_HostAddress}}/api/operations/policies/3/activate?replaceExisting=false
-Authorization: Bearer {{opsToken}}
-
-###
-GET {{StorageProject.Api_HostAddress}}/api/operations/rates?facilityId=1
-Authorization: Bearer {{opsToken}}
-
-###
-POST {{StorageProject.Api_HostAddress}}/api/operations/rates
-Authorization: Bearer {{opsToken}}
-Content-Type: application/json
-
-{ "facilityId": 1, "unitTypeId": 1, "monthlyRate": 520000, "effectiveFrom": "2026-11-01" }
-
-###
-GET {{StorageProject.Api_HostAddress}}/api/operations/reports/facilities?from=2026-09-01&to=2026-10-31
-Authorization: Bearer {{opsToken}}
-
-###
-GET {{StorageProject.Api_HostAddress}}/api/operations/reports/revenue-trend?months=6
-Authorization: Bearer {{opsToken}}
-
-###
-GET {{StorageProject.Api_HostAddress}}/api/operations/reports/export?view=facilities&from=2026-09-01&to=2026-10-31
-Authorization: Bearer {{opsToken}}
+GET {{StorageProject.Api_HostAddress}}/weatherforecast/
+Accept: application/json
 
 ###

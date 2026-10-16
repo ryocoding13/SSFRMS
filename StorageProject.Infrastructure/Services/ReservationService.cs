@@ -86,12 +86,6 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         var facility = await dbContext.Facilities.FindAsync([request.FacilityId], ct)
             ?? throw new InvalidOperationException("Không tìm thấy cơ sở kho.");
 
-        // UC19: chỉ cơ sở đang hoạt động mới nhận đặt chỗ mới (tạm đóng vẫn phục vụ khách hiện tại)
-        if (facility.Status != "ACTIVE")
-        {
-            throw new InvalidOperationException("Cơ sở này đang tạm ngừng nhận đặt chỗ mới. Vui lòng chọn cơ sở khác.");
-        }
-
         var unitType = await dbContext.UnitTypes.FindAsync([request.UnitTypeId], ct)
             ?? throw new InvalidOperationException("Không tìm thấy loại phòng kho.");
 
@@ -104,7 +98,6 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         var activeRate = await dbContext.RentalRates
             .Where(r => r.FacilityId == request.FacilityId 
                      && r.UnitTypeId == request.UnitTypeId 
-                     && r.Status == "ACTIVE"
                      && r.EffectiveFrom <= today 
                      && (r.EffectiveTo == null || r.EffectiveTo >= today))
             .OrderByDescending(r => r.EffectiveFrom)
@@ -130,13 +123,20 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             throw new InvalidOperationException("Hiện tại đã hết kho trống cho loại kho và khoảng thời gian yêu cầu.");
         }
 
-        // Chỉ chính sách đang áp dụng, chọn theo thứ tự ưu tiên BR20 (bản nháp của Vận hành KD không ảnh hưởng)
-        var depositPolicy = await OpsRules.FindApplicablePolicyAsync(
-            dbContext, "DEPOSIT", request.FacilityId, request.UnitTypeId, today, ct);
+        decimal depositMonths = 1;
+        var depositPolicy = await dbContext.Policies
+            .Where(p => p.PolicyType == "DEPOSIT" &&
+                (p.FacilityId == request.FacilityId || p.FacilityId == null))
+            .FirstOrDefaultAsync(ct);
+
+        if (depositPolicy?.Value.HasValue == true)
+        {
+            depositMonths = depositPolicy.Value.Value;
+        }
 
         var monthlyRate = activeRate.MonthlyRate;
         var estimatedAmount = monthlyRate * request.RentalPeriodMonths;
-        var requiredDeposit = OpsRules.CalculateDeposit(depositPolicy, monthlyRate, estimatedAmount);
+        var requiredDeposit = monthlyRate * depositMonths;
 
         var reservation = new Reservation
         {

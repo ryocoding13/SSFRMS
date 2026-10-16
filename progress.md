@@ -1,16 +1,3 @@
-## 2026-10-15 — F31: Frontend vận hành KD, không sửa backend/database
-
-- Bản gốc: SSFRMS(1).zip mới; API: operations-api(3).md; thiết kế B01–B05 section 436:13803.
-- Thêm src/business, src/api/business, assets cục bộ và mock frontend opt-in dev:business.
-- Chỉ nối role OPERATIONS vào router/session hiện có; giữ nguyên điều kiện các role cũ.
-- B02 gom 8 ô thành 5 type/scope để đúng API; quy định phụ là dòng có nhãn trong ruleDescription;
-  409 phải xác nhận trước khi thay thế. Không sửa backend để cho nhiều policy xung đột cùng tồn tại.
-- Kiểm chứng: npm test 38/38; test:business 8/8; test:render 76 route; build/init FE PASS;
-  Chromium 13 nhóm PASS; 14/14 màn các role khác giống từng pixel; 4 XLSX mở bằng openpyxl.
-- 77 file source/config backend nguyên byte so ZIP đầu vào; không sửa DB, migration, seeder hoặc endpoint.
-- Phạm vi người dùng chỉ frontend nên không build .NET, không thử SQL Server thật.
-- Xem BUSINESS_FRONTEND_README.md, BUSINESS_FRONTEND_REVIEW.md, BUSINESS-FLOW-COVERAGE.md trong frontend.
-
 # Nhật ký tiến độ (progress.md)
 
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
@@ -29,25 +16,6 @@
 ```
 
 ---
-
-## Phiên 3 — 2026-10-14 — Backend khu Quản lý vận hành KD (Claude)
-
-- Tính năng: F24 (role OPERATIONS), F22 (cơ sở, chính sách, bảng giá), F23 (báo cáo + xuất CSV) — phía backend.
-  Nhánh `feature/operations-backend`.
-- Đã xong:
-  - Role `OPERATIONS`, quyền `POLICY_MANAGE`, `REPORT_SYSTEM`, `REPORT_EXPORT`, tài khoản `ops01` / `Ops@123`
-    (`DbSeeder.EnsureOperationsRoleAsync`, chạy lại được với DB cũ).
-  - `/api/operations/*`: cơ sở (UC19), chính sách (UC20–21), bảng giá (UC21), báo cáo theo cơ sở / loại kho / tháng /
-    trạng thái, drill-down hợp đồng, xuất CSV (UC22–23). Hợp đồng API: `docs/operations-api.md`. Không có migration mới.
-  - Đặt chỗ: chặn cơ sở không ACTIVE; tiền cọc và giá chỉ lấy chính sách / giá `ACTIVE` còn hiệu lực (D16).
-- Kiểm chứng:
-  - `dotnet build StorageProject.Core` → Build succeeded, 0 warning.
-  - Không tải được NuGet trong môi trường làm việc → biên dịch file mới / file sửa với lớp giả lập API EF Core → Build succeeded.
-  - **Chưa chạy `dotnet build StorageProject.slnx` đầy đủ và chưa chạy với SQL Server thật.**
-- Bị chặn / rủi ro: giao diện B01–B05 chưa có. Nếu B làm PayOS đổi `Payment.ContractId` thành không bắt buộc thì
-  `OperationsReportService.LoadAsync` cần lọc `p.ContractId != null` (khoản chưa có hợp đồng chưa thuộc cơ sở nào).
-- Phiên sau nên: chạy `dotnet build StorageProject.slnx` + chạy API, đăng nhập `ops01`, thử các request trong
-  `StorageProject.Api.http` mục Vận hành KD; pass thì đổi F24 sang `passing`, F22–F23 chờ giao diện B01–B05.
 
 ## Phiên 2 — 2026-10-01 — Giao diện theo Figma 30/09, khu Nhân viên / Quản lý cơ sở
 
@@ -103,3 +71,10 @@
     (`services/`, `customer.css`); nhắc tag "BẢN DEMO UI" không còn trong code.
 - Phiên sau nên: chạy `./init.sh` đầy đủ trên máy có .NET; sau đó làm F28 (test backend) hoặc F21
   (khu Nhân viên / Quản lý) tuỳ nhóm ưu tiên.
+
+## Phiên QR — 2026-10-16 — Tiến / Codex
+- F31: UI QR C07q + kết quả C07r1/C07r2, mô phỏng trong VITE_USE_API=false; API thật fail closed khi chưa triển khai.
+- Tái sử dụng Modal/Button, qrcode có sẵn; không sửa backend hoặc luồng khác.
+- Kiểm chứng: 38 test cũ + 10 test QR, 76 route SSR PASS, Vite build PASS. init.sh CRLF chạy qua sed, --fe-only.
+- Chưa hoàn tất tích hợp backend/SQL Server, không đánh dấu passing toàn tính năng. Hướng dẫn QR-README.md.
+- Trình duyệt: Playwright không có Chromium; tải Chromium lỗi archive. Chưa kiểm chứng pixel hoặc thao tác browser; không khẳng định 100% visual match.

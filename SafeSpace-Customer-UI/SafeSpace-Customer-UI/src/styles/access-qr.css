@@ -1,0 +1,26 @@
+.modal--access-qr,.modal--access-result { width:480px; max-width:calc(100vw - 32px); color:var(--text); }
+.modal--access-qr { padding:32px; border-radius:12px; display:flex; flex-direction:column; align-items:center; gap:16px; }
+.modal--access-qr > h2 { font-size:22px; font-weight:600; line-height:27px; text-align:center; margin:0; }
+.access-subtitle { color:var(--muted); font-size:15px; line-height:18px; text-align:center; }
+.access-code { width:240px; height:240px; flex-shrink:0; background:var(--soft); border:1px solid var(--line); border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; cursor:pointer; padding:6px; }
+.access-code-image,.access-code-image svg { width:176px; height:176px; display:block; }
+.access-code strong { font-size:16px; line-height:19px; font-weight:600; }
+.access-code > span:last-child { color:var(--muted); font-size:11px; line-height:16px; }
+.access-details { width:100%; display:flex; flex-direction:column; gap:8px; font-size:15px; line-height:18px; }
+.access-details > div { display:flex; justify-content:space-between; gap:12px; }
+.access-details dt { color:var(--muted); }
+.access-details dd { font-weight:600; text-align:right; }
+.access-help { font-size:14px; line-height:17px; color:var(--muted); width:100%; }
+.modal--access-qr > .btn { min-height:48px; margin:0; border-radius:6px; }
+.modal--access-result { --access-success-bg:#e0f7eb; --access-success:#05855e; --access-error-bg:#fce8e8; --access-error:#cc2626; padding:48px 40px 40px; border-radius:16px; }
+.modal--access-result > h2 { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+.access-allowed { background:var(--access-success-bg); }
+.access-denied { background:var(--access-error-bg); }
+.access-result-content { display:flex; flex-direction:column; align-items:center; gap:16px; text-align:center; }
+.access-result-icon { width:96px; height:96px; }
+.access-scanner-label { font-size:13px; line-height:16px; font-weight:600; color:var(--muted); }
+.access-result-title { font-size:32px; line-height:39px; font-weight:700; color:var(--access-success); }
+.access-denied .access-result-title { color:var(--access-error); }
+.access-result-description { font-size:16px; line-height:19px; width:100%; }
+.access-result-content > .btn { min-height:48px; border-radius:6px; padding:12px; background:var(--white); }
+@media(max-width:520px) { .modal--access-qr,.modal--access-result { padding:24px; } }

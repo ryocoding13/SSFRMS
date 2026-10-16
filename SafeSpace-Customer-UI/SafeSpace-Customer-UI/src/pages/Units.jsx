@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import AccessQr from "../components/AccessQr";
 import { EmptyInline } from "../components/Inline";
 import { DatePicker, Select } from "../components/Pickers";
 import { Button, Empty, Field, LinkButton, Notice, PageHeader, StatusTag, Tag } from "../components/UI";
@@ -106,12 +107,13 @@ export function UnitDetail({ id }) {
           <h3>Thông tin ra vào</h3>
           <p className="muted">
             {c.handed_over
-              ? "Thẻ ra vào đã bàn giao. Liên hệ cơ sở khi mất thẻ hoặc gặp lỗi mã truy cập."
+              ? "Mở cửa bằng QR: bấm “Mở cửa kho” rồi đưa mã vào máy quét ở cửa. QR chỉ dùng được khi hợp đồng còn hiệu lực và hết hiệu lực khi trả kho."
               : "Thẻ ra vào và khóa sẽ được bàn giao tại cơ sở theo lịch hẹn nhận kho."}
           </p>
         </section>
         <aside className="panel booking">
           <h2>Bạn cần làm gì?</h2>
+          <AccessQr contract={c} facility={f} user={data.user} />
           {renewal && <Notice>Yêu cầu gia hạn thêm {renewal.months} tháng đang chờ cơ sở duyệt.</Notice>}
           {ret && <Notice>Yêu cầu trả kho ngày {dateLabel(ret.date)} đang chờ cơ sở xác nhận.</Notice>}
           <div className="stack stack--col">

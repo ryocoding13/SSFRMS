@@ -94,7 +94,7 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
             .AsNoTracking()
             .Include(r => r.Facility)
             .Include(r => r.UnitType)
-            .Where(r => r.Status == "ACTIVE" && r.EffectiveFrom <= today && (r.EffectiveTo == null || r.EffectiveTo >= today));
+            .Where(r => r.EffectiveFrom <= today && (r.EffectiveTo == null || r.EffectiveTo >= today));
 
         if (facilityId.HasValue)
         {
@@ -134,7 +134,6 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
         var activeRate = await dbContext.RentalRates
             .Where(r => r.FacilityId == request.FacilityId 
                      && r.UnitTypeId == request.UnitTypeId 
-                     && r.Status == "ACTIVE"
                      && r.EffectiveFrom <= today 
                      && (r.EffectiveTo == null || r.EffectiveTo >= today))
             .OrderByDescending(r => r.EffectiveFrom)
@@ -159,12 +158,20 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
 
         var availableCount = Math.Max(0, totalMatchingUnits - reservedUnitsCount);
 
-        // Cọc theo chính sách DEPOSIT đang áp dụng (BR20, BR21) — cùng cách tính với lúc tạo đơn đặt chỗ
-        var depositPolicy = await OpsRules.FindApplicablePolicyAsync(
-            dbContext, "DEPOSIT", request.FacilityId, request.UnitTypeId, today, ct);
+        // Fetch deposit policy (default: 1 month of rent)
+        decimal depositMultiplier = 1;
+        var depositPolicy = await dbContext.Policies
+            .Where(p => p.PolicyType == "DEPOSIT" &&
+                (p.FacilityId == request.FacilityId || p.FacilityId == null))
+            .FirstOrDefaultAsync(ct);
 
+        if (depositPolicy?.Value.HasValue == true)
+        {
+            depositMultiplier = depositPolicy.Value.Value;
+        }
+
+        var requiredDeposit = monthlyRate * depositMultiplier;
         var estimatedTotalRent = monthlyRate * request.RentalPeriodMonths;
-        var requiredDeposit = OpsRules.CalculateDeposit(depositPolicy, monthlyRate, estimatedTotalRent);
 
         return new AvailabilityResultDto(
             facility.FacilityId,

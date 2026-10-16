@@ -2,7 +2,6 @@
 // Dùng để chạy / kiểm thử giao diện khi máy chưa có .NET và SQL Server:  npm run dev:mock
 // Dữ liệu nằm trong bộ nhớ, tắt là mất. Không thay thế backend thật.
 import http from "node:http";
-import { handleBusiness, seedBusiness } from "./mock-business.mjs";
 import { createOpsData } from "../src/ops/data.js";
 import { reduceOps } from "../src/ops/reducer.js";
 
@@ -128,15 +127,8 @@ const OPS_ROUTES = [
   ["POST", /^\/api\/ops\/contracts\/([^/]+)\/refund$/, "MANAGER", "CONFIRM_REFUND", (b, id) => ({ id })],
 ];
 
-export function startMockApi(port = 5199, { verbose = false, ops = process.env.MOCK_OPS === "1", business = false } = {}) {
+export function startMockApi(port = 5199, { verbose = false, ops = process.env.MOCK_OPS === "1" } = {}) {
   const S = createState();
-  if (business) {
-    S.roles.push({ roleId: 5, roleName: 'OPERATIONS', description: 'Quản lý vận hành kinh doanh' });
-    const userId = S.users.length + 1;
-    S.users.push({ userId, username: 'ops01', email: 'ops01@storage.vn', password: 'Ops@123', fullName: 'Vũ Đức Anh', status: 'ACTIVE', createdAt: days(-20), updatedAt: days(-20) });
-    S.userRoles.push({ userId, roleId: 5 });
-    seedBusiness(S);
-  }
   let O = null;
   if (ops) {
     // Tài khoản quản lý cơ sở (DbSeeder thật chưa có) + gán nhân viên staff01 vào cơ sở
@@ -247,10 +239,6 @@ export function startMockApi(port = 5199, { verbose = false, ops = process.env.M
     const user = auth();
     if (path.startsWith("/api/") && !user) return send(401);
     const me = user?.userId;
-    if (business && path.startsWith('/api/operations')) {
-      handleBusiness({ req, res, path, url, body, S, me, send });
-      return;
-    }
 
 
     // ---- Quản trị (RequireRole ADMIN)

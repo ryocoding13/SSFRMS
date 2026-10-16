@@ -75,8 +75,8 @@ Luật nghiệp vụ chi tiết (điều kiện chặn, chuyển trạng thái) 
 ## C. Ưu tiên 3 — chỉnh nhỏ
 - [ ] JSON `DateTime` trả kèm `Z` (UTC); hiện đọc từ DB không có múi giờ, giao diện phải tự coi là UTC.
 - [ ] Giữ chỗ đơn chờ chuyển khoản: backend 24 giờ, Figma 1 phút → thống nhất một con số (giao diện đọc `VITE_PAYMENT_TIMEOUT_SECONDS`).
-- [ ] Khu quản trị: ~~role `OPERATIONS` (Vận hành KD)~~ (đã có), ghi lịch sử đăng nhập thất bại, lọc nhật ký nhiều `action`.
-- [x] API khu Vận hành KD (Figma B01–B05): `/api/operations/*`, role `OPERATIONS`, tài khoản `ops01` / `Ops@123` — hợp đồng ở `docs/operations-api.md`. Giao diện B01–B05 chưa có.
+- [ ] Khu quản trị: role `OPERATIONS` (Vận hành KD), ghi lịch sử đăng nhập thất bại, lọc nhật ký nhiều `action`.
+- [ ] Khu Vận hành KD (Figma B01–B05) chưa có giao diện lẫn API — để sau.
 
 ---
 
