@@ -87,6 +87,7 @@
       "behavior": "Cập nhật trạng thái unit theo chuyển tiếp hợp lệ (SRS 8.1), ghi unit_status_history",
       "verification": "_be; thử chuyển trạng thái sai phải bị từ chối",
       "state": "passing",
+      "frontend": "2026-10-16: M02 cột Thao tác + hộp thoại M02a gọi PUT /api/staff/units/{mã}/status",
       "depends_on": ["F21"],
       "evidence": "2026-10-16: Backend /api/staff/units/{id}/status hỗ trợ cập nhật và đồng bộ trạng thái kho trong DB."
     },
@@ -216,8 +217,8 @@
       "id": "F29", "flow": 3, "uc": ["UC05"], "actor": "Khách hàng",
       "behavior": "Đồng bộ giao diện khách hàng với Figma đã rà 26/09 (D11): hợp đồng chưa bàn giao (handed_over = false) ở C07 chỉ hiện 'Xem lịch nhận kho' (→ #/payments) và 'Đổi lịch nhận kho' (→ hỗ trợ chủ đề SCHEDULE), ẩn gia hạn / trả kho; câu tiền cọc ở C08 = 'Tiền cọc đang giữ được chuyển sang kỳ mới, không thu thêm.'; tiêu đề chủ đề ACCESS = 'Lỗi thẻ ra vào'",
       "verification": "_fe; test reducer/render mới cho hợp đồng chưa bàn giao; mở #/units/:id của hợp đồng chưa bàn giao",
-      "state": "not_started",
-      "evidence": null
+      "state": "passing",
+      "evidence": "2026-10-16: C07 chưa bàn giao chỉ còn Xem / Đổi lịch nhận kho + hỗ trợ, khoá gia hạn / trả kho / mở cửa; câu cọc C08; tiêu đề ACCESS 'Lỗi thẻ ra vào'. npm test 56/56, test:render 92 route PASS (có kiểm không có link gia hạn khi chưa bàn giao), build OK"
     },
     {
       "id": "F30", "flow": 1, "uc": ["UC01", "UC02"], "actor": "Khách hàng",
@@ -235,14 +236,22 @@
     },
     {"id": "F32", "flow": 2, "uc": [], "actor": "Khách hàng", "behavior": "Frontend C07 xem QR và mô phỏng quét theo Figma; không bao gồm API/DB QR", "state": "passing", "verification": "node --test tests/access.test.js; npm test; npm run test:render; npm run build; kiểm tra browser C07", "evidence": "2026-10-16: 42 test gốc + 10 test QR + 9 test business PASS; 76 route SSR PASS; build PASS; browser popup 480x598, success/denial, mobile, guards PASS. Backend QR chưa triển khai, ngoài phạm vi."},
     {
-      "id": "F33",
+      "id": "F33", "flow": 1, "uc": ["UC02", "UC03", "UC05", "UC06", "UC09", "UC24"],
+      "actor": "Khách hàng, Nhân viên, Quản lý cơ sở",
+      "behavior": "Đồng bộ giao diện Figma 16/10 (D21): C04/C04c PayOS + thanh toán tại cửa hàng, C05/C05c, C11 thanh toán gia hạn qua QR (C11q/C11b), C07q QR mở cửa + màn máy quét #/door (C07r1/r2), C12 phản hồi nhân viên, C14a/C14b huỷ đơn & hoàn tiền, nút Chỉ đường C03b/C02m, S09 Thu tiền tại kho, S01, M02a đổi trạng thái ô; đổi chữ 'đối soát'",
+      "verification": "_fe; npm test (có tests/payment-access.test.js, tests/payment-api.test.mjs), npm run test:render, build; chạy MOCK_OPS=1 npm run dev:mock đi hết luồng",
+      "state": "passing", "depends_on": [],
+      "evidence": "2026-10-16: npm test 56/56, test:render 92 route PASS, test:business PASS, build OK; Chromium + dev:mock: C04 QR → tự sang C05 sau webhook giả lập, C04c → C05c, C11q → C11b, C07q → #/door Mở cửa / Từ chối, C14a huỷ có hoàn tiền, S09, M02a PASS. Backend thật chưa có các endpoint mới (BACKEND-TODO.md mục 'Mới 16/10') — giao diện hiện thông báo thay thế khi gặp 404/405."
+    },
+    {
+      "id": "F34",
       "flow": 2,
       "uc": ["UC07"],
       "actor": "Khách hàng / Hệ thống",
       "behavior": "Backend QR mở cửa (C07q, C07r): GET /api/contracts/{id}/access-qr sinh mã HMAC-SHA256 và mã dự phòng; POST /api/access/scan kiểm mã máy quét mô phỏng, ghi activity_logs; kết nối frontend",
       "verification": "dotnet build StorageProject.slnx; node --test tests/access.test.js; npm test; npm run build",
       "state": "passing",
-      "depends_on": ["F32"],
+      "depends_on": ["F32", "F33"],
       "evidence": "2026-10-16: Đã triển khai IAccessService, AccessService (HMAC-SHA256 sinh QR và backupCode), AccessEndpoints (GET /api/contracts/{id}/access-qr, POST /api/access/scan); kết nối useAccessQr.js và endpoints.js; test_full_flow.ps1 kiểm chứng thành công từ bàn giao kho đến quét mã mở cửa và ghi activity_logs; dotnet build và npm test pass."
     }
   ]

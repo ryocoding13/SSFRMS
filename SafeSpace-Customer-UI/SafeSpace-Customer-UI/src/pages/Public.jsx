@@ -51,9 +51,9 @@ const FAQ = [
     steps: ["Theo dõi trạng thái tại mục Đặt chỗ.", "Cơ sở kiểm tra và phân bổ kho phù hợp với nhu cầu của bạn.", "Mang giấy đăng ký và mã đặt chỗ đến đúng giờ hẹn."],
   },
   {
-    q: "Chuyển khoản xong đã hoàn tất chưa?",
-    a: "Đơn chuyển sang chờ đối soát. Nhân viên kiểm tra giao dịch trước khi xác nhận đã thanh toán.",
-    steps: ["Quét mã QR và giữ nguyên nội dung chuyển khoản.", "Bấm Tôi đã chuyển khoản trước khi hết thời gian giữ chỗ.", "Theo dõi kết quả đối soát tại Thanh toán & lịch hẹn."],
+    q: "Thanh toán xong đã hoàn tất chưa?",
+    a: "Khi thanh toán bằng mã QR, đơn tự xác nhận ngay sau khi giao dịch thành công. Chọn thanh toán tại cửa hàng thì cơ sở giữ chỗ 24 giờ và xác nhận khi bạn trả tiền tại quầy.",
+    steps: ["Quét mã QR bằng ứng dụng ngân hàng trước khi hết thời gian giữ chỗ.", "Trang tự chuyển sang xác nhận khi thanh toán thành công, không cần bấm thêm.", "Theo dõi khoản thu tại Thanh toán & lịch hẹn."],
   },
   {
     q: "Tôi muốn gia hạn hoặc trả kho?",

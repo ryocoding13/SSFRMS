@@ -69,26 +69,26 @@ export function createOpsData(t = today()) {
     staff: STAFF,
     units: createUnits(t),
 
-    // S09 · Đối soát thanh toán (khách báo "Tôi đã chuyển khoản")
+    // S09 · Thu tiền tại kho (khách chọn "Thanh toán tại cửa hàng" ở C04c)
     payments: [
       {
-        id: "SS-20260914-0142", customer: "Nguyễn Thị Mai", amount: 4600000, method: "Chuyển khoản ngân hàng",
+        id: "SS-20260914-0142", customer: "Nguyễn Thị Mai", amount: 4600000, method: "Tiền mặt / chuyển khoản tại quầy",
         reported_at: at(t, "09:12"), memo: "SS 20260914 0142 MAI", offer: "Kho thường · Cỡ M · 15 m²",
         start: pickup, end: addMonths(pickup, 3), pickup: at(pickup, "09:00"), status: "PENDING",
       },
       {
-        id: "SS-20260913-0147", customer: "Trương Gia Bảo", amount: 2520000, method: "Chuyển khoản ngân hàng",
+        id: "SS-20260913-0147", customer: "Trương Gia Bảo", amount: 2520000, method: "Tiền mặt / chuyển khoản tại quầy",
         reported_at: at(addDays(t, -1), "20:41"), memo: "SS 20260913 0147 BAO", offer: "Kho lạnh · Cỡ M · 15 m²",
         start: addDays(t, 3), end: addMonths(addDays(t, 3), 3), pickup: at(addDays(t, 3), "15:00"), status: "PENDING",
       },
       {
-        id: "SS-20260930-0151", customer: "Lý Minh Đức", amount: 2160000, method: "Chuyển khoản ngân hàng",
+        id: "SS-20260930-0151", customer: "Lý Minh Đức", amount: 2160000, method: "Tiền mặt / chuyển khoản tại quầy",
         reported_at: at(t, "07:55"), memo: "SS 20260930 0151 DUC", offer: "Kho thường · Cỡ L · 30 m²",
         start: addDays(t, 4), end: addMonths(addDays(t, 4), 3), pickup: at(addDays(t, 4), "10:00"), status: "PENDING",
       },
     ],
 
-    // M05 · Đơn đã đối soát, chờ quản lý phân bổ ô kho
+    // M05 · Đơn đã thanh toán, chờ quản lý phân bổ ô kho
     allocations: [
       {
         id: "SS-20260912-0138", customer: "Hồ Ngọc Hân", type: "normal", offer: "Kho thường · Cỡ L · 30 m²", min_area: 30, max_area: 30,
@@ -142,7 +142,7 @@ export function createOpsData(t = today()) {
     // M07 · Hợp đồng quá hạn / cần xử lý
     contracts: [
       { id: "HĐ-0061", customer: "Trần Quốc Bảo", unit: "K03", end: addDays(t, -3), due: "Tiền thuê kỳ mới · Chưa thanh toán", amount: 1250000, state: "OVERDUE", reminders: [] },
-      { id: "HĐ-0098", customer: "Lê Văn An", unit: "K04", end: addDays(t, -4), due: "460.000 đ · Chờ đối soát", amount: 460000, state: "OVERDUE", reminders: [] },
+      { id: "HĐ-0098", customer: "Lê Văn An", unit: "K04", end: addDays(t, -4), due: "460.000 đ · Chưa thanh toán", amount: 460000, state: "OVERDUE", reminders: [] },
       { id: "HĐ-0073", customer: "Hoàng Thị Lan", unit: "K10", end: addDays(t, -3), due: "Tiền thuê kỳ mới · Chưa thanh toán", amount: 1380000, state: "OVERDUE", reminders: [] },
       { id: "HĐ-0077", customer: "Đỗ Minh Khang", unit: "K07", end: addDays(t, 6), due: "Yêu cầu gia hạn", amount: 0, state: "RENEWAL", reminders: [] },
     ],

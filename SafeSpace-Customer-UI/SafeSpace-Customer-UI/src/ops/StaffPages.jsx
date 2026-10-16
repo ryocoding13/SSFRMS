@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Select } from "../components/Pickers";
-import { Button, Empty, Field, Icon, LinkButton, Modal, Notice, Tag } from "../components/UI";
+import { Button, Empty, Field, Icon, LinkButton, Notice, Tag } from "../components/UI";
 import { typeLabel } from "../lib/catalog";
 import { dateLabel, dateTimeLabel, money, today } from "../lib/format";
 import { go, href } from "../lib/router";
@@ -33,7 +33,7 @@ export function StaffToday({ query }) {
       </header>
       <div className="stats">
         <div className="stat"><strong className="tone-blue">{ops.verifications.filter((v) => v.status === "TODO").length}</strong><span>Cần xác minh khách</span></div>
-        <div className="stat"><strong className="warn">{count("reconcile")}</strong><span>Chờ đối soát thanh toán</span></div>
+        <div className="stat"><strong className="warn">{count("reconcile")}</strong><span>Chờ thu tiền tại kho</span></div>
         <div className="stat"><strong className="ok">{count("support")}</strong><span>Yêu cầu hỗ trợ / bảo trì</span></div>
       </div>
       {tasks.length === 0 ? (
@@ -53,46 +53,54 @@ export function StaffToday({ query }) {
 }
 
 // ---------------------------------------------------------------- S09
+// Tách tổng tiền đơn thành tiền thuê + cọc (cọc = 1 tháng tiền thuê, D19) khi board chưa trả riêng hai khoản
+export function paymentParts(p) {
+  if (p.rent != null && p.deposit != null) return { months: p.months || null, rent: Number(p.rent), deposit: Number(p.deposit) };
+  const [y1, m1, d1] = String(p.start || "").split("-").map(Number);
+  const [y2, m2, d2] = String(p.end || "").split("-").map(Number);
+  const months = y1 && y2 ? Math.max(1, (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0)) : null;
+  if (!months) return { months: null, rent: null, deposit: null };
+  const monthly = Math.round(p.amount / (months + 1));
+  return { months, rent: p.amount - monthly, deposit: monthly };
+}
+const HOLD_HOURS = 24;
+
+// S09 — Thu tiền tại kho: đơn khách chọn "Thanh toán tại cửa hàng" (C04c). Chưa thu thì chưa bàn giao (S03).
 export function StaffReconcile({ query }) {
   const { ops, run } = useOps();
   const pending = ops.payments.filter((p) => p.status === "PENDING");
   const p = ops.payments.find((x) => x.id === query.get("id")) || pending[0];
-  const [mismatch, setMismatch] = useState(false);
-  const [note, setNote] = useState("");
-  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
   if (!p)
     return (
       <main className="container page">
-        <Empty title="Không có khoản chờ đối soát" text="Khi khách báo đã chuyển khoản, đơn sẽ hiện ở đây để đối chiếu với sao kê.">
+        <Empty title="Chưa có đơn nào cần thu tại kho" text={'Khi khách chọn "Thanh toán tại cửa hàng", đơn sẽ hiện ở đây để thu tiền.'}>
           <LinkButton to="staff">Về công việc trong ngày</LinkButton>
         </Empty>
       </main>
     );
   const done = p.status !== "PENDING";
+  const parts = paymentParts(p);
+  const holdUntil = p.reported_at ? new Date(new Date(p.reported_at).getTime() + HOLD_HOURS * 3600000).toISOString() : null;
   const confirm = async () => {
-    const r = await run("CONFIRM_PAYMENT", { id: p.id }, `Đã xác nhận thu đơn ${p.id}`);
+    setBusy(true);
+    const r = await run("CONFIRM_PAYMENT", { id: p.id }, `Đã thu tiền đơn ${p.id}`);
+    setBusy(false);
     if (r.ok) go("staff/done?kind=payment");
-  };
-  const report = async () => {
-    const r = await run("REPORT_MISMATCH", { id: p.id, note });
-    if (!r.ok) return setErr(r.error);
-    setMismatch(false);
-    go("staff/done?kind=mismatch");
   };
   return (
     <main className="container page page--narrow">
-      <a className="back-link" href={href("staff/reconcile")}>← Danh sách đối soát</a>
+      <a className="back-link" href={href("staff/reconcile")}>← Danh sách thu tiền</a>
       <section className="panel ops-card">
-        <h1>Đối chiếu thanh toán</h1>
-        <p className="muted">Đơn #{p.id} — kiểm tra đúng số tiền và nội dung chuyển khoản trước khi xác nhận đã thu.</p>
+        <h1>Thu tiền tại kho</h1>
+        <p className="muted">Đơn #{p.id} — khách chọn thanh toán tại cửa hàng. Thu đủ số tiền rồi bấm xác nhận; chưa thu thì chưa được bàn giao.</p>
         <Facts
           rows={[
             ["Khách hàng", p.customer],
-            ["Gói đặt chỗ", p.offer],
-            ["Số tiền khách báo", <span className="price" key="a">{money(p.amount)}</span>],
-            ["Phương thức", p.method],
-            ["Thời gian khách báo", dateTimeLabel(p.reported_at)],
-            ["Nội dung chuyển khoản", <code key="m">{p.memo}</code>],
+            ["Số tiền cần thu", <span className="price" key="a">{money(p.amount)}</span>],
+            ["Hình thức thu", "Tiền mặt / chuyển khoản tại quầy"],
+            ["Giữ chỗ đến", holdUntil ? dateTimeLabel(holdUntil) : "—"],
+            ["Gồm", parts.months ? `Thuê ${parts.months} tháng ${money(parts.rent)} + cọc ${money(parts.deposit)}` : p.offer],
           ]}
         />
         {done ? (
@@ -101,26 +109,14 @@ export function StaffReconcile({ query }) {
           </Notice>
         ) : (
           <>
-            <Notice>Chỉ nhân viên có quyền mới được xác nhận đã thu, sau khi đối chiếu đúng giao dịch trên sao kê.</Notice>
+            <Notice>Chỉ bấm xác nhận khi đã thu đủ tiền. Đơn đã thanh toán qua PayOS không hiện ở đây.</Notice>
             <div className="ops-actions">
-              <Button onClick={confirm}>Xác nhận đã thu</Button>
-              <Button variant="outline" className="btn--danger-text" onClick={() => setMismatch(true)}>Báo sai lệch</Button>
+              <Button onClick={confirm} disabled={busy}>{busy ? "Đang xác nhận…" : "Xác nhận đã thu"}</Button>
+              <LinkButton to="staff/reconcile" variant="outline">Để sau</LinkButton>
             </div>
           </>
         )}
       </section>
-      {mismatch && (
-        <Modal title="Báo sai lệch thanh toán" onClose={() => setMismatch(false)}>
-          <p className="modal__text">Ghi rõ điểm chưa khớp để quản lý liên hệ khách hàng.</p>
-          <Field label="Sai lệch ghi nhận" error={err}>
-            <textarea rows={3} value={note} placeholder="Ví dụ: sao kê nhận 4.000.000 đ, thiếu 600.000 đ" onChange={(e) => { setNote(e.target.value); setErr(""); }} />
-          </Field>
-          <div className="modal__actions">
-            <Button variant="danger" onClick={report}>Gửi báo cáo</Button>
-            <Button variant="outline" onClick={() => setMismatch(false)}>Huỷ</Button>
-          </div>
-        </Modal>
-      )}
     </main>
   );
 }
@@ -306,7 +302,7 @@ export function StaffReturn({ query }) {
         <aside className="panel booking">
           <h2>Cọc đang giữ: {money(r.deposit)}</h2>
           <p className="muted">
-            Khoản chưa đối soát: {money(r.unpaid)}
+            Khoản chưa thanh toán: {money(r.unpaid)}
             <br />
             Số tiền hoàn dự kiến: chờ quản lý xác nhận
           </p>
@@ -386,7 +382,7 @@ export function StaffSupport({ query }) {
 
 // ---------------------------------------------------------------- S06
 const DONE_TEXT = {
-  payment: ["Đã xác nhận thu", "Đơn chuyển sang bước phân bổ / bàn giao kho. Khách hàng nhận thông báo thanh toán thành công."],
+  payment: ["Đã xác nhận thu tiền", "Đơn chuyển sang bước phân bổ / bàn giao kho. Khách hàng nhận thông báo thanh toán thành công."],
   mismatch: ["Đã gửi báo sai lệch", "Quản lý cơ sở sẽ liên hệ khách để đối chiếu lại giao dịch."],
   handover: ["Đã bàn giao kho", "Kho chuyển sang trạng thái \"Đang hoạt động\" và khách hàng có thể sử dụng ngay."],
   return: ["Đã gửi biên bản trả kho", "Biên bản đã được chuyển đến quản lý cơ sở để xác nhận hoàn cọc."],

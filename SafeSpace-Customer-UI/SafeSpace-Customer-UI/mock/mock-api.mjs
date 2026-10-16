@@ -94,6 +94,10 @@ export function createState() {
   ];
   const tickets = [
     { ticketId: 1, customerId: 3, contractId: 1, unitId: 3, issueType: "UNIT", title: "Kiểm tra nhiệt độ phòng kho", description: "Nhờ nhân viên kiểm tra lại nhiệt độ kho TB-M-103 vào buổi trưa", priority: "NORMAL", status: "OPEN", createdAt: days(-2), assignedAt: null, resolvedAt: null, closedAt: null },
+    {
+      ticketId: 2, customerId: 3, contractId: 1, unitId: 3, issueType: "ACCESS", title: "Lỗi thẻ ra vào", description: "Thẻ ra vào chưa mở được cổng cơ sở.", priority: "HIGH", status: "RESOLVED", createdAt: days(-6), assignedAt: days(-6), resolvedAt: days(-6), closedAt: null,
+      responses: [{ message: "Thẻ cũ bị lỗi từ. Bạn qua quầy lễ tân nhận thẻ mới, mang theo CCCD giúp mình nhé.", staffName: "Trần Nhân Viên", createdAt: days(-6) }],
+    },
   ];
   const roles = [
     { roleId: 1, roleName: "ADMIN", description: "Quản trị viên toàn quyền hệ thống" },
@@ -109,7 +113,11 @@ export function createState() {
   const rolePermissions = permissions.map((p) => ({ roleId: 1, permissionId: p.permissionId }));
   const userRoles = [{ userId: 1, roleId: 1 }, { userId: 2, roleId: 3 }, { userId: 3, roleId: 4 }, { userId: 4, roleId: 4 }];
   for (const u of users) Object.assign(u, { phone: null, createdAt: days(-30 + u.userId), updatedAt: days(-30 + u.userId) });
-  return { users, facilities, unitTypes, rates, units, reservations, contracts, handovers, payments, renewals: [], tickets, tokens: new Map(), down: false, roles, permissions, rolePermissions, userRoles, userFacilities: [], loginHistory: [], activityLogs: [] };
+  // Gia hạn đã được quản lý duyệt (M03) → khoản RENEWAL chờ khách trả qua PayOS ở C11 (BACKEND-TODO.md mục P3)
+  const renewEnd = addMonths(contracts[0].endDate, 3);
+  const renewals = [{ renewalId: 1, contractId: 1, oldEndDate: contracts[0].endDate, newEndDate: renewEnd, renewalPeriodMonths: 3, oldMonthlyRate: 1500000, newMonthlyRate: 1500000, renewalAmount: 4500000, status: "APPROVED", requestedAt: days(-2) }];
+  payments.push({ paymentId: 3, contractId: 1, renewalId: 1, paymentType: "RENEWAL", amount: 4500000, currency: "VND", paymentMethod: "PAYOS", transactionReference: "SS-0001-REN", dueDate: contracts[0].endDate, paidAt: null, status: "PENDING", createdAt: days(-1) });
+  return { users, facilities, unitTypes, rates, units, reservations, contracts, handovers, payments, renewals, tickets, payos: new Map(), accessLogs: [], tokens: new Map(), down: false, roles, permissions, rolePermissions, userRoles, userFacilities: [], loginHistory: [], activityLogs: [] };
 }
 
 // ---- Khu vận hành (Nhân viên / Quản lý cơ sở): chỉ bật khi { ops: true } hoặc MOCK_OPS=1.
@@ -127,7 +135,7 @@ const OPS_ROUTES = [
   ["POST", /^\/api\/(?:ops|staff)\/handovers\/([^/]+)\/complete$/, "STAFF", "HANDOVER", (b, id) => ({ id, method: b?.unlockMethod })],
   ["POST", /^\/api\/(?:ops|staff)\/returns\/([^/]+)\/inspection$/, "STAFF", "SUBMIT_RETURN", (b, id) => ({ id, report: mapKeys(b || {}, snake) })],
   ["POST", /^\/api\/(?:ops|staff)\/tickets\/([^/]+)\/responses$/, "STAFF", "TICKET_RESPONSE", (b, id, me) => ({ id, note: b?.note, next: b?.nextStatus, staff: me })],
-  ["PUT", /^\/api\/(?:ops|staff)\/units\/([^/]+)\/status$/, "STAFF", "UPDATE_UNIT_STATUS", (b, id) => ({ id, status: b?.status, reason: b?.reason })],
+  ["PUT", /^\/api\/(?:ops|staff)\/units\/([^/]+)\/status$/, "STAFF", "UPDATE_UNIT_STATUS", (b, id) => ({ id, code: id, status: b?.status, reason: b?.reason })],
   ["POST", /^\/api\/(?:ops|staff)\/credentials\/([^/]+)\/revoke$/, "STAFF", "REVOKE_CREDENTIAL", (b, id) => ({ id })],
   ["POST", /^\/api\/(?:ops|staff)\/credentials\/reissue$/, "STAFF", "REISSUE_CREDENTIAL", (b) => ({ unit: b?.unitCode, type: b?.credentialType, reason: b?.reason })],
   ["POST", /^\/api\/(?:ops|manager)\/renewals\/([^/]+)\/approve$/, "MANAGER", "DECIDE_RENEWAL", (b, id) => ({ id, approve: true })],
@@ -141,7 +149,26 @@ const OPS_ROUTES = [
   ["POST", /^\/api\/(?:ops|manager)\/units\/([^/]+)\/lock$/, "MANAGER", "LOCK_UNIT", (b, id) => ({ id, reason: b?.reason })],
 ];
 
-export function startMockApi(port = 5199, { verbose = false, ops = process.env.MOCK_OPS === "1", business = false } = {}) {
+// Endpoint mới (BACKEND-TODO.md mục "Mới 16/10") — tắt hết khi chạy legacy để thử giao diện với backend chưa cập nhật
+const LEGACY_MISSING = [
+  /^\/api\/reservations\/\d+\/(payos|pay-at-facility|cancel-preview)$/,
+  /^\/api\/payments\/\d+\/payos$/,
+  /^\/api\/contracts\/\d+\/access-qr$/,
+  /^\/api\/access\/scan$/,
+  /^\/api\/ops\/units\/[^/]+\/status$/,
+];
+
+export function startMockApi(
+  port = 5199,
+  {
+    verbose = false,
+    ops = process.env.MOCK_OPS === "1",
+    business = false,
+    payosAutoPaySeconds = Number(process.env.MOCK_PAYOS_AUTOPAY ?? 0),
+    // legacy: giống backend hiện tại trên main — chưa có các endpoint mới 16/10 (trả 404 rỗng như ASP.NET)
+    legacy = process.env.MOCK_LEGACY === "1",
+  } = {},
+) {
   const S = createState();
   if (business) {
     S.roles.push({ roleId: 5, roleName: 'OPERATIONS', description: 'Quản lý vận hành kinh doanh' });
@@ -168,6 +195,7 @@ export function startMockApi(port = 5199, { verbose = false, ops = process.env.M
     startDate: r.startDate, expectedEndDate: r.expectedEndDate, rentalPeriodMonths: r.rentalPeriodMonths, quotedMonthlyRate: r.quotedMonthlyRate,
     estimatedAmount: r.estimatedAmount, requiredDeposit: r.requiredDeposit, status: r.status, expiresAt: r.expiresAt ? dbTime(r.expiresAt) : null,
     cancelledAt: r.cancelledAt ? dbTime(r.cancelledAt) : null, cancellationReason: r.cancellationReason, createdAt: dbTime(r.createdAt),
+    paymentMethod: r.paymentMethod || null, refundAmount: r.refundAmount ?? null, refundStatus: r.refundStatus || null,
   });
   const payDto = (p) => ({ ...p, paidAt: p.paidAt ? dbTime(p.paidAt) : null, createdAt: dbTime(p.createdAt) });
   const renDto = (r) => ({ ...r, requestedAt: dbTime(r.requestedAt), approvedAt: null });
@@ -175,6 +203,42 @@ export function startMockApi(port = 5199, { verbose = false, ops = process.env.M
     const u = unit(c.unitId);
     return { contractId: c.contractId, reservationId: c.reservationId, unitId: c.unitId, unitNumber: u.unitNumber, facilityName: fac(u.facilityId).name, unitTypeName: ut(u.unitTypeId).typeName, startDate: c.startDate, endDate: c.endDate, agreedMonthlyRate: c.agreedMonthlyRate, depositAmount: c.depositAmount, status: c.status, activatedAt: c.activatedAt ? dbTime(c.activatedAt) : null };
   };
+  // ---- PayOS giả lập (D19): tạo đơn → QR → "webhook" (tự báo đã trả sau payosAutoPaySeconds hoặc gọi /__payos/paid?order=)
+  const payosPaid = (order) => {
+    const o = S.payos.get(order);
+    if (!o || o.status === "PAID") return;
+    o.status = "PAID";
+    if (o.kind === "reservation") {
+      const r = S.reservations.find((x) => x.reservationId === o.id);
+      if (r && r.status === "PENDING_PAYMENT") Object.assign(r, { status: "CONFIRMED", paymentMethod: "PAYOS" });
+    } else {
+      const p = S.payments.find((x) => x.paymentId === o.id);
+      if (p && p.status !== "PAID") {
+        Object.assign(p, { status: "PAID", paidAt: new Date(), transactionReference: p.transactionReference || `PAYOS-${order}` });
+        const ren = S.renewals.find((x) => x.renewalId === p.renewalId);
+        const c = S.contracts.find((x) => x.contractId === p.contractId);
+        if (ren && c && ren.status !== "PAID") {
+          ren.status = "PAID";
+          c.endDate = ren.newEndDate;
+        }
+      }
+    }
+  };
+  const payosOrder = (kind, id, amount, description) => {
+    const existing = [...S.payos.values()].find((o) => o.kind === kind && o.id === id && o.status === "PENDING" && o.expiredAt > new Date());
+    const o = existing || { orderCode: 100000 + S.payos.size + 1, kind, id, amount, description, status: "PENDING", expiredAt: new Date(Date.now() + 10 * 60000) };
+    if (!existing) {
+      S.payos.set(o.orderCode, o);
+      if (payosAutoPaySeconds > 0) setTimeout(() => payosPaid(o.orderCode), payosAutoPaySeconds * 1000).unref?.();
+    }
+    const qr = `00020101021238570010A000000727012700069704220113SAFESPACE${o.orderCode}0208QRIBFTTA530370454${String(o.amount).length.toString().padStart(2, "0")}${o.amount}5802VN62${String(o.description.length + 4).padStart(2, "0")}08${String(o.description.length).padStart(2, "0")}${o.description}6304ABCD`;
+    return { orderCode: o.orderCode, amount: o.amount, description: o.description, qrCode: qr, checkoutUrl: `https://pay.payos.vn/web/mock-${o.orderCode}`, expiredAt: iso(o.expiredAt), status: o.status };
+  };
+  const accessCode = (c) => {
+    const n = String((c.contractId * 7919 + 4821) % 100000000).padStart(8, "0");
+    return { code: `SSQR-${c.contractId}-${n.slice(0, 4)}`, backup: `${n.slice(0, 4)} ${n.slice(4)}` };
+  };
+
   const ticketDto = (t) => ({ ticketId: t.ticketId, contractId: t.contractId, unitId: t.unitId, issueType: t.issueType, title: t.title, priority: t.priority, status: t.status, createdAt: dbTime(t.createdAt), resolvedAt: null, closedAt: null });
 
   const availability = (facilityId, unitTypeId, startDate, months) => {
@@ -201,7 +265,14 @@ export function startMockApi(port = 5199, { verbose = false, ops = process.env.M
     if (path === "/__down") { S.down = true; return send(200, {}); }
     if (path === "/__up") { S.down = false; return send(200, {}); }
     if (path === "/__revoke") { S.tokens.clear(); return send(200, {}); }
+    // Giả lập webhook PayOS: /__payos/paid?order=<orderCode> (bỏ trống order = trả mọi đơn đang chờ)
+    if (path === "/__payos/paid") {
+      const order = Number(url.searchParams.get("order"));
+      for (const o of S.payos.values()) if (!order || o.orderCode === order) payosPaid(o.orderCode);
+      return send(200, {});
+    }
     if (S.down) { req.socket.destroy(); return; }
+    if (legacy && LEGACY_MISSING.some((re) => re.test(path))) return send(404);
     let body = null;
     if (req.method === "POST" || req.method === "PUT") {
       const chunks = [];
@@ -277,6 +348,26 @@ export function startMockApi(port = 5199, { verbose = false, ops = process.env.M
       const t = ut(body.unitTypeId);
       const count = availability(body.facilityId, body.unitTypeId, body.startDate, body.rentalPeriodMonths);
       return send(200, { facilityId: body.facilityId, facilityName: fac(body.facilityId)?.name, unitTypeId: body.unitTypeId, unitTypeName: t?.typeName, area: t?.area, climateControlled: t?.climateControlled, monthlyRate: rate?.monthlyRate || 0, estimatedTotalRent: (rate?.monthlyRate || 0) * body.rentalPeriodMonths, requiredDeposit: rate?.monthlyRate || 0, startDate: body.startDate, expectedEndDate: addMonths(body.startDate, body.rentalPeriodMonths), availableUnitCount: count, isAvailable: count > 0 });
+    }
+
+    // C07r · máy quét cửa kho (thiết bị tại cơ sở, không cần đăng nhập khách)
+    if (req.method === "POST" && path === "/api/access/scan") {
+      const code = String(body?.code || "").trim();
+      const clean = code.replace(/\s/g, "");
+      const c = S.contracts.find((x) => { const a = accessCode(x); return a.code === code || a.backup.replace(/\s/g, "") === clean; });
+      const now = new Date();
+      const out = (result, reason, cc) => {
+        S.accessLogs.push({ code, result, at: now });
+        const u = cc && unit(cc.unitId);
+        const cust = cc && S.users.find((x) => x.userId === cc.customerId);
+        return send(200, { result, unitNumber: u?.unitNumber || null, customerName: cust?.fullName || null, contractCode: cc ? `HĐ-${cc.startDate.slice(0, 4)}-${String(cc.contractId).padStart(4, "0")}` : null, scannedAt: iso(now), reason });
+      };
+      if (!c) return out("DENIED", "Mã không đúng. Kiểm tra lại mã trên ứng dụng hoặc mã dự phòng.", null);
+      const h = S.handovers.find((x) => x.contractId === c.contractId);
+      if (c.status !== "ACTIVE") return out("DENIED", "Mã đã hết hiệu lực — hợp đồng đã trả kho.", c);
+      if (!h || h.status !== "HANDED_OVER") return out("DENIED", "Kho chưa được bàn giao cho khách.", c);
+      if (c.endDate < dateOnly(now)) return out("DENIED", "Hợp đồng đã quá hạn. Vui lòng gia hạn hoặc liên hệ cơ sở.", c);
+      return out("OPEN", null, c);
     }
 
     const user = auth();
@@ -486,16 +577,44 @@ export function startMockApi(port = 5199, { verbose = false, ops = process.env.M
       r.status = "PENDING_VERIFICATION";
       return send(200, resDto(r));
     }
+    if (req.method === "POST" && (m = path.match(/^\/api\/reservations\/(\d+)\/payos$/))) {
+      const r = S.reservations.find((x) => x.reservationId === +m[1] && x.customerId === me);
+      if (!r) return send(404, { error: "Không tìm thấy đơn đặt chỗ." });
+      if (r.status !== "PENDING_PAYMENT") return bad("Đơn đặt chỗ này không còn chờ thanh toán.");
+      return send(200, payosOrder("reservation", r.reservationId, r.estimatedAmount + r.requiredDeposit, `SS${String(r.reservationId).padStart(4, "0")}`));
+    }
+    if (req.method === "POST" && (m = path.match(/^\/api\/reservations\/(\d+)\/pay-at-facility$/))) {
+      const r = S.reservations.find((x) => x.reservationId === +m[1] && x.customerId === me);
+      if (!r) return send(404, { error: "Không tìm thấy đơn đặt chỗ." });
+      if (r.status === "PENDING_VERIFICATION") return send(200, resDto(r));
+      if (r.status !== "PENDING_PAYMENT") return bad("Đơn đặt chỗ này không còn chờ thanh toán.");
+      Object.assign(r, { status: "PENDING_VERIFICATION", paymentMethod: "AT_FACILITY", expiresAt: new Date(Date.now() + 24 * 3600000) });
+      for (const o of S.payos.values()) if (o.kind === "reservation" && o.id === r.reservationId && o.status === "PENDING") o.status = "CANCELLED";
+      return send(200, resDto(r));
+    }
+    if (req.method === "GET" && (m = path.match(/^\/api\/reservations\/(\d+)\/cancel-preview$/))) {
+      const r = S.reservations.find((x) => x.reservationId === +m[1] && x.customerId === me);
+      if (!r) return send(404, { error: "Không tìm thấy đơn đặt chỗ." });
+      const paid = r.status === "CONFIRMED" ? r.estimatedAmount + r.requiredDeposit : 0;
+      const fee = paid ? Math.round(r.estimatedAmount * 0.1) : 0;
+      return send(200, { paidAmount: paid, cancellationFee: fee, refundAmount: paid - fee, policyName: "Huỷ trước ngày nhận kho: phí 10% tiền thuê" });
+    }
     if (req.method === "POST" && (m = path.match(/^\/api\/reservations\/(\d+)\/cancel$/))) {
       const r = S.reservations.find((x) => x.reservationId === +m[1] && x.customerId === me);
       if (!r) return bad("Không tìm thấy đơn đặt chỗ hợp lệ.");
       if (!["PENDING_PAYMENT", "CONFIRMED"].includes(r.status)) return bad(`Không thể hủy đơn đặt chỗ ở trạng thái '${r.status}'.`);
-      Object.assign(r, { status: "CANCELLED", cancelledAt: new Date(), cancellationReason: body?.reason });
+      const paid = r.status === "CONFIRMED" && r.paymentMethod === "PAYOS";
+      Object.assign(r, { status: "CANCELLED", cancelledAt: new Date(), cancellationReason: body?.reason, ...(paid ? { refundAmount: r.estimatedAmount + r.requiredDeposit - Math.round(r.estimatedAmount * 0.1), refundStatus: "PENDING" } : {}) });
       return send(200, { message: "Đã hủy đơn đặt chỗ thành công." });
     }
     if (req.method === "POST" && (path === "/api/v1/reservations/create-payos-qr" || path === "/api/reservations/create-payos-qr")) {
       const resId = body?.reservationId;
       const r = S.reservations.find((x) => x.reservationId === resId);
+      // Đơn của khách đang chờ thanh toán → dùng chung PayOS giả lập (QR + webhook /__payos/paid) như /api/reservations/{id}/payos
+      if (r && r.customerId === me) {
+        if (r.status !== "PENDING_PAYMENT") return bad("Đơn đặt chỗ này không còn chờ thanh toán.");
+        return send(200, { reservationId: r.reservationId, ...payosOrder("reservation", r.reservationId, r.estimatedAmount + r.requiredDeposit, `SS${String(r.reservationId).padStart(4, "0")}`) });
+      }
       const amount = body?.amount || (r ? (r.requiredDeposit > 0 ? r.requiredDeposit : r.estimatedAmount) : 1000000);
       const orderCode = Date.now() % 1000000000;
       const checkoutUrl = `https://pay.payos.vn/web/mock-${resId || orderCode}`;
@@ -533,6 +652,26 @@ export function startMockApi(port = 5199, { verbose = false, ops = process.env.M
       return send(201, { ...r, requestedAt: iso(r.requestedAt), approvedAt: null });
     }
     if (req.method === "GET" && (m = path.match(/^\/api\/contracts\/(\d+)\/payments$/))) return send(200, S.payments.filter((p) => p.contractId === +m[1]).map(payDto));
+    const myPayment = (id) => S.payments.find((p) => p.paymentId === id && S.contracts.some((c) => c.contractId === p.contractId && c.customerId === me));
+    if (req.method === "GET" && (m = path.match(/^\/api\/payments\/(\d+)$/))) {
+      const p = myPayment(+m[1]);
+      return p ? send(200, payDto(p)) : send(404, { error: "Không tìm thấy khoản thanh toán." });
+    }
+    if (req.method === "POST" && (m = path.match(/^\/api\/payments\/(\d+)\/payos$/))) {
+      const p = myPayment(+m[1]);
+      if (!p) return send(404, { error: "Không tìm thấy khoản thanh toán." });
+      if (p.status === "PAID") return bad("Khoản này đã được thanh toán.");
+      return send(200, payosOrder("payment", p.paymentId, p.amount, (p.transactionReference || `TT${p.paymentId}`).replaceAll("-", "")));
+    }
+    if (req.method === "GET" && (m = path.match(/^\/api\/contracts\/(\d+)\/access-qr$/))) {
+      const c = S.contracts.find((x) => x.contractId === +m[1] && x.customerId === me);
+      if (!c) return send(404, { error: "Không tìm thấy hợp đồng." });
+      const h = S.handovers.find((x) => x.contractId === c.contractId);
+      if (c.status !== "ACTIVE" || !h || h.status !== "HANDED_OVER") return bad("QR mở cửa chỉ dùng được sau khi nhận kho và khi hợp đồng còn hiệu lực.");
+      const u = unit(c.unitId);
+      const a = accessCode(c);
+      return send(200, { contractId: c.contractId, code: a.code, backupCode: a.backup, unitNumber: u.unitNumber, unitType: ut(u.unitTypeId).climateControlled ? "Kho lạnh" : "Kho thường", location: null, validUntil: c.endDate });
+    }
     if (req.method === "POST" && (m = path.match(/^\/api\/handovers\/(\d+)\/confirm$/))) {
       const h = S.handovers.find((x) => x.handoverId === +m[1]);
       if (!h) return bad("Không tìm thấy biên bản bàn giao phù hợp.");
@@ -551,7 +690,7 @@ export function startMockApi(port = 5199, { verbose = false, ops = process.env.M
     if (req.method === "GET" && (m = path.match(/^\/api\/tickets\/(\d+)$/))) {
       const t = S.tickets.find((x) => x.ticketId === +m[1] && x.customerId === me);
       if (!t) return send(404, { error: "Không tìm thấy yêu cầu hỗ trợ." });
-      return send(200, { ...ticketDto(t), contractUnitNumber: unit(S.contracts.find((c) => c.contractId === t.contractId).unitId).unitNumber, description: t.description, assignedAt: null });
+      return send(200, { ...ticketDto(t), contractUnitNumber: unit(S.contracts.find((c) => c.contractId === t.contractId).unitId).unitNumber, description: t.description, assignedAt: null, responses: (t.responses || []).map((x) => ({ ...x, createdAt: dbTime(x.createdAt) })) });
     }
     if (req.method === "POST" && path === "/api/tickets") {
       const c = S.contracts.find((x) => x.contractId === body.contractId && x.customerId === me);

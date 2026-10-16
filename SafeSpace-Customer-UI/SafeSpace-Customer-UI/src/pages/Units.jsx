@@ -1,12 +1,12 @@
-import React, { useState } from "react";
-import AccessQr from "../components/AccessQr";
+import React, { useEffect, useState } from "react";
 import { EmptyInline } from "../components/Inline";
 import { DatePicker, Select } from "../components/Pickers";
-import { Button, Empty, Field, LinkButton, Notice, PageHeader, StatusTag, Tag } from "../components/UI";
+import QrCode from "../components/QrCode";
+import { Button, Empty, Field, LinkButton, Modal, Notice, PageHeader, StatusTag, Tag } from "../components/UI";
 import { RENTAL_PLANS, typeLabel } from "../lib/catalog";
 import { addDays, addMonths, dateLabel, dayMonth, money, rangeLabel, today } from "../lib/format";
 import { siteLabel } from "../lib/hooks";
-import { go, href } from "../lib/router";
+import { go, href, qs } from "../lib/router";
 import { CONTRACT_STATUS, LEDGER_STATUS } from "../lib/status";
 import { contractOf, contractStatus, facilityOf, pendingRenewal, pendingReturn } from "../state/selectors";
 import { useApp } from "../state/store";
@@ -55,29 +55,92 @@ export function Units() {
   );
 }
 
-// C07 — Hợp đồng & quản lý kho
+// C07q — Popup QR mở cửa (chỉ chủ hợp đồng, hợp đồng đã bàn giao và còn hiệu lực)
+function AccessQrModal({ c, facility, onClose }) {
+  const { services } = useApp();
+  const [state, setState] = useState({ status: "loading" });
+  useEffect(() => {
+    let alive = true;
+    services.accessQr(c).then((res) => {
+      if (!alive) return;
+      if (res.ok) setState({ status: "ready", access: res.access });
+      else setState({ status: res.unsupported ? "unsupported" : "error", error: res.error });
+    });
+    return () => {
+      alive = false;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const a = state.access;
+  const where = [facility.name, c.location].filter(Boolean).join(" · ");
+  return (
+    <Modal title={`QR mở cửa · Kho ${c.unit_number}`} onClose={onClose}>
+      <p className="modal__text modal__text--sub">{where}</p>
+      {state.status === "unsupported" ? (
+        <Notice>Mã QR mở cửa đang được cơ sở kích hoạt. Trong lúc chờ, dùng thẻ ra vào đã nhận khi bàn giao hoặc liên hệ nhân viên trực.</Notice>
+      ) : state.status === "error" ? (
+        <Notice tone="error">{state.error}</Notice>
+      ) : (
+        <QrCode value={a?.code} title={a ? "QR mở cửa" : "Đang tạo mã…"} label={`QR mở cửa kho ${c.unit_number}`} caption={`Mã riêng cho hợp đồng ${c.contract_id}`} />
+      )}
+      {a && (
+        <dl className="pay-rows">
+          {a.backup && <div><dt>Mã dự phòng</dt><dd>{a.backup}</dd></div>}
+          <div><dt>Ô kho</dt><dd>{a.unit || c.unit_number} · {a.unit_type || typeLabel(c.type)}</dd></div>
+          <div><dt>Hiệu lực đến</dt><dd>{dateLabel(a.valid_until || c.end_date)}</dd></div>
+        </dl>
+      )}
+      <p className="hint">Đưa mã vào máy quét ở cửa kho. Nếu không quét được, nhập mã dự phòng. Mã hết hiệu lực khi trả kho hoặc hợp đồng hết hạn.</p>
+      {a && (
+        <a className="link-btn" href={href(`door${qs({ unit: a.unit || c.unit_number, code: a.code })}`)}>Mô phỏng quét ở cửa kho →</a>
+      )}
+      <div className="modal__actions modal__actions--full">
+        <Button variant="outline" block onClick={onClose}>Đóng</Button>
+      </div>
+    </Modal>
+  );
+}
+
+// C07 / C07b — Hợp đồng & quản lý kho. Chưa bàn giao (F29): chỉ xem / đổi lịch nhận kho và hỗ trợ;
+// gia hạn, trả kho, mở cửa kho dùng được sau khi nhân viên bàn giao.
 export function UnitDetail({ id }) {
   const { data, dispatch, notify } = useApp();
   const [confirming, setConfirming] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const c = contractOf(data, id);
   if (!c) return <NotFound />;
   const f = facilityOf(data, c.facility_id, c.facility_name);
   const renewal = pendingRenewal(data, id);
   const ret = pendingReturn(data, id);
   const rent = [...data.ledger].reverse().find((l) => l.contract_id === id && (l.kind === "RENT" || /-RENT$/.test(l.ref)));
+  const pickup = data.appointments.find((a) => a.kind === "CHECK_IN" && (a.contract_id === id || (c.reservation_id && a.reservation_id === c.reservation_id)) && a.status !== "CANCELLED");
   const confirmHandover = async () => {
     setConfirming(true);
     const res = await dispatch("CONFIRM_HANDOVER", { contract_id: id });
     setConfirming(false);
     notify(res.ok ? "Đã xác nhận nhận bàn giao kho." : res.error, res.ok ? "success" : "error");
   };
+  const status = contractStatus(c);
+  const ended = status === "ENDED";
+  const handed = c.handed_over;
   const busy = Boolean(renewal || ret);
+  const pickupText = pickup ? `${dateLabel(pickup.date)} · ${pickup.slot}` : null;
   return (
     <main className="container page">
       <PageHeader title={`Kho ${c.unit_number} · Hợp đồng thuê`} description={`${c.contract_id} · ${f.name}`} />
+      {!handed && !ended && (
+        <div className="unit-notice">
+          <Notice>
+            <span>
+              <strong>Chưa nhận kho{pickupText ? ` · Lịch nhận ${pickupText}` : ""}</strong>
+              <br />
+              Mang giấy tờ đã đăng ký{c.reservation_id ? ` và mã đặt chỗ ${c.reservation_id}` : ""} đến {f.name}. Gia hạn, trả kho và mở cửa kho dùng được sau khi nhân viên bàn giao.
+            </span>
+          </Notice>
+        </div>
+      )}
       <div className="detail-grid detail-grid--even">
         <section className="panel info-card">
-          <StatusTag map={CONTRACT_STATUS} status={contractStatus(c)} square />
+          {handed || ended ? <StatusTag map={CONTRACT_STATUS} status={status} square /> : <Tag tone="blue" square>Chờ nhận kho</Tag>}
           <h2 className="h-sub">{typeLabel(c.type)}{c.size_m2 ? ` · ${c.size_m2} m²` : ""}</h2>
           <p className="muted">
             {c.location ? `${c.location} · ` : ""}Kho {c.unit_number}
@@ -106,33 +169,63 @@ export function UnitDetail({ id }) {
           )}
           <h3>Thông tin ra vào</h3>
           <p className="muted">
-            {c.handed_over
-              ? "Thẻ ra vào đã bàn giao. Liên hệ cơ sở khi mất thẻ hoặc gặp lỗi mã truy cập."
-              : "Thẻ ra vào và khóa sẽ được bàn giao tại cơ sở theo lịch hẹn nhận kho."}
+            {ended
+              ? "Hợp đồng đã kết thúc, mã mở cửa không còn hiệu lực."
+              : handed
+                ? "Mở cửa bằng QR: bấm \"Mở cửa kho\" rồi đưa mã vào máy quét ở cửa. QR chỉ dùng được khi hợp đồng còn hiệu lực và hết hiệu lực khi trả kho."
+                : `Khóa và mã truy cập được bàn giao khi nhận kho${pickupText ? ` ngày ${pickupText}` : " theo lịch hẹn"}.`}
           </p>
         </section>
         <aside className="panel booking">
           <h2>Bạn cần làm gì?</h2>
-          <AccessQr contract={c} facility={f} user={data.user} />
           {renewal && <Notice>Yêu cầu gia hạn thêm {renewal.months} tháng đang chờ cơ sở duyệt.</Notice>}
           {ret && <Notice>Yêu cầu trả kho ngày {dateLabel(ret.date)} đang chờ cơ sở xác nhận.</Notice>}
-          <div className="stack stack--col">
-            {busy ? (
-              <>
-                <Button disabled>Yêu cầu gia hạn</Button>
+          {handed && !ended ? (
+            <>
+              <div className="stack stack--col">
+                <Button onClick={() => setQrOpen(true)}>Mở cửa kho</Button>
+                {busy ? (
+                  <>
+                    <Button variant="outline" disabled>Yêu cầu gia hạn</Button>
+                    <Button variant="outline" disabled>Đăng ký trả kho</Button>
+                  </>
+                ) : (
+                  <>
+                    <LinkButton to={`units/${id}/renew`} variant="outline">Yêu cầu gia hạn</LinkButton>
+                    <LinkButton to={`units/${id}/return`} variant="outline">Đăng ký trả kho</LinkButton>
+                  </>
+                )}
+                <LinkButton to={`support?contract=${encodeURIComponent(id)}`} variant="outline">Gửi yêu cầu hỗ trợ</LinkButton>
+              </div>
+              <p className="hint">Gia hạn và trả kho cần cơ sở xác nhận. Tiền cọc được đối chiếu sau kiểm tra kho.</p>
+            </>
+          ) : ended ? (
+            <>
+              <div className="stack stack--col">
+                <LinkButton to={`support?contract=${encodeURIComponent(id)}`} variant="outline">Gửi yêu cầu hỗ trợ</LinkButton>
+                <LinkButton to="find">Thuê kho mới</LinkButton>
+              </div>
+              <p className="hint">Hợp đồng đã kết thúc. Tiền cọc được hoàn theo biên bản trả kho.</p>
+            </>
+          ) : (
+            <>
+              <div className="stack stack--col">
+                <LinkButton to="payments">Xem lịch nhận kho</LinkButton>
+                <LinkButton to={`support?contract=${encodeURIComponent(id)}&topic=SCHEDULE`} variant="outline">Đổi lịch nhận kho</LinkButton>
+                <LinkButton to={`support?contract=${encodeURIComponent(id)}`} variant="outline">Gửi yêu cầu hỗ trợ</LinkButton>
+              </div>
+              <p className="booking__label">Dùng được sau khi nhận kho</p>
+              <div className="stack stack--col">
+                <Button variant="outline" disabled>Yêu cầu gia hạn</Button>
                 <Button variant="outline" disabled>Đăng ký trả kho</Button>
-              </>
-            ) : (
-              <>
-                <LinkButton to={`units/${id}/renew`}>Yêu cầu gia hạn</LinkButton>
-                <LinkButton to={`units/${id}/return`} variant="outline">Đăng ký trả kho</LinkButton>
-              </>
-            )}
-            <LinkButton to={`support?contract=${encodeURIComponent(id)}`} variant="outline">Gửi yêu cầu hỗ trợ</LinkButton>
-          </div>
-          <p className="hint">Gia hạn và trả kho cần cơ sở xác nhận. Tiền cọc được đối chiếu sau kiểm tra kho.</p>
+                <Button variant="outline" disabled>Mở cửa kho (QR)</Button>
+              </div>
+              <p className="hint">Có thể đổi lịch nhận kho trước giờ hẹn. Cần hỗ trợ thì gửi yêu cầu, cơ sở sẽ phản hồi trong tài khoản.</p>
+            </>
+          )}
         </aside>
       </div>
+      {qrOpen && <AccessQrModal c={c} facility={f} onClose={() => setQrOpen(false)} />}
     </main>
   );
 }
@@ -170,7 +263,7 @@ export function Renew({ id }) {
         </Field>
         <h3>Chi phí dự kiến</h3>
         <p className="muted">
-          {months} × {money(c.monthly_rate)} = {money(months * c.monthly_rate)}. Thanh toán sau khi yêu cầu được duyệt. Không hoàn lại tiền cọc đang giữ.
+          {months} × {money(c.monthly_rate)} = {money(months * c.monthly_rate)}. Chỉ trả tiền thuê kỳ mới qua mã QR sau khi yêu cầu được duyệt. Tiền cọc đang giữ được chuyển sang kỳ mới, không thu thêm.
         </p>
         <p className="visually-hidden" aria-live="polite">Ngày kết thúc mới dự kiến {dateLabel(newEnd)}</p>
         {error && <Notice tone="error">{error}</Notice>}

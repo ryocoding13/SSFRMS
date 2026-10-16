@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Lightbox, Photo } from "../components/Photo";
 import { GALLERY } from "../config/media";
 import { DatePicker, Select } from "../components/Pickers";
-import { Button, Empty, Field, LinkButton, Notice } from "../components/UI";
+import { directionsUrl } from "../api/payment-access";
+import { Button, Empty, Field, Icon, LinkButton, Notice } from "../components/UI";
 import UnitMap from "../components/UnitMap";
 import { RENTAL_PLANS, UNIT_TYPES, offerTypes, pickOffer, quote } from "../lib/catalog";
 import { UNIT_STATUS, unitsFor } from "../lib/units";
@@ -193,6 +194,16 @@ export default function FacilityDetail({ id, query }) {
             <p className="muted">
               Không lưu trữ vật liệu dễ cháy, hàng cấm hoặc thực phẩm dễ hỏng. Kho cụ thể sẽ được quản lý phân bổ theo nhu cầu đã xác nhận.
             </p>
+          </section>
+          <section className="panel directions">
+            <div>
+              <h3>Chỉ đường đến cơ sở</h3>
+              <p className="muted">{[facility.name, facility.address].filter(Boolean).join(" · ")}</p>
+              <p className="hint">Mở Google Maps để xem tuyến đường và thời gian di chuyển.</p>
+            </div>
+            <a className="btn btn--outline" href={directionsUrl(facility)} target="_blank" rel="noreferrer">
+              <Icon name="pin" size={18} /> Chỉ đường
+            </a>
           </section>
         </div>
         )}
