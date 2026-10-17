@@ -151,7 +151,7 @@ public static partial class DbSeeder
         var cust1 = await EnsureUserAsync("customer01", "an.nguyen@example.com", "Nguyễn Văn An", "0901234567", "Customer@123", customerRole);
         var cust2 = await EnsureUserAsync("customer02", "mai.tran@example.com", "Trần Thị Mai", "0912345678", "Customer@123", customerRole);
 
-        // 2b. Vai trò Quản lý vận hành KD (OPERATIONS & BUSINESS_OPERATOR) + tài khoản ops01, operator01
+        // 2b. Vai trò Quản lý vận hành KD (OPERATIONS & BUSINESS_OPERATOR) + tài khoản ops01
         await EnsureOperationsRoleAsync(context);
 
         // 2c. Quyền của STAFF / MANAGER + tài khoản manager01, staff02 (BACKEND-TODO A1)
@@ -222,23 +222,21 @@ public static partial class DbSeeder
         // 5. Phân công cơ sở (SRS A06: mỗi nhân viên / quản lý 1 cơ sở)
         await EnsureFacilityAssignmentsAsync(context, catalog.Home.FacilityId, admin.UserId);
 
-        // Phân công cơ sở cho ops01 và operator01
+        // Phân công cơ sở cho ops01
         var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
-        foreach (var opUsername in new[] { "ops01", "operator01" })
+        var opUser = await context.Users.FirstOrDefaultAsync(u => u.Username == "ops01");
+        if (opUser != null && !await context.UserFacilities.AnyAsync(uf => uf.UserId == opUser.UserId && uf.FacilityId == catalog.Home.FacilityId))
         {
-            var opUser = await context.Users.FirstOrDefaultAsync(u => u.Username == opUsername);
-            if (opUser != null && !await context.UserFacilities.AnyAsync(uf => uf.UserId == opUser.UserId && uf.FacilityId == catalog.Home.FacilityId))
+            context.UserFacilities.Add(new UserFacility
             {
-                context.UserFacilities.Add(new UserFacility
-                {
-                    UserId = opUser.UserId,
-                    FacilityId = catalog.Home.FacilityId,
-                    AssignedBy = admin.UserId,
-                    AssignedFrom = today.AddDays(-30),
-                    Status = "ACTIVE",
-                    CreatedAt = DateTime.UtcNow
-                });
-            }
+                UserId = opUser.UserId,
+                FacilityId = catalog.Home.FacilityId,
+                AssignedBy = admin.UserId,
+                AssignedFrom = today.AddDays(-30),
+                Status = "ACTIVE",
+                CreatedAt = DateTime.UtcNow
+            });
+            await context.SaveChangesAsync();
         }
         await context.SaveChangesAsync();
     }
@@ -326,30 +324,6 @@ public static partial class DbSeeder
         if (!await context.UserRoles.AnyAsync(ur => ur.UserId == opsUser.UserId && ur.RoleId == opsRole.RoleId))
         {
             context.UserRoles.Add(new UserRole { UserId = opsUser.UserId, RoleId = opsRole.RoleId, AssignedAt = DateTime.UtcNow });
-            await context.SaveChangesAsync();
-        }
-
-        // Ensure user operator01 (mapped to BUSINESS_OPERATOR)
-        var operatorUser = await context.Users.FirstOrDefaultAsync(u => u.Username == "operator01");
-        if (operatorUser == null)
-        {
-            operatorUser = new User
-            {
-                Username = "operator01",
-                Email = "operator01@storage.vn",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Operator@123"),
-                FullName = "Lê Vận Hành Kinh Doanh",
-                Phone = "0900000004",
-                Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            context.Users.Add(operatorUser);
-            await context.SaveChangesAsync();
-        }
-        if (!await context.UserRoles.AnyAsync(ur => ur.UserId == operatorUser.UserId && ur.RoleId == bizOpRole.RoleId))
-        {
-            context.UserRoles.Add(new UserRole { UserId = operatorUser.UserId, RoleId = bizOpRole.RoleId, AssignedAt = DateTime.UtcNow });
             await context.SaveChangesAsync();
         }
     }

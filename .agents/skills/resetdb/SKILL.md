@@ -12,7 +12,7 @@ This skill automates the complete reset of the SafeSpace (SSFRMS) SQL Server dat
 - All 72 physical storage units across 12 facilities reset to `AVAILABLE`.
 - All temporary test accounts and activity/login logs deleted.
 - Preserves all essential system master data: facilities, unit types, rental rates, policies, roles, permissions.
-- Preserves default system accounts: `admin`, `manager01`, `staff01`, `operator01` (`BUSINESS_OPERATOR`), `customer01`, `customer02`.
+- Preserves default system accounts: `admin`, `manager01`, `staff01`, `ops01` (`OPERATIONS`), `customer01`, `customer02`.
 
 ---
 
@@ -31,12 +31,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .agents/skills/resetdb/scrip
 Check the output from the script:
 - All transaction tables must display `[PASS] <table_name> : 0 rows`.
 - Storage units status must show `AVAILABLE 72`.
-- Active seed accounts must list `admin`, `staff01`, `customer01`, `customer02`, `manager01`, `operator01`.
+- Active seed accounts must list `admin`, `staff01`, `customer01`, `customer02`, `manager01`, `ops01`.
 
 ### Step 3: Respond to User
 Inform the user that the database has been cleanly reset, and provide the credential table from [references/credentials.md](./references/credentials.md):
 - `admin` / `Admin@123`
-- `operator01` / `Operator@123` (`BUSINESS_OPERATOR`)
+- `ops01` / `Ops@123` (`OPERATIONS`)
 - `manager01` / `Manager@123`
 - `staff01` / `Staff@123`
 - `customer01` / `Customer@123`

@@ -8,7 +8,7 @@ namespace StorageProject.Api.Endpoints;
 
 /// <summary>
 /// Khu Quản lý vận hành kinh doanh (Business Operations Manager) — UC19–UC23.
-/// Chỉ role OPERATIONS; sai vai trò trả 403.
+/// Role OPERATIONS hoặc BUSINESS_OPERATOR; sai vai trò trả 403.
 /// </summary>
 public static class OperationsEndpoints
 {
@@ -16,7 +16,7 @@ public static class OperationsEndpoints
     {
         var group = routes.MapGroup("/api/operations")
             .WithTags("Business Operations")
-            .RequireAuthorization(policy => policy.RequireRole("OPERATIONS"));
+            .RequireAuthorization(policy => policy.RequireRole("OPERATIONS", "BUSINESS_OPERATOR"));
 
         // ==========================================
         // UC19 — Cơ sở toàn hệ thống
