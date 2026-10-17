@@ -3,7 +3,7 @@
 -- - Zero customer transactions / activity
 -- - All 72 storage units set to 'AVAILABLE'
 -- - Default seed roles, facilities, unit types, rates, policies preserved
--- - Default accounts (admin, staff01, manager01, operator01, customer01, customer02) preserved
+-- - Default accounts (admin, staff01, manager01, ops01, customer01, customer02) preserved
 -- - All temporary non-seeded accounts and logs deleted
 -- =========================================================================
 
@@ -50,17 +50,17 @@ IF OBJECT_ID('unit_status_history') IS NOT NULL DBCC CHECKIDENT ('unit_status_hi
 DELETE FROM [user_roles] 
 WHERE UserId IN (
     SELECT UserId FROM [users] 
-    WHERE Username NOT IN ('admin', 'staff01', 'manager01', 'operator01', 'customer01', 'customer02')
+    WHERE Username NOT IN ('admin', 'staff01', 'manager01', 'ops01', 'customer01', 'customer02')
 );
 
 DELETE FROM [user_facilities] 
 WHERE UserId IN (
     SELECT UserId FROM [users] 
-    WHERE Username NOT IN ('admin', 'staff01', 'manager01', 'operator01', 'customer01', 'customer02')
+    WHERE Username NOT IN ('admin', 'staff01', 'manager01', 'ops01', 'customer01', 'customer02')
 );
 
 DELETE FROM [users] 
-WHERE Username NOT IN ('admin', 'staff01', 'manager01', 'operator01', 'customer01', 'customer02');
+WHERE Username NOT IN ('admin', 'staff01', 'manager01', 'ops01', 'customer01', 'customer02');
 
 -- 5. Reset all storage units to AVAILABLE
 UPDATE [storage_units] SET [Status] = 'AVAILABLE';
