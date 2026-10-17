@@ -57,6 +57,6 @@ export function galleryImage(facility, index) {
   return { ...item, src };
 }
 
-// Thời gian giữ chỗ khi thanh toán QR PayOS (Figma C04: 10:00). Đổi bằng VITE_PAYMENT_TIMEOUT_SECONDS.
+// Thời gian giữ chỗ khi thanh toán QR PayOS (15 phút). Đổi bằng VITE_PAYMENT_TIMEOUT_SECONDS.
 // Backend nên đặt hạn link PayOS (expiredAt) bằng đúng con số này; giao diện ưu tiên expiredAt backend trả về.
-export const paymentTimeoutSeconds = Number(import.meta.env?.VITE_PAYMENT_TIMEOUT_SECONDS) || 600;
+export const paymentTimeoutSeconds = Number(import.meta.env?.VITE_PAYMENT_TIMEOUT_SECONDS) || 900;
