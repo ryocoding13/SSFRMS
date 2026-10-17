@@ -143,7 +143,8 @@ public class PayOSService : IPayOSService
                 orderCode,
                 checkoutUrl,
                 qrCode,
-                amount
+                amount,
+                reservation.ExpiresAt ?? DateTime.UtcNow.AddMinutes(15)
             );
         }
 
@@ -180,7 +181,8 @@ public class PayOSService : IPayOSService
                         Description = $"Dat kho #{reservation.ReservationId}",
                         Items = items,
                         CancelUrl = request.CancelUrl ?? "http://localhost:5173/checkout/cancel",
-                        ReturnUrl = request.ReturnUrl ?? $"http://localhost:5173/confirmation/{reservation.ReservationId}"
+                        ReturnUrl = request.ReturnUrl ?? $"http://localhost:5173/confirmation/{reservation.ReservationId}",
+                        ExpiredAt = (int)DateTimeOffset.UtcNow.AddMinutes(15).ToUnixTimeSeconds()
                     };
 
                     var createResult = await _payOSClient.PaymentRequests.CreateAsync(paymentLinkRequest);
@@ -213,7 +215,8 @@ public class PayOSService : IPayOSService
             orderCode,
             checkoutUrl,
             qrCode,
-            amount
+            amount,
+            DateTime.UtcNow.AddMinutes(15)
         );
     }
 

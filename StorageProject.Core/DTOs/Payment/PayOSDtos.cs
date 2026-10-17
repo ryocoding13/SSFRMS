@@ -17,7 +17,8 @@ public record CreatePayOSQrResponse(
     long OrderCode,
     string CheckoutUrl,
     string QrCode,
-    decimal Amount
+    decimal Amount,
+    DateTime? ExpiredAt = null
 );
 
 public record ReservationPaymentStatusDto(

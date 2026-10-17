@@ -226,7 +226,7 @@ export function startMockApi(
   };
   const payosOrder = (kind, id, amount, description) => {
     const existing = [...S.payos.values()].find((o) => o.kind === kind && o.id === id && o.status === "PENDING" && o.expiredAt > new Date());
-    const o = existing || { orderCode: 100000 + S.payos.size + 1, kind, id, amount, description, status: "PENDING", expiredAt: new Date(Date.now() + 10 * 60000) };
+    const o = existing || { orderCode: 100000 + S.payos.size + 1, kind, id, amount, description, status: "PENDING", expiredAt: new Date(Date.now() + 15 * 60000) };
     if (!existing) {
       S.payos.set(o.orderCode, o);
       if (payosAutoPaySeconds > 0) setTimeout(() => payosPaid(o.orderCode), payosAutoPaySeconds * 1000).unref?.();
