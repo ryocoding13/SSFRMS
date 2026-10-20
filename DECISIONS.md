@@ -149,3 +149,21 @@
 - Ghi nhận lịch sử quét mã vào bảng `activity_logs` với `Action = "ACCESS_SCANNED"`, `EntityType = "CONTRACT"`, `EntityId = ContractId`, `NewValue = { result, unit, reason }`, `IpAddress` của máy quét.
 - Frontend: kết nối `useAccessQr.js` và `endpoints.js` trực tiếp với API backend khi `VITE_USE_API=true`, giữ nguyên mock offline cho môi trường thử nghiệm khi `VITE_USE_API=false`.
 
+
+## D23 — Thu tiền đặt kho và dự phòng thanh toán tại cơ sở (20/10/2026)
+- Bổ sung cho D19/D21; không đổi số hoặc xoá nội dung quyết định cũ. Phạm vi được yêu cầu: kiểm tiền PayOS, ghi khoản thu, chống lặp, phân bổ, thanh toán tại kho và F12.
+- Giữ cách tính hiện tại: khách trả tiền thuê cả kỳ + tiền cọc; không triển khai bỏ cọc trong gói này.
+- PayOS: backend tính số tiền; SDK kiểm chữ ký; đối chiếu chính xác orderCode và số tiền. Không tìm đơn bằng cách tách số từ mô tả. Không dùng VietQR mặc định khi PayOS lỗi.
+- Khoản thu RENT và DEPOSIT ghi vào payments ngay khi xác nhận, gắn ReservationId; ContractId được phép trống trước khi quản lý phân bổ. Gắn lại đúng bản ghi vào hợp đồng DRAFT, không tạo khoản PAID mới.
+- Webhook chỉ xác nhận thanh toán; quản lý chọn ô ở M05. Đơn trả tại kho cũng được phân bổ trước, nhưng chưa thu đủ thì không được bàn giao.
+- Chọn trả tại kho phải còn hạn và chưa trả tiền. Nếu đã khởi tạo orderCode, cần PayOS xác nhận link đã huỷ/không tồn tại; không chuyển nếu không kiểm tra được hoặc PayOS đã nhận tiền (kể cả một phần).
+- Đơn trả tại kho có trạng thái PENDING_AT_FACILITY và PaymentMethod AT_FACILITY. Giữ chỗ đến hết ngày hẹn nhận kho theo giờ Việt Nam; worker xử lý hết hạn mỗi phút, huỷ phân bổ/hợp đồng nháp chưa thu và trả ô RESERVED về AVAILABLE. Thu tiền và worker dùng cùng khoá giao dịch.
+- S09 chỉ là đơn chờ thu tại kho; nhân viên bấm xác nhận khi đã thực nhận tiền mặt. Ghi CASH. API gọi lại không tạo khoản thu mới.
+- Tiền PayOS về sau khi đổi phương thức/đóng đơn: ghi PAYMENT_REVIEW_REQUIRED đúng một lần cho orderCode, không cộng vào khoản thu thuê lần nữa. Quản lý kiểm tra khoản tiền thực về và hoàn thủ công theo nhật ký; không tuyên bố đã tự chuyển tiền hoàn.
+- Khoá transaction ở SQL Server bằng sp_getapplock, cùng khoá reservation cho webhook/thu tiền/phân bổ; thêm unique index trên ReservationId + PaymentType cho RENT/DEPOSIT. API /api/ops chỉ đăng ký một lần.
+- Migration nối khoản RENT/DEPOSIT cũ vào đơn khi liên kết là duy nhất; không xoá hay tự bịa khoản tiền cho các đơn cũ chỉ có PaidAt. Các đơn cũ thiếu bằng chứng thu cần đối chiếu trước khi bàn giao.
+
+## D24 — Đổi trạng thái ô bằng tay phải có lý do và lịch sử (20/10/2026)
+- AVAILABLE, MAINTENANCE, OUT_OF_SERVICE được chuyển qua lại bằng thao tác quản lý vận hành nếu ô không có giữ chỗ/hợp đồng chưa đóng. Mỗi lần đổi phải có lý do 1–255 ký tự và ghi unit_status_history trong cùng transaction.
+- RESERVED/ASSIGNED/OCCUPIED/RETURN_PENDING/INSPECTION thuộc luồng phân bổ, bàn giao, trả kho. Không cho dùng form trạng thái để bỏ qua các bước này.
+- LOCKED từ giao diện được ánh xạ thành OUT_OF_SERVICE theo tập trạng thái SQL hiện có. Gọi lại cùng trạng thái với lý do hợp lệ không thêm lịch sử trùng.

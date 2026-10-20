@@ -1,4 +1,5 @@
 using System.Text;
+using StorageProject.Api.Workers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -92,6 +93,8 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IOperationsService, OperationsService>();
 builder.Services.AddScoped<IOperationsReportService, OperationsReportService>();
 builder.Services.AddScoped<IFacilityOpsService, FacilityOpsService>();
+builder.Services.AddScoped<IPayOSGateway, SdkPayOSGateway>();
+builder.Services.AddHostedService<ExpiredCashHoldWorker>();
 builder.Services.AddScoped<IPayOSService, PayOSService>();
 builder.Services.AddSingleton(new AccessQrOptions(
     builder.Configuration["AccessQr:Secret"] ?? jwtSecret,

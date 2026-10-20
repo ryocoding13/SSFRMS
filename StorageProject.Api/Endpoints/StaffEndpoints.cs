@@ -11,7 +11,7 @@ public static class StaffEndpoints
     {
         var group = app.MapGroup("/api/staff")
             .WithTags("Staff Operations")
-            .RequireAuthorization();
+            .RequireAuthorization(policy => policy.RequireRole("STAFF", "MANAGER"));
 
         // 1. Staff Board
         group.MapGet("/board", async (ClaimsPrincipal user, IStaffService staffService, CancellationToken ct) =>
@@ -182,45 +182,6 @@ public static class StaffEndpoints
             {
                 return Results.BadRequest(new { error = ex.Message });
             }
-        });
-
-        // Backward compatibility routes for /api/ops/
-        var opsGroup = app.MapGroup("/api/ops").WithTags("Operations (Compatibility)").RequireAuthorization();
-        opsGroup.MapPost("/payments/{id}/confirm", async (string id, ClaimsPrincipal user, IStaffService staffService, CancellationToken ct) =>
-        {
-            var userId = user.GetUserId();
-            await staffService.ConfirmPaymentAsync(userId, id, ct);
-            return Results.Ok(new { message = "Xác nhận thanh toán thành công." });
-        });
-        opsGroup.MapPost("/payments/{id}/mismatch", async (string id, MismatchPaymentRequest request, ClaimsPrincipal user, IStaffService staffService, CancellationToken ct) =>
-        {
-            var userId = user.GetUserId();
-            await staffService.MismatchPaymentAsync(userId, id, request, ct);
-            return Results.Ok(new { message = "Ghi nhận sai lệch thanh toán." });
-        });
-        opsGroup.MapPost("/verifications/{id}", async (string id, VerifyCustomerRequest request, ClaimsPrincipal user, IStaffService staffService, CancellationToken ct) =>
-        {
-            var userId = user.GetUserId();
-            await staffService.VerifyCustomerAsync(userId, id, request, ct);
-            return Results.Ok(new { message = "Xác minh thông tin khách hàng thành công." });
-        });
-        opsGroup.MapPost("/handovers/{id}/complete", async (string id, CompleteHandoverRequest request, ClaimsPrincipal user, IStaffService staffService, CancellationToken ct) =>
-        {
-            var userId = user.GetUserId();
-            await staffService.CompleteHandoverAsync(userId, id, request, ct);
-            return Results.Ok(new { message = "Hoàn tất bàn giao kho." });
-        });
-        opsGroup.MapPost("/returns/{id}/inspection", async (string id, ReturnInspectionRequest request, ClaimsPrincipal user, IStaffService staffService, CancellationToken ct) =>
-        {
-            var userId = user.GetUserId();
-            await staffService.SubmitReturnInspectionAsync(userId, id, request, ct);
-            return Results.Ok(new { message = "Lưu biên bản kiểm tra trả kho thành công." });
-        });
-        opsGroup.MapPost("/tickets/{id}/responses", async (string id, TicketResponseRequest request, ClaimsPrincipal user, IStaffService staffService, CancellationToken ct) =>
-        {
-            var userId = user.GetUserId();
-            await staffService.AddTicketResponseAsync(userId, id, request, ct);
-            return Results.Ok(new { message = "Phản hồi yêu cầu hỗ trợ thành công." });
         });
 
         return group;

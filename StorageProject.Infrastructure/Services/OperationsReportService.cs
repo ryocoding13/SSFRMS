@@ -49,14 +49,14 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
 
         if (facilityId.HasValue)
         {
-            payments = payments.Where(p => p.Contract.Unit.FacilityId == facilityId);
+            payments = payments.Where(p => (p.ContractId != null ? p.Contract.Unit.FacilityId : p.Reservation.FacilityId) == facilityId);
             units = units.Where(u => u.FacilityId == facilityId);
             contracts = contracts.Where(c => c.Unit.FacilityId == facilityId);
             overdues = overdues.Where(o => o.Contract.Unit.FacilityId == facilityId);
         }
         if (unitTypeId.HasValue)
         {
-            payments = payments.Where(p => p.Contract.Unit.UnitTypeId == unitTypeId);
+            payments = payments.Where(p => (p.ContractId != null ? p.Contract.Unit.UnitTypeId : p.Reservation.UnitTypeId) == unitTypeId);
             units = units.Where(u => u.UnitTypeId == unitTypeId);
             contracts = contracts.Where(c => c.Unit.UnitTypeId == unitTypeId);
             overdues = overdues.Where(o => o.Contract.Unit.UnitTypeId == unitTypeId);
@@ -64,7 +64,9 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
 
         return new Source(
             await payments.Select(p => new PayRow(p.PaymentType, p.Amount, p.Status, p.PaidAt,
-                p.Contract.Unit.FacilityId, p.Contract.Unit.UnitTypeId, p.Contract.Status)).ToListAsync(ct),
+                p.ContractId != null ? p.Contract.Unit.FacilityId : p.Reservation.FacilityId,
+                p.ContractId != null ? p.Contract.Unit.UnitTypeId : p.Reservation.UnitTypeId,
+                p.ContractId != null ? p.Contract.Status : p.Reservation.Status)).ToListAsync(ct),
             await units.Select(u => new UnitRow(u.FacilityId, u.UnitTypeId, u.Status)).ToListAsync(ct),
             await contracts.Select(c => new ContractRow(c.ContractId, c.Unit.FacilityId, c.Unit.UnitTypeId, c.Status)).ToListAsync(ct),
             await overdues.Select(o => new OverdueRow(o.ContractId, o.Contract.Unit.FacilityId, o.Contract.Unit.UnitTypeId)).ToListAsync(ct));

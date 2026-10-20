@@ -31,7 +31,7 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
             .Include(r => r.Customer)
             .Include(r => r.UnitType)
             .Include(r => r.UnitAssignments).ThenInclude(ua => ua.Unit)
-            .Where(r => r.FacilityId == fac.FacilityId && (r.Status == "CONFIRMED" || r.Status == "UNIT_ASSIGNED"))
+            .Where(r => r.FacilityId == fac.FacilityId && (r.Status == "CONFIRMED" || r.Status == "UNIT_ASSIGNED" || (r.Status == "PENDING_AT_FACILITY" && r.ExpiresAt > DateTime.UtcNow)))
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync(ct);
 
@@ -117,11 +117,12 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
         var payments = await dbContext.Payments
             .AsNoTracking()
             .Include(p => p.Contract).ThenInclude(c => c.Unit).ThenInclude(u => u.UnitType)
-            .Where(p => p.Contract.Unit.FacilityId == fac.FacilityId && p.Status == "PAID")
+            .Include(p => p.Reservation).ThenInclude(r => r.UnitType)
+            .Where(p => (p.ContractId != null ? p.Contract.Unit.FacilityId : p.Reservation.FacilityId) == fac.FacilityId && p.Status == "PAID" && p.PaymentType == "RENT")
             .ToListAsync(ct);
 
-        var normalTotal = payments.Where(p => !p.Contract.Unit.UnitType.ClimateControlled).Sum(p => p.Amount) / 1_000_000m;
-        var climateTotal = payments.Where(p => p.Contract.Unit.UnitType.ClimateControlled).Sum(p => p.Amount) / 1_000_000m;
+        var normalTotal = payments.Where(p => !(p.ContractId != null ? p.Contract.Unit.UnitType.ClimateControlled : p.Reservation.UnitType.ClimateControlled)).Sum(p => p.Amount) / 1_000_000m;
+        var climateTotal = payments.Where(p => (p.ContractId != null ? p.Contract.Unit.UnitType.ClimateControlled : p.Reservation.UnitType.ClimateControlled)).Sum(p => p.Amount) / 1_000_000m;
 
         var revenueMonths = payments
             .Where(p => p.PaidAt.HasValue)
@@ -165,36 +166,9 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
     public async Task AllocateUnitAsync(long userId, string id, AllocateUnitRequest request, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
-        var r = await FacilityOpsStateStore.FindReservationByIdAsync(dbContext, id, fac.FacilityId, ct);
-        if (r == null) throw new InvalidOperationException("Không tìm thấy đơn phân bổ.");
-
-        var unit = await dbContext.StorageUnits
-            .FirstOrDefaultAsync(u => u.FacilityId == fac.FacilityId && u.UnitNumber == request.UnitCode, ct);
-        if (unit == null || unit.Status != "AVAILABLE")
-        {
-            throw new InvalidOperationException("Kho không hợp lệ hoặc không trống.");
-        }
-
-        unit.Status = "RESERVED";
-        unit.UpdatedAt = DateTime.UtcNow;
-
-        var existingAssignments = await dbContext.UnitAssignments
-            .Where(ua => ua.ReservationId == r.ReservationId)
-            .ToListAsync(ct);
-        foreach (var a in existingAssignments) a.Status = "INACTIVE";
-
-        dbContext.UnitAssignments.Add(new UnitAssignment
-        {
-            ReservationId = r.ReservationId,
-            UnitId = unit.UnitId,
-            AssignedBy = userId,
-            Status = "ACTIVE",
-            AssignedAt = DateTime.UtcNow,
-            Reason = "Quản lý cơ sở phân bổ kho"
-        });
-
-        r.Status = "CONFIRMED";
-        await dbContext.SaveChangesAsync(ct);
+        var r = await FacilityOpsStateStore.FindReservationByIdAsync(dbContext, id, fac.FacilityId, ct)
+            ?? throw new InvalidOperationException("Không tìm thấy đơn phân bổ.");
+        await ReservationAllocation.AllocateAsync(dbContext, userId, fac.FacilityId, r.ReservationId, request.UnitCode, ct);
     }
 
     public async Task AssignStaffAsync(long userId, string id, AssignStaffRequest request, CancellationToken ct = default)
@@ -362,18 +336,8 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
 
         if (!string.IsNullOrWhiteSpace(request.UnitNumber)) unit.UnitNumber = request.UnitNumber;
         if (!string.IsNullOrWhiteSpace(request.Floor)) unit.Floor = request.Floor;
-        if (!string.IsNullOrWhiteSpace(request.Status))
-        {
-            unit.Status = request.Status.ToUpperInvariant() switch
-            {
-                "EMPTY" => "AVAILABLE",
-                "ACTIVE" => "OCCUPIED",
-                "WAITING_HANDOVER" => "RESERVED",
-                "MAINTENANCE" => "MAINTENANCE",
-                "LOCKED" => "LOCKED",
-                _ => request.Status.ToUpperInvariant()
-            };
-        }
+        if (!string.IsNullOrWhiteSpace(request.Status) && UnitStatusRules.Normalize(request.Status) != unit.Status)
+            throw new InvalidOperationException("Đổi trạng thái bằng thao tác trạng thái riêng và nhập lý do.");
         unit.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(ct);
 
@@ -397,15 +361,6 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
 
     public async Task LockUnitAsync(long userId, string id, LockUnitRequest request, CancellationToken ct = default)
     {
-        var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
-        var unit = await dbContext.StorageUnits
-            .FirstOrDefaultAsync(u => u.FacilityId == fac.FacilityId && u.UnitNumber == id, ct);
-        if (unit == null)
-        {
-            throw new InvalidOperationException($"Không tìm thấy ô kho {id}.");
-        }
-        unit.Status = "LOCKED";
-        unit.UpdatedAt = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(ct);
+        await staffService.UpdateUnitStatusAsync(userId, id, new UpdateUnitStatusRequest { Status = "OUT_OF_SERVICE", Reason = request.Reason }, ct);
     }
 }
