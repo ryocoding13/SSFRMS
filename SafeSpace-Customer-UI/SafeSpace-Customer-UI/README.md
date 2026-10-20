@@ -1,3 +1,5 @@
+> **Tìm code:** đọc [FRONTEND-MAP.md](FRONTEND-MAP.md). Quy tắc đặt tên: [frontend-naming.md](../../docs/frontend-naming.md).
+
 # SafeSpace — Giao diện khách hàng & quản trị hệ thống
 
 React + Vite, bám theo file Figma **SafeSpace - Modern UI**: Trang chủ, Đăng nhập, Đăng ký, Bảng giá,
@@ -65,10 +67,10 @@ Muốn làm lại từ đầu: xoá `safespace.ops.v1` và `safespace.customer.v
 | Thanh toán QR PayOS (C04, C11q), thanh toán tại cửa hàng (C04c), QR mở cửa + máy quét `#/door` (C07q/C07r), phản hồi hỗ trợ (C12), xem trước hoàn tiền (C14a), đổi trạng thái ô (M02a) | Giao diện **gọi sẵn** endpoint theo `BACKEND-TODO.md` mục "Mới 16/10"; backend chưa có (404/405) → hiện thông báo thay thế, thanh toán tại cửa hàng tự dùng `confirm-transfer`. Thử đủ luồng: `MOCK_OPS=1 npm run dev:mock`; thử như backend chưa cập nhật: thêm `MOCK_LEGACY=1` |
 | Đăng ký trả kho, thông báo, đổi tên hiển thị, ảnh đính kèm hỗ trợ | Backend **chưa có API** → lưu trong trình duyệt theo từng tài khoản |
 | Đổi mật khẩu, quên mật khẩu | Backend chưa có API → giao diện hướng dẫn liên hệ quản trị viên |
-| Sơ đồ tình trạng 10 ô kho, toạ độ cơ sở trên bản đồ | Backend chưa có API → sinh cố định theo cơ sở (`src/lib/units.js`, `src/config/geo.js`) |
-| Toàn bộ khu Nhân viên / Quản lý cơ sở | Đăng nhập qua API (vai trò `STAFF` / `MANAGER` trong JWT); dữ liệu vận hành lưu trong trình duyệt (`src/ops/`) cho đến khi backend có API (xem mục 5 của `BE-CONTRACT.md`) |
+| Sơ đồ tình trạng 10 ô kho, toạ độ cơ sở trên bản đồ | Backend chưa có API → sinh cố định theo cơ sở (`src/shared/utils/units.js`, `src/app/config/geo.js`) |
+| Toàn bộ khu Nhân viên / Quản lý cơ sở | Đăng nhập qua API (vai trò `STAFF` / `MANAGER` trong JWT); dữ liệu vận hành lưu trong trình duyệt (`src/features/facility-operations/`) cho đến khi backend có API (xem mục 5 của `BE-CONTRACT.md`) |
 
-Khi backend bổ sung API cho các dòng cuối, chỉ cần sửa `src/state/store.jsx` (nhánh `ApiProvider`), xem `BE-CONTRACT.md`.
+Khi backend bổ sung API cho các dòng cuối, chỉ cần sửa `src/app/state/AppProvider.jsx` (nhánh `ApiProvider`), xem `BE-CONTRACT.md`.
 
 ## Kiểm tra
 
@@ -84,7 +86,7 @@ npm run build        # xuất bản dist/ (đường dẫn tương đối, đặ
 Toàn bộ ảnh nằm sẵn trong `public/images/` (đã nén JPG, tổng ~3,9 MB): ảnh hero trang chủ, ảnh mặt tiền
 9 cơ sở, 4 ảnh bên trong kho và 3 sơ đồ mặt bằng. Khi bấm xem một cơ sở, thư viện ảnh gồm ảnh cơ sở và
 4 ảnh bên trong kho (sơ đồ mặt bằng không còn trong thư viện theo Figma 30/09; file vẫn giữ trong `public/images/plans/`). Chi tiết ở
-`public/images/README.md`; đổi cách gán ảnh ở `src/config/media.js`.
+`public/images/README.md`; đổi cách gán ảnh ở `src/app/config/media.js`.
 
 ## Thanh toán
 
@@ -96,14 +98,14 @@ chuyển khoản; ứng dụng ngân hàng quét là điền sẵn cả ba. Đơ
 
 ```
 src/
-  CustomerApp.jsx          router + chặn trang cần đăng nhập
+  App.jsx          router + chặn trang cần đăng nhập
   pages/                   mỗi màn Figma một component (xem CUSTOMER-FLOW-COVERAGE.md)
   components/              Header + thông báo, lịch chọn ngày, thư viện ảnh, mã QR, UI dùng chung
   state/reducer.js         nghiệp vụ (thuần, có test)
   state/store.jsx          phiên đăng nhập; 2 chế độ: dữ liệu trong trình duyệt / API backend
   api/                     gọi API (http.js, endpoints.js, admin.js) + chuyển dữ liệu backend → giao diện (mappers.js)
-  admin/                   khu quản trị: AdminShell, AdminUsers, AdminUserDetail, AdminCreateUser, AdminPermissions, AdminLogs
-  ops/                     khu nhân viên & quản lý cơ sở: OpsShell, StaffPages, ManagerPages, data (khởi tạo), reducer (nghiệp vụ), store
+  admin/                   khu quản trị: AdminLayout, UserListPage, UserDetailPage, CreateUserPage, PermissionListPage, AuditLogPage
+  ops/                     khu nhân viên & quản lý cơ sở: FacilityOperationsLayout, StaffPages, ManagerPages, data (khởi tạo), reducer (nghiệp vụ), store
   data/seed.js             dữ liệu khởi tạo: 12 cơ sở, khách hàng Nguyễn Thị Mai
   config/                  địa chỉ API, ảnh, tài khoản nhận chuyển khoản
 ```

@@ -118,7 +118,7 @@ Giao diện SafeSpace hỗ trợ cơ chế hoạt động linh hoạt (dual-mode
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  App Startup (CustomerApp.jsx)                              │
+│  App Startup (App.jsx)                              │
 │  ──────────────────────────────────────────────────────     │
 │  1. loadServerData() → GET /api/facilities, /unit-types     │
 │     ├── Success → isLiveApi = true, load real data          │
@@ -141,7 +141,7 @@ Giao diện SafeSpace hỗ trợ cơ chế hoạt động linh hoạt (dual-mode
 ```text
 SSFRMS/
 ├── StorageProject.Api/                 # .NET 9 Minimal API, Middleware, Endpoints
-│   ├── Endpoints/                      # Auth, Facility, Reservation, Contract, Payment, Support...
+│   ├── Endpoints/                      # Auth, Facility, Reservation, Contract, Payment, SupportPage...
 │   └── appsettings.json                # Cấu hình DB, JWT
 ├── StorageProject.Core/                # Domain Entities, DTOs, Service Interfaces
 ├── StorageProject.Infrastructure/      # EF Core DbContext, Migrations, DbSeeder, Service Implementations
@@ -149,9 +149,9 @@ SSFRMS/
 │   └── SafeSpace-Customer-UI/          # React + Vite Frontend
 │       ├── src/
 │       │   ├── components/             # UI Components (AuthModal, ActionModal, UI Elements)
-│       │   ├── pages/                  # Pages: FindStorage, Overview, Records, Support
+│       │   ├── pages/                  # Pages: FindStorage, CustomerDashboardPage, Records, SupportPage
 │       │   ├── services/               # API Clients & Service Adapters
-│       │   ├── CustomerApp.jsx         # App Root & State Management
+│       │   ├── App.jsx         # App Root & State Management
 │       │   └── customer.css            # SafeSpace Modern Design System
 │       └── .env                        # Environment Config (VITE_API_URL)
 └── README.md                           # Hướng dẫn dự án

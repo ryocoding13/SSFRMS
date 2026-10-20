@@ -3,8 +3,8 @@
 // Dữ liệu nằm trong bộ nhớ, tắt là mất. Không thay thế backend thật.
 import http from "node:http";
 import { handleBusiness, seedBusiness } from "./mock-business.mjs";
-import { createOpsData } from "../src/ops/data.js";
-import { reduceOps } from "../src/ops/reducer.js";
+import { createOpsData } from "../src/features/facility-operations/data/facilityOperationsSeed.js";
+import { reduceOps } from "../src/features/facility-operations/state/facilityOperationsReducer.js";
 
 const pad = (n) => String(n).padStart(2, "0");
 const iso = (d) => d.toISOString(); // DateTime.UtcNow trả về khi vừa tạo: có "Z"

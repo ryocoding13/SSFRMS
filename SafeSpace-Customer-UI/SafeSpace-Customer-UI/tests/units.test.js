@@ -1,8 +1,8 @@
 // Sơ đồ tình trạng ô kho (src/lib/units.js) — Figma 14/10: 12 ô mỗi cơ sở
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createFacilities } from "../src/data/seed.js";
-import { countBy, unitsFor } from "../src/lib/units.js";
+import { createFacilities } from "../src/app/data/appSeed.js";
+import { countBy, unitsFor } from "../src/shared/utils/units.js";
 
 const kinds = (units) => units.map((u) => `${u.row}:${u.type}`);
 
@@ -26,7 +26,7 @@ test("mỗi cơ sở có 12 ô: dãy A cỡ M (4 thường + 2 lạnh), dãy B c
 });
 
 test("dữ liệu backend: ô kho lấy đúng loại + cỡ từ bảng giá, số ô trống khớp /api/availability/check", async () => {
-  const { mapCatalog } = await import("../src/api/mappers.js");
+  const { mapCatalog } = await import("../src/shared/api/apiMappers.js");
   const unitTypes = [
     { unitTypeId: 1, typeName: "Kho thường M", area: 15, climateControlled: false, status: "ACTIVE" },
     { unitTypeId: 2, typeName: "Kho thường L", area: 30, climateControlled: false, status: "ACTIVE" },
@@ -48,7 +48,7 @@ test("dữ liệu backend: ô kho lấy đúng loại + cỡ từ bảng giá, s
 });
 
 test("dữ liệu backend thiếu loại kho: ô vẫn gắn với một gói có thật", async () => {
-  const { mapCatalog } = await import("../src/api/mappers.js");
+  const { mapCatalog } = await import("../src/shared/api/apiMappers.js");
   const unitTypes = [{ unitTypeId: 9, typeName: "Kho thường M", area: 15, climateControlled: false, status: "ACTIVE" }];
   const { facilities } = mapCatalog({ facilities: [{ facilityId: 3, name: "SafeSpace Phú Xuân", address: "Quận 7, TP. Hồ Chí Minh", status: "ACTIVE" }], unitTypes, rates: [{ facilityId: 3, unitTypeId: 9, monthlyRate: 890000 }] });
   const units = unitsFor(facilities[0]);

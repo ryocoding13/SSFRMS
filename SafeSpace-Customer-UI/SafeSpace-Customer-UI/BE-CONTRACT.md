@@ -3,7 +3,7 @@
 # BE-CONTRACT — những gì giao diện khách hàng cần từ backend
 
 Giao diện bám Figma nên **khác luồng backend cũ (v3)** ở vài điểm. Tài liệu này là danh sách để sửa BE cho khớp.
-Toàn bộ nghiệp vụ hiện nằm ở `src/state/reducer.js`; mỗi lệnh (`CREATE_RESERVATION`, `CONFIRM_TRANSFER`, ...)
+Toàn bộ nghiệp vụ hiện nằm ở `src/app/state/appReducer.js`; mỗi lệnh (`CREATE_RESERVATION`, `CONFIRM_TRANSFER`, ...)
 tương ứng một endpoint dưới đây, nên thay bằng lời gọi API là đủ.
 
 ## 0. Hiện trạng nối API
@@ -64,7 +64,7 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 - **Ledger (khoản thu)**: `RECONCILED` Đã thanh toán · `PENDING_VERIFICATION` Chờ thanh toán tại cửa hàng · `DEPOSIT_HELD` Đang giữ cọc · `RENEWAL_PENDING` Chờ duyệt yêu cầu · `UNPAID` Chờ thanh toán (khoản `RENEWAL` chưa trả có nút "Thanh toán" → C11q) · `REFUNDED`
 - **Appointment**: `kind` = `CHECK_IN` | `MOVE_OUT`; `status` = `CONFIRMED` | `PENDING` | `DONE` | `CANCELLED`
 - **Ticket**: `OPEN` · `IN_PROGRESS` · `RESOLVED` · `CANCELLED`; `topic` = `ACCESS|LOCK|UNIT|PAYMENT|ITEMS|SCHEDULE|OTHER`
-- **Renewal**: `PENDING` | `APPROVED` | `REJECTED` — **Return**: `PENDING` | `SCHEDULED` | `COMPLETED`
+- **Renewal**: `PENDING` | `APPROVED` | `REJECTED` — **ReturnRequestPage**: `PENDING` | `SCHEDULED` | `COMPLETED`
 
 ## 3. Endpoint cần có
 
@@ -93,21 +93,21 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 
 - Tài khoản nhận chuyển khoản đang cấu hình ở `.env` (`VITE_BANK_*`); nếu mỗi cơ sở nhận tiền riêng thì trả kèm theo đơn.
 - Khoảng cách "Cách bạn X km" cần vị trí khách; hiện lấy từ dữ liệu cơ sở.
-- Ảnh cơ sở đang là file tĩnh trong `public/images/`; khi có API ảnh (`GET /api/facilities/{id}/photos`), thay các hàm trong `src/config/media.js`.
+- Ảnh cơ sở đang là file tĩnh trong `public/images/`; khi có API ảnh (`GET /api/facilities/{id}/photos`), thay các hàm trong `src/app/config/media.js`.
 - Khu Nhân viên cơ sở (S01–S09) và Quản lý cơ sở (M01–M08) đã có giao diện, đang chạy trên dữ liệu trong trình duyệt
-  (`src/ops/`). Endpoint cần có ở mục 5.
+  (`src/features/facility-operations/`). Endpoint cần có ở mục 5.
 - Kho dữ liệu cục bộ lưu cả mật khẩu để đăng nhập được khi chưa có server; khi nối API, bỏ trường này.
 
 ## 5. Endpoint cho sơ đồ ô kho, bản đồ và khu vận hành (giao diện đã sẵn, đang dùng dữ liệu cục bộ)
 
 | Màn | Endpoint đề xuất | Thay ở |
 |---|---|---|
-| C03b-sđ | `GET /api/facilities/{id}/units` → `unitNumber, zone, floor, sizeM2, unitTypeId, status` (StorageUnit) | `unitsFor()` trong `src/lib/units.js`; `fromBackendStatus()` đã map trạng thái |
-| C02m | **Đã có** `latitude, longitude` trong `GET /api/facilities` (nhập ở B05a) | `mapCatalog` gán `lat/lng`; `coordsOf()` trong `src/config/geo.js` chỉ dùng toạ độ dự phòng khi cơ sở chưa có toạ độ |
-| S01–S09, M01–M08 | `/api/ops/*` — **đã chốt hợp đồng ở `BACKEND-TODO.md` mục A2–A3**, giao diện gọi qua `src/ops/api.js` | `src/ops/store.jsx` |
+| C03b-sđ | `GET /api/facilities/{id}/units` → `unitNumber, zone, floor, sizeM2, unitTypeId, status` (StorageUnit) | `unitsFor()` trong `src/shared/utils/units.js`; `fromBackendStatus()` đã map trạng thái |
+| C02m | **Đã có** `latitude, longitude` trong `GET /api/facilities` (nhập ở B05a) | `mapCatalog` gán `lat/lng`; `coordsOf()` trong `src/app/config/geo.js` chỉ dùng toạ độ dự phòng khi cơ sở chưa có toạ độ |
+| S01–S09, M01–M08 | `/api/ops/*` — **đã chốt hợp đồng ở `BACKEND-TODO.md` mục A2–A3**, giao diện gọi qua `src/features/facility-operations/api/facilityOperationsApi.js` | `src/features/facility-operations/state/FacilityOperationsProvider.jsx` |
 
-Hình dạng dữ liệu giao diện đang dùng nằm ở `src/ops/data.js`; nghiệp vụ (điều kiện chặn, chuyển trạng thái) ở
-`src/ops/reducer.js` và có test (`tests/ops.test.js`) để backend đối chiếu.
+Hình dạng dữ liệu giao diện đang dùng nằm ở `src/features/facility-operations/data/facilityOperationsSeed.js`; nghiệp vụ (điều kiện chặn, chuyển trạng thái) ở
+`src/features/facility-operations/state/facilityOperationsReducer.js` và có test (`tests/ops.test.js`) để backend đối chiếu.
 
 ## Bổ sung 20/10 — thu tiền trước phân bổ và trạng thái ô
 

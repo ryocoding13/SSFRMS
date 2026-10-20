@@ -1,8 +1,8 @@
 // Khu quản trị: đọc vai trò từ JWT của backend và mô tả nhật ký hoạt động (theo AdminService).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isAdminRoles, isCustomerRoles, rolesFromToken, roleLabel, needsFacility } from "../src/lib/roles.js";
-import { describeActivity, tempPassword, usernameFrom } from "../src/admin/util.js";
+import { isAdminRoles, isCustomerRoles, rolesFromToken, roleLabel, needsFacility } from "../src/shared/utils/roles.js";
+import { describeActivity, tempPassword, usernameFrom } from "../src/features/admin/utils/adminUtils.js";
 
 const jwt = (payload) => `${Buffer.from('{"alg":"HS256"}').toString("base64url")}.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.sig`;
 const ROLE = "http://schemas.microsoft.com/ws/2008/06/identity/claims/role";

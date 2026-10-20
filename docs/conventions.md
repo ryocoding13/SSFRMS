@@ -24,14 +24,13 @@
 
 ## Frontend (React + Vite)
 
-- Không có TypeScript, không có thư viện UI/CSS ngoài. Style dùng class + token trong `src/styles/ss.css`; không hard-code màu.
-- Màn mới: `src/pages/<Tên>.jsx`, thêm route trong `CustomerApp.jsx` (hoặc `admin/AdminApp.jsx`) và dòng tương ứng
-  trong `CUSTOMER-FLOW-COVERAGE.md` / `ADMIN-FLOW-COVERAGE.md`.
-- Page **không gọi fetch trực tiếp**: gọi lệnh qua store → `reducer.js` (chế độ trình duyệt) hoặc `ApiProvider` → `src/api/*`.
-- Dữ liệu backend đi qua `src/api/mappers.js` trước khi tới component. Nhãn trạng thái lấy từ `src/lib/status.js`.
-- Tiền và ngày định dạng bằng `src/lib/format.js`. Ngày từ backend coi là UTC (D10).
+- Không có TypeScript, không có thư viện UI/CSS ngoài. Style dùng class + token trong `src/shared/styles/ss.css`; không hard-code màu.
+- Màn mới: `src/features/<vai-tro>/<chuc-nang>/<Ten>Page.jsx`; đọc bắt buộc `docs/frontend-naming.md` và `FRONTEND-MAP.md` ở thư mục FE. Mỗi file một màn hình; cập nhật route tại `src/app/App.jsx` hoặc `<Role>Routes.jsx`.
+- Page **không gọi fetch trực tiếp**: gọi lệnh qua store → `reducer.js` (chế độ trình duyệt) hoặc `ApiProvider` → `src/shared/api/*`.
+- Dữ liệu backend đi qua `src/shared/api/apiMappers.js` trước khi tới component. Nhãn trạng thái lấy từ `src/shared/utils/status.js`.
+- Tiền và ngày định dạng bằng `src/shared/utils/format.js`. Ngày từ backend coi là UTC (D10).
 - Text lấy đúng từ Figma. Không có chữ "demo", "sample", "dữ liệu mẫu" (D07).
-- Ảnh: file trong `public/images/`, gán qua `src/config/media.js` (D06).
+- Ảnh: file trong `public/images/`, gán qua `src/app/config/media.js` (D06).
 - Nghiệp vụ mới trong `reducer.js` phải có test trong `tests/reducer.test.js`.
 
 ## Git
