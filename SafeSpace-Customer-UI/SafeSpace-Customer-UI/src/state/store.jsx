@@ -506,20 +506,9 @@ function ApiProvider({ children }) {
               }
               return null;
             };
-            // Ưu tiên endpoint pay-at-facility; backend chưa có → dùng confirm-transfer để đơn vẫn vào hàng chờ thu tiền S09
-            const calls = [() => api.payAtFacility(r.api_id), () => api.confirmTransfer(r.api_id)];
-            let done = false;
-            for (const call of calls) {
-              try {
-                await call();
-                done = true;
-                break;
-              } catch (e) {
-                const exp = await expired(e);
-                if (exp) return exp;
-                if (!(e instanceof ApiError && (e.status === 404 || e.status === 405))) throw e;
-              }
-            }
+            try { await api.payAtFacility(r.api_id); }
+            catch (e) { const exp = await expired(e); if (exp) return exp; throw e; }
+            const done = true;
             updateOverlay((o) => ({
               ...o,
               atFacility: { ...o.atFacility, [r.api_id]: Date.now() },

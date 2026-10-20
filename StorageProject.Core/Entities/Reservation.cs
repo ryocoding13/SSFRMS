@@ -14,6 +14,7 @@ public class Reservation
     public decimal EstimatedAmount { get; set; }
     public decimal RequiredDeposit { get; set; }
     // PENDING_PAYMENT, PENDING_VERIFICATION (khách báo đã chuyển khoản, chờ đối soát), CONFIRMED, UNIT_ASSIGNED, CHECKED_IN, CANCELLED, EXPIRED, NO_SHOW
+    public string PaymentMethod { get; set; } = "PAYOS"; // PAYOS / AT_FACILITY
     public string Status { get; set; } = "PENDING_PAYMENT";
     public string? CancellationReason { get; set; }
     public long? OrderCode { get; set; }

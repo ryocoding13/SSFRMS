@@ -65,3 +65,31 @@ GET {{StorageProject.Api_HostAddress}}/api/operations/reports/export?view=facili
 Authorization: Bearer {{opsToken}}
 
 ###
+
+### ==== Bản sửa thanh toán 20/10: thay token và id bằng dữ liệu trên máy thử ====
+@customerToken = <token-khach>
+@staffToken = <token-staff>
+@managerToken = <token-manager>
+@reservationId = 1
+
+### Chọn trả tại kho (huỷ link PayOS cũ trước khi đổi phương thức)
+POST {{StorageProject.Api_HostAddress}}/api/reservations/{{reservationId}}/pay-at-facility
+Authorization: Bearer {{customerToken}}
+
+### Xác nhận đã thu tiền mặt, gửi lại không tạo tiền trùng
+POST {{StorageProject.Api_HostAddress}}/api/staff/payments/{{reservationId}}/confirm
+Authorization: Bearer {{staffToken}}
+
+### Phân bổ ô, gắn khoản thu đã có vào hợp đồng
+POST {{StorageProject.Api_HostAddress}}/api/manager/allocations/{{reservationId}}
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{ "unitCode": "K01" }
+
+### Đổi trạng thái ô trống, bắt buộc lý do
+PUT {{StorageProject.Api_HostAddress}}/api/staff/units/K02/status
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{ "status": "MAINTENANCE", "reason": "Sửa cửa kho" }

@@ -82,6 +82,16 @@ public static class ReservationEndpoints
         })
         .WithSummary("Khách báo đã chuyển khoản: đơn chuyển sang chờ nhân viên đối soát (PENDING_VERIFICATION)");
 
+        group.MapPost("/{id:long}/pay-at-facility", async (long id, ClaimsPrincipal user, IPayOSService payOS, CancellationToken ct) =>
+        {
+            try {
+                await payOS.PayAtFacilityAsync(user.GetUserId(), id, ct);
+                return Results.Ok(new { message = "Đã giữ chỗ, thanh toán tại cửa hàng khi nhận kho." });
+            } catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
         // PayOS integration endpoints: create QR and check payment status
         group.MapPost("/create-payos-qr", async (CreatePayOSQrRequest request, ClaimsPrincipal user, IPayOSService payOSService, CancellationToken ct) =>
         {

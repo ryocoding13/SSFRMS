@@ -358,11 +358,11 @@ public partial class FacilityOpsService
 
         var rows = await dbContext.Payments
             .AsNoTracking()
-            .Where(p => p.Contract.Unit.FacilityId == facilityId
+            .Where(p => (p.ContractId != null ? p.Contract.Unit.FacilityId : p.Reservation.FacilityId) == facilityId
                         && p.PaidAt != null && p.PaidAt >= fromUtc
                         && (p.Status == "PAID" || p.Status == "REFUNDED" || p.Status == "PARTIALLY_REFUNDED")
                         && p.PaymentType != "DEPOSIT" && p.PaymentType != "REFUND")
-            .Select(p => new { p.Amount, p.PaidAt, Cold = p.Contract.Unit.UnitType.ClimateControlled })
+            .Select(p => new { p.Amount, p.PaidAt, Cold = p.ContractId != null ? p.Contract.Unit.UnitType.ClimateControlled : p.Reservation.UnitType.ClimateControlled })
             .ToListAsync(ct);
 
         static decimal Million(decimal v) => Math.Round(v / 1_000_000m, 1, MidpointRounding.AwayFromZero);

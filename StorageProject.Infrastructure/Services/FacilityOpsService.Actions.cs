@@ -77,14 +77,7 @@ public partial class FacilityOpsService
     // =====================================================================
     public async Task ConfirmPaymentAsync(OpsActor actor, string id, CancellationToken ct = default)
     {
-        var facility = await FacilityOfAsync(actor, ct);
-        var r = await ReservationAsync(facility.FacilityId, id, ct);
-        if (r.Status != "PENDING_VERIFICATION") throw new InvalidOperationException("Khoản này đã được xử lý.");
-
-        // Chưa có ô kho → vào hàng chờ phân bổ của quản lý (M05)
-        r.Status = "CONFIRMED";
-        Log(actor.UserId, LogAction.PaymentConfirmed, LogEntity.Reservation, r.ReservationId, new { amount = r.EstimatedAmount + r.RequiredDeposit });
-        await dbContext.SaveChangesAsync(ct);
+        await new StaffService(dbContext).ConfirmPaymentAsync(actor.UserId, id, ct);
     }
 
     public async Task ReportMismatchAsync(OpsActor actor, string id, OpsNoteRequest request, CancellationToken ct = default)
@@ -148,6 +141,8 @@ public partial class FacilityOpsService
         if (!UnlockMethods.Contains(method)) throw new ArgumentException("Chọn phương thức mở khoá.");
 
         var contract = h.Contract;
+        var reservation = await dbContext.Reservations.SingleAsync(r => r.ReservationId == contract.ReservationId, ct);
+        await ReservationSettlement.RequirePaidAsync(dbContext, reservation, ct);
         if (contract.Status != "DRAFT") throw new InvalidOperationException("Hợp đồng không ở trạng thái chờ bàn giao.");
 
         var now = NowUtc;
@@ -266,66 +261,7 @@ public partial class FacilityOpsService
         RequireManager(actor);
         var facility = await FacilityOfAsync(actor, ct);
         var r = await ReservationAsync(facility.FacilityId, id, ct);
-        if (r.Status == "UNIT_ASSIGNED" || r.UnitAssignments.Any(a => a.Status == "ACTIVE"))
-        {
-            throw new InvalidOperationException("Đơn này đã được phân bổ kho.");
-        }
-        if (r.Status != "CONFIRMED") throw new InvalidOperationException("Đơn chưa được xác nhận thanh toán nên chưa phân bổ được.");
-
-        var unitCode = (request.UnitCode ?? string.Empty).Trim();
-        var unit = await dbContext.StorageUnits
-            .FirstOrDefaultAsync(u => u.FacilityId == facility.FacilityId && u.UnitNumber == unitCode, ct);
-        if (unit == null || unit.Status != "AVAILABLE" || unit.UnitTypeId != r.UnitTypeId)
-        {
-            throw new InvalidOperationException("Kho đã chọn không còn trống hoặc không khớp đơn đặt chỗ.");
-        }
-        var busy = await dbContext.RentalContracts.AnyAsync(c => c.UnitId == unit.UnitId
-                                                                 && HeldContractStatuses.Contains(c.Status)
-                                                                 && c.StartDate < r.ExpectedEndDate && c.EndDate > r.StartDate, ct);
-        if (busy) throw new InvalidOperationException("Kho đã chọn không còn trống hoặc không khớp đơn đặt chỗ.");
-
-        var now = NowUtc;
-        var code = ReservationCode(r);
-        var confirmedAt = await dbContext.ActivityLogs
-            .Where(l => l.EntityType == LogEntity.Reservation && l.EntityId == r.ReservationId && l.Action == LogAction.PaymentConfirmed)
-            .OrderByDescending(l => l.LoggedAt)
-            .Select(l => (DateTime?)l.LoggedAt)
-            .FirstOrDefaultAsync(ct) ?? now;
-
-        dbContext.UnitAssignments.Add(new UnitAssignment
-        {
-            ReservationId = r.ReservationId, UnitId = unit.UnitId, AssignedBy = actor.UserId, Status = "ACTIVE", AssignedAt = now
-        });
-        r.Status = "UNIT_ASSIGNED";
-        SetUnitStatus(unit, "RESERVED", actor.UserId, $"Phân bổ cho đơn {code}");
-
-        var contract = new RentalContract
-        {
-            ReservationId = r.ReservationId, CustomerId = r.CustomerId, UnitId = unit.UnitId,
-            StartDate = r.StartDate, EndDate = r.ExpectedEndDate, AgreedMonthlyRate = r.QuotedMonthlyRate,
-            DepositAmount = r.RequiredDeposit, Status = "DRAFT", CreatedAt = now
-        };
-        // Khoản khách đã chuyển (nhân viên đã đối soát ở S09): cọc + tiền thuê cả kỳ
-        foreach (var (kind, amount) in new[] { ("DEPOSIT", r.RequiredDeposit), ("RENT", r.EstimatedAmount) })
-        {
-            contract.Payments.Add(new Payment
-            {
-                PaymentType = kind, Amount = amount, Currency = "VND", PaymentMethod = "BANK_TRANSFER",
-                TransactionReference = code, DueDate = r.StartDate, PaidAt = confirmedAt, Status = "PAID",
-                CreatedAt = now, UpdatedAt = now
-            });
-        }
-        // Chưa giao cho nhân viên nào: người phụ trách tạm là quản lý (bảng M06 hiện "Cần xử lý")
-        contract.HandoverRecord = new HandoverRecord
-        {
-            StaffId = actor.UserId,
-            ScheduledAt = r.CheckInAppointmentAt ?? UtcFromLocal(r.StartDate, 9),
-            Status = "SCHEDULED",
-            CreatedAt = now
-        };
-        dbContext.RentalContracts.Add(contract);
-        Log(actor.UserId, LogAction.UnitAllocated, LogEntity.Reservation, r.ReservationId, new { unit = unit.UnitNumber });
-        await dbContext.SaveChangesAsync(ct);
+        await ReservationAllocation.AllocateAsync(dbContext, actor.UserId, facility.FacilityId, r.ReservationId, request.UnitCode ?? "", ct);
     }
 
     // =====================================================================

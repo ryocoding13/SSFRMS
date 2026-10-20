@@ -44,7 +44,7 @@ public class PaymentService(AppDbContext dbContext) : IPaymentService
         var p = await dbContext.Payments
             .AsNoTracking()
             .Include(x => x.Contract)
-            .Where(x => x.PaymentId == paymentId && x.Contract.CustomerId == customerId)
+            .Where(x => x.PaymentId == paymentId && ((x.ContractId != null && x.Contract.CustomerId == customerId) || (x.ReservationId != null && x.Reservation.CustomerId == customerId)))
             .FirstOrDefaultAsync(ct);
 
         if (p == null) return null;
