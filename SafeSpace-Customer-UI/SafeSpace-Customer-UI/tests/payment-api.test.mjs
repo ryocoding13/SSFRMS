@@ -3,9 +3,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { startMockApi } from "../mock/mock-api.mjs";
-import { OPS_ACTIONS } from "../src/ops/api.js";
-import { normAccess, normCancelPreview, normPayos, normScan } from "../src/api/payment-access.js";
-import { composeData } from "../src/api/mappers.js";
+import { OPS_ACTIONS } from "../src/features/facility-operations/api/facilityOperationsApi.js";
+import { normAccess, normCancelPreview, normPayos, normScan } from "../src/features/customer/access/accessApi.js";
+import { composeData } from "../src/shared/api/apiMappers.js";
 
 let PORT = 5289;
 const nextPort = () => ++PORT;

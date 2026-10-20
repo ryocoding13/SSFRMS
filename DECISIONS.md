@@ -167,3 +167,8 @@
 - AVAILABLE, MAINTENANCE, OUT_OF_SERVICE được chuyển qua lại bằng thao tác quản lý vận hành nếu ô không có giữ chỗ/hợp đồng chưa đóng. Mỗi lần đổi phải có lý do 1–255 ký tự và ghi unit_status_history trong cùng transaction.
 - RESERVED/ASSIGNED/OCCUPIED/RETURN_PENDING/INSPECTION thuộc luồng phân bổ, bàn giao, trả kho. Không cho dùng form trạng thái để bỏ qua các bước này.
 - LOCKED từ giao diện được ánh xạ thành OUT_OF_SERVICE theo tập trạng thái SQL hiện có. Gọi lại cùng trạng thái với lý do hợp lệ không thêm lịch sử trùng.
+
+
+## D25 — 2026-10-20: Tổ chức FE theo vai trò và chức năng
+
+Theo yêu cầu nhóm, dùng src/app, src/features/<role>/<feature>, src/shared, src/assets. Tách từng Page từ các file tổng StaffPages/ManagerPages/Units/Auth/Checkout/Public; giữ code dùng chung Staff/Manager ở facility-operations. Giữ URL, API, localStorage và nghiệp vụ. Không đổi hai cấp thư mục gốc FE để không phá lệnh chạy/CI. docs/frontend-naming.md và FRONTEND-MAP.md là hướng dẫn bắt buộc; npm run check:structure kiểm tra quy ước cơ bản.

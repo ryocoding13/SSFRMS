@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { startMockApi } from "../mock/mock-api.mjs";
-import { OPS_ACTIONS, fromApi } from "../src/ops/api.js";
+import { OPS_ACTIONS, fromApi } from "../src/features/facility-operations/api/facilityOperationsApi.js";
 
 const PORT = 5287;
 const base = `http://localhost:${PORT}`;

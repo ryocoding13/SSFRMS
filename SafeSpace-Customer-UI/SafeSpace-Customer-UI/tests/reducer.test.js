@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSeedData, createEmptyData } from "../src/data/seed.js";
-import { reduce, sweepExpired, validateRegister } from "../src/state/reducer.js";
-import { contractStatus, milestones } from "../src/state/selectors.js";
-import { quote, searchFacilities, rateFor } from "../src/lib/catalog.js";
-import { addMonths, maskPhone, formatCountdown } from "../src/lib/format.js";
+import { createSeedData, createEmptyData } from "../src/app/data/appSeed.js";
+import { reduce, sweepExpired, validateRegister } from "../src/app/state/appReducer.js";
+import { contractStatus, milestones } from "../src/app/state/appSelectors.js";
+import { quote, searchFacilities, rateFor } from "../src/shared/utils/catalog.js";
+import { addMonths, maskPhone, formatCountdown } from "../src/shared/utils/format.js";
 
 const NOW = new Date("2026-09-21T09:00:00");
 const T = "2026-09-21";
@@ -179,7 +179,7 @@ test("định dạng: che số điện thoại và đồng hồ đếm ngược"
 });
 
 test("VietQR: CRC16-CCITT đúng chuẩn và payload đủ trường NAPAS", async () => {
-  const { crc16, vietQrPayload, cleanContent } = await import("../src/lib/vietqr.js");
+  const { crc16, vietQrPayload, cleanContent } = await import("../src/shared/utils/vietqr.js");
   assert.equal(crc16("123456789"), "29B1"); // giá trị kiểm tra chuẩn của CRC-16/CCITT-FALSE
   const p = vietQrPayload({ bin: "970422", accountNo: "0901234567890", amount: 4600000, content: "SS-20260921-0143" });
   assert.ok(p.startsWith("000201010212"));

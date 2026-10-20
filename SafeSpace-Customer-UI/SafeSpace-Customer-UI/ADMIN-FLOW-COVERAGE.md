@@ -8,12 +8,12 @@ tài khoản khác mở `#/admin` sẽ thấy "Không có quyền truy cập". T
 
 | Figma | Route | Component | API |
 |---|---|---|---|
-| A01 Quản lý tài khoản | `#/admin` | `admin/AdminUsers.jsx` | `GET dashboard/stats`, `GET users?page&pageSize&searchTerm&status&roleId`, `GET roles`, `GET users/{id}/facilities` (cột Cơ sở phụ trách) |
-| (thêm) Chi tiết tài khoản | `#/admin/users/:id` | `admin/AdminUserDetail.jsx` | `GET/PUT users/{id}`, `POST users/{id}/reset-password`, `POST/DELETE users/{id}/roles`, `GET users/{id}/facilities`, `POST user-facilities`, `PUT user-facilities/{id}/status` |
-| A02 Thêm & phân quyền tài khoản | `#/admin/new` | `admin/AdminCreateUser.jsx` | `POST users` (+ `POST user-facilities` khi là Nhân viên / Quản lý) |
-| A03 Cấu hình quyền truy cập | `#/admin/permissions` | `admin/AdminPermissions.jsx` | `GET roles`, `GET permissions`, `POST/DELETE roles/{id}/permissions` |
-| A04 Nhật ký hoạt động | `#/admin/logs` | `admin/AdminLogs.jsx` | `GET logs/login-history`, `GET logs/activity-logs` |
-| Thông báo / admin | (chuông) | `admin/AdminShell.jsx` | `GET dashboard/stats`, `GET logs/login-history` |
+| A01 Quản lý tài khoản | `#/admin` | `src/features/admin/users/UserListPage.jsx` | `GET dashboard/stats`, `GET users?page&pageSize&searchTerm&status&roleId`, `GET roles`, `GET users/{id}/facilities` (cột Cơ sở phụ trách) |
+| (thêm) Chi tiết tài khoản | `#/admin/users/:id` | `src/features/admin/users/UserDetailPage.jsx` | `GET/PUT users/{id}`, `POST users/{id}/reset-password`, `POST/DELETE users/{id}/roles`, `GET users/{id}/facilities`, `POST user-facilities`, `PUT user-facilities/{id}/status` |
+| A02 Thêm & phân quyền tài khoản | `#/admin/new` | `src/features/admin/users/CreateUserPage.jsx` | `POST users` (+ `POST user-facilities` khi là Nhân viên / Quản lý) |
+| A03 Cấu hình quyền truy cập | `#/admin/permissions` | `src/features/admin/permissions/PermissionListPage.jsx` | `GET roles`, `GET permissions`, `POST/DELETE roles/{id}/permissions` |
+| A04 Nhật ký hoạt động | `#/admin/logs` | `src/features/admin/logs/AuditLogPage.jsx` | `GET logs/login-history`, `GET logs/activity-logs` |
+| Thông báo / admin | (chuông) | `src/features/admin/AdminLayout.jsx` | `GET dashboard/stats`, `GET logs/login-history` |
 
 ## Khác Figma vì backend
 - **A02**: Figma "Gửi lời mời qua email" nhưng backend chưa gửi email → form có thêm **Tên đăng nhập** (gợi ý từ email)

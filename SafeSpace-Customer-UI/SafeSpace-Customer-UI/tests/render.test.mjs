@@ -14,10 +14,10 @@ globalThis.document = { title: "", addEventListener() {}, removeEventListener() 
 process.env.VITE_USE_API = "false";
 const vite = await createServer({ root, server: { middlewareMode: true }, appType: "custom", logLevel: "error" });
 try {
-  const { default: App } = await vite.ssrLoadModule("/src/CustomerApp.jsx");
-  const { STORAGE_KEY } = await vite.ssrLoadModule("/src/state/store.jsx");
-  const { createSeedData } = await vite.ssrLoadModule("/src/data/seed.js");
-  const { OPS_ACCOUNTS } = await vite.ssrLoadModule("/src/ops/data.js");
+  const { default: App } = await vite.ssrLoadModule("/src/app/App.jsx");
+  const { STORAGE_KEY } = await vite.ssrLoadModule("/src/app/state/AppProvider.jsx");
+  const { createSeedData } = await vite.ssrLoadModule("/src/app/data/appSeed.js");
+  const { OPS_ACCOUNTS } = await vite.ssrLoadModule("/src/features/facility-operations/data/facilityOperationsSeed.js");
   const seed = (authed, opsUser = null) => memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed, data: createSeedData(), opsUser }));
 
   const publicRoutes = ["home", "login", "register", "pricing", "guide", "find", "find?type=climate&band=M", "find/map", "find/map?type=climate", "find/map?area=Kh%C3%B4ng%20c%C3%B3", "find/1", "find/1?view=map&unit=K02", "find/8?type=climate&view=map", "find/999", "nope", "door", "door?unit=B-015"];
@@ -63,8 +63,8 @@ try {
   assert.equal((grid.match(/class="panel task-card"/g) || []).length, 9, "S01 hiện 9 thẻ / trang");
   assert.ok(grid.includes("aria-label=\"Phân trang\"") && grid.includes("trên 10"), "S01 có phân trang (10 việc)");
   // Không có việc → thông báo trống (S01-trống, S09a-trống)
-  const { OPS_KEY } = await vite.ssrLoadModule("/src/ops/store.jsx");
-  const { createOpsData } = await vite.ssrLoadModule("/src/ops/data.js");
+  const { OPS_KEY } = await vite.ssrLoadModule("/src/features/facility-operations/state/FacilityOperationsProvider.jsx");
+  const { createOpsData } = await vite.ssrLoadModule("/src/features/facility-operations/data/facilityOperationsSeed.js");
   const none = { ...createOpsData(), payments: [], verifications: [], handovers: [], returns: [], tickets: [] };
   memory.set(OPS_KEY, JSON.stringify(none));
   for (const [r, text] of [["staff", "Chưa có công việc nào hôm nay"], ["staff/reconcile", "Chưa có đơn nào cần thu tại kho"], ["staff/support", "Chưa có yêu cầu hỗ trợ"]]) {
@@ -74,7 +74,7 @@ try {
   }
   memory.delete(OPS_KEY);
   // Khách hàng chưa có kho → một dòng thông báo (C01/C06/C14-trống)
-  const { createEmptyData } = await vite.ssrLoadModule("/src/data/seed.js");
+  const { createEmptyData } = await vite.ssrLoadModule("/src/app/data/appSeed.js");
   memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: createEmptyData({ user_id: 9, full_name: "Lê Hoàng Nam", email: "nam@example.com", phone: "0900000000", password: "x" }) }));
   for (const [r, text] of [["units", "Bạn chưa thuê kho nào"], ["overview", "Bạn chưa thuê kho nào"], ["reservations", "Bạn chưa có đơn đặt chỗ nào"]]) {
     window.location.hash = `#/${r}`;

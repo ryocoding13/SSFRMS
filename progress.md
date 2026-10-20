@@ -329,3 +329,13 @@
 - Kiểm chứng: .NET SDK 10.0.100; dotnet build StorageProject.slnx -m:1 PASS; xUnit 15/15 PASS (SQLite, adapter SDK chữ ký sai, model SQL Server khớp snapshot, route không trùng); npm test 67/67 PASS; test:business 9/9 PASS; test:render 92 route PASS; npm run build PASS; bash init.sh PASS với dotnet build/test chạy m:1 do giới hạn tiến trình của môi trường; git diff --check PASS; sinh được SQL upgrade từ migration toạ độ tới migration mới.
 - Giới hạn kiểm chứng: chưa chạy SQL Server thật, chưa thử PayOS/ngrok bằng key thật, chưa kiểm khoá/đồng thời trên SQL Server hay migration trên dữ liệu DB của nhóm. F35 giữ active, không tuyên bố 7 flow hoàn tất. Các cảnh báo dependency NU1902/NU1903 và nullable Board.cs:317 đã có từ nguồn.
 - Chỉ bàn giao ZIP/bản vá để người dùng áp dụng và chạy thử trước khi tự push nhánh. Không push/PR/merge từ phiên này.
+
+
+## 2026-10-20 — F36: Cấu trúc frontend và quy tắc đặt tên
+
+- Nền: nhánh thanh toán người dùng đã push, b482840; giữ sửa DbSeeder. Chỉ đổi cấu trúc FE và hướng dẫn, không đổi nghiệp vụ/URL/API/localStorage.
+- Chuyển 79 file; tách 6 module gom trang thành từng Page theo chức năng. Phần chung Staff/Manager dùng facility-operations; app chứa router/provider chung; shared chứa UI/API nền/utils.
+- Tên component Page khớp tên file. Thêm FRONTEND-MAP.md, docs/frontend-naming.md, hướng dẫn AGENTS trong FE và chỉ dẫn Copilot; CLAUDE.md hiện trỏ AGENTS gốc. Có npm run check:structure.
+- Test chỉ cập nhật import/module path, giữ assertion. Kiểm tra 532 khai báo AST tương đương sau đổi tên identifier/import/export.
+- Kiểm chứng: check:structure PASS; npm test 67/67; test:business 9/9; test:render 92 routes; build PASS; init.sh PASS (dotnet dùng -m:1 do giới hạn môi trường); git diff --check PASS. Các cảnh báo dependency/nullable/chunk size cũ vẫn còn.
+- Chưa kiểm thử lại tương tác trình duyệt/API thật; SSR không bao phủ thao tác. ZIP dùng git apply để thêm file mới và xoá file cũ, có kiểm tra trước khi áp dụng. Không push/PR/merge.

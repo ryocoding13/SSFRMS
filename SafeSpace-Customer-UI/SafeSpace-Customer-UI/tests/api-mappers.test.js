@@ -1,7 +1,7 @@
 // Kiểm tra chuyển đổi dữ liệu backend (theo DbSeeder của StorageProject) sang dữ liệu giao diện.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { composeData, mapCatalog, parseUtc, reservationCode, reservationsToExpire, usernameFromEmail } from "../src/api/mappers.js";
+import { composeData, mapCatalog, parseUtc, reservationCode, reservationsToExpire, usernameFromEmail } from "../src/shared/api/apiMappers.js";
 
 const NOW = new Date("2026-09-22T05:00:00Z");
 const catalogDto = {
