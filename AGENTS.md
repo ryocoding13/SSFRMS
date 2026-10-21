@@ -20,6 +20,8 @@
 12. **AI không được tự `git push`, tạo Pull Request hay merge lên repo này.** Chỉ sửa code và commit trên máy;
     giao lại cho thành viên nhóm (patch / file zip / hướng dẫn lệnh) để người đó tự kiểm tra rồi tự push.
 
+13. **Khi sửa FE, đọc bắt buộc `docs/frontend-naming.md`, `SafeSpace-Customer-UI/SafeSpace-Customer-UI/AGENTS.md` và `FRONTEND-MAP.md` cùng thư mục.** Không tạo lại thư mục cũ; chạy `npm run check:structure` trước khi bàn giao.
+
 ## 2. Dự án là gì
 
 Hệ thống quản lý và cho thuê kho tự phục vụ **SafeSpace** cho 5 nhóm người dùng
@@ -36,10 +38,10 @@ Hệ thống quản lý và cho thuê kho tự phục vụ **SafeSpace** cho 5 n
 | `StorageProject.Core/` | Entities, DTOs, `Interfaces/IServices.cs` |
 | `StorageProject.Infrastructure/` | EF Core `AppDbContext`, `Migrations/`, `DbSeeder.cs`, `Services/*Service.cs` |
 | `SafeSpace-Customer-UI/SafeSpace-Customer-UI/` | React 19 + Vite: khách hàng, nhân viên, quản lý cơ sở, quản trị |
-| `…/src/ops/` | Khu Nhân viên `#/staff` + Quản lý cơ sở `#/manager` (gọi `/api/ops/*`, D15) |
-| `…/src/state/reducer.js` | Nghiệp vụ phía giao diện (hàm thuần, có test) |
-| `…/src/state/store.jsx` | Phiên đăng nhập, 2 chế độ: API / lưu trình duyệt |
-| `…/src/api/` | Gọi API + `mappers.js` chuyển dữ liệu backend → giao diện |
+| `…/src/features/facility-operations/` | Khu Nhân viên `#/staff` + Quản lý cơ sở `#/manager` (gọi `/api/ops/*`, D15) |
+| `…/src/app/state/appReducer.js` | Nghiệp vụ phía giao diện (hàm thuần, có test) |
+| `…/src/app/state/AppProvider.jsx` | Phiên đăng nhập, 2 chế độ: API / lưu trình duyệt |
+| `…/src/shared/api/` | Gọi API + `mappers.js` chuyển dữ liệu backend → giao diện |
 | `…/BE-CONTRACT.md` | Endpoint giao diện cần backend bổ sung |
 | `…/BACKEND-TODO.md` | Việc backend còn thiếu, xếp ưu tiên A/B/C, mẫu JSON `GET /api/ops/board` |
 | `docs/facility-ops-api.md`, `docs/operations-api.md` | API khu Nhân viên / Quản lý cơ sở và khu Vận hành KD |

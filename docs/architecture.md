@@ -33,33 +33,33 @@ Khi khởi động, `DbSeeder` tạo vai trò, quyền, 12 cơ sở, loại kho,
 
 ## Frontend — hai chế độ dữ liệu
 
-`src/state/store.jsx` chọn provider theo `VITE_USE_API`:
+`src/app/state/AppProvider.jsx` chọn provider theo `VITE_USE_API`:
 
 | Chế độ | Khi nào | Dữ liệu |
 |---|---|---|
-| `ApiProvider` | `VITE_USE_API=true` (mặc định) | Gọi backend qua `src/api/*`; luồng backend chưa có → lưu trình duyệt theo tài khoản (D04) |
-| Provider trình duyệt | `VITE_USE_API=false` | `src/data/seed.js` + `reducer.js`, lưu localStorage; chỉ để xem giao diện |
+| `ApiProvider` | `VITE_USE_API=true` (mặc định) | Gọi backend qua `src/shared/api/*`; luồng backend chưa có → lưu trình duyệt theo tài khoản (D04) |
+| Provider trình duyệt | `VITE_USE_API=false` | `src/app/data/appSeed.js` + `reducer.js`, lưu localStorage; chỉ để xem giao diện |
 
-Nghiệp vụ phía giao diện nằm trong `src/state/reducer.js` dưới dạng lệnh (`CREATE_RESERVATION`, `CONFIRM_TRANSFER`, …).
+Nghiệp vụ phía giao diện nằm trong `src/app/state/appReducer.js` dưới dạng lệnh (`CREATE_RESERVATION`, `CONFIRM_TRANSFER`, …).
 Mỗi lệnh tương ứng một endpoint trong `BE-CONTRACT.md`. Page chỉ gọi lệnh, không gọi `fetch` trực tiếp.
 
 | Thư mục | Vai trò |
 |---|---|
-| `src/pages/` | Mỗi màn Figma một component |
-| `src/components/` | Header + thông báo, lịch, thư viện ảnh, mã QR, sơ đồ ô kho (`UnitMap.jsx`), thanh tìm kiếm, UI dùng chung (`UI.jsx`, `Inline.jsx`) |
-| `src/admin/` | Khu quản trị A01–A04 |
-| `src/ops/` | Khu Nhân viên (S01–S05, S09) và Quản lý cơ sở (M01–M07): `api.js` gọi `/api/ops/*`, `store.jsx` (OpsProvider, dự phòng trình duyệt — D15), `reducer.js` nghiệp vụ, `tasks.jsx` lưới 3×3 |
-| `src/api/` | `http.js` (fetch + token), `endpoints.js`, `admin.js`, `mappers.js` (backend → giao diện) |
-| `src/lib/` | router, định dạng tiền/ngày, trạng thái → nhãn (`status.js`), vai trò, VietQR, xếp ô kho (`units.js`) |
-| `src/config/` | địa chỉ API, ảnh, toạ độ cơ sở (`geo.js`), tài khoản nhận chuyển khoản |
-| `src/styles/ss.css` | Token màu / chữ / bo góc theo Figma |
+| `src/features/customer/` | Mỗi màn Figma một component |
+| `src/shared/components/` | Header + thông báo, lịch, thư viện ảnh, mã QR, sơ đồ ô kho (`UnitMap.jsx`), thanh tìm kiếm, UI dùng chung (`UI.jsx`, `Inline.jsx`) |
+| `src/features/admin/` | Khu quản trị A01–A04 |
+| `src/features/facility-operations/` | Khu Nhân viên (S01–S05, S09) và Quản lý cơ sở (M01–M07): `api/facilityOperationsApi.js` gọi `/api/ops/*`, `state/FacilityOperationsProvider.jsx` (OpsProvider, dự phòng trình duyệt — D15), `reducer.js` nghiệp vụ, `components/StaffTasks.jsx` lưới 3×3 |
+| `src/shared/api/` | `httpClient.js` (fetch + token), `customerApi.js`, `apiMappers.js` (backend → giao diện) |
+| `src/shared/utils/` | định dạng tiền/ngày, trạng thái → nhãn (`status.js`), vai trò, VietQR, xếp ô kho (`units.js`) |
+| `src/app/config/` | địa chỉ API, ảnh, toạ độ cơ sở (`geo.js`), tài khoản nhận chuyển khoản |
+| `src/shared/styles/ss.css` | Token màu / chữ / bo góc theo Figma |
 | `tests/` | `node --test`: reducer, mappers, admin; `render.test.mjs` render mọi route |
 
-Khu vận hành (`src/ops/`) có provider riêng: tải `GET /api/ops/board`, gửi lệnh `POST /api/ops/...`, tải lại bảng.
-Backend trả 404 → dùng `src/ops/data.js` + `reducer.js` lưu trình duyệt và hiện dòng báo (D15).
+Khu vận hành (`src/features/facility-operations/`) có provider riêng: tải `GET /api/ops/board`, gửi lệnh `POST /api/ops/...`, tải lại bảng.
+Backend trả 404 → dùng `src/features/facility-operations/data/facilityOperationsSeed.js` + `reducer.js` lưu trình duyệt và hiện dòng báo (D15).
 
-## Chưa có (theo SRS)
+## Tra cứu cấu trúc hiện tại
 
-- API `/api/ops/*`, tài khoản seed MANAGER, lọc theo cơ sở được phân công — xem `BACKEND-TODO.md` mục A.
-- Giao diện và API cho Quản lý vận hành KD (UC19–UC23), vai trò này ở backend (F24), project test backend (F28).
-  Xem `feature_list.json`.
+Đọc `SafeSpace-Customer-UI/SafeSpace-Customer-UI/FRONTEND-MAP.md` và `docs/frontend-naming.md`. Trạng thái nghiệp vụ xem `feature_list.json`; tài liệu lịch sử không thay cho kiểm tra code.
+
+Màn hình Staff ở `src/features/staff/`, Manager ở `src/features/manager/`, Business ở `src/features/business/`, đăng nhập ở `src/features/auth/`. Router hash ở `src/app/router.js`.

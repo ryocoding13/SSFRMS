@@ -1,7 +1,7 @@
 # Đối chiếu Figma ↔ code: Nhân viên cơ sở & Quản lý cơ sở
 
 Nguồn: file Figma "SafeSpace - Modern UI", section *SafeSpace · Nhân viên cơ sở* và *SafeSpace · Quản lý cơ sở*.
-Dữ liệu: `src/ops/data.js` (khởi tạo) · nghiệp vụ: `src/ops/reducer.js` (có test) · lưu: `src/ops/store.jsx`.
+Dữ liệu: `src/features/facility-operations/data/facilityOperationsSeed.js` (khởi tạo) · nghiệp vụ: `src/features/facility-operations/state/facilityOperationsReducer.js` (có test) · lưu: `src/features/facility-operations/state/FacilityOperationsProvider.jsx`.
 
 ## Nhân viên cơ sở (`#/staff`)
 

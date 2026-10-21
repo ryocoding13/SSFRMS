@@ -266,6 +266,16 @@
       "state": "active",
       "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx -m:1; kiểm chứng SQL Server/PayOS thật theo docs/payment-integrity-2026-10-20.md",
       "evidence": "2026-10-20: build BE PASS; xUnit 15/15; FE 67/67; business 9/9; render 92 route; build FE và init.sh PASS. SQLite + kiểm model SQL Server; chờ SQL Server/PayOS thật nên chưa passing."
+    },
+    {
+      "id": "F36",
+      "flow": 0,
+      "uc": [],
+      "actor": "Nhóm phát triển",
+      "behavior": "Tổ chức FE theo vai trò/chức năng, tách Page, bản đồ code và quy tắc tên cho AI",
+      "verification": "npm run check:structure; _fe; npm run test:business; ./init.sh",
+      "state": "passing",
+      "evidence": "2026-10-20: check:structure PASS; FE 67/67; Business 9/9; SSR 92 routes; build PASS; init.sh PASS; 532 AST declarations equivalent after identifier renames/import relocation. No live browser/API interaction retest."
     }
   ]
 }
