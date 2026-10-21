@@ -498,7 +498,7 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(15,2)");
 
-                    b.Property<long>("ContractId")
+                    b.Property<long?>("ContractId")
                         .HasColumnType("bigint");
 
                     b.Property<DateTime>("CreatedAt")
@@ -530,6 +530,9 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Property<long?>("RenewalId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("ReservationId")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -553,6 +556,10 @@ namespace StorageProject.Infrastructure.Migrations
                     b.HasIndex("TransactionReference")
                         .IsUnique()
                         .HasFilter("[TransactionReference] IS NOT NULL");
+
+                    b.HasIndex("ReservationId", "PaymentType")
+                        .IsUnique()
+                        .HasFilter("[ReservationId] IS NOT NULL AND [PaymentType] IN ('RENT','DEPOSIT')");
 
                     b.ToTable("payments", null, t =>
                         {
@@ -845,6 +852,13 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("PaymentMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("PAYOS");
+
                     b.Property<string>("PaymentQrUrl")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
@@ -893,7 +907,7 @@ namespace StorageProject.Infrastructure.Migrations
 
                             t.HasCheckConstraint("CK_reservations_required_deposit", "[RequiredDeposit] >= 0");
 
-                            t.HasCheckConstraint("CK_reservations_status", "[Status] IN ('PENDING_PAYMENT','PENDING_VERIFICATION','CONFIRMED','UNIT_ASSIGNED','CHECKED_IN','CANCELLED','EXPIRED','NO_SHOW')");
+                            t.HasCheckConstraint("CK_reservations_status", "[Status] IN ('PENDING_PAYMENT','PENDING_VERIFICATION','PENDING_AT_FACILITY','CONFIRMED','UNIT_ASSIGNED','CHECKED_IN','CANCELLED','EXPIRED','NO_SHOW')");
                         });
                 });
 
@@ -1569,17 +1583,23 @@ namespace StorageProject.Infrastructure.Migrations
                     b.HasOne("StorageProject.Core.Entities.RentalContract", "Contract")
                         .WithMany("Payments")
                         .HasForeignKey("ContractId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("StorageProject.Core.Entities.ContractRenewal", "Renewal")
                         .WithMany("Payments")
                         .HasForeignKey("RenewalId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("StorageProject.Core.Entities.Reservation", "Reservation")
+                        .WithMany()
+                        .HasForeignKey("ReservationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Contract");
 
                     b.Navigation("Renewal");
+
+                    b.Navigation("Reservation");
                 });
 
             modelBuilder.Entity("StorageProject.Core.Entities.Policy", b =>

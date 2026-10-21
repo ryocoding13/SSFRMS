@@ -3,7 +3,8 @@ namespace StorageProject.Core.Entities;
 public class Payment
 {
     public long PaymentId { get; set; }
-    public long ContractId { get; set; }
+    public long? ContractId { get; set; }
+    public long? ReservationId { get; set; }
     public long? RenewalId { get; set; }
     // DEPOSIT, RENT, RENEWAL, EXTRA_FEE, OVERDUE_FEE, DAMAGE_FEE, CLEANING_FEE,
     // LOST_KEY_FEE, ACCESS_CARD_FEE, REFUND
@@ -19,5 +20,6 @@ public class Payment
     public DateTime UpdatedAt { get; set; }
 
     public RentalContract Contract { get; set; } = null!;
+    public Reservation Reservation { get; set; } = null!;
     public ContractRenewal? Renewal { get; set; }
 }

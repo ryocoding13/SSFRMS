@@ -108,3 +108,7 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 
 Hình dạng dữ liệu giao diện đang dùng nằm ở `src/ops/data.js`; nghiệp vụ (điều kiện chặn, chuyển trạng thái) ở
 `src/ops/reducer.js` và có test (`tests/ops.test.js`) để backend đối chiếu.
+
+## Bổ sung 20/10 — thu tiền trước phân bổ và trạng thái ô
+
+Đã triển khai API chọn trả tại kho, PaymentMethod, ghi khoản thu theo ReservationId rồi gắn ContractId, kiểm chuyển tiếp ô và lịch sử. Xem `docs/payment-integrity-2026-10-20.md` và D23–D24 để biết hợp đồng API, migration, phạm vi test và các ca cần chạy thật. FE không còn dùng confirm-transfer làm fallback cho chọn trả tại kho. Các API /api/ops tương thích được đăng ký duy nhất trong FacilityOpsEndpoints.

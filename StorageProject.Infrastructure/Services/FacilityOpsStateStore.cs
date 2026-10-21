@@ -33,10 +33,6 @@ public static class FacilityOpsStateStore
             .AsQueryable();
 
         var res = await q.FirstOrDefaultAsync(r => (ids.Contains(r.ReservationId) || (r.OrderCode.HasValue && ids.Contains(r.OrderCode.Value))) && (facilityId <= 0 || r.FacilityId == facilityId), ct);
-        if (res == null)
-        {
-            res = await q.FirstOrDefaultAsync(r => ids.Contains(r.ReservationId) || (r.OrderCode.HasValue && ids.Contains(r.OrderCode.Value)), ct);
-        }
         return res;
     }
 
@@ -52,10 +48,6 @@ public static class FacilityOpsStateStore
             return userFac.Facility;
         }
 
-        var defaultFac = await dbContext.Facilities.FirstOrDefaultAsync(f => f.Name.Contains("Nguyễn Lương Bằng"), ct)
-                         ?? await dbContext.Facilities.FirstOrDefaultAsync(ct)
-                         ?? throw new InvalidOperationException("Không tìm thấy cơ sở kho.");
-
-        return defaultFac;
+        throw new InvalidOperationException("Tài khoản chưa được phân công cơ sở đang hoạt động.");
     }
 }

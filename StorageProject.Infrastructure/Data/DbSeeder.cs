@@ -215,6 +215,11 @@ public static partial class DbSeeder
                 }
             };
 
+            foreach (var policy in policies)
+            {
+                policy.CreatedBy = admin.UserId;
+            }
+
             context.Policies.AddRange(policies);
             await context.SaveChangesAsync();
         }

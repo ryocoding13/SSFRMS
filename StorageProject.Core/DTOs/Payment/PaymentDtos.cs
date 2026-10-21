@@ -2,7 +2,7 @@ namespace StorageProject.Core.DTOs.Payment;
 
 public record PaymentDto(
     long PaymentId,
-    long ContractId,
+    long? ContractId,
     long? RenewalId,
     string PaymentType,
     decimal Amount,

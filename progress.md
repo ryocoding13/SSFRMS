@@ -319,3 +319,13 @@
 - Kiểm chứng: 42 test gốc, 10 test QR, 9 test business pass; 76 route SSR pass; Vite build pass.
 - Browser Chromium: popup 480x598, QR, kết quả mở cửa, từ chối hết hạn, icon 96px, Escape, Đóng, khóa chưa bàn giao, mobile 390px, không pageerror.
 - Chưa có backend QR; hướng dẫn C07-QR-HUONG-DAN.md.
+
+## 2026-10-20 — F35 kiểm khoản thu và phân bổ, thanh toán tại kho, F12
+
+- Theo yêu cầu người dùng sửa cùng gói: PayOS kiểm số tiền và orderCode, ghi RENT/DEPOSIT vào payments trước khi có hợp đồng; gắn lại PaymentId khi phân bổ, không thu thêm. Bỏ phân bổ tự động khỏi webhook. Chuyển trả tại kho huỷ link trước khi đổi, S09 thu tiền mặt, xử lý callback muộn bằng PAYMENT_REVIEW_REQUIRED.
+- D23–D24 bổ sung, không sửa số/nội dung D19–D22. Trạng thái ô bằng tay có lý do, quy tắc và unit_status_history. Xoá các route /api/ops trùng trong Staff/Manager để giữ một bộ đăng ký; các thao tác thu tiền/phân bổ tương thích dùng chung xử lý.
+- Migration mới 20261020154838_ReservationPaymentIntegrity: PaymentMethod, PENDING_AT_FACILITY, Payment.ReservationId, ContractId optional, unique index khoản thu. Nối các dòng cũ không mơ hồ; không xoá database/dữ liệu. Worker thu hồi giữ chỗ tại kho hết hạn. Không sửa migration cũ.
+- Chặn xác minh/bàn giao chưa có đủ khoản thu, đồng bộ trạng thái xác minh từ HandoverRecord thay vì đánh dấu CHECKED_IN trước khi bàn giao. Test luồng chọn trả tại kho → phân bổ → thu → xác minh → bàn giao giữ nguyên hai khoản thu.
+- Kiểm chứng: .NET SDK 10.0.100; dotnet build StorageProject.slnx -m:1 PASS; xUnit 15/15 PASS (SQLite, adapter SDK chữ ký sai, model SQL Server khớp snapshot, route không trùng); npm test 67/67 PASS; test:business 9/9 PASS; test:render 92 route PASS; npm run build PASS; bash init.sh PASS với dotnet build/test chạy m:1 do giới hạn tiến trình của môi trường; git diff --check PASS; sinh được SQL upgrade từ migration toạ độ tới migration mới.
+- Giới hạn kiểm chứng: chưa chạy SQL Server thật, chưa thử PayOS/ngrok bằng key thật, chưa kiểm khoá/đồng thời trên SQL Server hay migration trên dữ liệu DB của nhóm. F35 giữ active, không tuyên bố 7 flow hoàn tất. Các cảnh báo dependency NU1902/NU1903 và nullable Board.cs:317 đã có từ nguồn.
+- Chỉ bàn giao ZIP/bản vá để người dùng áp dụng và chạy thử trước khi tự push nhánh. Không push/PR/merge từ phiên này.
