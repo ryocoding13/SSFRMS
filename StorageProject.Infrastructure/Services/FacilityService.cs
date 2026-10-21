@@ -187,4 +187,27 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
             availableCount > 0
         );
     }
+
+    public async Task<IReadOnlyList<FacilityUnitDto>> GetUnitsByFacilityIdAsync(long facilityId, CancellationToken ct = default)
+    {
+        return await dbContext.StorageUnits
+            .AsNoTracking()
+            .Include(u => u.UnitType)
+            .Where(u => u.FacilityId == facilityId && u.Status != "OUT_OF_SERVICE")
+            .OrderBy(u => u.UnitNumber)
+            .Select(u => new FacilityUnitDto(
+                u.UnitId,
+                u.FacilityId,
+                u.UnitTypeId,
+                u.UnitNumber,
+                u.Floor,
+                u.Zone,
+                u.LocationDescription,
+                u.UnitType.Area,
+                u.UnitType.ClimateControlled,
+                u.Status
+            ))
+            .ToListAsync(ct);
+    }
 }
+

@@ -215,6 +215,7 @@ function LocalProvider({ children }) {
       register,
       logout,
       checkAvailability: null,
+      getFacilityUnits: null,
       onApiError: () => {},
       roles: store.authed ? (store.opsUser ? [store.opsUser.role] : ["CUSTOMER"]) : [],
       isAdmin: false,
@@ -639,6 +640,15 @@ function ApiProvider({ children }) {
     }
   }, []);
 
+  const getFacilityUnits = useCallback(async (facilityId) => {
+    try {
+      return await api.facilityUnits(facilityId);
+    } catch {
+      return null;
+    }
+  }, []);
+
+
   // Màn mới gọi API trực tiếp: PayOS (C04, C11q), QR mở cửa (C07q), máy quét (C07r), xem trước hoàn tiền (C14a).
   // Backend chưa có endpoint (404/405) → trả { unsupported: true } để màn hiện thông báo phù hợp, không báo lỗi.
   const services = useMemo(() => {
@@ -705,6 +715,7 @@ function ApiProvider({ children }) {
       register,
       logout,
       checkAvailability,
+      getFacilityUnits,
       onApiError,
       roles: session?.roles || [],
       isAdmin: isAdminRoles(session?.roles),
@@ -717,8 +728,9 @@ function ApiProvider({ children }) {
       storageError,
       timeoutSeconds: paymentTimeoutSeconds,
     }),
-    [ready, loadError, loadAll, session, data, dispatch, login, register, logout, checkAvailability, onApiError, services, toast, notify, dismissToast, storageError],
+    [ready, loadError, loadAll, session, data, dispatch, login, register, logout, checkAvailability, getFacilityUnits, onApiError, services, toast, notify, dismissToast, storageError],
   );
+
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

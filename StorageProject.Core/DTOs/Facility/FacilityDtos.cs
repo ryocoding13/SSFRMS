@@ -57,3 +57,17 @@ public record AvailabilityResultDto(
     int AvailableUnitCount,
     bool IsAvailable
 );
+
+public record FacilityUnitDto(
+    long UnitId,
+    long FacilityId,
+    long UnitTypeId,
+    string UnitNumber,
+    string? Floor,
+    string? Zone,
+    string? LocationDescription,
+    decimal SizeM2,
+    bool ClimateControlled,
+    string Status
+);
+

@@ -12,6 +12,7 @@ export const api = {
   unitTypes: () => request("/api/unit-types", { auth: false }),
   rates: () => request("/api/rates", { auth: false }),
   availability: (body) => request("/api/availability/check", { method: "POST", body, auth: false }),
+  facilityUnits: (facilityId) => request(`/api/facilities/${facilityId}/units`, { auth: false }),
 
   // Đặt chỗ
   reservations: () => request("/api/reservations"),

@@ -45,6 +45,13 @@ public static class FacilityEndpoints
             return result is not null ? Results.Ok(result) : Results.NotFound(new { error = "Không tìm thấy thông tin phù hợp để kiểm tra tình trạng kho." });
         });
 
+        group.MapGet("/facilities/{id:long}/units", async (long id, IFacilityService facilityService, CancellationToken ct) =>
+        {
+            var units = await facilityService.GetUnitsByFacilityIdAsync(id, ct);
+            return Results.Ok(units);
+        });
+
         return group;
+
     }
 }

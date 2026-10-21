@@ -48,22 +48,30 @@ function offersForLayout(facility) {
 
 /**
  * 12 ô kho của một cơ sở.
- * `stock` (không bắt buộc): { [offer.key]: số ô trống } lấy từ POST /api/availability/check —
- * khi có, số ô "Còn trống" của mỗi loại khớp đúng số backend trả về.
+ * `stock` (không bắt buộc): { [offer.key]: số ô trống } lấy từ POST /api/availability/check.
+ * `realUnits` (không bắt buộc): danh sách StorageUnit thực tế từ GET /api/facilities/{id}/units —
+ * khi có, trạng thái từng ô lấy trực tiếp từ database qua fromBackendStatus().
  */
-export function unitsFor(facility, stock = null) {
+export function unitsFor(facility, stock = null, realUnits = null) {
   if (!facility) return [];
   const shift = ((Number(facility.facility_id) || 1) - 1) % PATTERN.length;
   const assigned = offersForLayout(facility);
   const freeLeft = stock ? { ...stock } : null;
+  const hasReal = Array.isArray(realUnits) && realUnits.length > 0;
   return LAYOUT.map(([code, row], i) => {
     const { offer, area } = assigned[i];
-    let status = PATTERN[(i + shift * 3) % PATTERN.length];
-    if (freeLeft && offer && offer.key in freeLeft) {
-      if (freeLeft[offer.key] > 0) {
-        status = "FREE";
-        freeLeft[offer.key] -= 1;
-      } else if (status === "FREE") status = NON_FREE[i % NON_FREE.length];
+    let status;
+    const real = hasReal ? realUnits.find((u) => (u.unitNumber || u.code) === code) : null;
+    if (real) {
+      status = fromBackendStatus(real.status);
+    } else {
+      status = PATTERN[(i + shift * 3) % PATTERN.length];
+      if (freeLeft && offer && offer.key in freeLeft) {
+        if (freeLeft[offer.key] > 0) {
+          status = "FREE";
+          freeLeft[offer.key] -= 1;
+        } else if (status === "FREE") status = NON_FREE[i % NON_FREE.length];
+      }
     }
     return {
       code,
@@ -78,6 +86,7 @@ export function unitsFor(facility, stock = null) {
     };
   });
 }
+
 
 export const freeCount = (units) => units.filter((u) => u.status === "FREE").length;
 export const countBy = (units) =>
