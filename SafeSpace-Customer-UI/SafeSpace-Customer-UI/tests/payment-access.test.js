@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ApiError } from "../src/api/http.js";
-import { directionsUrl, isUnsupported, localAccessCode, normAccess, normCancelPreview, normPayos, normScan } from "../src/api/payment-access.js";
-import { composeData } from "../src/api/mappers.js";
+import { ApiError } from "../src/shared/api/httpClient.js";
+import { directionsUrl, isUnsupported, localAccessCode, normAccess, normCancelPreview, normPayos, normScan } from "../src/features/customer/access/accessApi.js";
+import { composeData } from "../src/shared/api/apiMappers.js";
 
 test("PayOS: chuẩn hoá PayosCheckoutDto, thiếu QR lẫn link thì coi như không có", () => {
   const c = normPayos({ orderCode: 142, amount: 4600000, qrCode: "000201...", checkoutUrl: "https://pay.payos.vn/web/abc", expiredAt: "2026-09-21T02:10:00", status: "PENDING" });

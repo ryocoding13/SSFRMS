@@ -9,7 +9,7 @@ endpoint mục A–B; `tests/ops-api.test.mjs` kiểm tra từng endpoint). Back
 
 ## Mới 16/10/2026 — API cho các màn đồng bộ Figma (PayOS, thanh toán tại kho, QR mở cửa, F12)
 
-Giao diện **đã gọi sẵn** các endpoint dưới đây (`src/api/endpoints.js`, `src/api/payment-access.js`, `src/ops/api.js`).
+Giao diện **đã gọi sẵn** các endpoint dưới đây (`src/shared/api/customerApi.js`, `src/features/customer/access/accessApi.js`, `src/features/facility-operations/api/facilityOperationsApi.js`).
 Backend chưa có route → giao diện **không báo lỗi**: hiện thông báo thay thế (bảng cột "Khi chưa có") cho tới khi backend
 làm xong. Máy chủ giả lập đã làm đủ (`npm run dev:mock`), `tests/payment-api.test.mjs` kiểm tra từng endpoint. Làm đúng
 tên route + tên trường JSON là giao diện chạy ngay, không phải sửa giao diện. JSON camelCase như các endpoint đang có.
@@ -127,7 +127,7 @@ Bảng trong DB đã có sẵn (`HandoverRecord`, `ReturnInspection`, `UnitAssig
 | M07 | `POST /api/ops/contracts/{id}/refund` | — | Chỉ sau biên bản trả kho. Hoàn cọc = cọc − khoản còn nợ; kho → `AVAILABLE`; hợp đồng đóng |
 | M01/M02/M04 | (trong `GET /api/ops/board`) | — | `units` (12 ô của cơ sở, D17), `revenue` 6 tháng + cơ cấu theo loại kho, tỷ lệ lấp đầy tính từ `units` |
 
-Luật nghiệp vụ chi tiết (điều kiện chặn, chuyển trạng thái) xem `src/ops/reducer.js` — có test `tests/ops.test.js`.
+Luật nghiệp vụ chi tiết (điều kiện chặn, chuyển trạng thái) xem `src/features/facility-operations/state/facilityOperationsReducer.js` — có test `tests/ops.test.js`.
 
 ### A4. Khách báo đã chuyển khoản (Figma C04)
 - [x] `POST /api/reservations/{id}/confirm-transfer` → đơn `PENDING_PAYMENT` chuyển `PENDING_VERIFICATION` (để hiện ở
@@ -140,8 +140,8 @@ Luật nghiệp vụ chi tiết (điều kiện chặn, chuyển trạng thái) 
 
 | Việc | Endpoint / thay đổi | Giao diện đang tạm làm gì |
 |---|---|---|
-| Sơ đồ 10 ô kho (C03b-sđ) | `GET /api/facilities/{id}/units` → `unitId, unitNumber, floor, zone, unitTypeId, status` (công khai, không lộ khách thuê) | Tự xếp 10 ô theo loại kho, số ô trống lấy từ availability (`src/lib/units.js`) |
-| Bản đồ cơ sở (C02m) | Thêm `latitude, longitude` vào `Facility` + `FacilityDto` (cần migration) | Toạ độ gán cứng theo tên cơ sở (`src/config/geo.js`) |
+| Sơ đồ 10 ô kho (C03b-sđ) | `GET /api/facilities/{id}/units` → `unitId, unitNumber, floor, zone, unitTypeId, status` (công khai, không lộ khách thuê) | Tự xếp 10 ô theo loại kho, số ô trống lấy từ availability (`src/shared/utils/units.js`) |
+| Bản đồ cơ sở (C02m) | Thêm `latitude, longitude` vào `Facility` + `FacilityDto` (cần migration) | Toạ độ gán cứng theo tên cơ sở (`src/app/config/geo.js`) |
 | Đăng ký trả kho (C09) | `POST /api/contracts/{id}/move-out` `{ date, slot, note }` → tạo lịch trả kho (hiện ở S04 của nhân viên) | Lưu trong trình duyệt |
 | Thông báo (chuông) | `GET /api/notifications`, `POST /api/notifications/read` `{ ids? }` | Lưu trong trình duyệt |
 | Hồ sơ (C13) | `PUT /api/auth/profile` `{ fullName }`, `POST /api/auth/change-password`, `POST /api/auth/forgot-password` | Đổi tên lưu cục bộ; đổi / quên mật khẩu đang khoá |

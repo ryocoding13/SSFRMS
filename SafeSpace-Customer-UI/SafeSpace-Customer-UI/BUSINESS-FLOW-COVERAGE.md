@@ -4,12 +4,12 @@ Nguồn: Figma section 436:13803; operations-api(3).md do người dùng cung c�
 
 | Màn | Component | Route | API |
 |---|---|---|---|
-| B01 Tổng quan | business/Overview.jsx | business | GET facilities, reports/facilities, reports/revenue-trend |
+| B01 Tổng quan | business/CustomerDashboardPage.jsx | business | GET facilities, reports/facilities, reports/revenue-trend |
 | B02 Chính sách | business/Policies.jsx | business/policies | GET/POST policies; POST policies/{id}/activate; PUT cho DRAFT |
-| B03 Giá & phí | business/Pricing.jsx | business/pricing | GET unit-types, policies, facilities; POST policies và activate |
+| B03 Giá & phí | business/PublicPricingPage.jsx | business/pricing | GET unit-types, policies, facilities; POST policies và activate |
 | B04 Báo cáo | business/Reports.jsx | business/reports | GET reports/facilities, unit-types, revenue-trend, rental-status, export |
 | B05 Cơ sở | business/Facilities.jsx | business/facilities | GET facilities, rates; điều hướng sang reports với facilityId |
-| Header/session | business/BusinessShell.jsx | các route KD | JWT và logout của store chung; notice tổng hợp từ API được tài liệu mô tả |
+| Header/session | business/BusinessLayout.jsx | các route KD | JWT và logout của store chung; notice tổng hợp từ API được tài liệu mô tả |
 
 Không thêm endpoint ngoài hợp đồng. Không sửa endpoint hay schema backend.
 Màn Figma không có nút CRUD cơ sở hoặc bảng giá từng cơ sở nên không thêm các nút này vào UI.

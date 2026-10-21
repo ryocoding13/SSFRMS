@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateAccess } from '../src/lib/access.js';
+import { validateAccess } from "../src/shared/utils/access.js";
 const c = { contract_id:'C1', unit_number:'K01', handed_over:true, status:'ACTIVE', start_date:'2026-10-01', end_date:'2026-10-31' };
 const base = { contract:c, credential:{ owner:1, contractId:'C1', unit:'K01', date:'2026-10-16', code:'reference', backupCode:'12345678' }, code:'reference', unit:'K01', owner:1, date:'2026-10-16' };
 test('QR hợp lệ và mã dự phòng',()=>{ assert.equal(validateAccess(base).allowed,true); assert.equal(validateAccess({...base,code:'1234 5678'}).allowed,true); });

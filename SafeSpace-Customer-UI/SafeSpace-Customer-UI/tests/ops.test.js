@@ -1,8 +1,8 @@
 // Nghiệp vụ khu Nhân viên cơ sở & Quản lý cơ sở (src/ops/reducer.js)
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOpsData } from "../src/ops/data.js";
-import { candidateUnits, reduceOps } from "../src/ops/reducer.js";
+import { createOpsData } from "../src/features/facility-operations/data/facilityOperationsSeed.js";
+import { candidateUnits, reduceOps } from "../src/features/facility-operations/state/facilityOperationsReducer.js";
 
 const T = "2026-09-14";
 const run = (s, type, payload) => reduceOps(s, { type, payload }, new Date(`${T}T10:00:00`));

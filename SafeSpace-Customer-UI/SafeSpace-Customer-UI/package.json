@@ -11,7 +11,8 @@
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test tests/reducer.test.js tests/api-mappers.test.js tests/admin.test.js tests/ops.test.js tests/units.test.js tests/ops-api.test.mjs tests/payment-access.test.js tests/payment-api.test.mjs tests/access.test.js",
     "test:render": "node tests/render.test.mjs",
-    "dev:mock": "node scripts/dev-mock.mjs"
+    "dev:mock": "node scripts/dev-mock.mjs",
+    "check:structure": "node scripts/check-structure.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",
