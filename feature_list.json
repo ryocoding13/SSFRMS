@@ -276,6 +276,19 @@
       "verification": "npm run check:structure; _fe; npm run test:business; ./init.sh",
       "state": "passing",
       "evidence": "2026-10-20: check:structure PASS; FE 67/67; Business 9/9; SSR 92 routes; build PASS; init.sh PASS; 532 AST declarations equivalent after identifier renames/import relocation. No live browser/API interaction retest."
+    },
+    {
+      "id": "F37",
+      "flow": null,
+      "uc": [
+        "UC26",
+        "UC11"
+      ],
+      "actor": "Ngọc Mai",
+      "behavior": "Tách backend C13 và S05/C12 trên main fc83c3a, độc lập với phí trả kho và huỷ/hoàn tiền",
+      "state": "active",
+      "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx --no-build -m:1; kiểm thử C13 và S05/C12 trên SQL Server của nhóm",
+      "evidence": "2026-10-21: .NET SDK 10.0.402; build PASS; xUnit 34/34 (15 test main, 19 trường hợp AuthSupport); SQLite với constraint model; check:structure PASS; FE 68/68, business 9/9, SSR 92 route, build/init PASS. init dùng wrapper dotnet -m:1 do giới hạn tiến trình. Gói chỉ BE/test/tài liệu; không migration, FE, appsettings hay FinanceService. Chờ nhóm kiểm thử lại bản tách trên SQL Server; không xác nhận đồng bộ hình ảnh Figma."
     }
   ]
 }
