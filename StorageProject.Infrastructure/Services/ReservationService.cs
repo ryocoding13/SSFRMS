@@ -34,7 +34,8 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
                 r.ExpiresAt,
                 r.CancelledAt,
                 r.CancellationReason,
-                r.CreatedAt
+                r.CreatedAt,
+                r.PaymentMethod
             ))
             .ToListAsync(ct);
     }
@@ -74,7 +75,8 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             assignedUnit,
             contract?.ContractId,
             contract?.Status,
-            r.CreatedAt
+            r.CreatedAt,
+                r.PaymentMethod
         );
     }
 
@@ -113,6 +115,7 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             .FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("Chưa có bảng giá áp dụng cho cơ sở và loại kho này.");
 
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"inventory:{request.FacilityId}", ct);
         // Check availability
         var expectedEndDate = request.StartDate.AddMonths(request.RentalPeriodMonths);
         var availableUnitsCount = await dbContext.StorageUnits
@@ -123,7 +126,8 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         var existingReservationsCount = await dbContext.Reservations
             .CountAsync(r => r.FacilityId == request.FacilityId 
                           && r.UnitTypeId == request.UnitTypeId
-                          && (r.Status == "PENDING_PAYMENT" || r.Status == "PENDING_VERIFICATION" || r.Status == "CONFIRMED")
+                          && (r.Status == "CONFIRMED" || ((r.Status == "PENDING_PAYMENT" || r.Status == "PENDING_VERIFICATION" || r.Status == "PENDING_AT_FACILITY") && r.ExpiresAt > DateTime.UtcNow))
+                          && !r.UnitAssignments.Any(a => a.Status == "ACTIVE")
                           && r.StartDate < expectedEndDate
                           && r.ExpectedEndDate > request.StartDate, ct);
 
@@ -152,12 +156,13 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             EstimatedAmount = estimatedAmount,
             RequiredDeposit = requiredDeposit,
             Status = "PENDING_PAYMENT",
-            ExpiresAt = DateTime.UtcNow.AddHours(24),
+            ExpiresAt = DateTime.UtcNow.AddMinutes(15),
             CreatedAt = DateTime.UtcNow
         };
 
         dbContext.Reservations.Add(reservation);
         await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
         return new ReservationDto(
             reservation.ReservationId,
@@ -175,18 +180,20 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             reservation.ExpiresAt,
             reservation.CancelledAt,
             reservation.CancellationReason,
-            reservation.CreatedAt
+            reservation.CreatedAt,
+            reservation.PaymentMethod
         );
     }
 
     public async Task CancelReservationAsync(long customerId, long reservationId, string reason, CancellationToken ct = default)
     {
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"reservation:{reservationId}", ct);
         var reservation = await dbContext.Reservations
             .Where(r => r.ReservationId == reservationId && r.CustomerId == customerId)
             .FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("Không tìm thấy đơn đặt chỗ hợp lệ.");
 
-        if (reservation.Status != "PENDING_PAYMENT" && reservation.Status != "CONFIRMED")
+        if (reservation.Status != "PENDING_PAYMENT" && reservation.Status != "CONFIRMED" && reservation.Status != "PENDING_AT_FACILITY")
         {
             throw new InvalidOperationException($"Không thể hủy đơn đặt chỗ ở trạng thái '{reservation.Status}'.");
         }
@@ -194,8 +201,15 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         reservation.Status = "CANCELLED";
         reservation.CancelledAt = DateTime.UtcNow;
         reservation.CancellationReason = reason;
-
+        foreach (var a in await dbContext.UnitAssignments.Include(a => a.Unit).Where(a => a.ReservationId == reservationId && a.Status == "ACTIVE").ToListAsync(ct))
+        {
+            a.Status = "CANCELLED";
+            if (a.Unit.Status == "RESERVED") a.Unit.Status = "AVAILABLE";
+        }
+        var draft = await dbContext.RentalContracts.SingleOrDefaultAsync(c => c.ReservationId == reservationId && c.Status == "DRAFT", ct);
+        if (draft != null) draft.Status = "CANCELLED";
         await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     /// <summary>
@@ -256,6 +270,7 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         r.ExpiresAt,
         r.CancelledAt,
         r.CancellationReason,
-        r.CreatedAt
+        r.CreatedAt,
+                r.PaymentMethod
     );
 }

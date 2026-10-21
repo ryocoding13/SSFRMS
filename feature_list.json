@@ -2,7 +2,7 @@
   "_readme": "Danh sách tính năng = ranh giới phạm vi cho AI agent. Mỗi mục: behavior (hành vi), verification (lệnh/cách kiểm chứng), state. state: not_started -> active -> passing | blocked. Chỉ đổi sang passing khi verification pass và ghi evidence. Mỗi phiên chỉ một mục active.",
   "_fe": "cd SafeSpace-Customer-UI/SafeSpace-Customer-UI && npm test && npm run test:render && npm run build",
   "_be": "dotnet build StorageProject.slnx",
-  "updated": "2026-10-16",
+  "updated": "2026-10-20",
   "features": [
     {
       "id": "F01", "flow": 1, "uc": ["UC01"], "actor": "Khách hàng",
@@ -253,6 +253,19 @@
       "state": "passing",
       "depends_on": ["F32", "F33"],
       "evidence": "2026-10-16: Đã triển khai IAccessService, AccessService (HMAC-SHA256 sinh QR và backupCode), AccessEndpoints (GET /api/contracts/{id}/access-qr, POST /api/access/scan); kết nối useAccessQr.js và endpoints.js; test_full_flow.ps1 kiểm chứng thành công từ bàn giao kho đến quét mã mở cửa và ghi activity_logs; dotnet build và npm test pass."
+    },
+    {
+      "id": "F35",
+      "flow": [
+        1,
+        5,
+        6
+      ],
+      "actor": "Khách hàng / Nhân viên / Quản lý",
+      "behavior": "Bản sửa theo yêu cầu: kiểm số tiền PayOS, ghi khoản thu trước hợp đồng, chống lặp và phân bổ, dự phòng tại kho, D23–D24, F12 có lý do/lịch sử",
+      "state": "active",
+      "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx -m:1; kiểm chứng SQL Server/PayOS thật theo docs/payment-integrity-2026-10-20.md",
+      "evidence": "2026-10-20: build BE PASS; xUnit 15/15; FE 67/67; business 9/9; render 92 route; build FE và init.sh PASS. SQLite + kiểm model SQL Server; chờ SQL Server/PayOS thật nên chưa passing."
     }
   ]
 }

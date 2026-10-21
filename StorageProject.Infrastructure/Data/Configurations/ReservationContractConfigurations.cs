@@ -15,7 +15,7 @@ public class ReservationConfiguration : IEntityTypeConfiguration<Reservation>
             t.HasCheckConstraint("CK_reservations_estimated_amount", "[EstimatedAmount] >= 0");
             t.HasCheckConstraint("CK_reservations_required_deposit", "[RequiredDeposit] >= 0");
             t.HasCheckConstraint("CK_reservations_status",
-                "[Status] IN ('PENDING_PAYMENT','PENDING_VERIFICATION','CONFIRMED','UNIT_ASSIGNED','CHECKED_IN','CANCELLED','EXPIRED','NO_SHOW')");
+                "[Status] IN ('PENDING_PAYMENT','PENDING_VERIFICATION','PENDING_AT_FACILITY','CONFIRMED','UNIT_ASSIGNED','CHECKED_IN','CANCELLED','EXPIRED','NO_SHOW')");
         });
         b.HasKey(r => r.ReservationId);
         b.Property(r => r.ReservationId).UseIdentityColumn();
@@ -27,6 +27,7 @@ public class ReservationConfiguration : IEntityTypeConfiguration<Reservation>
         b.Property(r => r.RequiredDeposit).IsRequired().HasColumnType("decimal(15,2)");
         b.Property(r => r.Status).IsRequired().HasMaxLength(30).HasDefaultValue("PENDING_PAYMENT");
         b.Property(r => r.CancellationReason).HasMaxLength(500);
+        b.Property(r => r.PaymentMethod).IsRequired().HasMaxLength(20).HasDefaultValue("PAYOS");
         b.Property(r => r.OrderCode);
         b.HasIndex(r => r.OrderCode).IsUnique().HasFilter("[OrderCode] IS NOT NULL");
         b.Property(r => r.PaymentQrUrl).HasMaxLength(2000);
@@ -144,6 +145,9 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
             t.HasCheckConstraint("CK_payments_status",
                 "[Status] IN ('PENDING','PAID','FAILED','REFUNDED','PARTIALLY_REFUNDED')");
         });
+        b.HasOne(p => p.Reservation).WithMany().HasForeignKey(p => p.ReservationId).OnDelete(DeleteBehavior.Restrict);
+        b.HasIndex(p => new { p.ReservationId, p.PaymentType }).IsUnique()
+            .HasFilter("[ReservationId] IS NOT NULL AND [PaymentType] IN ('RENT','DEPOSIT')");
         b.HasKey(p => p.PaymentId);
         b.Property(p => p.PaymentId).UseIdentityColumn();
         b.Property(p => p.PaymentType).IsRequired().HasMaxLength(30);

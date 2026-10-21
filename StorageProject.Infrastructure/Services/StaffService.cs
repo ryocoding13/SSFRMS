@@ -104,12 +104,9 @@ public class StaffService(AppDbContext dbContext) : IStaffService
         }).ToList();
 
         // 3. Payments (Đối soát thanh toán từ Reservations trong DB)
-        var reservations = await dbContext.Reservations
-            .AsNoTracking()
-            .Include(r => r.Customer)
-            .Include(r => r.UnitType)
-            .Where(r => r.FacilityId == fac.FacilityId &&
-                       (r.Status == "PENDING_VERIFICATION" || r.Status == "PENDING_PAYMENT" || r.Status == "CONFIRMED" || r.Status == "MISMATCH"))
+        var reservations = await dbContext.Reservations.AsNoTracking().Include(r => r.Customer).Include(r => r.UnitType)
+            .Where(r => r.FacilityId == fac.FacilityId && r.PaymentMethod == "AT_FACILITY" &&
+                r.Status == "PENDING_AT_FACILITY" && r.ExpiresAt > DateTime.UtcNow)
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync(ct);
 
@@ -128,7 +125,7 @@ public class StaffService(AppDbContext dbContext) : IStaffService
                 Id = $"SS-{r.CreatedAt:yyyyMMdd}-{r.ReservationId:D4}",
                 Customer = r.Customer.FullName,
                 Amount = totalAmount,
-                Method = "Chuyển khoản ngân hàng",
+                Method = "Thanh toán tại kho",
                 ReportedAt = r.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss"),
                 Memo = r.OrderCode.HasValue ? $"SSFRMS {r.OrderCode}" : $"SSFRMS {r.ReservationId}",
                 Offer = $"Kho {r.UnitType.TypeName} · {(r.UnitType.ClimateControlled ? "Kiểm soát nhiệt độ" : "Thường")}",
@@ -144,6 +141,7 @@ public class StaffService(AppDbContext dbContext) : IStaffService
             .AsNoTracking()
             .Include(r => r.Customer)
             .Include(r => r.UnitAssignments).ThenInclude(ua => ua.Unit)
+            .Include(r => r.RentalContract).ThenInclude(c => c!.HandoverRecord)
             .Where(r => r.FacilityId == fac.FacilityId && r.UnitAssignments.Any(ua => ua.Status == "ACTIVE"))
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync(ct);
@@ -158,7 +156,7 @@ public class StaffService(AppDbContext dbContext) : IStaffService
                 Customer = r.Customer.FullName,
                 Unit = assign.Unit.UnitNumber,
                 Appointment = $"{r.StartDate:yyyy-MM-dd}T09:00:00",
-                Status = r.Status == "CHECKED_IN" ? "DONE" : "TODO",
+                Status = r.RentalContract?.HandoverRecord?.Status is "VERIFIED" or "HANDED_OVER" ? "DONE" : "TODO",
                 DocType = "Căn cước công dân",
                 DocLast4 = null,
                 VerifiedAt = r.Status == "CHECKED_IN" ? r.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss") : null
@@ -169,7 +167,7 @@ public class StaffService(AppDbContext dbContext) : IStaffService
             .AsNoTracking()
             .Include(h => h.Contract).ThenInclude(c => c.Customer)
             .Include(h => h.Contract).ThenInclude(c => c.Unit)
-            .Where(h => h.Contract.Unit.FacilityId == fac.FacilityId)
+            .Where(h => h.Contract.Unit.FacilityId == fac.FacilityId && h.Status != "CANCELLED")
             .OrderByDescending(h => h.ScheduledAt)
             .ToListAsync(ct);
 
@@ -179,7 +177,7 @@ public class StaffService(AppDbContext dbContext) : IStaffService
             VerificationId = $"XM-{(h.Contract.ReservationId > 0 ? h.Contract.ReservationId : h.HandoverId):D4}",
             Unit = h.Contract.Unit.UnitNumber,
             Customer = h.Contract.Customer.FullName,
-            Status = h.HandoverAt.HasValue ? "COMPLETED" : "WAITING",
+            Status = h.HandoverAt.HasValue ? "DONE" : "WAITING",
             Method = "PIN"
         }).ToList();
 
@@ -281,44 +279,19 @@ public class StaffService(AppDbContext dbContext) : IStaffService
     public async Task ConfirmPaymentAsync(long userId, string id, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
-        var r = await FacilityOpsStateStore.FindReservationByIdAsync(dbContext, id, fac.FacilityId, ct);
-        if (r == null)
-        {
-            throw new InvalidOperationException("Không tìm thấy thông tin đặt chỗ / thanh toán.");
-        }
-        if (r.Status == "CONFIRMED")
-        {
-            throw new InvalidOperationException("không xác nhận hai lần");
-        }
-
-        r.Status = "CONFIRMED";
-        r.PaidAt = DateTime.UtcNow;
-
-        // Auto assign available unit if none assigned yet
-        if (!r.UnitAssignments.Any(ua => ua.Status == "ACTIVE"))
-        {
-            var unit = await dbContext.StorageUnits
-                .FirstOrDefaultAsync(u => u.FacilityId == fac.FacilityId &&
-                                          u.UnitTypeId == r.UnitTypeId &&
-                                          u.Status == "AVAILABLE", ct);
-            if (unit != null)
-            {
-                unit.Status = "RESERVED";
-                unit.UpdatedAt = DateTime.UtcNow;
-
-                dbContext.UnitAssignments.Add(new UnitAssignment
-                {
-                    ReservationId = r.ReservationId,
-                    UnitId = unit.UnitId,
-                    AssignedBy = userId,
-                    Status = "ACTIVE",
-                    AssignedAt = DateTime.UtcNow,
-                    Reason = "Nhân viên xác nhận đối soát thanh toán"
-                });
-            }
-        }
-
+        var found = await FacilityOpsStateStore.FindReservationByIdAsync(dbContext, id, fac.FacilityId, ct)
+            ?? throw new InvalidOperationException("Không tìm thấy đơn tại cơ sở.");
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"reservation:{found.ReservationId}", ct);
+        await dbContext.Entry(found).ReloadAsync(ct);
+        await dbContext.Entry(found).Collection(r => r.UnitAssignments).LoadAsync(ct);
+        await dbContext.Entry(found).Reference(r => r.RentalContract).LoadAsync(ct);
+        if (found.PaymentMethod != "AT_FACILITY") throw new InvalidOperationException("Đơn PayOS phải được xác nhận qua webhook.");
+        if (found.PaidAt != null) { await tx.CommitAsync(ct); return; }
+        if (found.Status != "PENDING_AT_FACILITY" || found.ExpiresAt <= DateTime.UtcNow)
+            throw new InvalidOperationException("Đơn không còn chờ thu tại kho hoặc đã hết hạn.");
+        await ReservationSettlement.RecordAsync(dbContext, found, "CASH", $"CASH:{found.ReservationId}", userId, ct);
         await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task MismatchPaymentAsync(long userId, string id, MismatchPaymentRequest request, CancellationToken ct = default)
@@ -354,13 +327,19 @@ public class StaffService(AppDbContext dbContext) : IStaffService
         var r = await FacilityOpsStateStore.FindReservationByIdAsync(dbContext, id, fac.FacilityId, ct);
         if (r != null)
         {
-            r.Status = "CHECKED_IN";
+            await ReservationSettlement.RequirePaidAsync(dbContext, r, ct);
+            var record = await dbContext.HandoverRecords.SingleOrDefaultAsync(h => h.Contract.ReservationId == r.ReservationId, ct)
+                ?? throw new InvalidOperationException("Đơn chưa được quản lý phân bổ và lập lịch bàn giao.");
+            if (record.Status == "HANDED_OVER") return;
+            record.Status = "VERIFIED";
+            record.Notes = $"Đã xác minh giấy tờ kết thúc {docNo[^4..]}";
             await dbContext.SaveChangesAsync(ct);
         }
     }
 
     public async Task CompleteHandoverAsync(long userId, string id, CompleteHandoverRequest request, CancellationToken ct = default)
     {
+        var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
         var num = FacilityOpsStateStore.ParseIdNumber(id);
         var now = DateTime.UtcNow;
 
@@ -369,10 +348,15 @@ public class StaffService(AppDbContext dbContext) : IStaffService
             .Include(h => h.Contract).ThenInclude(c => c.Unit)
             .Include(h => h.Contract).ThenInclude(c => c.AccessCredentials)
             .Include(h => h.Contract).ThenInclude(c => c.Reservation)
-            .FirstOrDefaultAsync(h => h.HandoverId == num || h.ContractId == num, ct);
+            .FirstOrDefaultAsync(h => h.HandoverId == num && h.Contract.Unit.FacilityId == fac.FacilityId, ct);
 
         if (handover != null)
         {
+            await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"reservation:{handover.Contract.ReservationId}", ct);
+            await dbContext.Entry(handover.Contract.Reservation).ReloadAsync(ct);
+            await ReservationSettlement.RequirePaidAsync(dbContext, handover.Contract.Reservation, ct);
+            if (handover.Status == "HANDED_OVER") { await tx.CommitAsync(ct); return; }
+            if (handover.Status != "VERIFIED") throw new InvalidOperationException("Cần xác minh khách hàng trước khi bàn giao.");
             handover.Status = "HANDED_OVER";
             handover.StaffConfirmed = true;
             handover.CustomerConfirmed = true;
@@ -411,95 +395,11 @@ public class StaffService(AppDbContext dbContext) : IStaffService
                 }
             }
             await dbContext.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
             return;
         }
 
-        // 2. Thử tìm theo Reservation
-        var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
-        var r = await FacilityOpsStateStore.FindReservationByIdAsync(dbContext, id, fac.FacilityId, ct);
-        if (r != null)
-        {
-            var assignment = r.UnitAssignments.FirstOrDefault(ua => ua.Status == "ACTIVE");
-            if (assignment != null)
-            {
-                var unit = assignment.Unit;
-                unit.Status = "OCCUPIED";
-                unit.UpdatedAt = now;
-
-                var contract = await dbContext.RentalContracts
-                    .Include(c => c.HandoverRecord)
-                    .Include(c => c.AccessCredentials)
-                    .FirstOrDefaultAsync(c => c.ReservationId == r.ReservationId, ct);
-
-                if (contract == null)
-                {
-                    contract = new RentalContract
-                    {
-                        ReservationId = r.ReservationId,
-                        CustomerId = r.CustomerId,
-                        UnitId = unit.UnitId,
-                        StartDate = r.StartDate,
-                        EndDate = r.ExpectedEndDate,
-                        AgreedMonthlyRate = r.QuotedMonthlyRate,
-                        DepositAmount = r.RequiredDeposit,
-                        Status = "ACTIVE",
-                        CreatedAt = now,
-                        ActivatedAt = now
-                    };
-                    dbContext.RentalContracts.Add(contract);
-                    await dbContext.SaveChangesAsync(ct);
-                }
-                else
-                {
-                    contract.Status = "ACTIVE";
-                    contract.ActivatedAt ??= now;
-                }
-
-                var hRecord = contract.HandoverRecord ?? await dbContext.HandoverRecords.FirstOrDefaultAsync(h => h.ContractId == contract.ContractId, ct);
-                if (hRecord == null)
-                {
-                    hRecord = new HandoverRecord
-                    {
-                        ContractId = contract.ContractId,
-                        StaffId = userId,
-                        ScheduledAt = now,
-                        VerifiedAt = now,
-                        HandoverAt = now,
-                        InitialCondition = "Đã kiểm tra và bàn giao kho",
-                        Notes = $"Phương thức mở khóa: {request.UnlockMethod}",
-                        CustomerConfirmed = true,
-                        StaffConfirmed = true,
-                        Status = "HANDED_OVER"
-                    };
-                    dbContext.HandoverRecords.Add(hRecord);
-                }
-                else
-                {
-                    hRecord.StaffId = userId;
-                    hRecord.StaffConfirmed = true;
-                    hRecord.CustomerConfirmed = true;
-                    hRecord.HandoverAt = now;
-                    hRecord.Status = "HANDED_OVER";
-                    hRecord.Notes = $"Phương thức mở khóa: {request.UnlockMethod}";
-                }
-
-                if (!contract.AccessCredentials.Any(a => a.Status == "ACTIVE"))
-                {
-                    var method = (request.UnlockMethod ?? "CARD").ToUpperInvariant();
-                    dbContext.AccessCredentials.Add(new AccessCredential
-                    {
-                        ContractId = contract.ContractId,
-                        UnitId = unit.UnitId,
-                        IssuedBy = userId,
-                        CredentialType = method == "CARD" ? "ACCESS_CARD" : "ACCESS_CODE",
-                        CredentialReference = $"{method}-{unit.UnitNumber}-{now.AddHours(7):yyMMdd}",
-                        IssuedAt = now,
-                        Status = "ACTIVE"
-                    });
-                }
-            }
-            await dbContext.SaveChangesAsync(ct);
-        }
+        throw new InvalidOperationException("Không tìm thấy lịch bàn giao. Quản lý cần phân bổ kho trước.");
     }
 
     public async Task SubmitReturnInspectionAsync(long userId, string id, ReturnInspectionRequest request, CancellationToken ct = default)
@@ -543,31 +443,27 @@ public class StaffService(AppDbContext dbContext) : IStaffService
 
     public async Task UpdateUnitStatusAsync(long userId, string id, UpdateUnitStatusRequest request, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Status))
-        {
-            throw new ArgumentException("Trạng thái kho không được để trống.");
-        }
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
-        var unit = await dbContext.StorageUnits
-            .FirstOrDefaultAsync(u => u.FacilityId == fac.FacilityId && (u.UnitNumber == id || u.UnitId == FacilityOpsStateStore.ParseIdNumber(id)), ct);
-        if (unit == null)
-        {
-            throw new InvalidOperationException($"Không tìm thấy kho {id}.");
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"inventory:{fac.FacilityId}", ct);
+        var number = FacilityOpsStateStore.ParseIdNumber(id);
+        var unit = await dbContext.StorageUnits.SingleOrDefaultAsync(u => u.FacilityId == fac.FacilityId &&
+            (u.UnitNumber == id || u.UnitId == number), ct) ?? throw new InvalidOperationException("Không tìm thấy ô kho.");
+        var next = UnitStatusRules.Normalize(request.Status ?? "");
+        UnitStatusRules.Validate(unit.Status, next, request.Reason);
+        var held = await dbContext.UnitAssignments.AnyAsync(a => a.UnitId == unit.UnitId && a.Status == "ACTIVE" &&
+            a.Reservation.Status != "CANCELLED" && a.Reservation.Status != "EXPIRED" && a.Reservation.Status != "NO_SHOW" &&
+            (a.Reservation.RentalContract == null || (a.Reservation.RentalContract.Status != "COMPLETED" && a.Reservation.RentalContract.Status != "TERMINATED" && a.Reservation.RentalContract.Status != "CANCELLED")), ct)
+            || await dbContext.RentalContracts.AnyAsync(c => c.UnitId == unit.UnitId && c.Status != "COMPLETED" &&
+                c.Status != "CANCELLED" && c.Status != "TERMINATED", ct);
+        if (held) throw new InvalidOperationException("Ô đang được giữ hoặc có hợp đồng chưa đóng, không được đổi trạng thái bằng tay.");
+        if (unit.Status != next) {
+            dbContext.UnitStatusHistories.Add(new UnitStatusHistory { UnitId = unit.UnitId, ChangedBy = userId,
+                OldStatus = unit.Status, NewStatus = next, Reason = request.Reason!.Trim(), ChangedAt = DateTime.UtcNow });
+            unit.Status = next;
+            unit.UpdatedAt = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
         }
-
-        var dbStatus = request.Status.ToUpperInvariant() switch
-        {
-            "EMPTY" => "AVAILABLE",
-            "ACTIVE" => "OCCUPIED",
-            "WAITING_HANDOVER" => "RESERVED",
-            "MAINTENANCE" => "MAINTENANCE",
-            "LOCKED" => "LOCKED",
-            _ => request.Status.ToUpperInvariant()
-        };
-
-        unit.Status = dbStatus;
-        unit.UpdatedAt = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task RevokeCredentialAsync(long userId, string id, CancellationToken ct = default)
