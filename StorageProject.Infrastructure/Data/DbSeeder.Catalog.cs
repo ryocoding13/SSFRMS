@@ -56,7 +56,7 @@ public static partial class DbSeeder
     ];
 
     private static readonly string[] LegacyUnitTypeNames =
-        ["Kho Mini S (1m x 1m)", "Kho Tiêu Chuẩn M (2m x 2m)", "Kho Lớn L (3m x 3m)", "Kho Doanh Nghiệp XL (4m x 4m)"];
+        ["Kho Mini S (1m x 1m)", "Kho Tiêu Chuẩn M (2m x 2m)", "Kho Lớn L (3m x 3m)", "Kho Doanh Nghiệp XL (4m x 4m)", "Tủ Locker Cá Nhân (0.5m x 0.5m)"];
 
     private static readonly string[] LegacyFacilityNames = ["SafeSpace Quận 7", "SSFRMS Chi nhánh Quận 7"];
 

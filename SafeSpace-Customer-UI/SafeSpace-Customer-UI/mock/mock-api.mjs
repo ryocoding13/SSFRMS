@@ -47,29 +47,24 @@ export function createState() {
     { unitTypeId: 2, typeName: "Kho Tiêu Chuẩn M (2m x 2m)", length: 2, width: 2, height: 2.8, area: 4, climateControlled: true, description: "Kho điều hòa mát mẻ, phù hợp đồ nội thất, thiết bị điện tử, hàng shop online", status: "ACTIVE" },
     { unitTypeId: 3, typeName: "Kho Lớn L (3m x 3m)", length: 3, width: 3, height: 3, area: 9, climateControlled: true, description: "Kho điều hòa sức chứa lớn, phù hợp lưu trữ đồ chuyển nhà 2-3 phòng ngủ", status: "ACTIVE" },
     { unitTypeId: 4, typeName: "Kho Doanh Nghiệp XL (4m x 4m)", length: 4, width: 4, height: 3.2, area: 16, climateControlled: true, description: "Kho chuyên biệt cho doanh nghiệp", status: "ACTIVE" },
-    { unitTypeId: 5, typeName: "Tủ Locker Cá Nhân (0.5m x 0.5m)", length: 0.5, width: 0.5, height: 1, area: 0.25, climateControlled: false, description: "Ngăn tủ locker cá nhân thông minh, bảo mật cao, cất giữ giấy tờ, phụ kiện hoặc balo", status: "ACTIVE" },
   ];
   const eff = dateOnly(days(-30));
   const round10k = (v) => Math.round(v / 10000) * 10000;
   const rateRows = [
-    [1, 5, 1000], [1, 1, 500000], [1, 2, 1500000], [1, 3, 3000000],
-    [2, 5, 1000], [2, 1, 550000], [2, 2, 1600000], [2, 3, 3200000], [2, 4, 5500000],
+    [1, 1, 500000], [1, 2, 1500000], [1, 3, 3000000],
+    [2, 1, 550000], [2, 2, 1600000], [2, 3, 3200000], [2, 4, 5500000],
   ];
   NETWORK.forEach(([, , , , rateM, xl], i) => {
     const fid = i + 3;
     rateRows.push([fid, 1, round10k(rateM * 0.4)], [fid, 2, rateM], [fid, 3, round10k(rateM * 2)]);
     if (xl) rateRows.push([fid, 4, round10k(rateM * 3.5)]);
   });
-  rateRows.push([3, 5, 1000]); // Nguyễn Lương Bằng có Tủ Locker 1k VND
   const rates = rateRows.map(([facilityId, unitTypeId, monthlyRate], i) => ({ rateId: i + 1, facilityId, facilityName: facilities[facilityId - 1].name, unitTypeId, unitTypeName: unitTypes[unitTypeId - 1].typeName, monthlyRate, effectiveFrom: eff, effectiveTo: null }));
   const units = [
-    [1, 1, 5, "TB-LK-101", "AVAILABLE"], [2, 1, 5, "TB-LK-102", "AVAILABLE"],
-    [3, 1, 1, "TB-S-101", "AVAILABLE"], [4, 1, 1, "TB-S-102", "AVAILABLE"], [5, 1, 2, "TB-M-103", "OCCUPIED"], [6, 1, 2, "TB-M-104", "AVAILABLE"],
-    [7, 1, 3, "TB-L-201", "AVAILABLE"], [8, 1, 3, "TB-L-202", "AVAILABLE"],
-    [9, 2, 5, "Q7-LK-101", "AVAILABLE"], [10, 2, 5, "Q7-LK-102", "AVAILABLE"],
-    [11, 2, 1, "Q7-S-101", "AVAILABLE"], [12, 2, 1, "Q7-S-102", "AVAILABLE"],
-    [13, 2, 2, "Q7-M-103", "AVAILABLE"], [14, 2, 2, "Q7-M-104", "AVAILABLE"], [15, 2, 3, "Q7-L-201", "AVAILABLE"], [16, 2, 4, "Q7-XL-301", "AVAILABLE"],
-    [17, 3, 5, "NLB-LK-101", "AVAILABLE"], [18, 3, 5, "NLB-LK-102", "AVAILABLE"],
+    [1, 1, 1, "TB-S-101", "AVAILABLE"], [2, 1, 1, "TB-S-102", "AVAILABLE"], [3, 1, 2, "TB-M-103", "OCCUPIED"], [4, 1, 2, "TB-M-104", "AVAILABLE"],
+    [5, 1, 3, "TB-L-201", "AVAILABLE"], [6, 1, 3, "TB-L-202", "AVAILABLE"],
+    [7, 2, 1, "Q7-S-101", "AVAILABLE"], [8, 2, 1, "Q7-S-102", "AVAILABLE"],
+    [9, 2, 2, "Q7-M-103", "AVAILABLE"], [10, 2, 2, "Q7-M-104", "AVAILABLE"], [11, 2, 3, "Q7-L-201", "AVAILABLE"], [12, 2, 4, "Q7-XL-301", "AVAILABLE"],
   ].map(([unitId, facilityId, unitTypeId, unitNumber, status]) => ({ unitId, facilityId, unitTypeId, unitNumber, status }));
   NETWORK.forEach(([code, , , , , xl], i) => {
     const fid = i + 3;
@@ -82,7 +77,6 @@ export function createState() {
   const reservations = [
     { reservationId: 1, customerId: 3, facilityId: 1, unitTypeId: 2, startDate: start1, expectedEndDate: addMonths(start1, 3), rentalPeriodMonths: 3, quotedMonthlyRate: 1500000, estimatedAmount: 4500000, requiredDeposit: 1500000, status: "CHECKED_IN", createdAt: days(-16), expiresAt: days(-15), cancelledAt: null, cancellationReason: null },
     { reservationId: 2, customerId: 3, facilityId: 1, unitTypeId: 1, startDate: start2, expectedEndDate: addMonths(start2, 1), rentalPeriodMonths: 1, quotedMonthlyRate: 500000, estimatedAmount: 500000, requiredDeposit: 500000, status: "PENDING_PAYMENT", createdAt: new Date(), expiresAt: new Date(Date.now() + 24 * 3600000), cancelledAt: null, cancellationReason: null },
-    { reservationId: 3, customerId: 3, facilityId: 1, unitTypeId: 5, startDate: start2, expectedEndDate: addMonths(start2, 1), rentalPeriodMonths: 1, quotedMonthlyRate: 1000, estimatedAmount: 1000, requiredDeposit: 0, status: "PENDING_PAYMENT", createdAt: new Date(), expiresAt: new Date(Date.now() + 30 * 86400000), cancelledAt: null, cancellationReason: null },
   ];
   const contracts = [
     { contractId: 1, reservationId: 1, customerId: 3, unitId: 5, startDate: start1, endDate: addMonths(start1, 3), agreedMonthlyRate: 1500000, depositAmount: 1500000, status: "ACTIVE", createdAt: days(-15), activatedAt: days(-15) },
@@ -343,7 +337,27 @@ export function startMockApi(
     if (req.method === "GET" && path === "/api/facilities") return send(200, S.facilities);
     if (req.method === "GET" && path === "/api/unit-types") return send(200, S.unitTypes);
     if (req.method === "GET" && path === "/api/rates") return send(200, S.rates);
+    if (req.method === "GET" && (m = path.match(/^\/api\/facilities\/(\d+)\/units$/))) {
+      const fid = Number(m[1]);
+      const list = S.units.filter((u) => u.facilityId === fid && u.status !== "OUT_OF_SERVICE").map((u) => {
+        const t = S.unitTypes.find((x) => x.unitTypeId === u.unitTypeId);
+        return {
+          unitId: u.unitId,
+          facilityId: u.facilityId,
+          unitTypeId: u.unitTypeId,
+          unitNumber: u.unitNumber,
+          floor: u.floor || "Tầng trệt",
+          zone: u.zone || "Dãy A",
+          locationDescription: u.locationDescription || null,
+          sizeM2: t?.area || 15,
+          climateControlled: t?.climateControlled || false,
+          status: u.status,
+        };
+      });
+      return send(200, list);
+    }
     if (req.method === "POST" && path === "/api/availability/check") {
+
       const rate = S.rates.find((r) => r.facilityId === body.facilityId && r.unitTypeId === body.unitTypeId);
       const t = ut(body.unitTypeId);
       const count = availability(body.facilityId, body.unitTypeId, body.startDate, body.rentalPeriodMonths);

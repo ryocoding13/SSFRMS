@@ -62,10 +62,27 @@ WHERE UserId IN (
 DELETE FROM [users] 
 WHERE Username NOT IN ('admin', 'staff01', 'manager01', 'ops01', 'customer01', 'customer02');
 
--- 5. Reset all storage units to AVAILABLE
+-- 5. Delete decommissioned legacy units (OUT_OF_SERVICE or non-K units)
+DELETE FROM [storage_units] WHERE [Status] IN ('OUT_OF_SERVICE', 'OUT OF SERVICE') OR [UnitNumber] NOT LIKE 'K%';
+
+-- 6. Inactivate legacy unit types and their rates (including Locker)
+UPDATE [unit_types] SET [Status] = 'INACTIVE' 
+WHERE [TypeName] IN (
+    'Kho Mini S (1m x 1m)', 
+    'Kho Tiêu Chuẩn M (2m x 2m)', 
+    'Kho Lớn L (3m x 3m)', 
+    'Kho Doanh Nghiệp XL (4m x 4m)', 
+    'Tủ Locker Cá Nhân (0.5m x 0.5m)'
+);
+UPDATE [rental_rates] SET [Status] = 'INACTIVE' 
+WHERE [UnitTypeId] IN (SELECT [UnitTypeId] FROM [unit_types] WHERE [Status] = 'INACTIVE');
+
+-- 7. Reset all active storage units (K01-K12) to AVAILABLE
 UPDATE [storage_units] SET [Status] = 'AVAILABLE';
 
--- 6. Re-enable and validate all foreign key constraints
+-- 8. Re-enable and validate all foreign key constraints
 EXEC sp_msforeachtable 'ALTER TABLE ? WITH CHECK CHECK CONSTRAINT all';
 
 PRINT 'SSFRMS Database reset completed successfully!';
+
+

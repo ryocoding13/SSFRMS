@@ -9,7 +9,7 @@ description: >-
 
 This skill automates the complete reset of the SafeSpace (SSFRMS) SQL Server database (`SSFRMS`) to a Day 1 fresh operational state:
 - Zero customer transactions (reservations, contracts, payments, tickets, handovers, return inspections, overdue cases, assignments).
-- All 72 physical storage units across 12 facilities reset to `AVAILABLE`.
+- All 144 physical storage units (K01–K12 across 12 facilities) reset to `AVAILABLE` (decommissioned legacy units and non-K units removed).
 - All temporary test accounts and activity/login logs deleted.
 - Preserves all essential system master data: facilities, unit types, rental rates, policies, roles, permissions.
 - Preserves default system accounts: `admin`, `manager01`, `staff01`, `ops01` (`OPERATIONS`), `customer01`, `customer02`.
@@ -30,7 +30,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .agents/skills/resetdb/scrip
 ### Step 2: Validate Verification Output
 Check the output from the script:
 - All transaction tables must display `[PASS] <table_name> : 0 rows`.
-- Storage units status must show `AVAILABLE 72`.
+- Storage units status must show `AVAILABLE 144`.
 - Active seed accounts must list `admin`, `staff01`, `customer01`, `customer02`, `manager01`, `ops01`.
 
 ### Step 3: Respond to User

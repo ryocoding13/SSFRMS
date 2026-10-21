@@ -55,3 +55,34 @@ test("dữ liệu backend thiếu loại kho: ô vẫn gắn với một gói c�
   assert.equal(units.length, 12);
   assert.ok(units.every((u) => u.offer_key === "ut-9" && u.monthly_rate === 890000));
 });
+
+test("dữ liệu StorageUnit thực tế từ backend (GET /api/facilities/{id}/units): map đúng trạng thái DB", async () => {
+  const facilities = createFacilities();
+  const f = facilities[0];
+  const realUnits = [
+    { unitNumber: "K01", status: "AVAILABLE" },
+    { unitNumber: "K02", status: "MAINTENANCE" },
+    { unitNumber: "K03", status: "OCCUPIED" },
+    { unitNumber: "K04", status: "RESERVED" },
+    { unitNumber: "K05", status: "ASSIGNED" },
+    { unitNumber: "K06", status: "INSPECTION" },
+    { unitNumber: "K07", status: "RETURN_PENDING" },
+    { unitNumber: "K08", status: "OUT_OF_SERVICE" },
+    { unitNumber: "K09", status: "AVAILABLE" },
+    { unitNumber: "K10", status: "AVAILABLE" },
+    { unitNumber: "K11", status: "AVAILABLE" },
+    { unitNumber: "K12", status: "AVAILABLE" },
+  ];
+  const units = unitsFor(f, null, realUnits);
+  assert.equal(units.length, 12);
+  assert.equal(units.find((u) => u.code === "K01").status, "FREE");
+  assert.equal(units.find((u) => u.code === "K02").status, "SERVICE");
+  assert.equal(units.find((u) => u.code === "K03").status, "RENTED");
+  assert.equal(units.find((u) => u.code === "K04").status, "HELD");
+  assert.equal(units.find((u) => u.code === "K05").status, "HELD");
+  assert.equal(units.find((u) => u.code === "K06").status, "SERVICE");
+  assert.equal(units.find((u) => u.code === "K07").status, "RENTED");
+  assert.equal(units.find((u) => u.code === "K08").status, "SERVICE");
+  assert.equal(units.find((u) => u.code === "K09").status, "FREE");
+});
+

@@ -12,7 +12,7 @@ import { go, href, qs } from "../../../app/router.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 
 export default function FacilityDetailPage({ id, query }) {
-  const { data, authed, dispatch, checkAvailability } = useApp();
+  const { data, authed, dispatch, checkAvailability, getFacilityUnits } = useApp();
   const facility = data.facilities.find((f) => f.facility_id === Number(id));
   const startQuery = query.get("start");
   const [offerKey, setOfferKey] = useState(
@@ -28,12 +28,28 @@ export default function FacilityDetailPage({ id, query }) {
   const [view, setView] = useState(query.get("view") === "map" ? "map" : "photos");
   // Số ô trống thật theo từng loại kho (POST /api/availability/check) cho sơ đồ, chỉ khi nối backend
   const [unitStock, setUnitStock] = useState(null);
-  const units = useMemo(() => unitsFor(facility, unitStock), [facility, unitStock]);
+  const [realUnits, setRealUnits] = useState(null);
+  const units = useMemo(() => unitsFor(facility, unitStock, realUnits), [facility, unitStock, realUnits]);
   const [unitCode, setUnitCode] = useState(() => {
     const want = query.get("unit");
     return (units.find((u) => u.code === want) || units.find((u) => u.status === "FREE") || units[0])?.code || null;
   });
   const unit = view === "map" ? units.find((u) => u.code === unitCode) || null : null;
+
+  useEffect(() => {
+    if (!getFacilityUnits || !facility || view !== "map") return undefined;
+    let alive = true;
+    (async () => {
+      const list = await getFacilityUnits(facility.facility_id);
+      if (alive && Array.isArray(list)) {
+        setRealUnits(list);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [getFacilityUnits, facility?.facility_id, view]);
+
 
   // Giữ trạng thái xem trên URL (không cuộn lên đầu trang như khi đổi hash)
   useEffect(() => {
