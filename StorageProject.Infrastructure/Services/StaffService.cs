@@ -226,35 +226,85 @@ public class StaffService(AppDbContext dbContext) : IStaffService
             } : null
         }).ToList();
 
-        // 6. Tickets
-        var tickets = await dbContext.SupportTickets
-            .AsNoTracking()
-            .Include(t => t.Customer)
-            .Include(t => t.Unit)
-            .Include(t => t.AssignedStaff)
-            .Where(t => t.Unit != null && t.Unit.FacilityId == fac.FacilityId)
-            .OrderByDescending(t => t.CreatedAt)
-            .ToListAsync(ct);
-
-        var ticketDtos = tickets.Select(t => new OpsTicketDto
+        // Code cũ được giữ để đối chiếu.
+        // // 6. Tickets
+        // var tickets = await dbContext.SupportTickets
+        //     .AsNoTracking()
+        //     .Include(t => t.Customer)
+        //     .Include(t => t.Unit)
+        //     .Include(t => t.AssignedStaff)
+        //     .Where(t => t.Unit != null && t.Unit.FacilityId == fac.FacilityId)
+        //     .OrderByDescending(t => t.CreatedAt)
+        //     .ToListAsync(ct);
+        //
+        // var ticketDtos = tickets.Select(t => new OpsTicketDto
+        // {
+        //     Id = $"HT-{t.TicketId:D4}",
+        //     Unit = t.Unit?.UnitNumber ?? "KHO",
+        //     Customer = t.Customer.FullName,
+        //     Title = t.Title,
+        //     CreatedAt = t.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss"),
+        //     Schedule = t.CreatedAt.AddHours(4).ToString("yyyy-MM-ddTHH:mm:ss"),
+        //     Status = t.Status,
+        //     Assignee = t.AssignedStaff != null ? $"NV-{t.AssignedStaff.UserId:D2}" : null,
+        //     Notes = new List<OpsTicketNoteDto>
+        //     {
+        //         new()
+        //         {
+        //             Author = t.Customer.FullName,
+        //             Content = t.Description,
+        //             CreatedAt = t.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss")
+        //         }
+        //     }
+        // }).ToList();
+        // S05 đọc ticket theo hợp đồng, trả đúng trạng thái và lịch sử để nhân viên thấy yêu cầu và phản hồi đã ghi.
+        // 6. Tickets: hợp đồng xác định cơ sở, kể cả dữ liệu cũ thiếu UnitId trên ticket.
+        var tickets = await dbContext.SupportTickets.AsNoTracking()
+            .Include(t => t.Customer).Include(t => t.Unit)
+            .Include(t => t.Contract).ThenInclude(c => c!.Unit)
+            .Where(t => t.Status != "CANCELLED" && (t.Contract != null
+                ? t.Contract.Unit.FacilityId == fac.FacilityId
+                : t.Unit != null && t.Unit.FacilityId == fac.FacilityId))
+            .OrderByDescending(t => t.CreatedAt).ToListAsync(ct);
+        var ticketIds = tickets.Select(t => t.TicketId).ToList();
+        var ticketLogs = await dbContext.ActivityLogs.AsNoTracking().Include(l => l.User)
+            .Where(l => l.EntityType == "SUPPORT_TICKET" && l.Action == "TICKET_RESPONSE"
+                && l.EntityId != null && ticketIds.Contains(l.EntityId.Value))
+            .OrderBy(l => l.LoggedAt).ThenBy(l => l.LogId).ToListAsync(ct);
+        var ticketDtos = tickets.Select(t =>
         {
-            Id = $"HT-{t.TicketId:D4}",
-            Unit = t.Unit?.UnitNumber ?? "KHO",
-            Customer = t.Customer.FullName,
-            Title = t.Title,
-            CreatedAt = t.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss"),
-            Schedule = t.CreatedAt.AddHours(4).ToString("yyyy-MM-ddTHH:mm:ss"),
-            Status = t.Status,
-            Assignee = t.AssignedStaff != null ? $"NV-{t.AssignedStaff.UserId:D2}" : null,
-            Notes = new List<OpsTicketNoteDto>
+            var notes = new List<OpsTicketNoteDto>
             {
-                new()
+                new() { Author = t.Customer.FullName, Content = t.Description, CreatedAt = t.CreatedAt.ToString("O") }
+            };
+            foreach (var log in ticketLogs.Where(l => l.EntityId == t.TicketId))
+            {
+                if (string.IsNullOrWhiteSpace(log.NewValue)) continue;
+                try
                 {
-                    Author = t.Customer.FullName,
-                    Content = t.Description,
-                    CreatedAt = t.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss")
+                    using var json = System.Text.Json.JsonDocument.Parse(log.NewValue);
+                    if (json.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                        && json.RootElement.TryGetProperty("note", out var value)
+                        && value.ValueKind == System.Text.Json.JsonValueKind.String && !string.IsNullOrWhiteSpace(value.GetString()))
+                        notes.Add(new() { Author = log.User?.FullName ?? "Nhân viên cơ sở", Content = value.GetString()!, CreatedAt = log.LoggedAt.ToString("O") });
                 }
+                catch (System.Text.Json.JsonException) { }
             }
+            return new OpsTicketDto
+            {
+                Id = $"HT-{t.TicketId:D4}", Unit = t.Contract?.Unit.UnitNumber ?? t.Unit?.UnitNumber ?? "KHO",
+                Customer = t.Customer.FullName, Title = t.Title, CreatedAt = t.CreatedAt.ToString("O"),
+                Schedule = (t.AssignedAt ?? t.CreatedAt).ToString("O"),
+                Status = t.Status switch
+                {
+                    "OPEN" => t.AssignedStaffId.HasValue ? "IN_PROGRESS" : "OPEN",
+                    "ASSIGNED" or "IN_PROGRESS" => "IN_PROGRESS",
+                    "RESOLVED" => "WAITING_CUSTOMER",
+                    _ => "DONE"
+                },
+                Assignee = t.AssignedStaffId.HasValue ? $"NV-{t.AssignedStaffId.Value:D2}" : null,
+                Notes = notes
+            };
         }).ToList();
 
         return new OpsBoardDto
@@ -425,20 +475,27 @@ public class StaffService(AppDbContext dbContext) : IStaffService
         }
     }
 
-    public async Task AddTicketResponseAsync(long userId, string id, TicketResponseRequest request, CancellationToken ct = default)
+    // Code cũ được giữ để đối chiếu.
+    // public async Task AddTicketResponseAsync(long userId, string id, TicketResponseRequest request, CancellationToken ct = default)
+    // {
+    //     var num = FacilityOpsStateStore.ParseIdNumber(id);
+    //     var ticket = await dbContext.SupportTickets.FindAsync([num], ct);
+    //     if (ticket != null)
+    //     {
+    //         ticket.Status = request.NextStatus;
+    //         ticket.AssignedStaffId = userId;
+    //         if (request.NextStatus == "RESOLVED" || request.NextStatus == "DONE")
+    //         {
+    //             ticket.ResolvedAt = DateTime.UtcNow;
+    //         }
+    //         await dbContext.SaveChangesAsync(ct);
+    //     }
+    // }
+    // S05 dùng chung xử lý có kiểm tra cơ sở, trạng thái và lưu nội dung phản hồi vào nhật ký.
+    public Task AddTicketResponseAsync(long userId, string id, TicketResponseRequest request, CancellationToken ct = default)
     {
-        var num = FacilityOpsStateStore.ParseIdNumber(id);
-        var ticket = await dbContext.SupportTickets.FindAsync([num], ct);
-        if (ticket != null)
-        {
-            ticket.Status = request.NextStatus;
-            ticket.AssignedStaffId = userId;
-            if (request.NextStatus == "RESOLVED" || request.NextStatus == "DONE")
-            {
-                ticket.ResolvedAt = DateTime.UtcNow;
-            }
-            await dbContext.SaveChangesAsync(ct);
-        }
+        return new FacilityOpsService(dbContext).RespondTicketAsync(
+            new(userId, false), id, new(request.Note, request.NextStatus), ct);
     }
 
     public async Task UpdateUnitStatusAsync(long userId, string id, UpdateUnitStatusRequest request, CancellationToken ct = default)

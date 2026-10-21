@@ -193,10 +193,18 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
             throw new KeyNotFoundException($"Không tìm thấy người dùng với ID: {userId}");
         }
 
-        if (!string.IsNullOrWhiteSpace(request.FullName))
+        // Code cũ được giữ để đối chiếu.
+        // if (!string.IsNullOrWhiteSpace(request.FullName))
+        // {
+        //     user.FullName = request.FullName.Trim();
+        // }
+        // Tên hiển thị phải có từ hai đến một trăm ký tự sau khi bỏ khoảng trắng ngoài.
+        var fullName = request.FullName?.Trim() ?? "";
+        if (fullName.Length < 2 || fullName.Length > 100)
         {
-            user.FullName = request.FullName.Trim();
+            throw new ArgumentException("Tên hiển thị phải từ 2 đến 100 ký tự.");
         }
+        user.FullName = fullName;
 
         if (request.Phone != null)
         {
@@ -221,9 +229,23 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
 
     public async Task ChangePasswordAsync(long userId, ChangePasswordRequest request, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
+        // Code cũ được giữ để đối chiếu.
+        // if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
+        // {
+        //     throw new ArgumentException("Mật khẩu mới phải có ít nhất 6 ký tự.");
+        // }
+        // Đồng bộ điều kiện mật khẩu với C13 và tiếp tục dùng BCrypt để xác minh và băm.
+        if (string.IsNullOrWhiteSpace(request.CurrentPassword))
         {
-            throw new ArgumentException("Mật khẩu mới phải có ít nhất 6 ký tự.");
+            throw new ArgumentException("Vui lòng nhập mật khẩu hiện tại.");
+        }
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
+        {
+            throw new ArgumentException("Mật khẩu mới phải có ít nhất 8 ký tự.");
+        }
+        if (request.NewPassword == request.CurrentPassword)
+        {
+            throw new ArgumentException("Mật khẩu mới phải khác mật khẩu hiện tại.");
         }
 
         var user = await dbContext.Users.FirstOrDefaultAsync(u => u.UserId == userId, ct);
