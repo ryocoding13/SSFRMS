@@ -4,6 +4,10 @@ Hệ thống quản lý và cho thuê kho tự quản thông minh (SafeSpace Sel
 
 ---
 
+> **Quy định cho công cụ AI (Claude, Cursor, Copilot, Codex…):** AI chỉ được sửa code và commit trên máy,
+> **không được tự `git push`, tạo Pull Request hay merge** lên repo này. Thành viên nhóm tự kiểm tra rồi tự push.
+> Quy tắc đầy đủ cho AI nằm trong [`AGENTS.md`](AGENTS.md).
+
 ## 📋 Yêu Cầu Môi Trường (Prerequisites)
 
 Trước khi chạy dự án, hãy đảm bảo máy tính đã cài đặt các công cụ sau:
@@ -14,13 +18,22 @@ Trước khi chạy dự án, hãy đảm bảo máy tính đã cài đặt các
 
 ---
 
-## 🚀 Hướng Dẫn Cài Đặt & Khởi Chạy
+## ⚡ Khởi Chạy Nhanh Toàn Bộ Hệ Thống (1 Lệnh Duy Nhất)
 
-### 1. Clone Repository
+Sau khi cài đặt thư viện ở thư mục gốc (`npm install`), bạn có thể khởi chạy đồng thời **Backend (.NET)**, **Frontend (Vite React)** và **Ngrok tunnel** chỉ với một lệnh duy nhất:
+
 ```bash
-git clone https://github.com/ryocoding13/SSFRMS.git
-cd SSFRMS
+npm run dev
 ```
+
+* **[BACKEND]**: `http://localhost:5151`
+* **[FRONTEND]**: `http://127.0.0.1:5173`
+* **[NGROK]**: Tự động forward public domain tới `http://localhost:5151` (phục vụ webhook PayOS)
+* **Dừng toàn bộ**: Nhấn `Ctrl + C` trong terminal.
+
+---
+
+## 🚀 Hướng Dẫn Cài Đặt Chi Tiết
 
 ---
 
@@ -89,7 +102,10 @@ Hệ thống đã tạo sẵn các tài khoản để kiểm thử quy trình:
 |-----------|--------------------------|---------------------|-------|
 | **CUSTOMER** | `customer01` | `Customer@123` | Khách hàng mẫu (Nguyễn Văn An) |
 | **CUSTOMER** | `customer02` | `Customer@123` | Khách hàng mẫu (Trần Thị Mai) |
-| **STAFF** | `staff01` | `Staff@123` | Nhân viên vận hành |
+| **CUSTOMER** | `customer03` … `customer06` | `Customer@123` | Khách đang thuê / chờ bàn giao / quá hạn tại cơ sở mẫu |
+| **STAFF** | `staff01`, `staff02` | `Staff@123` | Nhân viên cơ sở SafeSpace Nguyễn Lương Bằng (`#/staff`) |
+| **MANAGER** | `manager01` | `Manager@123` | Quản lý cơ sở SafeSpace Nguyễn Lương Bằng (`#/manager`) |
+| **OPERATIONS** | `ops01` | `Ops@123` | Quản lý vận hành kinh doanh |
 | **ADMIN** | `admin` | `Admin@123` | Quản trị viên hệ thống |
 
 *(Bạn cũng có thể bấm nút **"Đăng ký"** trực tiếp trên giao diện để tạo tài khoản mới)*.
@@ -102,7 +118,7 @@ Giao diện SafeSpace hỗ trợ cơ chế hoạt động linh hoạt (dual-mode
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  App Startup (CustomerApp.jsx)                              │
+│  App Startup (App.jsx)                              │
 │  ──────────────────────────────────────────────────────     │
 │  1. loadServerData() → GET /api/facilities, /unit-types     │
 │     ├── Success → isLiveApi = true, load real data          │
@@ -125,7 +141,7 @@ Giao diện SafeSpace hỗ trợ cơ chế hoạt động linh hoạt (dual-mode
 ```text
 SSFRMS/
 ├── StorageProject.Api/                 # .NET 9 Minimal API, Middleware, Endpoints
-│   ├── Endpoints/                      # Auth, Facility, Reservation, Contract, Payment, Support...
+│   ├── Endpoints/                      # Auth, Facility, Reservation, Contract, Payment, SupportPage...
 │   └── appsettings.json                # Cấu hình DB, JWT
 ├── StorageProject.Core/                # Domain Entities, DTOs, Service Interfaces
 ├── StorageProject.Infrastructure/      # EF Core DbContext, Migrations, DbSeeder, Service Implementations
@@ -133,9 +149,9 @@ SSFRMS/
 │   └── SafeSpace-Customer-UI/          # React + Vite Frontend
 │       ├── src/
 │       │   ├── components/             # UI Components (AuthModal, ActionModal, UI Elements)
-│       │   ├── pages/                  # Pages: FindStorage, Overview, Records, Support
+│       │   ├── pages/                  # Pages: FindStorage, CustomerDashboardPage, Records, SupportPage
 │       │   ├── services/               # API Clients & Service Adapters
-│       │   ├── CustomerApp.jsx         # App Root & State Management
+│       │   ├── App.jsx         # App Root & State Management
 │       │   └── customer.css            # SafeSpace Modern Design System
 │       └── .env                        # Environment Config (VITE_API_URL)
 └── README.md                           # Hướng dẫn dự án

@@ -13,9 +13,14 @@ public class Reservation
     public decimal QuotedMonthlyRate { get; set; }
     public decimal EstimatedAmount { get; set; }
     public decimal RequiredDeposit { get; set; }
-    // PENDING_PAYMENT, CONFIRMED, UNIT_ASSIGNED, CHECKED_IN, CANCELLED, EXPIRED, NO_SHOW
+    // PENDING_PAYMENT, PENDING_VERIFICATION (khách báo đã chuyển khoản, chờ đối soát), CONFIRMED, UNIT_ASSIGNED, CHECKED_IN, CANCELLED, EXPIRED, NO_SHOW
+    public string PaymentMethod { get; set; } = "PAYOS"; // PAYOS / AT_FACILITY
     public string Status { get; set; } = "PENDING_PAYMENT";
     public string? CancellationReason { get; set; }
+    public long? OrderCode { get; set; }
+    public string? PaymentQrUrl { get; set; }
+    public string? CheckoutUrl { get; set; }
+    public DateTime? PaidAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? ExpiresAt { get; set; }
     public DateTime? CancelledAt { get; set; }

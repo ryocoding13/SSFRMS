@@ -23,7 +23,8 @@ public record ReservationDto(
     DateTime? ExpiresAt,
     DateTime? CancelledAt,
     string? CancellationReason,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    string PaymentMethod = "PAYOS"
 );
 
 public record ReservationDetailDto(
@@ -44,5 +45,6 @@ public record ReservationDetailDto(
     string? AssignedUnitNumber,
     long? ContractId,
     string? ContractStatus,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    string PaymentMethod = "PAYOS"
 );

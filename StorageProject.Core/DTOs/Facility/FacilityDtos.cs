@@ -7,7 +7,9 @@ public record FacilityDto(
     string? ContactPhone,
     string? OpeningTime,
     string? ClosingTime,
-    string Status
+    string Status,
+    decimal? Latitude = null,   // toạ độ ghim bản đồ (C02m); null = chưa nhập
+    decimal? Longitude = null
 );
 
 public record UnitTypeDto(
@@ -55,3 +57,17 @@ public record AvailabilityResultDto(
     int AvailableUnitCount,
     bool IsAvailable
 );
+
+public record FacilityUnitDto(
+    long UnitId,
+    long FacilityId,
+    long UnitTypeId,
+    string UnitNumber,
+    string? Floor,
+    string? Zone,
+    string? LocationDescription,
+    decimal SizeM2,
+    bool ClimateControlled,
+    string Status
+);
+

@@ -11,12 +11,17 @@ public class FacilityConfiguration : IEntityTypeConfiguration<Facility>
         b.ToTable("facilities", t =>
         {
             t.HasCheckConstraint("CK_facilities_status", "[Status] IN ('ACTIVE','INACTIVE','TEMPORARILY_CLOSED')");
+            t.HasCheckConstraint("CK_facilities_coordinates",
+                "([Latitude] IS NULL AND [Longitude] IS NULL) OR " +
+                "([Latitude] BETWEEN -90 AND 90 AND [Longitude] BETWEEN -180 AND 180)");
         });
         b.HasKey(f => f.FacilityId);
         b.Property(f => f.FacilityId).UseIdentityColumn();
         b.Property(f => f.Name).IsRequired().HasMaxLength(150);
         b.Property(f => f.Address).IsRequired().HasMaxLength(255);
         b.Property(f => f.ContactPhone).HasMaxLength(20);
+        b.Property(f => f.Latitude).HasPrecision(9, 6);
+        b.Property(f => f.Longitude).HasPrecision(9, 6);
         b.Property(f => f.Status).IsRequired().HasMaxLength(30).HasDefaultValue("ACTIVE");
         b.Property(f => f.CreatedAt).IsRequired();
         b.Property(f => f.UpdatedAt).IsRequired();

@@ -3,27 +3,42 @@ using StorageProject.Core.Entities;
 
 namespace StorageProject.Infrastructure.Data;
 
-public static class DbSeeder
+/// <summary>
+/// Dữ liệu khởi tạo. Mọi bước đều "chỉ thêm phần còn thiếu", nên chạy lại nhiều lần vẫn an toàn và
+/// database tạo từ trước cũng được bổ sung khi khởi động lại API.
+/// - Danh mục kho theo D17 (Figma 14/10): xem DbSeeder.Catalog.cs
+/// - Tài khoản nhân viên / quản lý cơ sở: xem DbSeeder.FacilityOps.cs
+/// </summary>
+public static partial class DbSeeder
 {
     public static async Task SeedAsync(AppDbContext context)
     {
         // 1. Roles
-        if (!await context.Roles.AnyAsync())
+        var requiredRoles = new List<(string Name, string Description)>
         {
-            var roles = new List<Role>
+            ("ADMIN", "Quản trị viên toàn quyền hệ thống"),
+            ("MANAGER", "Quản lý cơ sở kho"),
+            ("STAFF", "Nhân viên vận hành, bàn giao và kiểm tra kho"),
+            ("OPERATIONS", "Quản lý vận hành kinh doanh toàn hệ thống"),
+            ("BUSINESS_OPERATOR", "Quản lý vận hành kinh doanh toàn hệ thống"),
+            ("CUSTOMER", "Khách hàng thuê kho tự quản")
+        };
+
+        foreach (var r in requiredRoles)
+        {
+            if (!await context.Roles.AnyAsync(x => x.RoleName == r.Name))
             {
-                new() { RoleName = "ADMIN", Description = "Quản trị viên toàn quyền hệ thống" },
-                new() { RoleName = "MANAGER", Description = "Quản lý cơ sở kho" },
-                new() { RoleName = "STAFF", Description = "Nhân viên vận hành, bàn giao và kiểm tra kho" },
-                new() { RoleName = "CUSTOMER", Description = "Khách hàng thuê kho tự quản" }
-            };
-            context.Roles.AddRange(roles);
-            await context.SaveChangesAsync();
+                context.Roles.Add(new Role { RoleName = r.Name, Description = r.Description });
+            }
         }
+        await context.SaveChangesAsync();
 
         var customerRole = await context.Roles.FirstAsync(r => r.RoleName == "CUSTOMER");
         var adminRole = await context.Roles.FirstAsync(r => r.RoleName == "ADMIN");
         var staffRole = await context.Roles.FirstAsync(r => r.RoleName == "STAFF");
+        var managerRole = await context.Roles.FirstAsync(r => r.RoleName == "MANAGER");
+        var businessOpRole = await context.Roles.FirstAsync(r => r.RoleName == "BUSINESS_OPERATOR");
+        var opsRole = await context.Roles.FirstAsync(r => r.RoleName == "OPERATIONS");
 
         // 1.1 Permissions & RolePermissions
         if (!await context.Permissions.AnyAsync())
@@ -42,7 +57,10 @@ public static class DbSeeder
                 new() { PermissionCode = "RENEWAL_MANAGE", PermissionName = "Duyệt gia hạn", Description = "Kiểm tra và phê duyệt yêu cầu gia hạn hợp đồng" },
                 new() { PermissionCode = "TICKET_MANAGE", PermissionName = "Xử lý hỗ trợ", Description = "Tiếp nhận và xử lý sự cố hỗ trợ khách hàng" },
                 new() { PermissionCode = "PAYMENT_CONFIRM", PermissionName = "Xác nhận thanh toán", Description = "Xác nhận thu tiền mặt và chuyển khoản" },
-                new() { PermissionCode = "REPORT_VIEW", PermissionName = "Xem báo cáo", Description = "Xem báo cáo kinh doanh và tỷ lệ sử dụng kho" }
+                new() { PermissionCode = "REPORT_VIEW", PermissionName = "Xem báo cáo", Description = "Xem báo cáo kinh doanh và tỷ lệ sử dụng kho" },
+                new() { PermissionCode = "POLICY_MANAGE", PermissionName = "Quản lý chính sách", Description = "Thiết lập chính sách thuê, khung giá, phí, giảm giá và miễn phí" },
+                new() { PermissionCode = "REPORT_SYSTEM", PermissionName = "Xem báo cáo toàn hệ thống", Description = "Xem doanh thu và hiệu suất của mọi cơ sở" },
+                new() { PermissionCode = "REPORT_EXPORT", PermissionName = "Xuất báo cáo", Description = "Xuất báo cáo toàn hệ thống ra tệp CSV" }
             };
             context.Permissions.AddRange(permissions);
             await context.SaveChangesAsync();
@@ -60,209 +78,100 @@ public static class DbSeeder
             await context.SaveChangesAsync();
         }
 
+        // Ensure STAFF, MANAGER, OPERATIONS & BUSINESS_OPERATOR permissions
+        var allPermsList = await context.Permissions.ToListAsync();
+        var staffPermCodes = new[] { "HANDOVER_MANAGE", "RETURN_MANAGE", "TICKET_MANAGE", "PAYMENT_CONFIRM" };
+        var managerPermCodes = new[] { "HANDOVER_MANAGE", "RETURN_MANAGE", "TICKET_MANAGE", "PAYMENT_CONFIRM", "UNIT_MANAGE", "ASSIGNMENT_MANAGE", "RENEWAL_MANAGE", "REPORT_VIEW" };
+        var bizOpPermCodes = new[] { "REPORT_VIEW", "AUDIT_LOG_VIEW", "FACILITY_MANAGE", "UNIT_MANAGE", "RENEWAL_MANAGE", "POLICY_MANAGE", "REPORT_SYSTEM", "REPORT_EXPORT" };
 
-        // 2. Users
-        if (!await context.Users.AnyAsync())
+        foreach (var code in staffPermCodes)
         {
-            var adminUser = new User
+            var p = allPermsList.FirstOrDefault(x => x.PermissionCode == code);
+            if (p != null && !await context.RolePermissions.AnyAsync(rp => rp.RoleId == staffRole.RoleId && rp.PermissionId == p.PermissionId))
             {
-                Username = "admin",
-                Email = "admin@storage.vn",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
-                FullName = "Hệ Thống Admin",
-                Phone = "0900000001",
-                Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            var staffUser = new User
-            {
-                Username = "staff01",
-                Email = "staff01@storage.vn",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Staff@123"),
-                FullName = "Trần Nhân Viên",
-                Phone = "0900000002",
-                Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            var customer01 = new User
-            {
-                Username = "customer01",
-                Email = "an.nguyen@example.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Customer@123"),
-                FullName = "Nguyễn Văn An",
-                Phone = "0901234567",
-                Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            var customer02 = new User
-            {
-                Username = "customer02",
-                Email = "mai.tran@example.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Customer@123"),
-                FullName = "Trần Thị Mai",
-                Phone = "0912345678",
-                Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            context.Users.AddRange(adminUser, staffUser, customer01, customer02);
-            await context.SaveChangesAsync();
-
-            // Assign User Roles
-            context.UserRoles.AddRange(
-                new UserRole { UserId = adminUser.UserId, RoleId = adminRole.RoleId, AssignedAt = DateTime.UtcNow },
-                new UserRole { UserId = staffUser.UserId, RoleId = staffRole.RoleId, AssignedAt = DateTime.UtcNow },
-                new UserRole { UserId = customer01.UserId, RoleId = customerRole.RoleId, AssignedAt = DateTime.UtcNow },
-                new UserRole { UserId = customer02.UserId, RoleId = customerRole.RoleId, AssignedAt = DateTime.UtcNow }
-            );
-            await context.SaveChangesAsync();
+                context.RolePermissions.Add(new RolePermission { RoleId = staffRole.RoleId, PermissionId = p.PermissionId });
+            }
         }
-
-        var admin = await context.Users.FirstAsync(u => u.Username == "admin");
-        var staff = await context.Users.FirstAsync(u => u.Username == "staff01");
-        var cust1 = await context.Users.FirstAsync(u => u.Username == "customer01");
-
-        // 3. Facilities
-        if (!await context.Facilities.AnyAsync())
+        foreach (var code in managerPermCodes)
         {
-            var fac1 = new Facility
+            var p = allPermsList.FirstOrDefault(x => x.PermissionCode == code);
+            if (p != null && !await context.RolePermissions.AnyAsync(rp => rp.RoleId == managerRole.RoleId && rp.PermissionId == p.PermissionId))
             {
-                Name = "SSFRMS Chi nhánh Tân Bình",
-                Address = "123 Hoàng Hoa Thám, Phường 13, Quận Tân Bình, TP. Hồ Chí Minh",
-                ContactPhone = "02838112233",
-                OpeningTime = new TimeOnly(7, 0),
-                ClosingTime = new TimeOnly(22, 0),
-                Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            var fac2 = new Facility
-            {
-                Name = "SSFRMS Chi nhánh Quận 7",
-                Address = "456 Nguyễn Thị Thập, Phường Tân Quy, Quận 7, TP. Hồ Chí Minh",
-                ContactPhone = "02837778899",
-                OpeningTime = new TimeOnly(6, 0),
-                ClosingTime = new TimeOnly(23, 0),
-                Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            context.Facilities.AddRange(fac1, fac2);
-            await context.SaveChangesAsync();
+                context.RolePermissions.Add(new RolePermission { RoleId = managerRole.RoleId, PermissionId = p.PermissionId });
+            }
         }
-
-        var tanBinhFac = await context.Facilities.FirstAsync(f => f.Name.Contains("Tân Bình"));
-        var quan7Fac = await context.Facilities.FirstAsync(f => f.Name.Contains("Quận 7"));
-
-        // 4. Unit Types
-        if (!await context.UnitTypes.AnyAsync())
+        foreach (var code in bizOpPermCodes)
         {
-            var types = new List<UnitType>
+            var p = allPermsList.FirstOrDefault(x => x.PermissionCode == code);
+            if (p != null)
             {
-                new()
+                if (!await context.RolePermissions.AnyAsync(rp => rp.RoleId == businessOpRole.RoleId && rp.PermissionId == p.PermissionId))
                 {
-                    TypeName = "Kho Mini S (1m x 1m)",
-                    Length = 1.0m,
-                    Width = 1.0m,
-                    Height = 2.5m,
-                    Area = 1.0m,
-                    ClimateControlled = false,
-                    Description = "Kho nhỏ tiết kiệm, phù hợp cất giữ vali, tài liệu, phụ kiện gia đình",
-                    Status = "ACTIVE",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                },
-                new()
-                {
-                    TypeName = "Kho Tiêu Chuẩn M (2m x 2m)",
-                    Length = 2.0m,
-                    Width = 2.0m,
-                    Height = 2.8m,
-                    Area = 4.0m,
-                    ClimateControlled = true,
-                    Description = "Kho điều hòa mát mẻ, phù hợp đồ nội thất, thiết bị điện tử, hàng shop online",
-                    Status = "ACTIVE",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                },
-                new()
-                {
-                    TypeName = "Kho Lớn L (3m x 3m)",
-                    Length = 3.0m,
-                    Width = 3.0m,
-                    Height = 3.0m,
-                    Area = 9.0m,
-                    ClimateControlled = true,
-                    Description = "Kho điều hòa sức chứa lớn, phù hợp lưu trữ đồ chuyển nhà 2-3 phòng ngủ",
-                    Status = "ACTIVE",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                },
-                new()
-                {
-                    TypeName = "Kho Doanh Nghiệp XL (4m x 4m)",
-                    Length = 4.0m,
-                    Width = 4.0m,
-                    Height = 3.2m,
-                    Area = 16.0m,
-                    ClimateControlled = true,
-                    Description = "Kho chuyên biệt cho doanh nghiệp lưu trữ tài liệu chứng từ hoặc kiện hàng thương mại",
-                    Status = "ACTIVE",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    context.RolePermissions.Add(new RolePermission { RoleId = businessOpRole.RoleId, PermissionId = p.PermissionId });
                 }
-            };
-
-            context.UnitTypes.AddRange(types);
-            await context.SaveChangesAsync();
+                if (!await context.RolePermissions.AnyAsync(rp => rp.RoleId == opsRole.RoleId && rp.PermissionId == p.PermissionId))
+                {
+                    context.RolePermissions.Add(new RolePermission { RoleId = opsRole.RoleId, PermissionId = p.PermissionId });
+                }
+            }
         }
+        await context.SaveChangesAsync();
 
-        var typeS = await context.UnitTypes.FirstAsync(t => t.TypeName.Contains("Kho Mini S"));
-        var typeM = await context.UnitTypes.FirstAsync(t => t.TypeName.Contains("Kho Tiêu Chuẩn M"));
-        var typeL = await context.UnitTypes.FirstAsync(t => t.TypeName.Contains("Kho Lớn L"));
-        var typeXL = await context.UnitTypes.FirstAsync(t => t.TypeName.Contains("Kho Doanh Nghiệp XL"));
-
-        // 5. Rental Rates
-        if (!await context.RentalRates.AnyAsync())
+        // 2. Users (Ensure essential admin, staff, manager, operator, and customer users)
+        async Task<User> EnsureUserAsync(string username, string email, string fullName, string phone, string plainPassword, Role role)
         {
-            var today = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30));
-            var rates = new List<RentalRate>
+            var u = await context.Users.FirstOrDefaultAsync(x => x.Username == username);
+            if (u == null)
             {
-                new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeS.UnitTypeId, SetBy = admin.UserId, MonthlyRate = 500000m, EffectiveFrom = today, Status = "ACTIVE", CreatedAt = DateTime.UtcNow },
-                new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeM.UnitTypeId, SetBy = admin.UserId, MonthlyRate = 1500000m, EffectiveFrom = today, Status = "ACTIVE", CreatedAt = DateTime.UtcNow },
-                new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeL.UnitTypeId, SetBy = admin.UserId, MonthlyRate = 3000000m, EffectiveFrom = today, Status = "ACTIVE", CreatedAt = DateTime.UtcNow },
-                new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeS.UnitTypeId, SetBy = admin.UserId, MonthlyRate = 550000m, EffectiveFrom = today, Status = "ACTIVE", CreatedAt = DateTime.UtcNow },
-                new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeM.UnitTypeId, SetBy = admin.UserId, MonthlyRate = 1600000m, EffectiveFrom = today, Status = "ACTIVE", CreatedAt = DateTime.UtcNow },
-                new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeL.UnitTypeId, SetBy = admin.UserId, MonthlyRate = 3200000m, EffectiveFrom = today, Status = "ACTIVE", CreatedAt = DateTime.UtcNow },
-                new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeXL.UnitTypeId, SetBy = admin.UserId, MonthlyRate = 5500000m, EffectiveFrom = today, Status = "ACTIVE", CreatedAt = DateTime.UtcNow },
-            };
+                u = new User
+                {
+                    Username = username,
+                    Email = email,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(plainPassword),
+                    FullName = fullName,
+                    Phone = phone,
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                context.Users.Add(u);
+                await context.SaveChangesAsync();
+            }
 
-            context.RentalRates.AddRange(rates);
-            await context.SaveChangesAsync();
+            if (!await context.UserRoles.AnyAsync(ur => ur.UserId == u.UserId && ur.RoleId == role.RoleId))
+            {
+                context.UserRoles.Add(new UserRole { UserId = u.UserId, RoleId = role.RoleId, AssignedAt = DateTime.UtcNow });
+                await context.SaveChangesAsync();
+            }
+            return u;
         }
 
-        // 6. Policies
+        var admin = await EnsureUserAsync("admin", "admin@storage.vn", "Hệ Thống Admin", "0900000001", "Admin@123", adminRole);
+        var staff = await EnsureUserAsync("staff01", "staff01@storage.vn", "Trần Nhân Viên", "0900000002", "Staff@123", staffRole);
+        var cust1 = await EnsureUserAsync("customer01", "an.nguyen@example.com", "Nguyễn Văn An", "0901234567", "Customer@123", customerRole);
+        var cust2 = await EnsureUserAsync("customer02", "mai.tran@example.com", "Trần Thị Mai", "0912345678", "Customer@123", customerRole);
+
+        // 2b. Vai trò Quản lý vận hành KD (OPERATIONS & BUSINESS_OPERATOR) + tài khoản ops01
+        await EnsureOperationsRoleAsync(context);
+
+        // 2c. Quyền của STAFF / MANAGER + tài khoản manager01, staff02 (BACKEND-TODO A1)
+        await EnsureFacilityRolesAsync(context);
+
+        // 3. Danh mục kho theo D17: 4 loại kho, 12 cơ sở, mỗi cơ sở 12 ô + bảng giá
+        var catalog = await EnsureCatalogAsync(context, admin.UserId);
+
+        // 4. Policies
         if (!await context.Policies.AnyAsync())
         {
             var policies = new List<Policy>
             {
                 new()
                 {
-                    CreatedBy = admin.UserId,
-                    PolicyName = "Chính sách tiền đặt cọc thuê kho",
+                    PolicyName = "Tiền đặt cọc tiêu chuẩn",
                     PolicyType = "DEPOSIT",
-                    CalculationType = "FIXED",
-                    Value = 1.0m, // 1 tháng
-                    RuleDescription = "Yêu cầu khách hàng đặt cọc tương đương 1 tháng tiền thuê khi ký hợp đồng",
+                    CalculationType = "PERCENTAGE",
+                    Value = 100.0m, // 100% của 1 tháng tiền thuê
+                    RuleDescription = "Khách hàng phải thanh toán tiền cọc tương đương 1 tháng tiền thuê khi ký hợp đồng",
                     EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
                     Status = "ACTIVE",
                     CreatedAt = DateTime.UtcNow,
@@ -270,7 +179,30 @@ public static class DbSeeder
                 },
                 new()
                 {
-                    CreatedBy = admin.UserId,
+                    PolicyName = "Phí hủy đặt chỗ",
+                    PolicyType = "CANCELLATION",
+                    CalculationType = "PERCENTAGE",
+                    Value = 0.0m, // Miễn phí hủy trước khi check-in
+                    RuleDescription = "Miễn phí hủy đơn đặt chỗ trước thời điểm bắt đầu thuê",
+                    EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new()
+                {
+                    PolicyName = "Phí phạt quá hạn thanh toán",
+                    PolicyType = "OVERDUE",
+                    CalculationType = "PERCENTAGE",
+                    Value = 5.0m, // 5% mỗi tuần trễ hạn
+                    RuleDescription = "Tính phí phạt 5% trên số tiền nợ cho mỗi tuần quá hạn",
+                    EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new()
+                {
                     PolicyName = "Thời gian giữ chỗ đặt trước",
                     PolicyType = "RENEWAL",
                     CalculationType = "FIXED",
@@ -283,276 +215,120 @@ public static class DbSeeder
                 }
             };
 
+            foreach (var policy in policies)
+            {
+                policy.CreatedBy = admin.UserId;
+            }
+
             context.Policies.AddRange(policies);
             await context.SaveChangesAsync();
         }
 
-        // 7. Storage Units
-        if (!await context.StorageUnits.AnyAsync())
+        // 5. Phân công cơ sở (SRS A06: mỗi nhân viên / quản lý 1 cơ sở)
+        await EnsureFacilityAssignmentsAsync(context, catalog.Home.FacilityId, admin.UserId);
+
+        // Phân công cơ sở cho ops01
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var opUser = await context.Users.FirstOrDefaultAsync(u => u.Username == "ops01");
+        if (opUser != null && !await context.UserFacilities.AnyAsync(uf => uf.UserId == opUser.UserId && uf.FacilityId == catalog.Home.FacilityId))
         {
-            var units = new List<StorageUnit>
+            context.UserFacilities.Add(new UserFacility
             {
-                // Tân Bình
-                new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeS.UnitTypeId, UnitNumber = "TB-S-101", Floor = "Tầng 1", Zone = "Khu A", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeS.UnitTypeId, UnitNumber = "TB-S-102", Floor = "Tầng 1", Zone = "Khu A", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeM.UnitTypeId, UnitNumber = "TB-M-103", Floor = "Tầng 1", Zone = "Khu B", Status = "OCCUPIED", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeM.UnitTypeId, UnitNumber = "TB-M-104", Floor = "Tầng 1", Zone = "Khu B", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeL.UnitTypeId, UnitNumber = "TB-L-201", Floor = "Tầng 2", Zone = "Khu C", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { FacilityId = tanBinhFac.FacilityId, UnitTypeId = typeL.UnitTypeId, UnitNumber = "TB-L-202", Floor = "Tầng 2", Zone = "Khu C", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-
-                // Quận 7
-                new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeS.UnitTypeId, UnitNumber = "Q7-S-101", Floor = "Tầng 1", Zone = "Khu 1", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeS.UnitTypeId, UnitNumber = "Q7-S-102", Floor = "Tầng 1", Zone = "Khu 1", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeM.UnitTypeId, UnitNumber = "Q7-M-103", Floor = "Tầng 1", Zone = "Khu 2", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeM.UnitTypeId, UnitNumber = "Q7-M-104", Floor = "Tầng 1", Zone = "Khu 2", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeL.UnitTypeId, UnitNumber = "Q7-L-201", Floor = "Tầng 2", Zone = "Khu 3", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-                new() { FacilityId = quan7Fac.FacilityId, UnitTypeId = typeXL.UnitTypeId, UnitNumber = "Q7-XL-301", Floor = "Tầng 3", Zone = "Khu VIP", Status = "AVAILABLE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            };
-
-            context.StorageUnits.AddRange(units);
-            await context.SaveChangesAsync();
-        }
-
-        // 7b. Mạng lưới 12 cơ sở SafeSpace theo thiết kế Figma.
-        //     Chạy lại nhiều lần vẫn an toàn: chỉ thêm cơ sở / bảng giá / phòng kho còn thiếu,
-        //     nên database đã tạo từ trước cũng được bổ sung khi khởi động lại API.
-        await SeedSafeSpaceNetworkAsync(context, admin.UserId, typeS, typeM, typeL, typeXL);
-
-        // 8. Sample Customer Data (Reservation, Contract, Payment, SupportTicket for customer01)
-        if (!await context.Reservations.AnyAsync())
-        {
-            var occupiedUnit = await context.StorageUnits.FirstAsync(u => u.UnitNumber == "TB-M-103");
-
-            // Reservation 1: Converted to Contract
-            var startDate1 = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-15));
-            var endDate1 = startDate1.AddMonths(3);
-
-            var res1 = new Reservation
-            {
-                CustomerId = cust1.UserId,
-                FacilityId = tanBinhFac.FacilityId,
-                UnitTypeId = typeM.UnitTypeId,
-                StartDate = startDate1,
-                ExpectedEndDate = endDate1,
-                RentalPeriodMonths = 3,
-                QuotedMonthlyRate = 1500000m,
-                EstimatedAmount = 4500000m,
-                RequiredDeposit = 1500000m,
-                Status = "CHECKED_IN",
-                CreatedAt = DateTime.UtcNow.AddDays(-16),
-                ExpiresAt = DateTime.UtcNow.AddDays(-15)
-            };
-            context.Reservations.Add(res1);
-            await context.SaveChangesAsync();
-
-            // Contract for Reservation 1
-            var contract = new RentalContract
-            {
-                ReservationId = res1.ReservationId,
-                CustomerId = cust1.UserId,
-                UnitId = occupiedUnit.UnitId,
-                StartDate = startDate1,
-                EndDate = endDate1,
-                AgreedMonthlyRate = 1500000m,
-                DepositAmount = 1500000m,
+                UserId = opUser.UserId,
+                FacilityId = catalog.Home.FacilityId,
+                AssignedBy = admin.UserId,
+                AssignedFrom = today.AddDays(-30),
                 Status = "ACTIVE",
-                CreatedAt = DateTime.UtcNow.AddDays(-15),
-                ActivatedAt = DateTime.UtcNow.AddDays(-15)
-            };
-            context.RentalContracts.Add(contract);
-            await context.SaveChangesAsync();
-
-            // Handover Record
-            var handover = new HandoverRecord
-            {
-                ContractId = contract.ContractId,
-                StaffId = staff.UserId,
-                InitialCondition = "Kho sạch sẽ, hệ thống điều hòa hoạt động tốt, đã bàn giao khóa",
-                ScheduledAt = DateTime.UtcNow.AddDays(-15),
-                HandoverAt = DateTime.UtcNow.AddDays(-15),
-                CustomerConfirmed = true,
-                StaffConfirmed = true,
-                Status = "HANDED_OVER",
-                CreatedAt = DateTime.UtcNow.AddDays(-15)
-            };
-            context.HandoverRecords.Add(handover);
-
-            // Payments (Deposit + Rent)
-            var depositPayment = new Payment
-            {
-                ContractId = contract.ContractId,
-                PaymentType = "DEPOSIT",
-                Amount = 1500000m,
-                Currency = "VND",
-                PaymentMethod = "BANK_TRANSFER",
-                TransactionReference = "VNPAY-DEP-10001",
-                DueDate = startDate1,
-                PaidAt = DateTime.UtcNow.AddDays(-15),
-                Status = "PAID",
-                CreatedAt = DateTime.UtcNow.AddDays(-15),
-                UpdatedAt = DateTime.UtcNow.AddDays(-15)
-            };
-
-            var rentPayment = new Payment
-            {
-                ContractId = contract.ContractId,
-                PaymentType = "RENT",
-                Amount = 1500000m,
-                Currency = "VND",
-                PaymentMethod = "BANK_TRANSFER",
-                TransactionReference = "VNPAY-RENT-10002",
-                DueDate = startDate1,
-                PaidAt = DateTime.UtcNow.AddDays(-15),
-                Status = "PAID",
-                CreatedAt = DateTime.UtcNow.AddDays(-15),
-                UpdatedAt = DateTime.UtcNow.AddDays(-15)
-            };
-
-            context.Payments.AddRange(depositPayment, rentPayment);
-
-            // Support Ticket
-            var ticket = new SupportTicket
-            {
-                CustomerId = cust1.UserId,
-                ContractId = contract.ContractId,
-                UnitId = occupiedUnit.UnitId,
-                IssueType = "UNIT",
-                Title = "Kiểm tra nhiệt độ phòng kho",
-                Description = "Nhờ nhân viên kiểm tra lại nhiệt độ kho TB-M-103 vào buổi trưa",
-                Priority = "NORMAL",
-                Status = "OPEN",
-                CreatedAt = DateTime.UtcNow.AddDays(-2)
-            };
-            context.SupportTickets.Add(ticket);
-
-            // Reservation 2: Pending payment for customer01
-            var startDate2 = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5));
-            var res2 = new Reservation
-            {
-                CustomerId = cust1.UserId,
-                FacilityId = tanBinhFac.FacilityId,
-                UnitTypeId = typeS.UnitTypeId,
-                StartDate = startDate2,
-                ExpectedEndDate = startDate2.AddMonths(1),
-                RentalPeriodMonths = 1,
-                QuotedMonthlyRate = 500000m,
-                EstimatedAmount = 500000m,
-                RequiredDeposit = 500000m,
-                Status = "PENDING_PAYMENT",
-                CreatedAt = DateTime.UtcNow,
-                ExpiresAt = DateTime.UtcNow.AddHours(24)
-            };
-            context.Reservations.Add(res2);
-
+                CreatedAt = DateTime.UtcNow
+            });
             await context.SaveChangesAsync();
         }
+        await context.SaveChangesAsync();
     }
 
     // ------------------------------------------------------------------------------------------
-    // Mạng lưới cơ sở SafeSpace (Figma C02 / Trang chủ)
-    // RateM = giá kho Tiêu Chuẩn M; các loại khác tính theo tỉ lệ (S ≈ 40%, L = 2×, XL = 3,5×).
+    // Quản lý vận hành kinh doanh (SRS: Business Operations Manager — UC19–UC23)
     // ------------------------------------------------------------------------------------------
-    private sealed record SeedFacility(string Code, string Name, string Address, string Phone, int OpenHour, int CloseHour, decimal RateM, bool HasXL);
-
-    private static readonly SeedFacility[] SafeSpaceNetwork =
-    [
-        new("NLB", "SafeSpace Nguyễn Lương Bằng", "12 Nguyễn Lương Bằng, Phường Tân Phú, Quận 7, TP. Hồ Chí Minh", "02837001012", 6, 22, 1150000m, true),
-        new("HL", "SafeSpace Him Lam", "Khu dân cư Him Lam, Phường Tân Hưng, Quận 7, TP. Hồ Chí Minh", "02837001013", 6, 22, 1050000m, false),
-        new("PX", "SafeSpace Phú Xuân", "Đường Nguyễn Hữu Thọ, Xã Phú Xuân, Huyện Nhà Bè, TP. Hồ Chí Minh", "02837001014", 6, 22, 890000m, false),
-        new("TT", "SafeSpace Tân Thuận", "Đường Huỳnh Tấn Phát, Phường Tân Thuận Đông, Quận 7, TP. Hồ Chí Minh", "02837001015", 6, 22, 1100000m, true),
-        new("PMH", "SafeSpace Phú Mỹ Hưng", "Đường Nguyễn Văn Linh, Phường Tân Phong, Quận 7, TP. Hồ Chí Minh", "02837001016", 6, 22, 1250000m, true),
-        new("BT", "SafeSpace Bình Thạnh", "Đường Nguyễn Xí, Phường 26, Quận Bình Thạnh, TP. Hồ Chí Minh", "02837001017", 6, 22, 980000m, false),
-        new("NB", "SafeSpace Nhà Bè", "Đường Huỳnh Tấn Phát, Thị trấn Nhà Bè, Huyện Nhà Bè, TP. Hồ Chí Minh", "02837001018", 6, 22, 850000m, false),
-        new("BC", "SafeSpace Bình Chánh", "Quốc lộ 50, Xã Bình Hưng, Huyện Bình Chánh, TP. Hồ Chí Minh", "02837001019", 6, 22, 790000m, true),
-        new("TD", "SafeSpace Thủ Đức", "Đường Võ Văn Ngân, Phường Linh Chiểu, TP. Thủ Đức, TP. Hồ Chí Minh", "02837001020", 6, 22, 920000m, false),
-        new("GV", "SafeSpace Gò Vấp", "Đường Quang Trung, Phường 10, Quận Gò Vấp, TP. Hồ Chí Minh", "02837001021", 6, 22, 930000m, false),
-    ];
-
-    private static decimal RoundRate(decimal value) => Math.Round(value / 10000m, MidpointRounding.AwayFromZero) * 10000m;
-
-    private static async Task SeedSafeSpaceNetworkAsync(AppDbContext context, long adminId, UnitType typeS, UnitType typeM, UnitType typeL, UnitType typeXL)
+    private static async Task EnsureOperationsRoleAsync(AppDbContext context)
     {
-        // Đổi tên 2 cơ sở seed ban đầu sang thương hiệu SafeSpace (chỉ đổi khi còn tên cũ)
-        var renames = new Dictionary<string, string>
+        var opsRole = await context.Roles.FirstOrDefaultAsync(r => r.RoleName == "OPERATIONS");
+        if (opsRole == null)
         {
-            ["SSFRMS Chi nhánh Tân Bình"] = "SafeSpace Tân Bình",
-            ["SSFRMS Chi nhánh Quận 7"] = "SafeSpace Quận 7",
-        };
-        var oldNames = renames.Keys.ToList();
-        var toRename = await context.Facilities.Where(f => oldNames.Contains(f.Name)).ToListAsync();
-        foreach (var f in toRename)
-        {
-            f.Name = renames[f.Name];
-            f.UpdatedAt = DateTime.UtcNow;
+            opsRole = new Role { RoleName = "OPERATIONS", Description = "Quản lý vận hành kinh doanh toàn hệ thống" };
+            context.Roles.Add(opsRole);
+            await context.SaveChangesAsync();
         }
-        if (toRename.Count > 0) await context.SaveChangesAsync();
 
-        var effectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30));
-
-        foreach (var seed in SafeSpaceNetwork)
+        var bizOpRole = await context.Roles.FirstOrDefaultAsync(r => r.RoleName == "BUSINESS_OPERATOR");
+        if (bizOpRole == null)
         {
-            var facility = await context.Facilities.FirstOrDefaultAsync(f => f.Name == seed.Name);
-            if (facility == null)
-            {
-                facility = new Facility
-                {
-                    Name = seed.Name,
-                    Address = seed.Address,
-                    ContactPhone = seed.Phone,
-                    OpeningTime = new TimeOnly(seed.OpenHour, 0),
-                    ClosingTime = new TimeOnly(seed.CloseHour, 0),
-                    Status = "ACTIVE",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                context.Facilities.Add(facility);
-                await context.SaveChangesAsync();
-            }
+            bizOpRole = new Role { RoleName = "BUSINESS_OPERATOR", Description = "Quản lý vận hành kinh doanh toàn hệ thống" };
+            context.Roles.Add(bizOpRole);
+            await context.SaveChangesAsync();
+        }
 
-            // (loại kho, giá/tháng, số phòng, ký hiệu, số phòng bắt đầu, tầng, khu)
-            var plan = new List<(UnitType Type, decimal Rate, int Count, string Size, int FirstNo, string Floor, string Zone)>
+        var newPermissions = new List<Permission>
+        {
+            new() { PermissionCode = "POLICY_MANAGE", PermissionName = "Quản lý chính sách", Description = "Thiết lập chính sách thuê, khung giá, phí, giảm giá và miễn phí" },
+            new() { PermissionCode = "REPORT_SYSTEM", PermissionName = "Xem báo cáo toàn hệ thống", Description = "Xem doanh thu và hiệu suất của mọi cơ sở" },
+            new() { PermissionCode = "REPORT_EXPORT", PermissionName = "Xuất báo cáo", Description = "Xuất báo cáo toàn hệ thống ra tệp CSV" }
+        };
+        foreach (var perm in newPermissions)
+        {
+            if (!await context.Permissions.AnyAsync(p => p.PermissionCode == perm.PermissionCode))
             {
-                (typeS, RoundRate(seed.RateM * 0.4m), 2, "S", 101, "Tầng 1", "Khu A"),
-                (typeM, seed.RateM, 2, "M", 111, "Tầng 1", "Khu B"),
-                (typeL, RoundRate(seed.RateM * 2m), 1, "L", 201, "Tầng 2", "Khu C"),
+                context.Permissions.Add(perm);
+            }
+        }
+        await context.SaveChangesAsync();
+
+        // ADMIN giữ toàn bộ quyền như thiết lập ban đầu
+        var adminRole = await context.Roles.FirstOrDefaultAsync(r => r.RoleName == "ADMIN");
+        var opsCodes = new[] { "FACILITY_MANAGE", "POLICY_MANAGE", "REPORT_VIEW", "REPORT_SYSTEM", "REPORT_EXPORT", "UNIT_MANAGE", "RENEWAL_MANAGE", "AUDIT_LOG_VIEW" };
+        var allPermissions = await context.Permissions.ToListAsync();
+        var existingPairs = await context.RolePermissions.Select(rp => new { rp.RoleId, rp.PermissionId }).ToListAsync();
+
+        foreach (var perm in allPermissions)
+        {
+            if (adminRole != null && !existingPairs.Any(x => x.RoleId == adminRole.RoleId && x.PermissionId == perm.PermissionId))
+            {
+                context.RolePermissions.Add(new RolePermission { RoleId = adminRole.RoleId, PermissionId = perm.PermissionId });
+            }
+            if (opsCodes.Contains(perm.PermissionCode))
+            {
+                if (!existingPairs.Any(x => x.RoleId == opsRole.RoleId && x.PermissionId == perm.PermissionId))
+                {
+                    context.RolePermissions.Add(new RolePermission { RoleId = opsRole.RoleId, PermissionId = perm.PermissionId });
+                }
+                if (!existingPairs.Any(x => x.RoleId == bizOpRole.RoleId && x.PermissionId == perm.PermissionId))
+                {
+                    context.RolePermissions.Add(new RolePermission { RoleId = bizOpRole.RoleId, PermissionId = perm.PermissionId });
+                }
+            }
+        }
+        await context.SaveChangesAsync();
+
+        // Ensure user ops01
+        var opsUser = await context.Users.FirstOrDefaultAsync(u => u.Username == "ops01");
+        if (opsUser == null)
+        {
+            opsUser = new User
+            {
+                Username = "ops01",
+                Email = "ops01@storage.vn",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Ops@123"),
+                FullName = "Lê Vận Hành",
+                Phone = "0900000004",
+                Status = "ACTIVE",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
-            if (seed.HasXL) plan.Add((typeXL, RoundRate(seed.RateM * 3.5m), 1, "XL", 301, "Tầng 3", "Khu D"));
-
-            foreach (var item in plan)
-            {
-                var hasRate = await context.RentalRates.AnyAsync(r => r.FacilityId == facility.FacilityId && r.UnitTypeId == item.Type.UnitTypeId);
-                if (!hasRate)
-                {
-                    context.RentalRates.Add(new RentalRate
-                    {
-                        FacilityId = facility.FacilityId,
-                        UnitTypeId = item.Type.UnitTypeId,
-                        SetBy = adminId,
-                        MonthlyRate = item.Rate,
-                        EffectiveFrom = effectiveFrom,
-                        Status = "ACTIVE",
-                        CreatedAt = DateTime.UtcNow
-                    });
-                }
-
-                for (var i = 0; i < item.Count; i++)
-                {
-                    var unitNumber = $"{seed.Code}-{item.Size}-{item.FirstNo + i}";
-                    var exists = await context.StorageUnits.AnyAsync(u => u.FacilityId == facility.FacilityId && u.UnitNumber == unitNumber);
-                    if (exists) continue;
-                    context.StorageUnits.Add(new StorageUnit
-                    {
-                        FacilityId = facility.FacilityId,
-                        UnitTypeId = item.Type.UnitTypeId,
-                        UnitNumber = unitNumber,
-                        Floor = item.Floor,
-                        Zone = item.Zone,
-                        Status = "AVAILABLE",
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
-                    });
-                }
-            }
+            context.Users.Add(opsUser);
+            await context.SaveChangesAsync();
+        }
+        if (!await context.UserRoles.AnyAsync(ur => ur.UserId == opsUser.UserId && ur.RoleId == opsRole.RoleId))
+        {
+            context.UserRoles.Add(new UserRole { UserId = opsUser.UserId, RoleId = opsRole.RoleId, AssignedAt = DateTime.UtcNow });
             await context.SaveChangesAsync();
         }
     }

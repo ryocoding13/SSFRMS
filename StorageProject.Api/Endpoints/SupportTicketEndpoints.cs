@@ -35,7 +35,9 @@ public static class SupportTicketEndpoints
                 var ticket = await ticketService.CreateTicketAsync(customerId, request, ct);
                 return Results.Created($"/api/tickets/{ticket.TicketId}", ticket);
             }
-            catch (InvalidOperationException ex)
+            // Code cũ: catch (InvalidOperationException ex)
+            // Báo dữ liệu đầu vào sai bằng HTTP 400.
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
                 return Results.BadRequest(new { error = ex.Message });
             }

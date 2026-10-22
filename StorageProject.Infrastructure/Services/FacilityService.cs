@@ -20,7 +20,9 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
                 f.ContactPhone,
                 f.OpeningTime != null ? f.OpeningTime.Value.ToString(@"hh\:mm") : null,
                 f.ClosingTime != null ? f.ClosingTime.Value.ToString(@"hh\:mm") : null,
-                f.Status
+                f.Status,
+                f.Latitude,
+                f.Longitude
             ))
             .ToListAsync(ct);
     }
@@ -41,7 +43,9 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
             f.ContactPhone,
             f.OpeningTime != null ? f.OpeningTime.Value.ToString(@"hh\:mm") : null,
             f.ClosingTime != null ? f.ClosingTime.Value.ToString(@"hh\:mm") : null,
-            f.Status
+            f.Status,
+            f.Latitude,
+            f.Longitude
         );
     }
 
@@ -94,7 +98,7 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
             .AsNoTracking()
             .Include(r => r.Facility)
             .Include(r => r.UnitType)
-            .Where(r => r.EffectiveFrom <= today && (r.EffectiveTo == null || r.EffectiveTo >= today));
+            .Where(r => r.Status == "ACTIVE" && r.EffectiveFrom <= today && (r.EffectiveTo == null || r.EffectiveTo >= today));
 
         if (facilityId.HasValue)
         {
@@ -134,6 +138,7 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
         var activeRate = await dbContext.RentalRates
             .Where(r => r.FacilityId == request.FacilityId 
                      && r.UnitTypeId == request.UnitTypeId 
+                     && r.Status == "ACTIVE"
                      && r.EffectiveFrom <= today 
                      && (r.EffectiveTo == null || r.EffectiveTo >= today))
             .OrderByDescending(r => r.EffectiveFrom)
@@ -152,26 +157,19 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
         var reservedUnitsCount = await dbContext.Reservations
             .CountAsync(r => r.FacilityId == request.FacilityId 
                           && r.UnitTypeId == request.UnitTypeId
-                          && (r.Status == "PENDING_PAYMENT" || r.Status == "CONFIRMED")
+                          && (r.Status == "CONFIRMED" || ((r.Status == "PENDING_PAYMENT" || r.Status == "PENDING_VERIFICATION" || r.Status == "PENDING_AT_FACILITY") && r.ExpiresAt > DateTime.UtcNow))
+                          && !r.UnitAssignments.Any(a => a.Status == "ACTIVE")
                           && r.StartDate < expectedEndDate
                           && r.ExpectedEndDate > request.StartDate, ct);
 
         var availableCount = Math.Max(0, totalMatchingUnits - reservedUnitsCount);
 
-        // Fetch deposit policy (default: 1 month of rent)
-        decimal depositMultiplier = 1;
-        var depositPolicy = await dbContext.Policies
-            .Where(p => p.PolicyType == "DEPOSIT" &&
-                (p.FacilityId == request.FacilityId || p.FacilityId == null))
-            .FirstOrDefaultAsync(ct);
+        // Cọc theo chính sách DEPOSIT đang áp dụng (BR20, BR21) — cùng cách tính với lúc tạo đơn đặt chỗ
+        var depositPolicy = await OpsRules.FindApplicablePolicyAsync(
+            dbContext, "DEPOSIT", request.FacilityId, request.UnitTypeId, today, ct);
 
-        if (depositPolicy?.Value.HasValue == true)
-        {
-            depositMultiplier = depositPolicy.Value.Value;
-        }
-
-        var requiredDeposit = monthlyRate * depositMultiplier;
         var estimatedTotalRent = monthlyRate * request.RentalPeriodMonths;
+        var requiredDeposit = OpsRules.CalculateDeposit(depositPolicy, monthlyRate, estimatedTotalRent);
 
         return new AvailabilityResultDto(
             facility.FacilityId,
@@ -189,4 +187,27 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
             availableCount > 0
         );
     }
+
+    public async Task<IReadOnlyList<FacilityUnitDto>> GetUnitsByFacilityIdAsync(long facilityId, CancellationToken ct = default)
+    {
+        return await dbContext.StorageUnits
+            .AsNoTracking()
+            .Include(u => u.UnitType)
+            .Where(u => u.FacilityId == facilityId && u.Status != "OUT_OF_SERVICE")
+            .OrderBy(u => u.UnitNumber)
+            .Select(u => new FacilityUnitDto(
+                u.UnitId,
+                u.FacilityId,
+                u.UnitTypeId,
+                u.UnitNumber,
+                u.Floor,
+                u.Zone,
+                u.LocationDescription,
+                u.UnitType.Area,
+                u.UnitType.ClimateControlled,
+                u.Status
+            ))
+            .ToListAsync(ct);
+    }
 }
+

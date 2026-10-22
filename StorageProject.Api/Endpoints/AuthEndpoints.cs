@@ -52,6 +52,57 @@ public static class AuthEndpoints
             return Results.Ok(new { message = "Đăng xuất thành công." });
         }).RequireAuthorization();
 
+        group.MapGet("/profile", async (ClaimsPrincipal user, IAuthService authService, CancellationToken ct) =>
+        {
+            try
+            {
+                var userId = StorageProject.Api.Extensions.ClaimsPrincipalExtensions.GetUserId(user);
+                var profile = await authService.GetUserProfileAsync(userId, ct);
+                return Results.Ok(profile);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return Results.NotFound(new { error = ex.Message });
+            }
+        }).RequireAuthorization();
+
+        group.MapPut("/profile", async (UpdateProfileRequest request, ClaimsPrincipal user, IAuthService authService, CancellationToken ct) =>
+        {
+            try
+            {
+                var userId = StorageProject.Api.Extensions.ClaimsPrincipalExtensions.GetUserId(user);
+                var profile = await authService.UpdateUserProfileAsync(userId, request, ct);
+                return Results.Ok(profile);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return Results.NotFound(new { error = ex.Message });
+            }
+            // Trả lỗi tên không hợp lệ để C13 hiển thị ngay trong biểu mẫu.
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        }).RequireAuthorization();
+
+        group.MapPost("/change-password", async (ChangePasswordRequest request, ClaimsPrincipal user, IAuthService authService, CancellationToken ct) =>
+        {
+            try
+            {
+                var userId = StorageProject.Api.Extensions.ClaimsPrincipalExtensions.GetUserId(user);
+                await authService.ChangePasswordAsync(userId, request, ct);
+                return Results.Ok(new { message = "Đổi mật khẩu thành công." });
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return Results.NotFound(new { error = ex.Message });
+            }
+        }).RequireAuthorization();
+
         return group;
     }
 }

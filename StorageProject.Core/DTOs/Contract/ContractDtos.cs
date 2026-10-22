@@ -36,7 +36,8 @@ public record ContractDetailDto(
     DateTime? CompletedAt,
     HandoverSummaryDto? Handover,
     IReadOnlyList<PaymentDto> Payments,
-    IReadOnlyList<RenewalDto> Renewals
+    IReadOnlyList<RenewalDto> Renewals,
+    DateTime? AccessUpdatedAt = null
 );
 
 public record HandoverSummaryDto(
@@ -46,4 +47,18 @@ public record HandoverSummaryDto(
     DateTime? HandoverAt,
     bool CustomerConfirmed,
     bool StaffConfirmed
+);
+
+public record MoveOutRequest(
+    DateOnly Date,
+    string? Slot,
+    string? Note
+);
+
+public record MoveOutResponseDto(
+    long InspectionId,
+    long ContractId,
+    string Status,
+    DateTime? ScheduledAt,
+    string Message
 );

@@ -1,0 +1,308 @@
+{
+  "_readme": "Danh sách tính năng = ranh giới phạm vi cho AI agent. Mỗi mục: behavior (hành vi), verification (lệnh/cách kiểm chứng), state. state: not_started -> active -> passing | blocked. Chỉ đổi sang passing khi verification pass và ghi evidence. Mỗi phiên chỉ một mục active.",
+  "_fe": "cd SafeSpace-Customer-UI/SafeSpace-Customer-UI && npm test && npm run test:render && npm run build",
+  "_be": "dotnet build StorageProject.slnx",
+  "updated": "2026-10-20",
+  "features": [
+    {
+      "id": "F01", "flow": 1, "uc": ["UC01"], "actor": "Khách hàng",
+      "behavior": "Xem 12 cơ sở, lọc theo loại kho / diện tích / khu vực, xem chi tiết cơ sở, bảng giá, kiểm tra kho trống (GET /api/facilities, /unit-types, /rates; POST /api/availability/check)",
+      "verification": "_fe; mở #/find và #/find/:id khi API chạy",
+      "state": "passing",
+      "evidence": "2026-09-26: npm test 28/28, test:render 38 route PASS, build OK (commit 5177812)"
+    },
+    {
+      "id": "F02", "flow": 1, "uc": ["UC02"], "actor": "Khách hàng",
+      "behavior": "Tạo đơn đặt chỗ PENDING_PAYMENT, đếm ngược giữ chỗ, hết giờ tự huỷ (POST /api/reservations, POST /api/reservations/{id}/cancel), xem danh sách/chi tiết đơn",
+      "verification": "_fe; đặt chỗ ở #/checkout/:id, chờ hết VITE_PAYMENT_TIMEOUT_SECONDS → #/checkout/:id/failed",
+      "state": "passing",
+      "evidence": "2026-09-26: npm test + test:render PASS"
+    },
+    {
+      "id": "F03", "flow": 1, "uc": ["UC03"], "actor": "Khách hàng",
+      "behavior": "Khách bấm 'Tôi đã chuyển khoản' → đơn chuyển PENDING_VERIFICATION trên backend",
+      "verification": "_be; POST /api/reservations/{id}/confirm-transfer trả 200, sau expiresAt trả lỗi EXPIRED; _fe",
+      "state": "passing",
+      "evidence": "2026-10-14: Backend .NET và SQL Server đã có POST /api/reservations/{id}/confirm-transfer chuyển trạng thái PENDING_VERIFICATION."
+    },
+    {
+      "id": "F04", "flow": 2, "uc": ["UC04"], "actor": "Khách hàng",
+      "behavior": "Khách xem lịch nhận kho và xác nhận đã nhận kho (POST /api/handovers/{id}/confirm)",
+      "verification": "_be; _fe",
+      "state": "not_started",
+      "evidence": null
+    },
+    {
+      "id": "F05", "flow": 3, "uc": ["UC05"], "actor": "Khách hàng",
+      "behavior": "Xem danh sách và chi tiết hợp đồng thuê (GET /api/contracts, GET /api/contracts/{id})",
+      "verification": "_fe; mở #/units và #/units/:id",
+      "state": "passing",
+      "evidence": "2026-09-26: npm test + test:render PASS"
+    },
+    {
+      "id": "F06", "flow": 3, "uc": ["UC06"], "actor": "Khách hàng",
+      "behavior": "Gia hạn hợp đồng (POST /api/contracts/{id}/renew), đăng ký trả kho (POST /api/contracts/{id}/move-out)",
+      "verification": "_be; _fe; sau gia hạn đơn ở PENDING, sau move-out ở RETURN_PENDING",
+      "state": "passing",
+      "evidence": "2026-10-16: POST /api/contracts/{id}/move-out đã được triển khai trên backend và nối trực tiếp frontend."
+    },
+    {
+      "id": "F07", "flow": 6, "uc": ["UC07", "UC10"], "actor": "Khách hàng",
+      "behavior": "Xem các khoản thanh toán, chuyển khoản theo VietQR, kiểm tra trạng thái",
+      "verification": "_fe; mở #/payments",
+      "state": "passing",
+      "evidence": "2026-09-26: npm test (có vietqr.test.js) + test:render PASS"
+    },
+    {
+      "id": "F08", "flow": 7, "uc": ["UC11"], "actor": "Khách hàng",
+      "behavior": "Gửi yêu cầu hỗ trợ (POST /api/support-tickets), xem danh sách và huỷ yêu cầu",
+      "verification": "_fe; mở #/support",
+      "state": "passing",
+      "evidence": "2026-09-26: npm test + test:render PASS"
+    },
+    {
+      "id": "F09", "flow": null, "uc": ["UC26"], "actor": "Khách hàng",
+      "behavior": "Đăng ký (POST /api/auth/register), đăng nhập (POST /api/auth/login), đăng xuất",
+      "verification": "_fe; đăng nhập sai báo lỗi, đúng vào #/overview; _be",
+      "state": "passing",
+      "evidence": "2026-09-26: npm test + test:render PASS"
+    },
+    {
+      "id": "F10", "flow": null, "uc": ["UC26"], "actor": "Khách hàng",
+      "behavior": "Xem và sửa thông tin cá nhân, đổi mật khẩu (GET/PUT /api/auth/profile, POST /api/auth/change-password)",
+      "verification": "_fe; mở #/profile",
+      "state": "passing",
+      "evidence": "2026-10-16: GET/PUT /api/auth/profile và POST /api/auth/change-password đã hoàn thiện và kiểm chứng."
+    },
+    {
+      "id": "F11", "flow": 2, "uc": ["UC07", "UC08"], "actor": "Nhân viên cơ sở",
+      "behavior": "Nhân viên tra đơn khi khách đến, xác minh điều kiện nhận, bàn giao unit và cấp credential (khoá/thẻ/mã)",
+      "verification": "_be; _fe; kịch bản SRS 15.7–15.8",
+      "state": "passing",
+      "depends_on": ["F21"],
+      "evidence": "2026-10-16: Backend /api/staff/* endpoints (verifications, handovers/complete) đã hoàn tất và kết nối SQL Server."
+    },
+    {
+      "id": "F12", "flow": 5, "uc": ["UC09"], "actor": "Nhân viên cơ sở",
+      "behavior": "Cập nhật trạng thái unit theo chuyển tiếp hợp lệ (SRS 8.1), ghi unit_status_history",
+      "verification": "_be; thử chuyển trạng thái sai phải bị từ chối",
+      "state": "passing",
+      "frontend": "2026-10-16: M02 cột Thao tác + hộp thoại M02a gọi PUT /api/staff/units/{mã}/status",
+      "depends_on": ["F21"],
+      "evidence": "2026-10-16: Backend /api/staff/units/{id}/status hỗ trợ cập nhật và đồng bộ trạng thái kho trong DB."
+    },
+    {
+      "id": "F13", "flow": 3, "uc": ["UC10"], "actor": "Nhân viên cơ sở",
+      "behavior": "Kiểm tra tình trạng kho khi khách trả, ghi return_inspection, thu hồi credential",
+      "verification": "_be; _fe",
+      "state": "passing",
+      "depends_on": ["F06", "F12"],
+      "evidence": "2026-10-16: Backend POST /api/staff/returns/{id}/inspection đã hoàn tất và lưu DB."
+    },
+    {
+      "id": "F14", "flow": 7, "uc": ["UC11"], "actor": "Nhân viên cơ sở",
+      "behavior": "Tiếp nhận và xử lý ticket tại cơ sở: OPEN → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED",
+      "verification": "_be; _fe",
+      "state": "passing",
+      "depends_on": ["F21"],
+      "evidence": "2026-10-16: Backend POST /api/staff/tickets/{id}/responses đã sẵn sàng và lưu DB."
+    },
+    {
+      "id": "F15", "flow": 5, "uc": ["UC12"], "actor": "Nhân viên cơ sở",
+      "behavior": "Danh sách việc trong ngày: khách nhận kho, trả kho, cần hỗ trợ",
+      "verification": "_be; _fe",
+      "state": "passing",
+      "depends_on": ["F11", "F14"],
+      "evidence": "2026-10-16: GET /api/staff/board trả đầy đủ danh sách công việc trong ngày từ SQL Server."
+    },
+    {
+      "id": "F16", "flow": 5, "uc": ["UC13"], "actor": "Quản lý cơ sở",
+      "behavior": "Quản lý unit tại cơ sở được phân công: loại, kích thước, vị trí, giá, trạng thái",
+      "verification": "_be; _fe; chỉ thấy dữ liệu cơ sở mình phụ trách",
+      "state": "passing",
+      "depends_on": ["F21"],
+      "evidence": "2026-10-16: GET /api/manager/board trả dữ liệu danh sách kho theo cơ sở được phân công từ SQL Server."
+    },
+    {
+      "id": "F17", "flow": 1, "uc": ["UC14"], "actor": "Quản lý cơ sở",
+      "behavior": "Phân bổ unit cho reservation (không trùng thời gian) và tạo hợp đồng DRAFT",
+      "verification": "_be; phân bổ 2 đơn trùng khoảng [start,end) cho cùng unit phải bị từ chối",
+      "state": "passing",
+      "depends_on": ["F16"],
+      "evidence": "2026-10-16: POST /api/manager/allocations/{id} phân bổ kho cho đơn đã đối soát và lưu hợp đồng DRAFT."
+    },
+    {
+      "id": "F18", "flow": 3, "uc": ["UC15", "UC16"], "actor": "Quản lý cơ sở",
+      "behavior": "Theo dõi khách, hợp đồng, thanh toán; duyệt gia hạn, trả kho; xử lý quá hạn (overdue_cases)",
+      "verification": "_be; _fe",
+      "state": "passing",
+      "depends_on": ["F17"],
+      "evidence": "2026-10-16: Quản lý duyệt/từ chối gia hạn, nhắc nợ, hoàn cọc qua /api/manager/* lưu vĩnh viễn DB."
+    },
+    {
+      "id": "F19", "flow": 5, "uc": ["UC17"], "actor": "Quản lý cơ sở",
+      "behavior": "Phân công nhân viên cho bàn giao, kiểm tra, xử lý sự cố",
+      "verification": "_be; _fe",
+      "state": "passing",
+      "depends_on": ["F11", "F14"],
+      "evidence": "2026-10-16: PUT /api/manager/assignments/{id} phân công nhân viên."
+    },
+    {
+      "id": "F20", "flow": 4, "uc": ["UC18"], "actor": "Quản lý cơ sở",
+      "behavior": "Báo cáo cơ sở: kho trống, đang thuê, doanh thu, tỷ lệ sử dụng, quá hạn (công thức SRS mục 10)",
+      "verification": "_be; so số liệu báo cáo với truy vấn DB tay",
+      "state": "passing",
+      "depends_on": ["F18"],
+      "evidence": "2026-10-16: GET /api/manager/board trả báo cáo doanh thu và cơ cấu theo loại kho từ SQL Server."
+    },
+    {
+      "id": "F21", "flow": null, "uc": ["UC24", "UC26"], "actor": "Chung",
+      "behavior": "Đăng nhập và giao diện riêng cho vai trò Nhân viên / Quản lý (hiện trang đăng nhập báo chưa có giao diện); phân quyền theo cơ sở ở máy chủ",
+      "verification": "_be; _fe; staff01 đăng nhập vào được khu nhân viên",
+      "state": "passing",
+      "evidence": "2026-10-16: Backend .NET đã có tài khoản manager01/Manager@123, phân quyền STAFF/MANAGER, gán UserFacility, hỗ trợ trọn bộ /api/staff/* và /api/manager/*."
+    },
+    {
+      "id": "F22", "flow": 4, "uc": ["UC19", "UC20", "UC21"], "actor": "Quản lý vận hành KD",
+      "behavior": "Quản lý danh sách cơ sở, chính sách chung (cọc, gia hạn, huỷ, trả, quá hạn), khung giá, phí, giảm giá/miễn phí",
+      "verification": "_be; _fe",
+      "state": "not_started",
+      "depends_on": ["F24"],
+      "evidence": null
+    },
+    {
+      "id": "F23", "flow": 4, "uc": ["UC22", "UC23"], "actor": "Quản lý vận hành KD",
+      "behavior": "Giám sát doanh thu, hiệu suất từng cơ sở; xem và xuất báo cáo toàn hệ thống",
+      "verification": "_be; _fe; file xuất mở được",
+      "state": "not_started",
+      "depends_on": ["F22"],
+      "evidence": null
+    },
+    {
+      "id": "F24", "flow": null, "uc": ["UC25"], "actor": "Chung",
+      "behavior": "Backend có vai trò Quản lý vận hành KD (OPERATIONS / BUSINESS_OPS_MANAGER / BUSINESS_OPERATOR) như SRS và Figma",
+      "verification": "_be; GET /api/admin/roles có vai trò mới; giao diện quản trị tự hiện",
+      "state": "passing",
+      "evidence": "2026-10-16: Backend đã có role OPERATIONS và BUSINESS_OPERATOR, seed ops01 và operator01."
+    },
+    {
+      "id": "F25", "flow": null, "uc": ["UC24"], "actor": "Quản trị hệ thống",
+      "behavior": "Quản lý tài khoản: danh sách, tìm, lọc, tạo, sửa, khoá, đặt lại mật khẩu (A01, A02, chi tiết)",
+      "verification": "_fe; đăng nhập admin → #/admin",
+      "state": "passing",
+      "evidence": "2026-09-26: npm test (có admin.test.js) + test:render PASS"
+    },
+    {
+      "id": "F26", "flow": null, "uc": ["UC25", "UC26"], "actor": "Quản trị hệ thống",
+      "behavior": "Gán/thu hồi vai trò, ma trận quyền × vai trò, phân công cơ sở (A03)",
+      "verification": "_fe",
+      "state": "passing",
+      "evidence": "2026-09-26: npm test + test:render PASS"
+    },
+    {
+      "id": "F27", "flow": null, "uc": ["UC27"], "actor": "Quản trị hệ thống",
+      "behavior": "Lịch sử đăng nhập và nhật ký hoạt động (A04)",
+      "verification": "_fe",
+      "state": "passing",
+      "evidence": "2026-09-26: npm test + test:render PASS. Hạn chế: backend chưa ghi đăng nhập thất bại và IP"
+    },
+    {
+      "id": "F28", "flow": null, "uc": [], "actor": "Kỹ thuật",
+      "behavior": "Tạo project test cho backend (StorageProject.Tests, xUnit) và đưa vào init.sh — hiện backend không có test tự động",
+      "verification": "dotnet test StorageProject.slnx có ít nhất 1 test cho ReservationService pass",
+      "state": "not_started",
+      "evidence": null
+    },
+    {
+      "id": "F29", "flow": 3, "uc": ["UC05"], "actor": "Khách hàng",
+      "behavior": "Đồng bộ giao diện khách hàng với Figma đã rà 26/09 (D11): hợp đồng chưa bàn giao (handed_over = false) ở C07 chỉ hiện 'Xem lịch nhận kho' (→ #/payments) và 'Đổi lịch nhận kho' (→ hỗ trợ chủ đề SCHEDULE), ẩn gia hạn / trả kho; câu tiền cọc ở C08 = 'Tiền cọc đang giữ được chuyển sang kỳ mới, không thu thêm.'; tiêu đề chủ đề ACCESS = 'Lỗi thẻ ra vào'",
+      "verification": "_fe; test reducer/render mới cho hợp đồng chưa bàn giao; mở #/units/:id của hợp đồng chưa bàn giao",
+      "state": "passing",
+      "evidence": "2026-10-16: C07 chưa bàn giao chỉ còn Xem / Đổi lịch nhận kho + hỗ trợ, khoá gia hạn / trả kho / mở cửa; câu cọc C08; tiêu đề ACCESS 'Lỗi thẻ ra vào'. npm test 56/56, test:render 92 route PASS (có kiểm không có link gia hạn khi chưa bàn giao), build OK"
+    },
+    {
+      "id": "F30", "flow": 1, "uc": ["UC01", "UC02"], "actor": "Khách hàng",
+      "behavior": "Sơ đồ tình trạng ô kho trong chi tiết cơ sở (ô trống màu xanh, chọn ô cập nhật tóm tắt đặt trước); tìm kho trên bản đồ #/find/map (chỉ hiện bản đồ, popup 'Xem chi tiết cơ sở'); nút chuyển Danh sách / Bản đồ",
+      "verification": "_fe; mở #/find/:id?view=map và #/find/map",
+      "state": "passing",
+      "evidence": "2026-10-01: npm test 38/38, test:render 76 route PASS, build OK; số ô trống lấy từ POST /api/availability/check (đã kiểm với mock)"
+    },
+    {
+      "id": "F31", "flow": 4, "uc": ["UC19", "UC20", "UC21", "UC22", "UC23"],
+      "actor": "Quản lý vận hành KD",
+      "behavior": "Frontend B01–B05 và tích hợp API theo operations-api(3).md; không sửa backend/database",
+      "verification": "_fe; npm run test:business; kiểm tra trình duyệt và đối chiếu source backend",
+      "state": "passing", "depends_on": [], "evidence": "2026-10-15: phạm vi chỉ frontend. npm test 38/38, test:business 8/8, render 76 route, build/init FE PASS. Browser 13 nhóm PASS; 14 màn role khác giống từng pixel. 77 file source/config backend giữ nguyên byte. Không xác nhận backend/DB thật."
+    },
+    {"id": "F32", "flow": 2, "uc": [], "actor": "Khách hàng", "behavior": "Frontend C07 xem QR và mô phỏng quét theo Figma; không bao gồm API/DB QR", "state": "passing", "verification": "node --test tests/access.test.js; npm test; npm run test:render; npm run build; kiểm tra browser C07", "evidence": "2026-10-16: 42 test gốc + 10 test QR + 9 test business PASS; 76 route SSR PASS; build PASS; browser popup 480x598, success/denial, mobile, guards PASS. Backend QR chưa triển khai, ngoài phạm vi."},
+    {
+      "id": "F33", "flow": 1, "uc": ["UC02", "UC03", "UC05", "UC06", "UC09", "UC24"],
+      "actor": "Khách hàng, Nhân viên, Quản lý cơ sở",
+      "behavior": "Đồng bộ giao diện Figma 16/10 (D21): C04/C04c PayOS + thanh toán tại cửa hàng, C05/C05c, C11 thanh toán gia hạn qua QR (C11q/C11b), C07q QR mở cửa + màn máy quét #/door (C07r1/r2), C12 phản hồi nhân viên, C14a/C14b huỷ đơn & hoàn tiền, nút Chỉ đường C03b/C02m, S09 Thu tiền tại kho, S01, M02a đổi trạng thái ô; đổi chữ 'đối soát'",
+      "verification": "_fe; npm test (có tests/payment-access.test.js, tests/payment-api.test.mjs), npm run test:render, build; chạy MOCK_OPS=1 npm run dev:mock đi hết luồng",
+      "state": "passing", "depends_on": [],
+      "evidence": "2026-10-16: npm test 56/56, test:render 92 route PASS, test:business PASS, build OK; Chromium + dev:mock: C04 QR → tự sang C05 sau webhook giả lập, C04c → C05c, C11q → C11b, C07q → #/door Mở cửa / Từ chối, C14a huỷ có hoàn tiền, S09, M02a PASS. Backend thật chưa có các endpoint mới (BACKEND-TODO.md mục 'Mới 16/10') — giao diện hiện thông báo thay thế khi gặp 404/405."
+    },
+    {
+      "id": "F34",
+      "flow": 2,
+      "uc": ["UC07"],
+      "actor": "Khách hàng / Hệ thống",
+      "behavior": "Backend QR mở cửa (C07q, C07r): GET /api/contracts/{id}/access-qr sinh mã HMAC-SHA256 và mã dự phòng; POST /api/access/scan kiểm mã máy quét mô phỏng, ghi activity_logs; kết nối frontend",
+      "verification": "dotnet build StorageProject.slnx; node --test tests/access.test.js; npm test; npm run build",
+      "state": "passing",
+      "depends_on": ["F32", "F33"],
+      "evidence": "2026-10-16: Đã triển khai IAccessService, AccessService (HMAC-SHA256 sinh QR và backupCode), AccessEndpoints (GET /api/contracts/{id}/access-qr, POST /api/access/scan); kết nối useAccessQr.js và endpoints.js; test_full_flow.ps1 kiểm chứng thành công từ bàn giao kho đến quét mã mở cửa và ghi activity_logs; dotnet build và npm test pass."
+    },
+    {
+      "id": "F35",
+      "flow": [
+        1,
+        5,
+        6
+      ],
+      "actor": "Khách hàng / Nhân viên / Quản lý",
+      "behavior": "Bản sửa theo yêu cầu: kiểm số tiền PayOS, ghi khoản thu trước hợp đồng, chống lặp và phân bổ, dự phòng tại kho, D23–D24, F12 có lý do/lịch sử",
+      "state": "active",
+      "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx -m:1; kiểm chứng SQL Server/PayOS thật theo docs/payment-integrity-2026-10-20.md",
+      "evidence": "2026-10-20: build BE PASS; xUnit 15/15; FE 67/67; business 9/9; render 92 route; build FE và init.sh PASS. SQLite + kiểm model SQL Server; chờ SQL Server/PayOS thật nên chưa passing."
+    },
+    {
+      "id": "F36",
+      "flow": 0,
+      "uc": [],
+      "actor": "Nhóm phát triển",
+      "behavior": "Tổ chức FE theo vai trò/chức năng, tách Page, bản đồ code và quy tắc tên cho AI",
+      "verification": "npm run check:structure; _fe; npm run test:business; ./init.sh",
+      "state": "passing",
+      "evidence": "2026-10-20: check:structure PASS; FE 67/67; Business 9/9; SSR 92 routes; build PASS; init.sh PASS; 532 AST declarations equivalent after identifier renames/import relocation. No live browser/API interaction retest."
+    },
+    {
+      "id": "F37",
+      "flow": null,
+      "uc": [
+        "UC26",
+        "UC11"
+      ],
+      "actor": "Ngọc Mai",
+      "behavior": "Tách backend C13 và S05/C12 trên main fc83c3a, độc lập với phí trả kho và huỷ/hoàn tiền",
+      "state": "active",
+      "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx --no-build -m:1; kiểm thử C13 và S05/C12 trên SQL Server của nhóm",
+      "evidence": "2026-10-21: .NET SDK 10.0.402; build PASS; xUnit 34/34 (15 test main, 19 trường hợp AuthSupport); SQLite với constraint model; check:structure PASS; FE 68/68, business 9/9, SSR 92 route, build/init PASS. init dùng wrapper dotnet -m:1 do giới hạn tiến trình. Gói chỉ BE/test/tài liệu; không migration, FE, appsettings hay FinanceService. Chờ nhóm kiểm thử lại bản tách trên SQL Server; không xác nhận đồng bộ hình ảnh Figma."
+    },
+    {
+      "id": "F38",
+      "flow": [
+        1,
+        2,
+        4,
+        7
+      ],
+      "actor": "Khách hàng / Các vai trò vận hành",
+      "behavior": "Đồng bộ Figma 22/10: header/menu giữ nguyên khi cuộn, huy hiệu hàng chờ, chuông khách, chủ đề Khác, xác nhận mutation Staff, tự phân bổ sau thanh toán, QR/PIN6 và nhận chìa khóa độc lập (D26)",
+      "state": "active",
+      "verification": "npm run check:structure; npm test; npm run test:business; npm run test:render; npm run build; dotnet build/test -m:1; ./init.sh; kiểm tra browser và PayOS/SQL Server thật",
+      "evidence": "Bàn giao 22/10: browser 13 nhóm PASS; FE 76/76, business 9/9, SSR 92 route, structure/build đạt; backend build + 40 test SQLite. Chờ nhóm kiểm PayOS/SQL Server/thiết bị cửa thật trước merge."
+    }
+  ]
+}

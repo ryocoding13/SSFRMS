@@ -212,6 +212,14 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal?>("Latitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
+                    b.Property<decimal?>("Longitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("decimal(9,6)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -234,6 +242,8 @@ namespace StorageProject.Infrastructure.Migrations
 
                     b.ToTable("facilities", null, t =>
                         {
+                            t.HasCheckConstraint("CK_facilities_coordinates", "([Latitude] IS NULL AND [Longitude] IS NULL) OR ([Latitude] BETWEEN -90 AND 90 AND [Longitude] BETWEEN -180 AND 180)");
+
                             t.HasCheckConstraint("CK_facilities_status", "[Status] IN ('ACTIVE','INACTIVE','TEMPORARILY_CLOSED')");
                         });
                 });
@@ -488,7 +498,7 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(15,2)");
 
-                    b.Property<long>("ContractId")
+                    b.Property<long?>("ContractId")
                         .HasColumnType("bigint");
 
                     b.Property<DateTime>("CreatedAt")
@@ -520,6 +530,9 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Property<long?>("RenewalId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("ReservationId")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -543,6 +556,10 @@ namespace StorageProject.Infrastructure.Migrations
                     b.HasIndex("TransactionReference")
                         .IsUnique()
                         .HasFilter("[TransactionReference] IS NOT NULL");
+
+                    b.HasIndex("ReservationId", "PaymentType")
+                        .IsUnique()
+                        .HasFilter("[ReservationId] IS NOT NULL AND [PaymentType] IN ('RENT','DEPOSIT')");
 
                     b.ToTable("payments", null, t =>
                         {
@@ -807,6 +824,10 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Property<DateTime?>("CheckInAppointmentAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("CheckoutUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -824,6 +845,23 @@ namespace StorageProject.Infrastructure.Migrations
 
                     b.Property<long>("FacilityId")
                         .HasColumnType("bigint");
+
+                    b.Property<long?>("OrderCode")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PaymentMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("PAYOS");
+
+                    b.Property<string>("PaymentQrUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<decimal>("QuotedMonthlyRate")
                         .HasColumnType("decimal(15,2)");
@@ -853,6 +891,10 @@ namespace StorageProject.Infrastructure.Migrations
 
                     b.HasIndex("FacilityId");
 
+                    b.HasIndex("OrderCode")
+                        .IsUnique()
+                        .HasFilter("[OrderCode] IS NOT NULL");
+
                     b.HasIndex("UnitTypeId");
 
                     b.ToTable("reservations", null, t =>
@@ -865,7 +907,7 @@ namespace StorageProject.Infrastructure.Migrations
 
                             t.HasCheckConstraint("CK_reservations_required_deposit", "[RequiredDeposit] >= 0");
 
-                            t.HasCheckConstraint("CK_reservations_status", "[Status] IN ('PENDING_PAYMENT','CONFIRMED','UNIT_ASSIGNED','CHECKED_IN','CANCELLED','EXPIRED','NO_SHOW')");
+                            t.HasCheckConstraint("CK_reservations_status", "[Status] IN ('PENDING_PAYMENT','PENDING_VERIFICATION','PENDING_AT_FACILITY','CONFIRMED','UNIT_ASSIGNED','CHECKED_IN','CANCELLED','EXPIRED','NO_SHOW')");
                         });
                 });
 
@@ -1131,7 +1173,7 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Property<DateTime>("AssignedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<long>("AssignedBy")
+                    b.Property<long?>("AssignedBy")
                         .HasColumnType("bigint");
 
                     b.Property<string>("Reason")
@@ -1541,17 +1583,23 @@ namespace StorageProject.Infrastructure.Migrations
                     b.HasOne("StorageProject.Core.Entities.RentalContract", "Contract")
                         .WithMany("Payments")
                         .HasForeignKey("ContractId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("StorageProject.Core.Entities.ContractRenewal", "Renewal")
                         .WithMany("Payments")
                         .HasForeignKey("RenewalId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("StorageProject.Core.Entities.Reservation", "Reservation")
+                        .WithMany()
+                        .HasForeignKey("ReservationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Contract");
 
                     b.Navigation("Renewal");
+
+                    b.Navigation("Reservation");
                 });
 
             modelBuilder.Entity("StorageProject.Core.Entities.Policy", b =>
@@ -1754,8 +1802,7 @@ namespace StorageProject.Infrastructure.Migrations
                     b.HasOne("StorageProject.Core.Entities.User", "AssignedByUser")
                         .WithMany()
                         .HasForeignKey("AssignedBy")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("StorageProject.Core.Entities.Reservation", "Reservation")
                         .WithMany("UnitAssignments")

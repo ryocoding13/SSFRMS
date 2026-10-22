@@ -1,15 +1,15 @@
 # Đối chiếu Figma ↔ code: Nhân viên cơ sở & Quản lý cơ sở
 
 Nguồn: file Figma "SafeSpace - Modern UI", section *SafeSpace · Nhân viên cơ sở* và *SafeSpace · Quản lý cơ sở*.
-Dữ liệu: `src/ops/data.js` (khởi tạo) · nghiệp vụ: `src/ops/reducer.js` (có test) · lưu: `src/ops/store.jsx`.
+Dữ liệu: `src/features/facility-operations/data/facilityOperationsSeed.js` (khởi tạo) · nghiệp vụ: `src/features/facility-operations/state/facilityOperationsReducer.js` (có test) · lưu: `src/features/facility-operations/state/FacilityOperationsProvider.jsx`.
 
 ## Nhân viên cơ sở (`#/staff`)
 
 | Figma | Route | Làm được gì |
 |---|---|---|
-| S01 Công việc trong ngày | `#/staff` | 3 số liệu + thẻ việc dạng **lưới 3x3** (9 thẻ / trang, phân trang); không có việc → S01-trống |
+| S01 Công việc trong ngày | `#/staff` | 3 số liệu (có "Chờ thu tiền tại kho") + thẻ việc dạng **lưới 3x3** (9 thẻ / trang, phân trang); không có việc → S01-trống |
 | S09a / S02a / S03a / S04a / S05a | `#/staff/reconcile` … `#/staff/support` (không có `?id`) | Mỗi tab là lưới 3x3 thẻ việc của tab đó; bấm thẻ mở màn xử lý; không có việc → thông báo trống (S09a-trống) |
-| S09 Đối soát thanh toán | `#/staff/reconcile?id=` (có `?id`) | Xác nhận đã thu / Báo sai lệch (bắt buộc ghi rõ) |
+| S09 Thu tiền tại kho | `#/staff/reconcile?id=` (có `?id`) | Đơn khách chọn "Thanh toán tại cửa hàng": số tiền, giữ chỗ đến, gồm thuê + cọc; "Xác nhận đã thu" (`POST /api/ops/payments/{id}/confirm`) / "Để sau". Đơn trả PayOS không vào đây |
 | S02 Xác minh khách hàng | `#/staff/verify?id=` | Loại + số giấy tờ (chỉ giữ 4 số cuối), 2 ô đối chiếu; xong chuyển sang bàn giao |
 | S03 Bàn giao kho | `#/staff/handover?id=` | Thẻ từ / Mã PIN / Vân tay; chặn khi chưa xác minh; kho → Đang hoạt động |
 | S04 Kiểm tra trả kho | `#/staff/return?id=` | 4 mục biên bản, gửi quản lý; kho → Chờ kiểm tra |
@@ -21,7 +21,7 @@ Dữ liệu: `src/ops/data.js` (khởi tạo) · nghiệp vụ: `src/ops/reducer
 | Figma | Route | Làm được gì |
 |---|---|---|
 | M01 Tổng quan | `#/manager` | 86 kho, tỷ lệ lấp đầy tính từ dữ liệu, doanh thu, "Cần xử lý" gom mọi việc tồn |
-| M02 Danh sách kho | `#/manager/units?tab=` | Lọc theo trạng thái, tìm mã kho / khách, phân trang 12 |
+| M02 / M02a Danh sách kho | `#/manager/units?tab=` | Lọc theo trạng thái (thêm "Bảo trì"), tìm mã kho / khách, phân trang 12; cột "Thao tác": "Đổi trạng thái" → hộp thoại M02a (Trống ↔ Bảo trì, Chờ kiểm tra → Trống / Bảo trì, bắt buộc lý do) — `PUT /api/ops/units/{code}/status` (F12) |
 | M05 Phân bổ kho | `#/manager/allocate?id=` | Chỉ hiện kho trống đúng loại + diện tích; phân bổ xong tạo lịch xác minh & bàn giao cho nhân viên |
 | M06 Phân công | `#/manager/assign` | Giao việc cho nhân viên (ca làm, số việc đang nhận) |
 | M03 Gia hạn | `#/manager/renewals` | Duyệt (cập nhật ngày hết hạn) / Từ chối (bắt buộc lý do) |

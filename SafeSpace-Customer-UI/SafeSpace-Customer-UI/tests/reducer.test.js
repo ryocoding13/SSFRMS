@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSeedData, createEmptyData } from "../src/data/seed.js";
-import { reduce, sweepExpired, validateRegister } from "../src/state/reducer.js";
-import { contractStatus, milestones } from "../src/state/selectors.js";
-import { quote, searchFacilities, rateFor } from "../src/lib/catalog.js";
-import { addMonths, maskPhone, formatCountdown } from "../src/lib/format.js";
+import { createSeedData, createEmptyData } from "../src/app/data/appSeed.js";
+import { reduce, sweepExpired, validateRegister } from "../src/app/state/appReducer.js";
+import { contractStatus, milestones } from "../src/app/state/appSelectors.js";
+import { quote, searchFacilities, rateFor } from "../src/shared/utils/catalog.js";
+import { addMonths, maskPhone, formatCountdown } from "../src/shared/utils/format.js";
 
 const NOW = new Date("2026-09-21T09:00:00");
 const T = "2026-09-21";
@@ -44,8 +44,11 @@ test("đặt chỗ: kiểm tra đầu vào", () => {
   const s = createSeedData(T);
   assert.match(book(s, { start_date: "2026-09-20" }).error.message, /quá khứ/);
   assert.match(book(s, { months: 2 }).error.message, /1, 3 hoặc 6/);
-  assert.match(book(s, { facility_id: 8, type: "climate" }).error.message, /chưa có loại kho/);
+  // Figma 14/10: cơ sở nào cũng có kho lạnh → giả lập một cơ sở thiếu loại kho để kiểm tra thông báo
+  const noCold = { ...s, facilities: s.facilities.map((f) => (f.facility_id === 8 ? { ...f, has_climate: false, offers: f.offers.filter((o) => o.type !== "climate") } : f)) };
+  assert.match(book(noCold, { facility_id: 8, type: "climate" }).error.message, /chưa có loại kho/);
   assert.match(book(s, { band: "X" }).error.message, /diện tích/);
+  assert.match(book(s, { band: "S" }).error.message, /diện tích/); // cỡ S đã bỏ, chỉ còn M và L
 });
 
 test("chuyển khoản trong hạn: chờ đối soát, sinh 2 khoản thu, thông báo", () => {
@@ -75,7 +78,8 @@ test("sweepExpired chỉ huỷ đơn chờ chuyển khoản đã quá hạn", ()
   assert.equal(sweepExpired(state, new Date(NOW.getTime() + 59000)), state);
   const swept = sweepExpired(state, new Date(NOW.getTime() + 60000));
   assert.equal(swept.reservations[0].status, "CANCELLED");
-  assert.equal(swept.reservations.filter((r) => r.status === "PENDING_VERIFICATION").length, 1);
+  // Đơn khác giữ nguyên (seed theo Figma C14: SS-0142 đã thanh toán QR → CONFIRMED)
+  assert.equal(swept.reservations.filter((r) => r.status === "CONFIRMED").length, 1);
 });
 
 test("gia hạn: chỉ 1 yêu cầu chờ duyệt, chặn trả kho song song, hiện ở khoản thu", () => {
@@ -84,7 +88,7 @@ test("gia hạn: chỉ 1 yêu cầu chờ duyệt, chặn trả kho song song, h
   assert.equal(a.state.renewals[0].status, "PENDING");
   assert.equal(a.state.renewals[0].new_end, addMonths(s.contracts[1].end_date, 3));
   assert.equal(a.state.ledger.at(-1).status, "RENEWAL_PENDING");
-  assert.equal(a.state.ledger.at(-1).amount, 3 * 500000);
+  assert.equal(a.state.ledger.at(-1).amount, 3 * 1380000); // B-015: kho lạnh cỡ M tại Nguyễn Lương Bằng
   assert.match(run(a.state, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 1 }).error.message, /đang chờ/);
   assert.match(run(a.state, "REQUEST_RETURN", { contract_id: "HĐ-2026-0086", date: T, slot: "09:00–09:30" }).error.message, /gia hạn/);
   assert.match(run(s, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 2 }).error.message, /1, 3 hoặc 6/);
@@ -138,12 +142,12 @@ test("nhân viên đối soát: tạo hợp đồng + lịch nhận kho, khoản
   assert.deepEqual(mine, ["DEPOSIT_HELD", "RECONCILED"]);
 });
 
-test("tìm cơ sở: lọc khu vực Quận 7 → 3 cơ sở; kho lạnh loại bỏ cơ sở không có; sắp xếp giá", () => {
+test("tìm cơ sở: lọc khu vực Quận 7 → 5 cơ sở; cả 12 cơ sở có kho lạnh; sắp xếp giá", () => {
   const s = createSeedData(T);
   const q7 = searchFacilities(s.facilities, { area: "Quận 7, TP. Hồ Chí Minh" });
-  assert.deepEqual(q7.map((f) => f.facility_id), [1, 2, 3]);
+  assert.deepEqual(q7.map((f) => f.facility_id), [1, 2, 3, 4, 5]);
   const cold = searchFacilities(s.facilities, { type: "climate" });
-  assert.ok(cold.every((f) => f.has_climate) && cold.length === 9);
+  assert.ok(cold.every((f) => f.has_climate) && cold.length === 12);
   const cheap = searchFacilities(s.facilities, { sort: "price" });
   assert.equal(cheap[0].facility_id, 8); // Bình Chánh 790.000
   assert.equal(rateFor(s.facilities[0], "normal", "M"), 1150000);
@@ -175,7 +179,7 @@ test("định dạng: che số điện thoại và đồng hồ đếm ngược"
 });
 
 test("VietQR: CRC16-CCITT đúng chuẩn và payload đủ trường NAPAS", async () => {
-  const { crc16, vietQrPayload, cleanContent } = await import("../src/lib/vietqr.js");
+  const { crc16, vietQrPayload, cleanContent } = await import("../src/shared/utils/vietqr.js");
   assert.equal(crc16("123456789"), "29B1"); // giá trị kiểm tra chuẩn của CRC-16/CCITT-FALSE
   const p = vietQrPayload({ bin: "970422", accountNo: "0901234567890", amount: 4600000, content: "SS-20260921-0143" });
   assert.ok(p.startsWith("000201010212"));
@@ -185,4 +189,49 @@ test("VietQR: CRC16-CCITT đúng chuẩn và payload đủ trường NAPAS", asy
   assert.ok(p.includes("0816SS-20260921-0143"));
   assert.equal(p.slice(-4), crc16(p.slice(0, -4)));
   assert.equal(cleanContent("Đơn #SS-01 thuê kho"), "Don SS-01 thue kho");
+});
+
+test("thanh toán tại cửa hàng (C04c): đơn chờ thu tiền, đánh dấu tại cửa hàng, thông báo giữ chỗ", () => {
+  const { state, result } = book(createSeedData(T));
+  const out = run(state, "PAY_AT_FACILITY", { reservation_id: result.reservation_id });
+  const r = out.state.reservations.find((x) => x.reservation_id === result.reservation_id);
+  assert.equal(r.status, "PENDING_VERIFICATION");
+  assert.equal(r.pay_at_facility, true);
+  assert.equal(r.expires_at, null);
+  assert.equal(out.state.notifications[0].title, "Đã giữ chỗ cho bạn");
+  // Hết giờ giữ chỗ QR thì không gửi được nữa
+  const late = run(state, "PAY_AT_FACILITY", { reservation_id: result.reservation_id }, new Date(NOW.getTime() + 61000));
+  assert.equal(late.error.code, "EXPIRED");
+});
+
+test("PayOS (C04 → C05): webhook báo đã trả → đơn xác nhận, sinh khoản thuê + cọc đã thanh toán", () => {
+  const { state, result } = book(createSeedData(T));
+  const out = run(state, "PAYOS_PAID", { reservation_id: result.reservation_id });
+  const r = out.state.reservations.find((x) => x.reservation_id === result.reservation_id);
+  assert.equal(r.status, "CONFIRMED");
+  const rows = out.state.ledger.filter((l) => l.reservation_id === result.reservation_id);
+  assert.deepEqual(rows.map((l) => l.status).sort(), ["DEPOSIT_HELD", "RECONCILED"]);
+  assert.equal(rows.reduce((s, l) => s + l.amount, 0), r.initial_total);
+  // Gọi lại (webhook gửi trùng) không ghi thêm
+  assert.equal(run(out.state, "PAYOS_PAID", { reservation_id: result.reservation_id }).state, out.state);
+});
+
+test("PayOS gia hạn (C11q → C11b): khoản gia hạn đã duyệt chuyển đã thanh toán, hợp đồng kéo dài", () => {
+  const s = createSeedData(T);
+  const row = s.ledger.find((l) => l.payable);
+  assert.equal(row.status, "UNPAID");
+  const out = run(s, "PAYOS_PAID", { ref: row.ref });
+  assert.equal(out.state.ledger.find((l) => l.ref === row.ref).status, "RECONCILED");
+  assert.equal(out.state.contracts.find((c) => c.contract_id === row.contract_id).end_date, row.period.to);
+});
+
+test("huỷ đơn (C14a): đơn đã thanh toán chưa nhận kho được huỷ và hoàn tiền trừ phí; đơn đã nhận kho thì không", () => {
+  const s = createSeedData(T);
+  const out = run(s, "CANCEL_RESERVATION", { reservation_id: "SS-20260914-0142", reason: "Đổi kế hoạch chuyển nhà" });
+  const r = out.state.reservations.find((x) => x.reservation_id === "SS-20260914-0142");
+  assert.equal(r.status, "CANCELLED");
+  assert.equal(r.refund_status, "PENDING");
+  assert.equal(r.refund_amount, 4600000 - 345000); // Figma C14a: phí huỷ 10% tiền thuê
+  assert.equal(out.state.contracts.find((c) => c.reservation_id === r.reservation_id).status, "ENDED");
+  assert.match(run(s, "CANCEL_RESERVATION", { reservation_id: "SS-20260615-0086" }).error.message, /nhận kho/);
 });

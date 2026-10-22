@@ -14,15 +14,15 @@ globalThis.document = { title: "", addEventListener() {}, removeEventListener() 
 process.env.VITE_USE_API = "false";
 const vite = await createServer({ root, server: { middlewareMode: true }, appType: "custom", logLevel: "error" });
 try {
-  const { default: App } = await vite.ssrLoadModule("/src/CustomerApp.jsx");
-  const { STORAGE_KEY } = await vite.ssrLoadModule("/src/state/store.jsx");
-  const { createSeedData } = await vite.ssrLoadModule("/src/data/seed.js");
-  const { OPS_ACCOUNTS } = await vite.ssrLoadModule("/src/ops/data.js");
+  const { default: App } = await vite.ssrLoadModule("/src/app/App.jsx");
+  const { STORAGE_KEY } = await vite.ssrLoadModule("/src/app/state/AppProvider.jsx");
+  const { createSeedData } = await vite.ssrLoadModule("/src/app/data/appSeed.js");
+  const { OPS_ACCOUNTS } = await vite.ssrLoadModule("/src/features/facility-operations/data/facilityOperationsSeed.js");
   const seed = (authed, opsUser = null) => memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed, data: createSeedData(), opsUser }));
 
-  const publicRoutes = ["home", "login", "register", "pricing", "guide", "find", "find?type=climate&band=S", "find/map", "find/map?type=climate", "find/map?area=Kh%C3%B4ng%20c%C3%B3", "find/1", "find/1?view=map&unit=K02", "find/8?type=climate&view=map", "find/999", "nope"];
+  const publicRoutes = ["home", "login", "register", "pricing", "guide", "find", "find?type=climate&band=M", "find/map", "find/map?type=climate", "find/map?area=Kh%C3%B4ng%20c%C3%B3", "find/1", "find/1?view=map&unit=K02", "find/8?type=climate&view=map", "find/999", "nope", "door", "door?unit=B-015"];
   const privateRoutes = [
-    "overview", "units", "units/HĐ-2026-0142", "units/HĐ-2026-0086/renew", "units/HĐ-2026-0142/return", "units/unknown",
+    "overview", "units", "units/HĐ-2026-0142", "units/HĐ-2026-0086", "units/HĐ-2026-0086/renew", "units/HĐ-2026-0142/return", "units/unknown",
     "sent?type=renew&contract=HĐ-2026-0086", "reservations", "reservations/SS-20260914-0142", "reservations/none",
     "confirmation/SS-20260914-0142", "checkout/SS-20260914-0142", "payments", "support", "support?contract=HĐ-2026-0142&topic=SCHEDULE", "profile",
   ];
@@ -44,7 +44,7 @@ try {
       "staff/reconcile?id=SS-20260914-0142", "staff/verify?id=XM-0142", "staff/handover?id=BG-0115", "staff/return?id=TK-0098",
       "staff/support?id=HT-0082", "staff/done?kind=payment", "staff/nope",
     ],
-    MANAGER: ["manager", "manager/units", "manager/units?tab=OVERDUE", "manager/allocate", "manager/assign", "manager/renewals", "manager/contracts", "manager/report", "manager/done", "staff"],
+    MANAGER: ["manager", "manager/units", "manager/units?tab=OVERDUE", "manager/units?tab=MAINTENANCE", "manager/allocate", "manager/assign", "manager/renewals", "manager/contracts", "manager/report", "manager/done", "staff"],
   };
   for (const acc of OPS_ACCOUNTS) {
     seed(true, acc);
@@ -63,18 +63,18 @@ try {
   assert.equal((grid.match(/class="panel task-card"/g) || []).length, 9, "S01 hiện 9 thẻ / trang");
   assert.ok(grid.includes("aria-label=\"Phân trang\"") && grid.includes("trên 10"), "S01 có phân trang (10 việc)");
   // Không có việc → thông báo trống (S01-trống, S09a-trống)
-  const { OPS_KEY } = await vite.ssrLoadModule("/src/ops/store.jsx");
-  const { createOpsData } = await vite.ssrLoadModule("/src/ops/data.js");
+  const { OPS_KEY } = await vite.ssrLoadModule("/src/features/facility-operations/state/FacilityOperationsProvider.jsx");
+  const { createOpsData } = await vite.ssrLoadModule("/src/features/facility-operations/data/facilityOperationsSeed.js");
   const none = { ...createOpsData(), payments: [], verifications: [], handovers: [], returns: [], tickets: [] };
   memory.set(OPS_KEY, JSON.stringify(none));
-  for (const [r, text] of [["staff", "Chưa có công việc nào hôm nay"], ["staff/reconcile", "Chưa có khoản nào cần đối soát"], ["staff/support", "Chưa có yêu cầu hỗ trợ"]]) {
+  for (const [r, text] of [["staff", "Chưa có công việc nào hôm nay"], ["staff/reconcile", "Chưa có đơn nào cần thu tại kho"], ["staff/support", "Chưa có yêu cầu hỗ trợ"]]) {
     window.location.hash = `#/${r}`;
     assert.ok(renderToStaticMarkup(React.createElement(App)).includes(text), `${r}: thiếu "${text}"`);
     count++;
   }
   memory.delete(OPS_KEY);
   // Khách hàng chưa có kho → một dòng thông báo (C01/C06/C14-trống)
-  const { createEmptyData } = await vite.ssrLoadModule("/src/data/seed.js");
+  const { createEmptyData } = await vite.ssrLoadModule("/src/app/data/appSeed.js");
   memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: createEmptyData({ user_id: 9, full_name: "Lê Hoàng Nam", email: "nam@example.com", phone: "0900000000", password: "x" }) }));
   for (const [r, text] of [["units", "Bạn chưa thuê kho nào"], ["overview", "Bạn chưa thuê kho nào"], ["reservations", "Bạn chưa có đơn đặt chỗ nào"]]) {
     window.location.hash = `#/${r}`;
@@ -82,6 +82,38 @@ try {
     assert.ok(html.includes(text) && html.includes("empty-line"), `${r}: thiếu thông báo trống`);
     count++;
   }
+  // Màn mới (Figma 16/10): C04 chọn QR / tại cửa hàng, C07 chưa bàn giao (F29), C07b có "Mở cửa kho", C11 nút thanh toán gia hạn,
+  // C12 phản hồi nhân viên, C14 huỷ đơn, S09 thu tiền tại kho, M02 đổi trạng thái ô
+  seed(true);
+  const pages = [
+    ["units/HĐ-2026-0142", ["Hợp đồng và mã ra vào đã được cấp", "Xem QR &amp; PIN 6 số", "Nhận tại quầy cơ sở"]],
+    ["units/HĐ-2026-0086", ["Xem QR &amp; PIN 6 số", "Yêu cầu gia hạn", "Đăng ký trả kho"]],
+    ["payments", ["Thanh toán", "Gia hạn B-015 · 3 tháng", "Chờ thanh toán"]],
+    ["support", ["Phản hồi của nhân viên", "Thẻ cũ bị lỗi từ"]],
+    ["reservations", ["Huỷ đơn SS-0142", "Chỉ huỷ được đơn chưa nhận kho"]],
+    ["find/1", ["Chỉ đường đến cơ sở", "google.com/maps/dir"]],
+  ];
+  for (const [r, texts] of pages) {
+    window.location.hash = `#/${r}`;
+    const html = renderToStaticMarkup(React.createElement(App));
+    for (const text of texts) assert.ok(html.includes(text), `${r}: thiếu "${text}"`);
+    count++;
+  }
+  window.location.hash = "#/units/HĐ-2026-0142";
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Xem QR &amp; PIN 6 số"), "D26: QR hiển thị trước khi nhận chìa khóa");
+  seed(true, OPS_ACCOUNTS[0]);
+  for (const [r, texts] of [["staff/reconcile", ["Thu tiền tại kho", "Chờ thu khi nhận kho"]], ["staff/reconcile?id=SS-20260914-0142", ["Xác nhận đã thu", "Để sau", "Thuê 3 tháng"]], ["staff", ["Chờ thu tiền tại kho", "THU TIỀN"]]]) {
+    window.location.hash = `#/${r}`;
+    const html = renderToStaticMarkup(React.createElement(App));
+    for (const text of texts) assert.ok(html.includes(text), `${r}: thiếu "${text}"`);
+    count++;
+  }
+  const manager = OPS_ACCOUNTS.find((a) => a.role === "MANAGER");
+  seed(true, manager);
+  window.location.hash = "#/manager/units";
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Đổi trạng thái"), "M02: thiếu nút Đổi trạng thái");
+  count++;
+
   seed(true);
   window.location.hash = "#/overview";
   const overview = renderToStaticMarkup(React.createElement(App));
