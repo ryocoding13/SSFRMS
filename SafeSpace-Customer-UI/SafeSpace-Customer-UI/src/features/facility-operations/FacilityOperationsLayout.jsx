@@ -1,15 +1,16 @@
+import StickyHeader from "../../shared/components/StickyHeader.jsx";
 import React, { useEffect, useRef, useState } from "react";
 import { Icon } from "../../shared/components/UI.jsx";
 import { go, href } from "../../app/router.js";
-import { whenLabel } from "../../app/state/appSelectors.js";
 import { useApp } from "../../app/state/AppProvider.jsx";
+import PendingBadge from "../../shared/components/PendingBadge.jsx";
+import { pendingTaskCounts } from "./utils/pendingTaskCounts.js";
 import { useOps } from "./state/FacilityOperationsProvider.jsx";
 
 export const STAFF_TABS = [
   ["staff", "Công việc ngày"],
   ["staff/reconcile", "Thu tiền"],
   ["staff/verify", "Xác minh"],
-  ["staff/handover", "Bàn giao"],
   ["staff/return", "Kiểm tra trả kho"],
   ["staff/support", "Hỗ trợ"],
 ];
@@ -37,48 +38,6 @@ function useOutside(open, setOpen, ref) {
   }, [open, setOpen, ref]);
 }
 
-function Bell({ role }) {
-  const { ops, run } = useOps();
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useOutside(open, setOpen, ref);
-  const items = ops.log.filter((l) => l.role === "ALL" || l.role === role).slice(0, 12);
-  const unread = items.filter((n) => !n.read).length;
-  return (
-    <div className="bell-anchor" ref={ref}>
-      <button type="button" className="bell" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={`Thông báo${unread ? `, ${unread} chưa đọc` : ""}`}>
-        <Icon name="bell" size={22} />
-        {unread > 0 && <i aria-hidden="true" />}
-      </button>
-      {open && (
-        <section className="popup" aria-label="Thông báo vận hành">
-          <div className="popup__head">
-            <h2>Thông báo vận hành</h2>
-            <button type="button" className="popup__close" onClick={() => setOpen(false)} aria-label="Đóng thông báo">×</button>
-          </div>
-          <p className="popup__count">{unread ? `${unread} thông báo mới` : "Đã đọc tất cả"}</p>
-          <ul className="popup__list">
-            {items.map((n) => (
-              <li key={n.id}>
-                <button type="button" className={n.read ? "is-read" : ""} onClick={() => { run("MARK_READ", { ids: [n.id] }); setOpen(false); go(n.to); }}>
-                  <strong>{n.text}</strong>
-                  <small>{whenLabel(n.at)}</small>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {items.length === 0 && <p className="popup__empty">Chưa có cập nhật mới trong ca làm việc.</p>}
-          {unread > 0 && (
-            <button type="button" className="btn btn--outline popup__all" onClick={() => run("MARK_READ", { ids: items.map((n) => n.id) })}>
-              Đánh dấu tất cả đã đọc
-            </button>
-          )}
-        </section>
-      )}
-    </div>
-  );
-}
-
 function UserMenu({ roleLabel, tone, facilityName }) {
   const { user, logout } = useApp();
   const [open, setOpen] = useState(false);
@@ -89,7 +48,7 @@ function UserMenu({ roleLabel, tone, facilityName }) {
       <button type="button" className={`usermenu__btn usermenu__btn--${tone}`} onClick={() => setOpen(!open)} aria-expanded={open} aria-haspopup="menu">
         <strong>{user?.full_name}</strong>
         <small>{roleLabel}</small>
-        {facilityName && <span className="usermenu__facility">{facilityName}</span>}
+        {facilityName && <span className="usermenu__facility" title={facilityName}>{facilityName}</span>}
       </button>
       {open && (
         <div className="usermenu__pop" role="menu">
@@ -116,13 +75,15 @@ function UserMenu({ roleLabel, tone, facilityName }) {
 
 // Khung chung khu vận hành (Figma S01 / M01): logo, tên + vai trò, chuông, thanh điều hướng theo vai trò
 export default function FacilityOperationsLayout({ role, active, children }) {
-  const { mode } = useApp();
+  const { mode, user } = useApp();
   const { source, ops } = useOps();
+  const counts = pendingTaskCounts(ops, role, ops.me || ops.staff.find(s => s.full_name === user?.full_name) || ops.staff[0]);
   const staff = role === "STAFF";
   const tabs = staff ? STAFF_TABS : MANAGER_TABS;
   const home = staff ? "staff" : "manager";
   return (
     <>
+      <StickyHeader>
       <header className="header">
         <div className="header__inner">
           <a className="brand" href={href(home)} aria-label="SafeSpace — Trang vận hành">
@@ -133,7 +94,6 @@ export default function FacilityOperationsLayout({ role, active, children }) {
           <div className="header__user">
             {/* Figma 14/10: mỗi nhân viên / quản lý phụ trách đúng 1 cơ sở (SRS A06) → hiện tên cơ sở dưới vai trò */}
             <UserMenu roleLabel={staff ? "Nhân viên cơ sở" : "Quản lý cơ sở"} tone={staff ? "staff" : "manager"} facilityName={ops?.facility?.name} />
-            <Bell role={role} />
           </div>
         </div>
       </header>
@@ -141,11 +101,12 @@ export default function FacilityOperationsLayout({ role, active, children }) {
         <div className="subnav__inner">
           {tabs.map(([to, label]) => (
             <a key={to} href={href(to)} className={active === to ? "is-active" : ""} aria-current={active === to ? "page" : undefined}>
-              {label}
+              {label}<PendingBadge count={counts[to]} />
             </a>
           ))}
         </div>
       </nav>
+      </StickyHeader>
       {mode === "api" && source === "local" && (
         <p className="ops-banner" role="status">
           Chưa kết nối được dữ liệu vận hành của cơ sở. Thao tác trên màn hình này đang được lưu tạm trên trình duyệt.

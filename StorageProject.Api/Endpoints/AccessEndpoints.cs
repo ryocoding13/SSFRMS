@@ -52,9 +52,9 @@ public static class AccessEndpoints
             CancellationToken ct) =>
         {
             var ip = context.Connection.RemoteIpAddress?.ToString();
-            var result = await accessService.ScanAsync(request.Code, ip, ct);
+            var result = await accessService.ScanAsync(request.Code, ip, ct, request.UnitNumber);
             return Results.Ok(result);
-        }).AllowAnonymous();
+        }).AllowAnonymous().RequireRateLimiting("access-scan");
 
         return group;
     }

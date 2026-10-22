@@ -103,6 +103,8 @@ public class PayOSService(AppDbContext dbContext, IPayOSGateway gateway, ILogger
         if (verified.Amount != ReservationSettlement.Amount(r)) return false;
         if (r.PaymentMethod == "PAYOS" && r.PaidAt != null)
         {
+            await ContractProvisioning.EnsureAsync(dbContext, r, null, ct);
+            await dbContext.SaveChangesAsync(ct);
             await tx.CommitAsync(ct); // Re-delivery of the same verified order: no additional money or allocation.
             return true;
         }
@@ -115,7 +117,9 @@ public class PayOSService(AppDbContext dbContext, IPayOSGateway gateway, ILogger
                     Action = "PAYMENT_REVIEW_REQUIRED", NewValue = detail, LoggedAt = DateTime.UtcNow });
         }
         else await ReservationSettlement.RecordAsync(dbContext, r, "PAYMENT_GATEWAY", $"PAYOS:{verified.OrderCode}", null, ct);
-        // Manager allocates the physical unit. The webhook only settles the reservation.
+        await dbContext.SaveChangesAsync(ct);
+        if (r.PaymentMethod == "PAYOS" && r.PaidAt != null)
+            await ContractProvisioning.EnsureAsync(dbContext, r, null, ct);
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return true;

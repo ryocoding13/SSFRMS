@@ -113,3 +113,10 @@ Hình dạng dữ liệu giao diện đang dùng nằm ở `src/features/facilit
 ## Bổ sung 20/10 — thu tiền trước phân bổ và trạng thái ô
 
 Đã triển khai API chọn trả tại kho, PaymentMethod, ghi khoản thu theo ReservationId rồi gắn ContractId, kiểm chuyển tiếp ô và lịch sử. Xem `docs/payment-integrity-2026-10-20.md` và D23–D24 để biết hợp đồng API, migration, phạm vi test và các ca cần chạy thật. FE không còn dùng confirm-transfer làm fallback cho chọn trả tại kho. Các API /api/ops tương thích được đăng ký duy nhất trong FacilityOpsEndpoints.
+
+
+## Đồng bộ 22/10 — D26
+- Dùng GET /api/ops/board và mutation /api/ops cho hàng chờ theo role; 404/405 mới dùng board vai trò dự phòng.
+- POST /api/ops/keys/{id}/receipt ghi nhận nhận chìa khóa, không kích hoạt hợp đồng.
+- AccessQrDto có validFrom, backupCode là PIN6; POST /api/access/scan nhận thêm unitNumber (bắt buộc khi dùng PIN). ContractDetailDto có accessUpdatedAt để tạo thông báo cấp lại mã.
+- PayOS thành công tự phân bổ/cấp hợp đồng, không còn yêu cầu bàn giao. Xem đầy đủ tại docs/figma-ui-sync-2026-10-22.md.

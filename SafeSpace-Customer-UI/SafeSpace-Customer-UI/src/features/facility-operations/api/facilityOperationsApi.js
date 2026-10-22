@@ -21,10 +21,10 @@ export async function loadBoard(role) {
   let res;
   const path = role === "MANAGER" ? "/api/manager/board" : (role === "STAFF" ? "/api/staff/board" : "/api/ops/board");
   try {
-    res = await request(path);
+    res = await request("/api/ops/board");
   } catch (err) {
-    if (path !== "/api/ops/board") {
-      res = await request("/api/ops/board");
+    if (path !== "/api/ops/board" && [404, 405].includes(err.status)) {
+      res = await request(path);
     } else {
       throw err;
     }
@@ -43,14 +43,14 @@ export async function loadBoard(role) {
 // Mỗi thao tác của giao diện → một endpoint theo vai trò (staff / manager)
 export const OPS_ACTIONS = {
   // Nhân viên (Staff)
-  CONFIRM_PAYMENT: ({ id }) => ["POST", `/api/staff/payments/${enc(id)}/confirm`],
-  REPORT_MISMATCH: ({ id, note }) => ["POST", `/api/staff/payments/${enc(id)}/mismatch`, { note }],
+  CONFIRM_PAYMENT: ({ id }) => ["POST", `/api/ops/payments/${enc(id)}/confirm`],
+  REPORT_MISMATCH: ({ id, note }) => ["POST", `/api/ops/payments/${enc(id)}/mismatch`, { note }],
   VERIFY_CUSTOMER: ({ id, doc_type, doc_no, photo_ok, info_ok }) => [
-    "POST", `/api/staff/verifications/${enc(id)}`, { docType: doc_type, docNumber: String(doc_no || "").trim(), photoMatched: Boolean(photo_ok), infoMatched: Boolean(info_ok) },
+    "POST", `/api/ops/verifications/${enc(id)}`, { docType: doc_type, docNumber: String(doc_no || "").trim(), photoMatched: Boolean(photo_ok), infoMatched: Boolean(info_ok) },
   ],
-  HANDOVER: ({ id, method }) => ["POST", `/api/staff/handovers/${enc(id)}/complete`, { unlockMethod: method }],
-  SUBMIT_RETURN: ({ id, report }) => ["POST", `/api/staff/returns/${enc(id)}/inspection`, toApi(report)],
-  TICKET_RESPONSE: ({ id, note, next }) => ["POST", `/api/staff/tickets/${enc(id)}/responses`, { note, nextStatus: next }],
+  RECORD_KEY_RECEIPT: ({ id }) => ["POST", `/api/ops/keys/${enc(id)}/receipt`],
+  SUBMIT_RETURN: ({ id, report }) => ["POST", `/api/ops/returns/${enc(id)}/inspection`, toApi(report)],
+  TICKET_RESPONSE: ({ id, note, next }) => ["POST", `/api/ops/tickets/${enc(id)}/responses`, { note, nextStatus: next }],
   // M02a · F12: đổi trạng thái ô (backend nhận mã ô hoặc id), dùng chung cho nhân viên và quản lý
   UPDATE_UNIT_STATUS: ({ id, code, status, reason }) => ["PUT", `/api/staff/units/${enc(code ?? id)}/status`, { status, reason: String(reason || "").trim() }],
   REVOKE_CREDENTIAL: ({ id }) => ["POST", `/api/staff/credentials/${enc(id)}/revoke`],
@@ -58,11 +58,11 @@ export const OPS_ACTIONS = {
 
   // Quản lý (Manager)
   DECIDE_RENEWAL: ({ id, approve, reason }) =>
-    approve ? ["POST", `/api/manager/renewals/${enc(id)}/approve`] : ["POST", `/api/manager/renewals/${enc(id)}/reject`, { reason }],
-  ALLOCATE: ({ id, unit }) => ["POST", `/api/manager/allocations/${enc(id)}`, { unitCode: unit }],
-  ASSIGN: ({ id, staff }) => ["PUT", `/api/manager/assignments/${enc(id)}`, { staffId: staff }],
-  REMIND: ({ id, note }) => ["POST", `/api/manager/contracts/${enc(id)}/reminders`, { note: note || "" }],
-  CONFIRM_REFUND: ({ id }) => ["POST", `/api/manager/contracts/${enc(id)}/refund`],
+    approve ? ["POST", `/api/ops/renewals/${enc(id)}/approve`] : ["POST", `/api/ops/renewals/${enc(id)}/reject`, { reason }],
+  ALLOCATE: ({ id, unit }) => ["POST", `/api/ops/allocations/${enc(id)}`, { unitCode: unit }],
+  ASSIGN: ({ id, staff }) => ["PUT", `/api/ops/assignments/${enc(id)}`, { staffId: staff }],
+  REMIND: ({ id, note }) => ["POST", `/api/ops/contracts/${enc(id)}/reminders`, { note: note || "" }],
+  CONFIRM_REFUND: ({ id }) => ["POST", `/api/ops/contracts/${enc(id)}/refund`],
   CREATE_UNIT: (data) => ["POST", `/api/manager/units`, toApi(data)],
   UPDATE_UNIT: ({ id, ...data }) => ["PUT", `/api/manager/units/${enc(id)}`, toApi(data)],
   LOCK_UNIT: ({ id, reason }) => ["POST", `/api/manager/units/${enc(id)}/lock`, { reason }],

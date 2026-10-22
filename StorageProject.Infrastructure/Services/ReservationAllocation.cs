@@ -26,6 +26,7 @@ public static class ReservationAllocation
         if (current != null)
         {
             if (current.UnitId != unit.UnitId) throw new InvalidOperationException("Đơn đã phân bổ ô khác, không được phân bổ thêm.");
+            if (!atFacility) await ContractProvisioning.EnsureAsync(db, r, actor, ct);
             await tx.CommitAsync(ct);
             return;
         }
@@ -53,6 +54,7 @@ public static class ReservationAllocation
         if (!atFacility) r.Status = "UNIT_ASSIGNED";
         ReservationSettlement.Audit(db, actor, "UNIT_ALLOCATED", r.ReservationId, new { unit.UnitNumber });
         await db.SaveChangesAsync(ct);
+        if (!atFacility) await ContractProvisioning.EnsureAsync(db, r, actor, ct);
         await tx.CommitAsync(ct);
     }
 }

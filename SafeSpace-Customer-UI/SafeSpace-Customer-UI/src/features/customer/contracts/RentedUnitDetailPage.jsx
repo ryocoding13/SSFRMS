@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Button, LinkButton, Notice, PageHeader, StatusTag, Tag } from "../../../shared/components/UI.jsx";
 import { typeLabel } from "../../../shared/utils/catalog.js";
-import { dateLabel, money, rangeLabel } from "../../../shared/utils/format.js";
+import { dateLabel, money, rangeLabel, today } from "../../../shared/utils/format.js";
 import { CONTRACT_STATUS, LEDGER_STATUS } from "../../../shared/utils/status.js";
 import { contractOf, contractStatus, facilityOf, pendingRenewal, pendingReturn } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
@@ -9,8 +9,7 @@ import { NotFound } from "./components/ContractNotFound.jsx";
 import { AccessQrModal } from "../access/AccessQrModal.jsx";
 
 export function RentedUnitDetailPage({ id }) {
-  const { data, dispatch, notify } = useApp();
-  const [confirming, setConfirming] = useState(false);
+  const { data } = useApp();
   const [qrOpen, setQrOpen] = useState(false);
   const c = contractOf(data, id);
   if (!c) return <NotFound />;
@@ -19,34 +18,22 @@ export function RentedUnitDetailPage({ id }) {
   const ret = pendingReturn(data, id);
   const rent = [...data.ledger].reverse().find((l) => l.contract_id === id && (l.kind === "RENT" || /-RENT$/.test(l.ref)));
   const pickup = data.appointments.find((a) => a.kind === "CHECK_IN" && (a.contract_id === id || (c.reservation_id && a.reservation_id === c.reservation_id)) && a.status !== "CANCELLED");
-  const confirmHandover = async () => {
-    setConfirming(true);
-    const res = await dispatch("CONFIRM_HANDOVER", { contract_id: id });
-    setConfirming(false);
-    notify(res.ok ? "Đã xác nhận nhận bàn giao kho." : res.error, res.ok ? "success" : "error");
-  };
   const status = contractStatus(c);
   const ended = status === "ENDED";
-  const handed = c.handed_over;
+  const issued = c.access_issued ?? c.status !== "DRAFT";
+  const prestart = c.start_date > today();
   const busy = Boolean(renewal || ret);
   const pickupText = pickup ? `${dateLabel(pickup.date)} · ${pickup.slot}` : null;
   return (
     <main className="container page">
       <PageHeader title={`Kho ${c.unit_number} · Hợp đồng thuê`} description={`${c.contract_id} · ${f.name}`} />
-      {!handed && !ended && (
-        <div className="unit-notice">
-          <Notice>
-            <span>
-              <strong>Chưa nhận kho{pickupText ? ` · Lịch nhận ${pickupText}` : ""}</strong>
-              <br />
-              Mang giấy tờ đã đăng ký{c.reservation_id ? ` và mã đặt chỗ ${c.reservation_id}` : ""} đến {f.name}. Gia hạn, trả kho và mở cửa kho dùng được sau khi nhân viên bàn giao.
-            </span>
-          </Notice>
-        </div>
-      )}
+      {!ended && <div className="unit-notice"><Notice tone={issued ? "success" : "info"}>
+        <strong>{issued ? "Hợp đồng và mã ra vào đã được cấp" : "Hợp đồng đang chờ xử lý"}</strong><br />
+        {issued ? <>QR và PIN chỉ mở được từ ngày {dateLabel(c.start_date)} đến trước ngày {dateLabel(c.end_date)}. Chìa khóa vật lý nhận tại quầy {f.name}{pickupText ? ` · ${pickupText}` : ""}.</> : "Cơ sở đang kiểm tra phân bổ ô kho và khoản thanh toán của bạn."}
+      </Notice></div>}
       <div className="detail-grid detail-grid--even">
         <section className="panel info-card">
-          {handed || ended ? <StatusTag map={CONTRACT_STATUS} status={status} square /> : <Tag tone="blue" square>Chờ nhận kho</Tag>}
+          {prestart && !ended ? <Tag tone="blue" square>Chưa đến ngày sử dụng</Tag> : <StatusTag map={CONTRACT_STATUS} status={status} square />}
           <h2 className="h-sub">{typeLabel(c.type)}{c.size_m2 ? ` · ${c.size_m2} m²` : ""}</h2>
           <p className="muted">
             {c.location ? `${c.location} · ` : ""}Kho {c.unit_number}
@@ -65,31 +52,18 @@ export function RentedUnitDetailPage({ id }) {
               <tr><td>Thanh toán kỳ này</td><td>{rent ? LEDGER_STATUS[rent.status][0] : "—"}</td></tr>
             </tbody>
           </table>
-          {c.handover_pending_customer && (
-            <Notice>
-              Cơ sở đã bàn giao kho. Vui lòng kiểm tra và xác nhận đã nhận kho.{" "}
-              <button type="button" className="link-btn" onClick={confirmHandover} disabled={confirming}>
-                {confirming ? "Đang xác nhận…" : "Xác nhận đã nhận kho"}
-              </button>
-            </Notice>
-          )}
           <h3>Thông tin ra vào</h3>
-          <p className="muted">
-            {ended
-              ? "Hợp đồng đã kết thúc, mã mở cửa không còn hiệu lực."
-              : handed
-                ? "Mở cửa bằng QR: bấm \"Mở cửa kho\" rồi đưa mã vào máy quét ở cửa. QR chỉ dùng được khi hợp đồng còn hiệu lực và hết hiệu lực khi trả kho."
-                : `Khóa và mã truy cập được bàn giao khi nhận kho${pickupText ? ` ngày ${pickupText}` : " theo lịch hẹn"}.`}
-          </p>
+          <p className="muted">{ended ? "Hợp đồng đã kết thúc, mã mở cửa không còn hiệu lực." : "Quét QR hoặc nhập PIN 6 số tại cửa kho. Chìa khóa vật lý nhận tại quầy. Chỉ mở được trong thời gian hiệu lực hợp đồng."}</p>
+          <p className="muted">Chìa khóa vật lý: {c.handed_over ? "Đã nhận tại quầy" : "Nhận tại quầy cơ sở"}.</p>
         </section>
         <aside className="panel booking">
           <h2>Bạn cần làm gì?</h2>
           {renewal && <Notice>Yêu cầu gia hạn thêm {renewal.months} tháng đang chờ cơ sở duyệt.</Notice>}
           {ret && <Notice>Yêu cầu trả kho ngày {dateLabel(ret.date)} đang chờ cơ sở xác nhận.</Notice>}
-          {handed && !ended ? (
+          {issued && !ended ? (
             <>
               <div className="stack stack--col">
-                <Button onClick={() => setQrOpen(true)}>Mở cửa kho</Button>
+                <Button onClick={() => setQrOpen(true)}>Xem QR & PIN 6 số</Button>
                 {busy ? (
                   <>
                     <Button variant="outline" disabled>Yêu cầu gia hạn</Button>
@@ -116,17 +90,11 @@ export function RentedUnitDetailPage({ id }) {
           ) : (
             <>
               <div className="stack stack--col">
-                <LinkButton to="payments">Xem lịch nhận kho</LinkButton>
-                <LinkButton to={`support?contract=${encodeURIComponent(id)}&topic=SCHEDULE`} variant="outline">Đổi lịch nhận kho</LinkButton>
+                <LinkButton to="payments">Xem lịch nhận chìa khóa</LinkButton>
+                <LinkButton to={`support?contract=${encodeURIComponent(id)}&topic=SCHEDULE`} variant="outline">Đổi lịch nhận chìa khóa</LinkButton>
                 <LinkButton to={`support?contract=${encodeURIComponent(id)}`} variant="outline">Gửi yêu cầu hỗ trợ</LinkButton>
               </div>
-              <p className="booking__label">Dùng được sau khi nhận kho</p>
-              <div className="stack stack--col">
-                <Button variant="outline" disabled>Yêu cầu gia hạn</Button>
-                <Button variant="outline" disabled>Đăng ký trả kho</Button>
-                <Button variant="outline" disabled>Mở cửa kho (QR)</Button>
-              </div>
-              <p className="hint">Có thể đổi lịch nhận kho trước giờ hẹn. Cần hỗ trợ thì gửi yêu cầu, cơ sở sẽ phản hồi trong tài khoản.</p>
+              <p className="hint">Mã ra vào hiển thị sau khi hệ thống cấp hợp đồng. Nhận chìa khóa không kích hoạt hợp đồng.</p>
             </>
           )}
         </aside>

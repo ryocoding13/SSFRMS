@@ -54,7 +54,7 @@ public partial class FacilityOpsService
             .Include(r => r.UnitType)
             .Include(r => r.UnitAssignments).ThenInclude(a => a.Unit)
             .Where(r => r.FacilityId == fid
-                        && (r.Status == "PENDING_VERIFICATION" || r.Status == "CONFIRMED"
+                        && (r.Status == "PENDING_AT_FACILITY" || r.Status == "PENDING_VERIFICATION" || r.Status == "CONFIRMED"
                             || ((r.Status == "UNIT_ASSIGNED" || r.Status == "CHECKED_IN") && r.CreatedAt >= now.AddDays(-60))))
             .ToListAsync(ct);
 
@@ -122,7 +122,7 @@ public partial class FacilityOpsService
             var reported = Last(reservationLogs, r.ReservationId, LogAction.TransferReported);
             var decision = Last(reservationLogs, r.ReservationId, LogAction.PaymentConfirmed, LogAction.PaymentMismatch);
             string status;
-            if (r.Status == "PENDING_VERIFICATION")
+            if (r.Status is "PENDING_AT_FACILITY" or "PENDING_VERIFICATION")
             {
                 status = decision?.Action == LogAction.PaymentMismatch && (reported == null || decision.LoggedAt >= reported.LoggedAt) ? "MISMATCH" : "PENDING";
             }
@@ -212,7 +212,7 @@ public partial class FacilityOpsService
         var allocations = new List<OpsAllocationDto>();
         foreach (var r in reservations)
         {
-            var allocated = Last(reservationLogs, r.ReservationId, LogAction.UnitAllocated);
+            var allocated = Last(reservationLogs, r.ReservationId, LogAction.UnitAllocated, "CONTRACT_AUTO_ISSUED");
             string status;
             string? unit = null;
             if (r.Status == "CONFIRMED" && !r.UnitAssignments.Any(a => a.Status == "ACTIVE")) status = "PENDING";
@@ -301,7 +301,7 @@ public partial class FacilityOpsService
             var h = c.HandoverRecord!;
             var done = h.Status == "HANDED_OVER";
             var who = StaffOf(h.StaffId);
-            assignments.Add(new OpsAssignmentDto($"PC-{HandoverCode(h.HandoverId)}", $"Bàn giao {c.Unit.UnitNumber} · {c.Customer.FullName}",
+            assignments.Add(new OpsAssignmentDto($"PC-{HandoverCode(h.HandoverId)}", $"Nhận chìa khóa {c.Unit.UnitNumber} · {c.Customer.FullName}",
                 LocalOrDate(h.ScheduledAt, c.StartDate), who, done ? "DONE" : who == null ? "OPEN" : h.Status == "VERIFIED" ? "ACCEPTED" : "WAITING",
                 HandoverCode(h.HandoverId)));
         }
