@@ -372,4 +372,4 @@
 - Kiểm chứng: FE npm test 76/76. Backend: phiên này không có .NET SDK nên chưa biên dịch và chưa chạy test; đã thêm RefundPolicyTests (11 trường hợp) và đối chiếu công thức tháng bằng bản tính độc lập. F39 giữ active, chưa passing.
 - Giả định cần nhóm xác nhận: (1) dừng sớm thì khấu trừ cố định 30% đã bao gồm khoản vệ sinh 10%; (2) khoản CLEANING_FEE chờ thanh toán được coi là đã nằm trong khoản khấu trừ cố định; (3) quá hạn tính từ EndDate đến ngày biên bản trả kho; (4) khoản gia hạn (RENEWAL) không nằm trong phần hoàn tiền thuê.
 - Không push/PR/merge.
-
+- Bổ sung cùng F39 (cùng đợt, trước khi merge): (a) F12 ô kho RESERVED → OCCUPIED khi đến StartDate, qua UnitStartActivation chạy trong worker hiện có, có test ReservedUnitBecomesOccupiedOnStartDateOnly; (b) đường hoàn cọc cũ của quản lý gọi chung logic D27, bỏ ManagerService.ConfirmRefundAsync (lỗi: đặt trạng thái ENDED, không theo D27). Cả hai chưa biên dịch trong phiên viết code; cần dotnet build/test của nhóm. Còn lại: nút xác nhận hoàn đơn huỷ ở M07 trên giao diện.

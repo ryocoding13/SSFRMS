@@ -240,24 +240,6 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
         }
     }
 
-    public async Task ConfirmRefundAsync(long userId, string id, CancellationToken ct = default)
-    {
-        var num = FacilityOpsStateStore.ParseIdNumber(id);
-        var contract = await dbContext.RentalContracts
-            .Include(c => c.Unit)
-            .FirstOrDefaultAsync(c => c.ContractId == num, ct);
-        if (contract != null)
-        {
-            contract.Status = "ENDED";
-            if (contract.Unit != null)
-            {
-                contract.Unit.Status = "AVAILABLE";
-                contract.Unit.UpdatedAt = DateTime.UtcNow;
-            }
-            await dbContext.SaveChangesAsync(ct);
-        }
-    }
-
     public async Task<IReadOnlyList<OpsUnitDto>> GetFacilityUnitsAsync(long userId, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);

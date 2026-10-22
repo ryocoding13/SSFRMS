@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using StorageProject.Api.Extensions;
+using StorageProject.Core.DTOs.FacilityOps;
 using StorageProject.Core.DTOs.Ops;
 using StorageProject.Core.Interfaces;
 
@@ -131,19 +132,22 @@ public static class ManagerEndpoints
             }
         });
 
-        group.MapPost("/contracts/{id}/refund", async (string id, ClaimsPrincipal user, IManagerService managerService, CancellationToken ct) =>
+        // Đường cũ giữ lại cho tương thích: dùng chung logic D27 với POST /api/ops/contracts/{id}/refund.
+        group.MapPost("/contracts/{id}/refund", async (string id, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
         {
-            var role = user.GetUserRole();
-            if (!role.Equals("MANAGER", StringComparison.OrdinalIgnoreCase) && !role.Equals("ADMIN", StringComparison.OrdinalIgnoreCase))
+            try
+            {
+                var actor = new OpsActor(user.GetUserId(), user.GetUserRole().Equals("MANAGER", StringComparison.OrdinalIgnoreCase));
+                var refund = await ops.ConfirmRefundAsync(actor, id, ct);
+                return Results.Ok(new { message = "Xác nhận hoàn cọc thành công.", refund });
+            }
+            catch (UnauthorizedAccessException)
             {
                 return Results.Forbid();
             }
-
-            try
+            catch (KeyNotFoundException ex)
             {
-                var userId = user.GetUserId();
-                await managerService.ConfirmRefundAsync(userId, id, ct);
-                return Results.Ok(new { message = "Xác nhận hoàn cọc thành công." });
+                return Results.NotFound(new { error = ex.Message });
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {

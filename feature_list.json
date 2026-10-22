@@ -312,10 +312,10 @@
         6
       ],
       "actor": "Đạt + Thắng",
-      "behavior": "Chính sách cọc và hoàn tiền D27: RefundPolicy tính 3 tình huống (huỷ trước StartDate, dừng sớm, trả kho), cancel-preview, ghi một khoản REFUND khi huỷ, M07 xác nhận hoàn, C14a/B02 hiển thị theo D27",
+      "behavior": "Chính sách cọc và hoàn tiền D27: RefundPolicy tính 3 tình huống (huỷ trước StartDate, dừng sớm, trả kho), cancel-preview, ghi một khoản REFUND khi huỷ, M07 xác nhận hoàn, C14a/B02 hiển thị theo D27, ô kho RESERVED → OCCUPIED khi đến StartDate (F12), đường hoàn cọc cũ dùng chung logic D27",
       "state": "active",
       "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx --no-build -m:1 (RefundPolicyTests); npm test; npm run test:render; npm run check:structure; npm run build; kiểm tra huỷ đơn, cancel-preview và M07 trên SQL Server của nhóm",
-      "evidence": "2026-10-22: viết xong code BE (RefundPolicy, GetCancelPreviewAsync, CancelReservationAsync ghi REFUND PENDING, ConfirmRefundAsync theo D27, POST /api/ops/reservations/{id}/refund) và 11 test xUnit cho công thức. Phiên viết code không có .NET SDK nên BE chưa được biên dịch hay chạy test; FE: npm test 76/76, test:render, check:structure, build đạt (xem progress.md). Giữ active đến khi nhóm chạy dotnet build/test và kiểm thử luồng thật."
+      "evidence": "2026-10-22: viết xong code BE (RefundPolicy, GetCancelPreviewAsync, CancelReservationAsync ghi REFUND PENDING, ConfirmRefundAsync theo D27, POST /api/ops/reservations/{id}/refund) và 11 test xUnit cho công thức, UnitStartActivation (RESERVED → OCCUPIED) và test ReservedUnitBecomesOccupiedOnStartDateOnly. Lượt đầu đã build + 51 test đạt trên máy nhóm; phần bổ sung F12 và đường hoàn cọc cũ chưa được biên dịch (không có .NET SDK trong phiên); FE: npm test 76/76, test:render, check:structure, build đạt (xem progress.md). Giữ active đến khi nhóm chạy dotnet build/test và kiểm thử luồng thật."
     }
   ]
 }
