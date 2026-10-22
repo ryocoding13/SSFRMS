@@ -4,6 +4,7 @@ using StorageProject.Core.DTOs.Reservation;
 using StorageProject.Core.Entities;
 using StorageProject.Core.Exceptions;
 using StorageProject.Core.Interfaces;
+using StorageProject.Core.Policies;
 using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
@@ -12,7 +13,7 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
 {
     public async Task<IReadOnlyList<ReservationDto>> GetMyReservationsAsync(long customerId, CancellationToken ct = default)
     {
-        return await dbContext.Reservations
+        var list = await dbContext.Reservations
             .AsNoTracking()
             .Include(r => r.Facility)
             .Include(r => r.UnitType)
@@ -38,6 +39,15 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
                 r.PaymentMethod
             ))
             .ToListAsync(ct);
+        var ids = list.Select(r => r.ReservationId).ToList();
+        var refunds = await dbContext.Payments.AsNoTracking()
+            .Where(p => p.ReservationId != null && ids.Contains(p.ReservationId.Value) && p.PaymentType == "REFUND")
+            .ToListAsync(ct);
+        return list.Select(r =>
+        {
+            var refund = refunds.FirstOrDefault(p => p.ReservationId == r.ReservationId);
+            return refund == null ? r : r with { RefundAmount = refund.Amount, RefundStatus = refund.Status == "PAID" ? "COMPLETED" : "PENDING" };
+        }).ToList();
     }
 
     public async Task<ReservationDetailDto?> GetReservationDetailAsync(long customerId, long reservationId, CancellationToken ct = default)
@@ -185,6 +195,36 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         );
     }
 
+    public async Task<CancelPreviewDto> GetCancelPreviewAsync(long customerId, long reservationId, CancellationToken ct = default)
+    {
+        var reservation = await dbContext.Reservations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.ReservationId == reservationId && r.CustomerId == customerId, ct)
+            ?? throw new KeyNotFoundException("Không tìm thấy đơn đặt chỗ.");
+        var quote = await QuoteCancelAsync(reservation, ct);
+        return new CancelPreviewDto(quote.Paid, quote.Fee, quote.Refund, CancelPolicyName);
+    }
+
+    private const string CancelPolicyName = "Huỷ trước ngày bắt đầu: phí 10% tiền cọc, hoàn đủ tiền thuê và 90% tiền cọc";
+
+    // D27: chỉ tính trên khoản đã thu (RENT + DEPOSIT, PAID). Đơn chưa thanh toán thì không phát sinh phí.
+    private async Task<(decimal Paid, decimal Fee, decimal Refund)> QuoteCancelAsync(Reservation reservation, CancellationToken ct)
+    {
+        var paid = await dbContext.Payments.AsNoTracking()
+            .Where(p => p.ReservationId == reservation.ReservationId && p.Status == "PAID" &&
+                        (p.PaymentType == "RENT" || p.PaymentType == "DEPOSIT"))
+            .ToListAsync(ct);
+        if (paid.Count == 0) return (0, 0, 0);
+        if (OpsRules.TodayLocal >= reservation.StartDate)
+            throw new InvalidOperationException(
+                "Đã đến ngày bắt đầu thuê nên không huỷ đặt chỗ được. Vui lòng đăng ký trả kho để được xử lý hoàn cọc theo chính sách.");
+        var rent = paid.Where(p => p.PaymentType == "RENT").Sum(p => p.Amount);
+        var deposit = paid.Where(p => p.PaymentType == "DEPOSIT").Sum(p => p.Amount);
+        var result = RefundPolicy.Calculate(new RefundInput(RefundScenario.CancelBeforeStart, deposit, rent,
+            reservation.StartDate, reservation.ExpectedEndDate, OpsRules.TodayLocal));
+        return (rent + deposit, result.FixedDeduction, result.Total);
+    }
+
     public async Task CancelReservationAsync(long customerId, long reservationId, string reason, CancellationToken ct = default)
     {
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"reservation:{reservationId}", ct);
@@ -198,8 +238,10 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             throw new InvalidOperationException($"Không thể hủy đơn đặt chỗ ở trạng thái '{reservation.Status}'.");
         }
 
+        var quote = await QuoteCancelAsync(reservation, ct);
+        var now = DateTime.UtcNow;
         reservation.Status = "CANCELLED";
-        reservation.CancelledAt = DateTime.UtcNow;
+        reservation.CancelledAt = now;
         reservation.CancellationReason = reason;
         foreach (var a in await dbContext.UnitAssignments.Include(a => a.Unit).Where(a => a.ReservationId == reservationId && a.Status == "ACTIVE").ToListAsync(ct))
         {
@@ -208,6 +250,19 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         }
         var draft = await dbContext.RentalContracts.SingleOrDefaultAsync(c => c.ReservationId == reservationId && c.Status == "DRAFT", ct);
         if (draft != null) draft.Status = "CANCELLED";
+
+        // Ghi khoản hoàn đúng một lần; quản lý xác nhận đã chuyển khoản ở M07 (3–5 ngày làm việc).
+        if (quote.Refund > 0 && !await dbContext.Payments.AnyAsync(p => p.ReservationId == reservationId && p.PaymentType == "REFUND", ct))
+        {
+            dbContext.Payments.Add(new Payment
+            {
+                ReservationId = reservationId, ContractId = draft?.ContractId, PaymentType = "REFUND", Amount = quote.Refund,
+                Currency = "VND", PaymentMethod = "BANK_TRANSFER", Status = "PENDING",
+                TransactionReference = $"Hoàn huỷ đơn #{reservationId}", CreatedAt = now, UpdatedAt = now
+            });
+            ReservationSettlement.Audit(dbContext, customerId, "RESERVATION_REFUND_RECORDED", reservationId,
+                new { paid = quote.Paid, fee = quote.Fee, refund = quote.Refund });
+        }
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
     }

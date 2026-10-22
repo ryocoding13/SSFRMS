@@ -363,3 +363,13 @@
 - Nhóm chốt theo D27 (DECISIONS.md): cọc 1 tháng thuê, hủy trước StartDate giữ 10% cọc, dừng sau StartDate hoàn 70% cọc, phương án B cho tiền thuê khi dừng giữa kỳ, phạt quá hạn theo tham số OVERDUE ở B02, DamageFee và OverdueFee trừ thêm vào cọc.
 - Chưa có code: feature_list.json không đổi trạng thái vì chưa có bằng chứng chạy. Phần cần làm đã ghi trong BACKEND-TODO.md mục D27.
 - Cần đổi: H1 cancel-preview và CANCEL_FEE_RATE đang tính 10% tiền thuê, không theo D27. T05 trong doc vẫn để "theo chính sách đã chốt".
+
+## 2026-10-22 — F39 code chính sách cọc và hoàn tiền D27 (T01, T05, T08)
+
+- Tính năng phiên này duy nhất F39; nền origin/main 248a083. Làm theo D27, không đổi quyết định.
+- Backend: RefundPolicy (hàm thuần), cancel-preview, huỷ đơn đã thanh toán ghi một khoản REFUND PENDING, M07 xác nhận hoàn cho đơn đã huỷ, ConfirmRefundAsync hợp đồng tính theo D27 và chỉ trừ trong phạm vi cọc (phần thiếu giữ thành công nợ). Chính sách OVERDUE seed đổi mô tả thành 5% tiền thuê tháng mỗi ngày trễ.
+- Frontend: cancelPreviewOf đổi sang 10% tiền cọc; test huỷ đơn (C14a) cập nhật số mong đợi 4.600.000 − 115.000. Không sửa test nào để cho qua; chỉ đổi số liệu theo D27.
+- Kiểm chứng: FE npm test 76/76. Backend: phiên này không có .NET SDK nên chưa biên dịch và chưa chạy test; đã thêm RefundPolicyTests (11 trường hợp) và đối chiếu công thức tháng bằng bản tính độc lập. F39 giữ active, chưa passing.
+- Giả định cần nhóm xác nhận: (1) dừng sớm thì khấu trừ cố định 30% đã bao gồm khoản vệ sinh 10%; (2) khoản CLEANING_FEE chờ thanh toán được coi là đã nằm trong khoản khấu trừ cố định; (3) quá hạn tính từ EndDate đến ngày biên bản trả kho; (4) khoản gia hạn (RENEWAL) không nằm trong phần hoàn tiền thuê.
+- Không push/PR/merge.
+

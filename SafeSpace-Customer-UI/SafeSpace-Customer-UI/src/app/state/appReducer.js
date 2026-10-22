@@ -69,13 +69,14 @@ const hasPending = (state, contract_id) => ({
   ret: state.returns.some((r) => r.contract_id === contract_id && ["PENDING", "SCHEDULED"].includes(r.status)),
 });
 
-// C14a · Ước tính hoàn tiền khi huỷ đơn đã thanh toán (chế độ trình duyệt). Chế độ API lấy từ
-// GET /api/reservations/{id}/cancel-preview theo chính sách CANCELLATION ở B02.
-export const CANCEL_FEE_RATE = 0.1; // 10% tiền thuê, hoàn đủ tiền cọc (Figma C14a)
+// C14a · Ước tính hoàn tiền khi huỷ đơn đã thanh toán trước ngày bắt đầu thuê (chế độ trình duyệt).
+// Chính sách D27: phí huỷ cố định 10% tiền cọc; hoàn 100% tiền thuê + 90% tiền cọc.
+// Chế độ API lấy từ GET /api/reservations/{id}/cancel-preview.
+export const CANCEL_DEPOSIT_FEE_RATE = 0.1;
 export function cancelPreviewOf(r) {
   const paid = r.initial_total || 0;
-  const fee = Math.round((r.rent_total || 0) * CANCEL_FEE_RATE);
-  return { paid, fee, refund: Math.max(0, paid - fee), policy: null };
+  const fee = Math.round((r.deposit || 0) * CANCEL_DEPOSIT_FEE_RATE);
+  return { paid, fee, refund: Math.max(0, paid - fee), policy: "Huỷ trước ngày bắt đầu: phí 10% tiền cọc" };
 }
 
 const handlers = {

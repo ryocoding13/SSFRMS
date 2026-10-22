@@ -225,13 +225,13 @@ test("PayOS gia hạn (C11q → C11b): khoản gia hạn đã duyệt chuyển �
   assert.equal(out.state.contracts.find((c) => c.contract_id === row.contract_id).end_date, row.period.to);
 });
 
-test("huỷ đơn (C14a): đơn đã thanh toán chưa nhận kho được huỷ và hoàn tiền trừ phí; đơn đã nhận kho thì không", () => {
+test("huỷ đơn (C14a, D27): đơn đã thanh toán chưa nhận kho được huỷ và hoàn tiền trừ phí 10% tiền cọc; đơn đã nhận kho thì không", () => {
   const s = createSeedData(T);
   const out = run(s, "CANCEL_RESERVATION", { reservation_id: "SS-20260914-0142", reason: "Đổi kế hoạch chuyển nhà" });
   const r = out.state.reservations.find((x) => x.reservation_id === "SS-20260914-0142");
   assert.equal(r.status, "CANCELLED");
   assert.equal(r.refund_status, "PENDING");
-  assert.equal(r.refund_amount, 4600000 - 345000); // Figma C14a: phí huỷ 10% tiền thuê
+  assert.equal(r.refund_amount, 4600000 - 115000); // D27: phí huỷ 10% tiền cọc (cọc 1.150.000), hoàn đủ tiền thuê
   assert.equal(out.state.contracts.find((c) => c.reservation_id === r.reservation_id).status, "ENDED");
   assert.match(run(s, "CANCEL_RESERVATION", { reservation_id: "SS-20260615-0086" }).error.message, /nhận kho/);
 });

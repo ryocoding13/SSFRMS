@@ -24,7 +24,17 @@ public record ReservationDto(
     DateTime? CancelledAt,
     string? CancellationReason,
     DateTime CreatedAt,
-    string PaymentMethod = "PAYOS"
+    string PaymentMethod = "PAYOS",
+    decimal? RefundAmount = null,
+    string? RefundStatus = null // PENDING (chờ quản lý chuyển khoản) | COMPLETED
+);
+
+/// <summary>C14a · Ước tính khi huỷ đơn đã thanh toán trước ngày bắt đầu (D27).</summary>
+public record CancelPreviewDto(
+    decimal PaidAmount,
+    decimal CancellationFee,
+    decimal RefundAmount,
+    string PolicyName
 );
 
 public record ReservationDetailDto(

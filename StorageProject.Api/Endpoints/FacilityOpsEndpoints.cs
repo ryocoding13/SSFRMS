@@ -74,7 +74,15 @@ public static class FacilityOpsEndpoints
                 var refund = await ops.ConfirmRefundAsync(Actor(user), id, ct);
                 return Results.Ok(new { message = "Đã cập nhật.", refund });
             }))
-            .WithSummary("M07 · Xác nhận hoàn cọc sau biên bản trả kho: cọc − khoản còn nợ, đóng hợp đồng, ô trống lại");
+            .WithSummary("M07 · Xác nhận hoàn cọc sau biên bản trả kho theo chính sách D27, đóng hợp đồng, ô trống lại");
+
+        group.MapPost("/reservations/{id}/refund", (string id, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () =>
+            {
+                var refund = await ops.ConfirmReservationRefundAsync(Actor(user), id, ct);
+                return Results.Ok(new { message = "Đã cập nhật.", refund });
+            }))
+            .WithSummary("M07 · Xác nhận đã chuyển khoản hoàn tiền cho đơn đã huỷ (D27)");
     }
 
     private static OpsActor Actor(ClaimsPrincipal user) => new(user.GetUserId(), user.IsInRole("MANAGER"));
