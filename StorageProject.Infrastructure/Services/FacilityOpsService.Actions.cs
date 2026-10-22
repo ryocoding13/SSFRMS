@@ -54,8 +54,12 @@ public partial class FacilityOpsService
         var id = ParseCode(code, "HT-", "yêu cầu hỗ trợ");
         return await dbContext.SupportTickets
                    .FirstOrDefaultAsync(t => t.TicketId == id
-                                             && ((t.Unit != null && t.Unit.FacilityId == facilityId)
-                                                 || (t.Contract != null && t.Contract.Unit.FacilityId == facilityId)), ct)
+                                             // Code cũ được giữ để đối chiếu.
+                                             // && ((t.Unit != null && t.Unit.FacilityId == facilityId)
+                                             //     || (t.Contract != null && t.Contract.Unit.FacilityId == facilityId)), ct)
+                                             // Ưu tiên cơ sở của hợp đồng để liên kết ô sai trong dữ liệu cũ không mở quyền cho cơ sở khác.
+                                             && (t.Contract != null ? t.Contract.Unit.FacilityId == facilityId
+                                                 : t.Unit != null && t.Unit.FacilityId == facilityId), ct)
                ?? throw new KeyNotFoundException("Không tìm thấy yêu cầu hỗ trợ tại cơ sở của bạn.");
     }
 

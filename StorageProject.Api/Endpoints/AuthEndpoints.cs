@@ -78,6 +78,11 @@ public static class AuthEndpoints
             {
                 return Results.NotFound(new { error = ex.Message });
             }
+            // Trả lỗi tên không hợp lệ để C13 hiển thị ngay trong biểu mẫu.
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
         }).RequireAuthorization();
 
         group.MapPost("/change-password", async (ChangePasswordRequest request, ClaimsPrincipal user, IAuthService authService, CancellationToken ct) =>

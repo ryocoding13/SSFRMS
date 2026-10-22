@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace StorageProject.Core.DTOs.Ops;
 
 public class OpsBoardDto
@@ -141,8 +143,12 @@ public class OpsTicketDto
 
 public class OpsTicketNoteDto
 {
+    // S05 đang đọc staff, text, at; ánh xạ tên JSON và giữ tên thuộc tính C# đang dùng.
+    [JsonPropertyName("staff")]
     public string Author { get; set; } = null!;
+    [JsonPropertyName("text")]
     public string Content { get; set; } = null!;
+    [JsonPropertyName("at")]
     public string CreatedAt { get; set; } = null!;
 }
 

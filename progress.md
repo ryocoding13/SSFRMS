@@ -339,3 +339,14 @@
 - Test chỉ cập nhật import/module path, giữ assertion. Kiểm tra 532 khai báo AST tương đương sau đổi tên identifier/import/export.
 - Kiểm chứng: check:structure PASS; npm test 67/67; test:business 9/9; test:render 92 routes; build PASS; init.sh PASS (dotnet dùng -m:1 do giới hạn môi trường); git diff --check PASS. Các cảnh báo dependency/nullable/chunk size cũ vẫn còn.
 - Chưa kiểm thử lại tương tác trình duyệt/API thật; SSR không bao phủ thao tác. ZIP dùng git apply để thêm file mới và xoá file cũ, có kiểm tra trước khi áp dụng. Không push/PR/merge.
+
+
+## 2026-10-21 — F37 tách backend C13 và S05/C12
+
+- Theo yêu cầu mới nhất của người dùng, chỉ chuẩn bị hai luồng đã kiểm tra đạt để push trước; gói backend độc lập trên main fc83c3a. Không đưa phí trả kho, huỷ/hoàn tiền, migration hay frontend vào bản vá. Giữ các công việc đang làm dở ở thư mục/nhánh cũ.
+- C13 kiểm tên và mật khẩu, lỗi đầu vào trả 400; test đọc lại database và kiểm tài khoản khác không đổi. S05/C12 ánh xạ chủ đề hợp lệ, đọc ticket theo cơ sở hợp đồng, chuẩn hoá trạng thái/ghi chú, lưu audit phản hồi và trả nội dung cho chủ ticket.
+- Gộp phần hỗ trợ từ bản bổ sung đã bàn giao; loại bỏ các hunk S04 dùng chung trong StaffService để không phụ thuộc FinanceService. Giữ nguyên hàm trả kho của main. Code cũ giữ trong comment // ở các đoạn thay đổi.
+- Kiểm chứng: .NET SDK 10.0.402; build -m:1 PASS; xUnit 34/34 (15 test main + 19 trường hợp AuthSupport, SQLite); check:structure PASS; FE 68/68; business 9/9; SSR 92 route PASS; build FE và init.sh PASS. init dùng wrapper dotnet thêm -m:1 do giới hạn tiến trình; không sửa init.sh.
+- Cảnh báo có sẵn NU1902/NU1903, nullable Board.cs và kích thước chunk/font frontend vẫn còn. Chưa chạy SQL Server thật cho bản tách riêng. Người dùng đã báo C13 và S05/C12 đạt trước khi tách; cần kiểm tra lại sau khi áp dụng. F37 giữ active.
+- Figma từ chối quyền đọc thiết kế/ảnh; không có thay đổi giao diện và không tuyên bố đã đối chiếu thiết kế trực tiếp.
+- Không push/PR/merge. Bàn giao patch, danh sách file và hướng dẫn tạo worktree riêng để người dùng tự kiểm tra, commit và push.

@@ -63,7 +63,10 @@ public partial class FacilityOpsService
             .Include(t => t.Customer)
             .Include(t => t.Unit)
             .Include(t => t.Contract).ThenInclude(c => c!.Unit)
-            .Where(t => ((t.Unit != null && t.Unit.FacilityId == fid) || (t.Contract != null && t.Contract.Unit.FacilityId == fid))
+            // Code cũ được giữ để đối chiếu.
+            // .Where(t => ((t.Unit != null && t.Unit.FacilityId == fid) || (t.Contract != null && t.Contract.Unit.FacilityId == fid))
+            // API tương thích cũng xác định cơ sở theo hợp đồng trước khi dùng liên kết ô.
+            .Where(t => (t.Contract != null ? t.Contract.Unit.FacilityId == fid : t.Unit != null && t.Unit.FacilityId == fid)
                         && t.Status != "CANCELLED"
                         && ((t.Status != "RESOLVED" && t.Status != "CLOSED")
                             || (t.ClosedAt ?? t.ResolvedAt ?? t.CreatedAt) >= recent))
