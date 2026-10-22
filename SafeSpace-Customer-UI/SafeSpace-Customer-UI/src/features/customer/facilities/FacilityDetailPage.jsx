@@ -182,7 +182,7 @@ export default function FacilityDetailPage({ id, query }) {
             {place} · {stockText}
           </p>
         </div>
-        <button type="button" className="btn btn--soft detail-head__toggle" onClick={toggleView} aria-pressed={view === "map"}>
+        <button type="button" className={`btn btn--${view === "map" ? "outline" : "primary"} detail-head__toggle`} onClick={toggleView} aria-pressed={view === "map"}>
           {view === "map" ? "← Xem ảnh & tiện ích" : "Xem sơ đồ & tình trạng kho"}
         </button>
       </header>

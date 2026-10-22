@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { go, href } from "../../app/router.js";
 import { unreadCount, whenLabel } from "../../app/state/appSelectors.js";
 import { useApp } from "../../app/state/AppProvider.jsx";
+import PendingBadge from "./PendingBadge.jsx";
+import StickyHeader from "./StickyHeader.jsx";
 import { Icon } from "./UI.jsx";
 
 const PUBLIC_LINKS = [
@@ -95,15 +97,16 @@ function NotificationPopup({ onClose, anchorRef }) {
 }
 
 export default function Header({ page }) {
-  const { authed, user, data } = useApp();
+  const { authed, user, data, roles } = useApp();
   const [open, setOpen] = useState(false);
   const anchor = useRef(null);
-  const unread = authed ? unreadCount(data) : 3;
+  const customer = authed && roles.includes("CUSTOMER");
+  const unread = customer ? unreadCount(data) : 0;
 
   useEffect(() => setOpen(false), [page]);
 
   return (
-    <>
+    <StickyHeader>
       <header className="header">
         <div className="header__inner">
           <a className="brand" href={href("home")} aria-label="SafeSpace — Trang chủ">
@@ -123,7 +126,7 @@ export default function Header({ page }) {
             ) : (
               <a className="header__name" href={href("login")}>Đăng nhập</a>
             )}
-            <div className="bell-anchor" ref={anchor}>
+            {customer && <div className="bell-anchor" ref={anchor}>
               <button
                 type="button"
                 className="bell"
@@ -132,10 +135,10 @@ export default function Header({ page }) {
                 aria-expanded={open}
               >
                 <Icon name="bell" size={22} />
-                {unread > 0 && <i aria-hidden="true" />}
+                <PendingBadge count={unread} />
               </button>
               {open && <NotificationPopup onClose={() => setOpen(false)} anchorRef={anchor} />}
-            </div>
+            </div>}
           </div>
         </div>
       </header>
@@ -150,6 +153,6 @@ export default function Header({ page }) {
           </div>
         </nav>
       )}
-    </>
+    </StickyHeader>
   );
 }

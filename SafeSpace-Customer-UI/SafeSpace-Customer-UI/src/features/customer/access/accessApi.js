@@ -39,6 +39,7 @@ export function normAccess(dto) {
     unit: dto.unitNumber || null,
     unit_type: dto.unitType || null,
     location: dto.location || null,
+    valid_from: dto.validFrom ? String(dto.validFrom).slice(0, 10) : null,
     valid_until: dto.validUntil ? String(dto.validUntil).slice(0, 10) : null,
   };
 }
@@ -75,14 +76,15 @@ export function directionsUrl({ lat, lng, address, name } = {}) {
 
 // Mã QR mở cửa khi chạy không có backend (chế độ trình duyệt): mã tham chiếu cố định theo hợp đồng, không chứa bí mật
 export function localAccessCode(contract) {
-  const digits = [...String(contract.contract_id)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 100000000, 7);
-  const backup = String(digits).padStart(8, "0");
+  const digits = [...String(contract.contract_id)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 1000000, 7);
+  const backup = String(digits).padStart(6, "0");
   return {
     code: `SSQR-${String(contract.contract_id).replace(/[^A-Za-z0-9]/g, "")}-${backup.slice(0, 4)}`,
-    backup: `${backup.slice(0, 4)} ${backup.slice(4)}`,
+    backup,
     unit: contract.unit_number,
     unit_type: null,
     location: contract.location || null,
+    valid_from: contract.start_date,
     valid_until: contract.end_date,
   };
 }

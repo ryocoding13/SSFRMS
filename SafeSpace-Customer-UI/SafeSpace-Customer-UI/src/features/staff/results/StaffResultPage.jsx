@@ -2,9 +2,10 @@ import React from "react";
 import { Icon, LinkButton, Tag } from "../../../shared/components/UI.jsx";
 
 export const DONE_TEXT = {
-  payment: ["Đã xác nhận thu tiền", "Đơn chuyển sang bước phân bổ / bàn giao kho. Khách hàng nhận thông báo thanh toán thành công."],
+  payment: ["Đã xác nhận thu tiền", "Hệ thống tự phân bổ ô kho và cấp hợp đồng cùng QR/PIN khi có ô phù hợp. Khách nhận chìa khóa tại quầy."],
   mismatch: ["Đã gửi báo sai lệch", "Quản lý cơ sở sẽ liên hệ khách để đối chiếu lại giao dịch."],
-  handover: ["Đã bàn giao kho", "Kho chuyển sang trạng thái \"Đang hoạt động\" và khách hàng có thể sử dụng ngay."],
+
+  key: ["Đã ghi nhận nhận chìa khóa", "Nhận chìa khóa không thay đổi thời gian hiệu lực hợp đồng hoặc quyền mở kho."],
   return: ["Đã gửi biên bản trả kho", "Biên bản đã được chuyển đến quản lý cơ sở để xác nhận hoàn cọc."],
   support: ["Đã ghi nhận xử lý", "Phản hồi đã được chuyển đến khách hàng và quản lý cơ sở."],
 };

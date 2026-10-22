@@ -126,7 +126,7 @@ const OPS_ROUTES = [
   ["POST", /^\/api\/(?:ops|staff)\/payments\/([^/]+)\/confirm$/, "STAFF", "CONFIRM_PAYMENT", (b, id) => ({ id })],
   ["POST", /^\/api\/(?:ops|staff)\/payments\/([^/]+)\/mismatch$/, "STAFF", "REPORT_MISMATCH", (b, id) => ({ id, note: b?.note })],
   ["POST", /^\/api\/(?:ops|staff)\/verifications\/([^/]+)$/, "STAFF", "VERIFY_CUSTOMER", (b, id) => ({ id, doc_type: b?.docType, doc_no: b?.docNumber, photo_ok: b?.photoMatched, info_ok: b?.infoMatched })],
-  ["POST", /^\/api\/(?:ops|staff)\/handovers\/([^/]+)\/complete$/, "STAFF", "HANDOVER", (b, id) => ({ id, method: b?.unlockMethod })],
+  ["POST", /^\/api\/(?:ops|staff)\/keys\/([^/]+)\/receipt$/, "STAFF", "RECORD_KEY_RECEIPT", (b, id) => ({ id })],
   ["POST", /^\/api\/(?:ops|staff)\/returns\/([^/]+)\/inspection$/, "STAFF", "SUBMIT_RETURN", (b, id) => ({ id, report: mapKeys(b || {}, snake) })],
   ["POST", /^\/api\/(?:ops|staff)\/tickets\/([^/]+)\/responses$/, "STAFF", "TICKET_RESPONSE", (b, id, me) => ({ id, note: b?.note, next: b?.nextStatus, staff: me })],
   ["PUT", /^\/api\/(?:ops|staff)\/units\/([^/]+)\/status$/, "STAFF", "UPDATE_UNIT_STATUS", (b, id) => ({ id, code: id, status: b?.status, reason: b?.reason })],
@@ -229,8 +229,8 @@ export function startMockApi(
     return { orderCode: o.orderCode, amount: o.amount, description: o.description, qrCode: qr, checkoutUrl: `https://pay.payos.vn/web/mock-${o.orderCode}`, expiredAt: iso(o.expiredAt), status: o.status };
   };
   const accessCode = (c) => {
-    const n = String((c.contractId * 7919 + 4821) % 100000000).padStart(8, "0");
-    return { code: `SSQR-${c.contractId}-${n.slice(0, 4)}`, backup: `${n.slice(0, 4)} ${n.slice(4)}` };
+    const n = String((c.contractId * 7919 + 4821) % 1000000).padStart(6, "0");
+    return { code: `SSQR-${c.contractId}-${n.slice(0, 4)}`, backup: n };
   };
 
   const ticketDto = (t) => ({ ticketId: t.ticketId, contractId: t.contractId, unitId: t.unitId, issueType: t.issueType, title: t.title, priority: t.priority, status: t.status, createdAt: dbTime(t.createdAt), resolvedAt: null, closedAt: null });
@@ -379,8 +379,8 @@ export function startMockApi(
       if (!c) return out("DENIED", "Mã không đúng. Kiểm tra lại mã trên ứng dụng hoặc mã dự phòng.", null);
       const h = S.handovers.find((x) => x.contractId === c.contractId);
       if (c.status !== "ACTIVE") return out("DENIED", "Mã đã hết hiệu lực — hợp đồng đã trả kho.", c);
-      if (!h || h.status !== "HANDED_OVER") return out("DENIED", "Kho chưa được bàn giao cho khách.", c);
-      if (c.endDate < dateOnly(now)) return out("DENIED", "Hợp đồng đã quá hạn. Vui lòng gia hạn hoặc liên hệ cơ sở.", c);
+      if (c.startDate > dateOnly(now)) return out("DENIED", "Chưa đến ngày bắt đầu hợp đồng.", c);
+      if (c.endDate <= dateOnly(now)) return out("DENIED", "Hợp đồng đã quá hạn. Vui lòng gia hạn hoặc liên hệ cơ sở.", c);
       return out("OPEN", null, c);
     }
 
@@ -681,10 +681,10 @@ export function startMockApi(
       const c = S.contracts.find((x) => x.contractId === +m[1] && x.customerId === me);
       if (!c) return send(404, { error: "Không tìm thấy hợp đồng." });
       const h = S.handovers.find((x) => x.contractId === c.contractId);
-      if (c.status !== "ACTIVE" || !h || h.status !== "HANDED_OVER") return bad("QR mở cửa chỉ dùng được sau khi nhận kho và khi hợp đồng còn hiệu lực.");
+      if (c.status !== "ACTIVE") return bad("QR mở cửa chỉ dùng được sau khi nhận kho và khi hợp đồng còn hiệu lực.");
       const u = unit(c.unitId);
       const a = accessCode(c);
-      return send(200, { contractId: c.contractId, code: a.code, backupCode: a.backup, unitNumber: u.unitNumber, unitType: ut(u.unitTypeId).climateControlled ? "Kho lạnh" : "Kho thường", location: null, validUntil: c.endDate });
+      return send(200, { contractId: c.contractId, code: a.code, backupCode: a.backup, unitNumber: u.unitNumber, unitType: ut(u.unitTypeId).climateControlled ? "Kho lạnh" : "Kho thường", location: null, validUntil: c.endDate, validFrom: c.startDate });
     }
     if (req.method === "POST" && (m = path.match(/^\/api\/handovers\/(\d+)\/confirm$/))) {
       const h = S.handovers.find((x) => x.handoverId === +m[1]);

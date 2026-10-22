@@ -10,7 +10,7 @@ import { FacilityReportPage } from "../manager/reports/FacilityReportPage.jsx";
 import { UnitManagementPage } from "../manager/units/UnitManagementPage.jsx";
 import FacilityOperationsLayout from "./FacilityOperationsLayout.jsx";
 import { StaffResultPage } from "../staff/results/StaffResultPage.jsx";
-import { HandoverPage } from "../staff/handovers/HandoverPage.jsx";
+import { KeyReceiptPage } from "../staff/keys/KeyReceiptPage.jsx";
 import { PaymentConfirmationPage } from "../staff/payments/PaymentConfirmationPage.jsx";
 import { ReturnInspectionPage } from "../staff/returns/ReturnInspectionPage.jsx";
 import { StaffSupportPage } from "../staff/support/StaffSupportPage.jsx";
@@ -20,7 +20,7 @@ import { useMe } from "../staff/hooks/useStaffIdentity.js";
 import { StaffTaskList } from "./components/StaffTasks.jsx";
 
 // Tab nhân viên: không có ?id → lưới 3x3 các việc của tab; có ?id → màn xử lý chi tiết
-const LIST_KIND = { reconcile: "reconcile", verify: "verify", handover: "handover", return: "return", support: "support" };
+const LIST_KIND = { reconcile: "reconcile", verify: "verify", handover: "handover", keys: "handover", return: "return", support: "support" };
 function StaffTab({ kind, Detail, query }) {
   const me = useMe();
   return query.get("id") ? <Detail query={query} /> : <StaffTaskList kind={kind} query={query} me={me} />;
@@ -31,7 +31,8 @@ const STAFF = {
   "": [StaffDashboardPage, "staff"],
   reconcile: [PaymentConfirmationPage, "staff/reconcile"],
   verify: [CustomerVerificationPage, "staff/verify"],
-  handover: [HandoverPage, "staff/handover"],
+  handover: [KeyReceiptPage, "staff/verify"],
+  keys: [KeyReceiptPage, "staff/verify"],
   return: [ReturnInspectionPage, "staff/return"],
   support: [StaffSupportPage, "staff/support"],
   done: [StaffResultPage, "staff"],

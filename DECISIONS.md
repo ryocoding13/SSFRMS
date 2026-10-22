@@ -172,3 +172,14 @@
 ## D25 — 2026-10-20: Tổ chức FE theo vai trò và chức năng
 
 Theo yêu cầu nhóm, dùng src/app, src/features/<role>/<feature>, src/shared, src/assets. Tách từng Page từ các file tổng StaffPages/ManagerPages/Units/Auth/Checkout/Public; giữ code dùng chung Staff/Manager ở facility-operations. Giữ URL, API, localStorage và nghiệp vụ. Không đổi hai cấp thư mục gốc FE để không phá lệnh chạy/CI. docs/frontend-naming.md và FRONTEND-MAP.md là hướng dẫn bắt buộc; npm run check:structure kiểm tra quy ước cơ bản.
+
+## D26 — Giao diện Figma 22/10 và tự cấp hợp đồng sau thanh toán
+- Người dùng chốt rõ: hệ thống tự chọn ô trống sau PayOS; thay phần phân bổ thủ công thường lệ trong D23. M05 giữ vai trò xử lý ngoại lệ/đơn cũ và giữ chỗ chưa thu tại quầy.
+- Sau khi xác minh chữ ký, mã đơn và đủ số tiền, ghi RENT/DEPOSIT rồi tự chọn ô AVAILABLE cùng cơ sở/loại, không bảo trì và không có hợp đồng trùng kỳ. Trong cùng transaction với khoá reservation + inventory. Khi không còn ô phù hợp, vẫn giữ khoản thu thật, ghi AUTO_ALLOCATION_PENDING cho quản lý; không tạo hợp đồng giả. Webhook lặp thử lại việc phân bổ còn thiếu, không thêm khoản thu.
+- Hợp đồng được ACTIVE và cấp QR/PIN6 ngay sau thanh toán/phân bổ. DRAFT chỉ còn dùng cho giữ chỗ chưa thu. Quyền mở cửa độc lập việc nhận chìa khóa; máy chủ bắt buộc kiểm [StartDate, EndDate) theo giờ Việt Nam, trạng thái hợp đồng và mã hiện hành.
+- Thay PIN8 trong D22 bằng PIN6. QR và PIN dùng hai credential ACCESS_CODE riêng (tiền tố QR-/PIN-), cấp lại từng loại không làm đổi loại còn lại; mã cũ bị thay thế. PIN quét cần ô kho, từ chối khi có kết quả trùng giữa cơ sở; giới hạn 10 lượt/phút/IP cho endpoint mô phỏng. Chưa thay thế tích hợp thiết bị cửa thật.
+- Bỏ bàn giao kích hoạt và lựa chọn thẻ/vân tay. Tái sử dụng bảng HandoverRecord cho xác minh/nhận chìa khóa để giữ dữ liệu cũ: HANDED_OVER chỉ có nghĩa chìa khóa đã nhận. API cũ của nhân viên chỉ ghi nhận chìa khóa, không kích hoạt; endpoint khách xác nhận bàn giao bị từ chối. Không sửa migration.
+- Header/menu luôn hiện, kích thước/màu/nội dung không đổi theo cuộn. Chuông chỉ ở khách hàng, hiện số chưa đọc; nhân viên/quản lý dùng số hàng chờ ngay trên task. Xử lý xong số giảm, 0 ẩn. Dữ liệu lấy lại sau lưu và mỗi 30 giây/khi quay lại tab.
+- Mọi mutation STAFF qua provider đều phải qua modal xác nhận; hủy không gọi API. Chống gửi lặp khi đang xác nhận/lưu; thành công mới điều hướng, thất bại giữ form và báo lỗi.
+- Hỗ trợ có 8 nhóm, Khác bắt buộc tiêu đề 1–100 ký tự; QR/PIN/key có yêu cầu cấp lại riêng. Quản lý cơ sở vẫn chỉ có 1 cơ sở phụ trách.
+- FE ưu tiên board và mutation `/api/ops` chuẩn (cùng mã xác minh/nhận chìa khóa, phạm vi role và dữ liệu hàng chờ); chỉ fallback board vai trò khi route chuẩn trả 404/405. API trạng thái ô và cấp lại mã tiếp tục dùng `/api/staff`. Không fallback khi lỗi xác thực/phân quyền.

@@ -14,7 +14,7 @@ export const UNIT_TABS = [
   ["EMPTY", "Trống"],
   ["EXPIRING", "Sắp hết hạn"],
   ["OVERDUE", "Quá hạn"],
-  ["WAITING_HANDOVER", "Chờ bàn giao"],
+  ["WAITING_HANDOVER", "Chưa đến ngày sử dụng"],
   ["MAINTENANCE", "Bảo trì"],
 ];
 

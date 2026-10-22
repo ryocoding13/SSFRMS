@@ -47,6 +47,7 @@ public class ContractService(AppDbContext dbContext) : IContractService
             .Include(x => x.Payments)
             .Include(x => x.ContractRenewals)
             .Include(x => x.HandoverRecord)
+            .Include(x => x.AccessCredentials)
             .Where(x => x.ContractId == contractId && x.CustomerId == customerId)
             .FirstOrDefaultAsync(ct);
 
@@ -116,7 +117,11 @@ public class ContractService(AppDbContext dbContext) : IContractService
             c.CompletedAt,
             handoverDto,
             payments,
-            renewals
+            renewals,
+            c.AccessCredentials.Where(a => a.Status == "ACTIVE" && a.CredentialType == "ACCESS_CODE" &&
+                a.CredentialReference != null && a.CredentialReference.Length > 3 &&
+                Guid.TryParseExact(a.CredentialReference[3..], "N", out _))
+                .Select(a => (DateTime?)a.IssuedAt).Max()
         );
     }
 

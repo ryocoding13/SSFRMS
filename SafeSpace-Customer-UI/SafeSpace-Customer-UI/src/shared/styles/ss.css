@@ -16,12 +16,14 @@
   --red: #b91c1c;
   --red-bg: #fef2f2;
   --field: #f4f6fb;
+  --pending: #b42318;
+  --view-toggle-bg: #f0f4f9;
   --shadow: 0 2px 8px rgba(16, 21, 42, 0.06);
   --pad-x: 90px;
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 *, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: calc(var(--site-header-height, 0px) + 16px); }
 body { margin: 0; background: var(--bg); color: var(--text); font-size: 16px; line-height: 1.5; }
 h1, h2, h3, h4, p, dl, dd, ul, ol { margin: 0; }
 ul, ol { padding: 0; list-style: none; }
@@ -35,6 +37,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .app > #main { flex: 1; outline: none; }
 
 /* ---------- Header ---------- */
+.site-header { position: sticky; top: 0; z-index: 70; flex: none; background: var(--white); box-shadow: var(--shadow); }
+.site-header .header { position: relative; z-index: 1; }
+.site-header .popup { max-height: calc(100dvh - 96px); overflow-y: auto; }
 .header { background: var(--white); border: 1px solid var(--line); border-width: 0 0 1px; }
 .header__inner { height: 80px; max-width: 1440px; margin: 0 auto; padding: 0 64px; display: flex; align-items: center; gap: 36px; }
 .brand { display: flex; align-items: center; gap: 6px; font-size: 24px; font-weight: 700; color: var(--blue); }
@@ -567,7 +572,7 @@ a.cell-strong:hover { color: var(--blue); }
 .map-card.is-selected { box-shadow: 0 0 0 2px var(--blue), var(--shadow); }
 .map-card > .btn { margin-top: 10px; }
 .map-note { font-size: 14px; }
-.map-wrap { position: relative; height: 600px; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: #e9eef5; }
+.map-wrap { isolation: isolate; position: relative; height: 600px; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: #e9eef5; }
 .map-canvas { position: absolute; inset: 0; z-index: 0; }
 .map-fallback { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); z-index: 1; }
 .map-chip { position: absolute; top: 16px; left: 16px; z-index: 500; background: #fff; border-radius: 8px; padding: 8px 14px; font-weight: 600; font-size: 14px; box-shadow: var(--shadow); }
@@ -661,8 +666,9 @@ label.search-input input { border: 0; outline: 0; flex: 1; font-size: 14px; back
 .empty-line__icon { width: 32px; height: 32px; border-radius: 8px; background: var(--soft); color: var(--blue); display: grid; place-items: center; flex: none; }
 .empty-line__cta { padding: 9px 16px; font-size: 14px; }
 .page-header__actions { flex: none; align-self: center; }
-.view-toggle { display: inline-flex; gap: 4px; padding: 4px; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
-.view-toggle a { padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 15px; color: var(--text); }
+.view-toggle { display: inline-flex; gap: 4px; padding: 4px; background: var(--view-toggle-bg); box-shadow: inset 0 0 0 1px var(--line); border-radius: 12px; max-width: 100%; }
+.view-toggle a { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 144px; min-height: 48px; padding: 12px; border-radius: 8px; font-weight: 600; font-size: 16px; line-height: 24px; color: var(--text); }
+.view-toggle img { flex: none; }
 .view-toggle a.is-on { background: var(--blue); color: #fff; }
 .view-toggle a:not(.is-on):hover { background: var(--soft); }
 @media (max-width: 720px) { .empty-line { flex-wrap: wrap; } .page-header { flex-wrap: wrap; } }
@@ -817,3 +823,52 @@ label.search-input input { border: 0; outline: 0; flex: 1; font-size: 14px; back
 .radio-card strong { display: block; font-size: 14.5px; color: var(--ink); }
 .radio-card small { display: block; font-size: 13px; color: var(--muted); }
 .radio-card.is-on { border-color: var(--blue); background: var(--soft); }
+
+/* Customer button alignment — Figma 21/10/2026. */
+.customer-app .btn { min-height: 44px; }
+.customer-app .facility-card > .btn { justify-self: stretch; width: 100%; min-height: 48px; font-size: 16px; line-height: 24px; padding: 11px 12px; border-radius: 6px; }
+.customer-app .booking__actions { justify-items: stretch; gap: 16px; }
+.customer-app .booking__actions > .btn, .customer-app .booking .stack--col > .btn { width: 100%; min-height: 48px; font-size: 16px; line-height: 24px; padding: 11px 12px; border-radius: 6px; }
+.customer-app .booking .stack--col { gap: 16px; }
+.customer-app .detail-head__toggle { min-height: 44px; width: 340px; max-width: 100%; font-size: 16px; line-height: 24px; padding: 9px 12px; }
+.customer-app .lightbox__round { width: 44px; height: 44px; }
+@media (max-width: 360px) {
+  .page-header__actions { width: 100%; }
+  .view-toggle { display: flex; }
+  .view-toggle a { width: auto; flex: 1; padding-inline: 8px; }
+}
+
+/* Figma 22/10: pending requests, fixed chrome and confirmation dialogs. */
+.pending-badge { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; min-width:24px; height:24px; padding:0 7px; border-radius:12px; background:var(--pending); color:var(--white); font-size:12px; font-weight:600; line-height:16px; }
+.subnav__inner > a { display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
+.bell > .pending-badge { position:absolute; top:-4px; right:-5px; }
+.modal--confirm { max-height:calc(100dvh - 32px); overflow-y:auto; width:560px; max-width:calc(100vw - 32px); padding:28px; border:1px solid var(--line); border-radius:16px; display:flex; flex-direction:column; gap:20px; }
+.modal--confirm h2 { font-size:22px; line-height:33px; margin:0; }
+.modal--confirm .modal__text { margin:0; line-height:24px; }
+.confirm-summary { margin:0; padding:16px; background:var(--soft); display:grid; gap:8px; }
+.confirm-summary div { display:grid; gap:2px; }
+.confirm-summary dt { font-size:13px; line-height:20px; color:var(--muted); }
+.confirm-summary dd { margin:0; font-weight:600; line-height:24px; overflow-wrap:anywhere; white-space:pre-wrap; }
+.modal--confirm .modal__actions { display:flex; gap:12px; margin:0; }
+.modal--confirm .modal__actions > .btn { flex:1; min-height:49px; }
+.modal--confirm .hint { margin:0; }
+.support-access-options { display:flex; flex-wrap:wrap; gap:8px; }
+.support-access-options .btn { flex:1; white-space:normal; }
+.support-grid { grid-template-columns:minmax(0, 804fr) minmax(0, 432fr); }
+@media(max-width:760px) { .support-grid { grid-template-columns:1fr; } .modal--confirm { width:100%; padding:24px; } }
+
+.modal--access-qr { max-width:480px; padding:32px; gap:16px; border-radius:12px; justify-items:center; max-height:calc(100dvh - 32px); overflow-y:auto; }
+.modal--access-qr h2 { font-size:22px; font-weight:600; text-align:center; }
+.modal--access-qr .modal__text--sub { font-size:15px; text-align:center; margin:0; }
+.modal--access-qr .qr { width:240px; height:240px; padding:16px; border:1px solid var(--line); display:grid; place-items:center; }
+.modal--access-qr .qr__code { padding:0; border-radius:0; }
+.modal--access-qr .pay-rows { width:100%; }
+.modal--access-qr > .hint { font-size:14px; line-height:20px; }
+@media(max-width:520px) { .modal--access-qr { padding:24px; } }
+
+.support-grid > .panel, .support-grid .ticket { border:1px solid var(--line); border-radius:8px; box-shadow:none; }
+.support-grid .form-card .field input, .support-grid .form-card .field textarea, .support-grid .select select { border-color:var(--line); background:var(--bg); }
+.support-grid .attach { width:88px; height:88px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0; background:var(--white); border:1.5px dashed var(--line); color:var(--blue); font-size:12px; gap:2px; }
+.support-grid .attach span:first-child { font-size:22px; }
+.modal--access-qr .modal__actions--full { width:100%; display:flex; }
+@media(max-width:520px) { .support-access-options { flex-direction:column; } .support-access-options .btn { min-height:44px; width:100%; } }

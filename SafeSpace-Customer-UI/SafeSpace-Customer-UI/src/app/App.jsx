@@ -152,7 +152,7 @@ function Shell() {
     ) : null;
 
   return (
-    <div className="app">
+    <div className={`app${!isAdminPage && !isOpsPage && !isBusinessPage ? " customer-app" : ""}`}>
       <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>Chuyển đến nội dung</a>
       {!(isAdminPage && !adminBody && authed) && !(isOpsPage && authed && opsAllowed) && !(isBusinessPage && !businessBody && authed) && <Header page={route.page} />}
       <div id="main" tabIndex={-1} key={route.raw.split("?")[0]}>

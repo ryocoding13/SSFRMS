@@ -16,6 +16,7 @@ public interface IFacilityOpsService
     Task ConfirmPaymentAsync(OpsActor actor, string id, CancellationToken ct = default);
     Task ReportMismatchAsync(OpsActor actor, string id, OpsNoteRequest request, CancellationToken ct = default);
     Task VerifyCustomerAsync(OpsActor actor, string id, OpsVerifyRequest request, CancellationToken ct = default);
+    Task RecordKeyReceiptAsync(OpsActor actor, string id, CancellationToken ct = default);
     Task CompleteHandoverAsync(OpsActor actor, string id, OpsHandoverRequest request, CancellationToken ct = default);
     Task SubmitReturnInspectionAsync(OpsActor actor, string id, OpsReturnInspectionRequest request, CancellationToken ct = default);
     Task RespondTicketAsync(OpsActor actor, string id, OpsTicketResponseRequest request, CancellationToken ct = default);
