@@ -328,3 +328,17 @@ Luật nghiệp vụ chi tiết (điều kiện chặn, chuyển trạng thái) 
   "me": null
 }
 ```
+
+## D27 — Hoàn tiền và cọc (chốt 22/10/2026, chưa code)
+
+Nguồn: DECISIONS.md D27. Các việc backend cần làm:
+
+- Hủy trước StartDate: `cancellationFee` = 10% `requiredDeposit` (không phải 10% tiền thuê như H1 cũ). `refundAmount` = tiền thuê đã thu + 90% cọc.
+- Dừng sau StartDate (Move-out): hoàn 70% cọc, giữ 30%. Tiền thuê hoàn theo phương án B: tháng đang dùng tính đủ; các tháng nguyên vẹn chưa bắt đầu được hoàn.
+- Trả kho sạch, đúng hạn: hoàn 100% cọc. Vi phạm vệ sinh cơ bản: trừ 10% cọc cố định.
+- Hư hỏng vật lý hoặc quá hạn: trừ `DamageFee` và `OverdueFee` vào phần cọc còn lại; vượt cọc thì hoàn 0 đ và ghi công nợ.
+- Quá hạn: đọc tham số `OVERDUE` từ cấu hình B02, không hard-code.
+- Ghi trạng thái hoàn khi Quản lý xác nhận ở M07; chuyển khoản thủ công.
+- Đồng bộ FE: appReducer.js `CANCEL_FEE_RATE` và màn C14a phải theo công thức trên.
+
+

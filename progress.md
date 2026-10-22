@@ -357,3 +357,9 @@
 - Đang kiểm chứng toàn bộ FE/BE, tương tác trình duyệt và ZIP. Chưa tuyên bố PayOS/SQL Server/thiết bị thật đạt.
 
 - Bàn giao F38: frontend cuối 76/76, SSR 92 route, check:structure/build đạt; business 9/9; backend build + 40 test SQLite trong phiên. Browser 13 nhóm PASS, so ảnh header trước/sau cuộn ở 5 role không đổi; hủy xác nhận không request, xử lý xong giảm badge, thất bại giữ draft, mobile không tràn. Chưa xác nhận SQL Server/PayOS/thiết bị thật; xem docs/figma-ui-sync-2026-10-22.md.
+
+## 2026-10-22 — D27 chốt chính sách cọc và hoàn tiền
+
+- Nhóm chốt theo D27 (DECISIONS.md): cọc 1 tháng thuê, hủy trước StartDate giữ 10% cọc, dừng sau StartDate hoàn 70% cọc, phương án B cho tiền thuê khi dừng giữa kỳ, phạt quá hạn theo tham số OVERDUE ở B02, DamageFee và OverdueFee trừ thêm vào cọc.
+- Chưa có code: feature_list.json không đổi trạng thái vì chưa có bằng chứng chạy. Phần cần làm đã ghi trong BACKEND-TODO.md mục D27.
+- Cần đổi: H1 cancel-preview và CANCEL_FEE_RATE đang tính 10% tiền thuê, không theo D27. T05 trong doc vẫn để "theo chính sách đã chốt".

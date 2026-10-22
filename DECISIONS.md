@@ -183,3 +183,16 @@ Theo yêu cầu nhóm, dùng src/app, src/features/<role>/<feature>, src/shared,
 - Mọi mutation STAFF qua provider đều phải qua modal xác nhận; hủy không gọi API. Chống gửi lặp khi đang xác nhận/lưu; thành công mới điều hướng, thất bại giữ form và báo lỗi.
 - Hỗ trợ có 8 nhóm, Khác bắt buộc tiêu đề 1–100 ký tự; QR/PIN/key có yêu cầu cấp lại riêng. Quản lý cơ sở vẫn chỉ có 1 cơ sở phụ trách.
 - FE ưu tiên board và mutation `/api/ops` chuẩn (cùng mã xác minh/nhận chìa khóa, phạm vi role và dữ liệu hàng chờ); chỉ fallback board vai trò khi route chuẩn trả 404/405. API trạng thái ô và cấp lại mã tiếp tục dùng `/api/staff`. Không fallback khi lỗi xác thực/phân quyền.
+
+## D27 — Chính sách cọc và hoàn tiền (22/10/2026) — Đã chốt
+
+- Cọc bằng 1 tháng tiền thuê của ô đó; số VNĐ thay đổi theo cỡ kho S/M/L.
+- Mốc "đã sử dụng" là StartDate, theo giờ Việt Nam.
+- Hủy trước StartDate: giữ phí cố định 10% tiền cọc, không chia theo số ngày báo trước. Khách được hoàn 100% tiền thuê và 90% cọc.
+- Dừng sau StartDate: đi theo luồng Trả kho (Move-out), chỉ xét hoàn cọc. Hoàn 70% cọc, giữ 30%.
+- Tiền thuê khi dừng giữa kỳ (phương án B, cần sửa BE): tháng đang dùng tính đủ 100%, không hoàn; các tháng nguyên vẹn chưa bắt đầu được hoàn; cộng thêm 70% cọc.
+- Trả kho sạch và đúng hạn: hoàn 100% cọc. Vi phạm vệ sinh cơ bản: trừ 10% cọc cố định.
+- Hư hỏng vật lý hoặc quá hạn nhiều ngày: trừ thêm DamageFee và OverdueFee vào phần cọc còn lại. Nếu tổng phí vượt cọc: tiền hoàn bằng 0 đ, phần thiếu ghi công nợ khách.
+- Quá hạn: lấy đúng tham số OVERDUE lưu ở màn B02 (mặc định 5% giá thuê tháng mỗi ngày, hoặc 150% giá thuê ngày mỗi ngày trễ). Không đặt số cứng trong code.
+- Thời hạn hoàn: 3–5 ngày làm việc, chuyển khoản thủ công sau khi trừ phí. Hệ thống ghi trạng thái hoàn khi Quản lý xác nhận ở M07.
+- Thay thế: quy định "phí hủy 10% tiền thuê" trong BACKEND-TODO (H1) và CANCEL_FEE_RATE (appReducer.js) không còn áp dụng; phải đổi theo D27. Chưa triển khai code.
