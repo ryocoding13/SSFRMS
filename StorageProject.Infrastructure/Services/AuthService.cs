@@ -154,4 +154,113 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
             await dbContext.SaveChangesAsync(ct);
         }
     }
+
+    public async Task<UserProfileDto> GetUserProfileAsync(long userId, CancellationToken ct = default)
+    {
+        var user = await dbContext.Users
+            .AsNoTracking()
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
+            .FirstOrDefaultAsync(u => u.UserId == userId, ct);
+
+        if (user == null)
+        {
+            throw new KeyNotFoundException($"Không tìm thấy người dùng với ID: {userId}");
+        }
+
+        var roles = user.UserRoles.Select(ur => ur.Role.RoleName).ToList();
+
+        return new UserProfileDto(
+            user.UserId,
+            user.Username,
+            user.FullName,
+            user.Email,
+            user.Phone,
+            user.Status,
+            roles
+        );
+    }
+
+    public async Task<UserProfileDto> UpdateUserProfileAsync(long userId, UpdateProfileRequest request, CancellationToken ct = default)
+    {
+        var user = await dbContext.Users
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
+            .FirstOrDefaultAsync(u => u.UserId == userId, ct);
+
+        if (user == null)
+        {
+            throw new KeyNotFoundException($"Không tìm thấy người dùng với ID: {userId}");
+        }
+
+        // Code cũ được giữ để đối chiếu.
+        // if (!string.IsNullOrWhiteSpace(request.FullName))
+        // {
+        //     user.FullName = request.FullName.Trim();
+        // }
+        // Tên hiển thị phải có từ hai đến một trăm ký tự sau khi bỏ khoảng trắng ngoài.
+        var fullName = request.FullName?.Trim() ?? "";
+        if (fullName.Length < 2 || fullName.Length > 100)
+        {
+            throw new ArgumentException("Tên hiển thị phải từ 2 đến 100 ký tự.");
+        }
+        user.FullName = fullName;
+
+        if (request.Phone != null)
+        {
+            user.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
+        }
+
+        user.UpdatedAt = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(ct);
+
+        var roles = user.UserRoles.Select(ur => ur.Role.RoleName).ToList();
+
+        return new UserProfileDto(
+            user.UserId,
+            user.Username,
+            user.FullName,
+            user.Email,
+            user.Phone,
+            user.Status,
+            roles
+        );
+    }
+
+    public async Task ChangePasswordAsync(long userId, ChangePasswordRequest request, CancellationToken ct = default)
+    {
+        // Code cũ được giữ để đối chiếu.
+        // if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
+        // {
+        //     throw new ArgumentException("Mật khẩu mới phải có ít nhất 6 ký tự.");
+        // }
+        // Đồng bộ điều kiện mật khẩu với C13 và tiếp tục dùng BCrypt để xác minh và băm.
+        if (string.IsNullOrWhiteSpace(request.CurrentPassword))
+        {
+            throw new ArgumentException("Vui lòng nhập mật khẩu hiện tại.");
+        }
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
+        {
+            throw new ArgumentException("Mật khẩu mới phải có ít nhất 8 ký tự.");
+        }
+        if (request.NewPassword == request.CurrentPassword)
+        {
+            throw new ArgumentException("Mật khẩu mới phải khác mật khẩu hiện tại.");
+        }
+
+        var user = await dbContext.Users.FirstOrDefaultAsync(u => u.UserId == userId, ct);
+        if (user == null)
+        {
+            throw new KeyNotFoundException($"Không tìm thấy người dùng với ID: {userId}");
+        }
+
+        if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+        {
+            throw new InvalidOperationException("Mật khẩu hiện tại không chính xác.");
+        }
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(ct);
+    }
 }

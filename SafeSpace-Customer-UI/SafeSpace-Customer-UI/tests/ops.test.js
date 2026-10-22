@@ -1,16 +1,20 @@
 // Nghiệp vụ khu Nhân viên cơ sở & Quản lý cơ sở (src/ops/reducer.js)
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createOpsData } from "../src/ops/data.js";
-import { candidateUnits, reduceOps } from "../src/ops/reducer.js";
+import { createOpsData } from "../src/features/facility-operations/data/facilityOperationsSeed.js";
+import { candidateUnits, reduceOps } from "../src/features/facility-operations/state/facilityOperationsReducer.js";
 
 const T = "2026-09-14";
 const run = (s, type, payload) => reduceOps(s, { type, payload }, new Date(`${T}T10:00:00`));
 
-test("dữ liệu khởi tạo: 86 kho, 3 khoản chờ đối soát, 3 khách cần xác minh", () => {
+test("dữ liệu khởi tạo: 12 ô theo D17, 3 khoản chờ đối soát, 3 khách cần xác minh", () => {
   const s = createOpsData(T);
-  assert.equal(s.units.length, 86);
-  assert.equal(new Set(s.units.map((u) => u.code)).size, 86);
+  assert.equal(s.units.length, 12);
+  assert.deepEqual(s.units.map((u) => u.code), ["K01", "K02", "K03", "K04", "K05", "K06", "K07", "K08", "K09", "K10", "K11", "K12"]);
+  assert.deepEqual(s.units.map((u) => `${u.type}:${u.area}`).join(" "), "normal:15 normal:15 normal:15 normal:15 climate:15 climate:15 normal:30 normal:30 normal:30 normal:30 climate:30 climate:30");
+  // Mọi ô được nhắc tới trong việc vận hành đều có thật trong sơ đồ
+  const codes = new Set(s.units.map((u) => u.code));
+  for (const x of [...s.verifications, ...s.handovers, ...s.returns, ...s.tickets, ...s.renewals, ...s.contracts]) assert.ok(codes.has(x.unit), x.id);
   assert.equal(s.payments.filter((p) => p.status === "PENDING").length, 3);
   assert.equal(s.verifications.filter((v) => v.status === "TODO").length, 3);
   assert.equal(s.revenue.months.at(-1).label, "Tháng 9");
@@ -23,24 +27,25 @@ test("đối soát đơn chưa có kho → chuyển quản lý phân bổ, rồi
   s = out.state;
   const a = s.allocations.find((x) => x.id === "SS-20260913-0147");
   assert.equal(a.type, "climate");
-  assert.deepEqual([a.min_area, a.max_area], [2, 5]);
+  assert.deepEqual([a.min_area, a.max_area], [15, 15]);
   const unit = candidateUnits(s, a)[0];
   assert.ok(unit);
   out = run(s, "ALLOCATE", { id: a.id, unit: unit.code });
   s = out.state;
-  assert.equal(s.units.find((u) => u.code === unit.code).status, "WAITING_HANDOVER");
+  assert.equal(s.units.find((u) => u.code === unit.code).status, "ACTIVE");
   assert.ok(s.handovers.some((h) => h.unit === unit.code));
   assert.ok(run(s, "ALLOCATE", { id: a.id, unit: unit.code }).error, "không phân bổ lần hai");
 });
 
-test("không bàn giao khi chưa xác minh; xác minh rồi bàn giao thì kho hoạt động", () => {
+test("không nhận chìa khóa khi chưa xác minh; nhận chìa khóa không đổi trạng thái kho", () => {
   let s = createOpsData(T);
-  assert.match(run(s, "HANDOVER", { id: "BG-0142", method: "CARD" }).error.message, /xác minh/);
+  assert.match(run(s, "RECORD_KEY_RECEIPT", { id: "BG-0142", method: "CARD" }).error.message, /xác minh/);
   assert.ok(run(s, "VERIFY_CUSTOMER", { id: "XM-0142", doc_type: "CCCD", doc_no: "123", photo_ok: true, info_ok: true }).error);
   s = run(s, "VERIFY_CUSTOMER", { id: "XM-0142", doc_type: "CCCD", doc_no: "079123456789", photo_ok: true, info_ok: true }).state;
   assert.equal(s.verifications.find((v) => v.id === "XM-0142").doc_last4, "6789");
-  s = run(s, "HANDOVER", { id: "BG-0142", method: "PIN" }).state;
-  assert.equal(s.units.find((u) => u.code === "A-102").status, "ACTIVE");
+  const before = s.units.find(u => u.code === "K01").status;
+  s = run(s, "RECORD_KEY_RECEIPT", { id: "BG-0142" }).state;
+  assert.equal(s.units.find(u => u.code === "K01").status, before);
 });
 
 test("trả kho → quản lý xác nhận hoàn cọc = cọc − khoản nợ, kho trống lại", () => {
@@ -49,7 +54,7 @@ test("trả kho → quản lý xác nhận hoàn cọc = cọc − khoản nợ,
   assert.equal(s.contracts.find((c) => c.id === "HĐ-0098").state, "RETURNED");
   const out = run(s, "CONFIRM_REFUND", { id: "HĐ-0098" });
   assert.equal(out.result.refund, 1150000 - 460000);
-  assert.equal(out.state.units.find((u) => u.code === "C-012").status, "EMPTY");
+  assert.equal(out.state.units.find((u) => u.code === "K04").status, "EMPTY");
 });
 
 test("duyệt / từ chối gia hạn; từ chối bắt buộc có lý do", () => {
@@ -59,7 +64,7 @@ test("duyệt / từ chối gia hạn; từ chối bắt buộc có lý do", () 
   assert.equal(s.contracts.find((c) => c.id === "HĐ-0077").state, "RESOLVED");
   s = run(s, "DECIDE_RENEWAL", { id: "GH-0208", approve: true }).state;
   const r = s.renewals.find((x) => x.id === "GH-0208");
-  assert.equal(s.units.find((u) => u.code === "C-208").end, r.to);
+  assert.equal(s.units.find((u) => u.code === "K02").end, r.to);
 });
 
 test("phân công việc hỗ trợ cho nhân viên → yêu cầu chuyển sang đang xử lý", () => {

@@ -8,6 +8,9 @@ public class Facility
     public string? ContactPhone { get; set; }
     public TimeOnly? OpeningTime { get; set; }
     public TimeOnly? ClosingTime { get; set; }
+    // Toạ độ ghim trên bản đồ (WGS84, giống Google Maps). Cả hai cùng có hoặc cùng trống.
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
     public string Status { get; set; } = "ACTIVE"; // ACTIVE, INACTIVE, TEMPORARILY_CLOSED
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

@@ -1,0 +1,16 @@
+{
+  "name": "safespace-ssfrms",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SafeSpace - Self-Storage Facility Rental Management System (SSFRMS)",
+  "scripts": {
+    "dev:backend": "dotnet run --project StorageProject.Api --launch-profile http",
+    "dev:frontend": "npm --prefix SafeSpace-Customer-UI/SafeSpace-Customer-UI run dev",
+    "dev:ngrok": "ngrok http 5151",
+    "dev": "concurrently -n BACKEND,FRONTEND,NGROK -c blue,green,yellow \"npm:dev:backend\" \"npm:dev:frontend\" \"npm:dev:ngrok\"",
+    "db:reset": "powershell -NoProfile -ExecutionPolicy Bypass -File .agents/skills/resetdb/scripts/reset-db.ps1"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}

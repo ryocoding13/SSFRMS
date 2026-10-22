@@ -40,6 +40,24 @@ public static class ContractEndpoints
             }
         });
 
+        group.MapPost("/contracts/{id:long}/move-out", async (long id, StorageProject.Core.DTOs.Contract.MoveOutRequest request, ClaimsPrincipal user, IContractService contractService, CancellationToken ct) =>
+        {
+            try
+            {
+                var customerId = user.GetUserId();
+                var result = await contractService.RegisterMoveOutAsync(customerId, id, request, ct);
+                return Results.Ok(result);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return Results.NotFound(new { error = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
         return group;
     }
 }

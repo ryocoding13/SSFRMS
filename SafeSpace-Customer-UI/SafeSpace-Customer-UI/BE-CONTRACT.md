@@ -3,7 +3,7 @@
 # BE-CONTRACT — những gì giao diện khách hàng cần từ backend
 
 Giao diện bám Figma nên **khác luồng backend cũ (v3)** ở vài điểm. Tài liệu này là danh sách để sửa BE cho khớp.
-Toàn bộ nghiệp vụ hiện nằm ở `src/state/reducer.js`; mỗi lệnh (`CREATE_RESERVATION`, `CONFIRM_TRANSFER`, ...)
+Toàn bộ nghiệp vụ hiện nằm ở `src/app/state/appReducer.js`; mỗi lệnh (`CREATE_RESERVATION`, `CONFIRM_TRANSFER`, ...)
 tương ứng một endpoint dưới đây, nên thay bằng lời gọi API là đủ.
 
 ## 0. Hiện trạng nối API
@@ -38,7 +38,7 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 
 Đã gọi toàn bộ `/api/admin/*` hiện có (xem `ADMIN-FLOW-COVERAGE.md`). Đề xuất bổ sung phía backend:
 - Gửi email mời / đặt mật khẩu lần đầu khi tạo tài khoản (Figma A02 "Gửi lời mời").
-- Vai trò `OPERATIONS` (Vận hành KD) như Figma.
+- ~~Vai trò `OPERATIONS` (Vận hành KD) như Figma.~~ Đã có (14/10/2026): role `OPERATIONS`, tài khoản `ops01`, API `/api/operations/*` — xem `docs/operations-api.md`.
 - Ghi lịch sử đăng nhập **thất bại** (hiện chỉ ghi khi thành công) và lưu IP vào nhật ký hoạt động.
 - Cho lọc nhật ký theo nhiều `action` một lúc (để tab "Thay đổi dữ liệu" / "Phân quyền" phân trang ở máy chủ).
 - Trả kèm cơ sở phụ trách trong `GET /api/admin/users` để khỏi gọi thêm từng người.
@@ -47,8 +47,8 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 
 | Điểm | Figma / giao diện hiện tại | Backend cũ (v3) |
 |---|---|---|
-| Thanh toán đặt chỗ | Khách chuyển khoản QR **ngay lúc đặt** (C04), bấm "Tôi đã chuyển khoản" → đơn "Chờ đối soát" | Đặt chỗ trước, thanh toán sau khi có hợp đồng |
-| Giữ chỗ | Đơn chờ chuyển khoản **tự huỷ sau N giây** (Figma: 60 giây) → C04b | Không có |
+| Thanh toán đặt chỗ | **QR PayOS** ngay lúc đặt (C04), tự xác nhận qua webhook, trang tự chuyển (D19); hoặc **thanh toán tại cửa hàng** (C04c) → nhân viên thu ở S09 | Đặt chỗ trước, thanh toán sau khi có hợp đồng |
+| Giữ chỗ | QR: **10 phút** (Figma C04) rồi tự huỷ → C04b; tại cửa hàng: 24 giờ (C04c) | Không có |
 | Số tiền chuyển | Tổng ban đầu = tiền thuê + cọc (cọc = 1 tháng) | — |
 | Gói thuê | 1 / 3 / 6 tháng | 1–24 tháng tuỳ nhập |
 | Đăng ký | Họ tên, email, SĐT, mật khẩu, xác nhận; **không có username** | Có `username` |
@@ -59,12 +59,12 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 
 ## 2. Trạng thái UI dùng (khoá → nhãn)
 
-- **Reservation**: `PENDING_PAYMENT` Chờ chuyển khoản · `PENDING_VERIFICATION` Chờ đối soát · `CONFIRMED` Đã xác nhận · `CHECKED_IN` Đã nhận kho · `CANCELLED` Đã huỷ đặt chỗ (kèm `cancel_reason`)
+- **Reservation**: `PENDING_PAYMENT` Chờ thanh toán · `PENDING_VERIFICATION` Chờ thanh toán tại cửa hàng (BE `PENDING_VERIFICATION` hoặc `PENDING_AT_FACILITY`) · `CONFIRMED` Đã xác nhận (BE `CONFIRMED` / `PAID` / `UNIT_ASSIGNED`) · `CHECKED_IN` Đã nhận kho · `CANCELLED` Đã huỷ đặt chỗ (kèm `cancel_reason`)
 - **Contract**: `ACTIVE`, `ENDED` lưu ở BE; `EXPIRING` (≤ 30 ngày) và `OVERDUE` UI tự suy ra từ `end_date`
-- **Ledger (khoản thu)**: `RECONCILED` Đã đối soát · `PENDING_VERIFICATION` Chờ đối soát · `DEPOSIT_HELD` Đang giữ cọc · `RENEWAL_PENDING` Chờ duyệt yêu cầu · `UNPAID` Chưa thanh toán · `REFUNDED`
+- **Ledger (khoản thu)**: `RECONCILED` Đã thanh toán · `PENDING_VERIFICATION` Chờ thanh toán tại cửa hàng · `DEPOSIT_HELD` Đang giữ cọc · `RENEWAL_PENDING` Chờ duyệt yêu cầu · `UNPAID` Chờ thanh toán (khoản `RENEWAL` chưa trả có nút "Thanh toán" → C11q) · `REFUNDED`
 - **Appointment**: `kind` = `CHECK_IN` | `MOVE_OUT`; `status` = `CONFIRMED` | `PENDING` | `DONE` | `CANCELLED`
 - **Ticket**: `OPEN` · `IN_PROGRESS` · `RESOLVED` · `CANCELLED`; `topic` = `ACCESS|LOCK|UNIT|PAYMENT|ITEMS|SCHEDULE|OTHER`
-- **Renewal**: `PENDING` | `APPROVED` | `REJECTED` — **Return**: `PENDING` | `SCHEDULED` | `COMPLETED`
+- **Renewal**: `PENDING` | `APPROVED` | `REJECTED` — **ReturnRequestPage**: `PENDING` | `SCHEDULED` | `COMPLETED`
 
 ## 3. Endpoint cần có
 
@@ -79,7 +79,7 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 | C03b | `POST /api/quotes` `{facilityId, type, band, months, startDate}` | → `monthlyRate, rentTotal, deposit, initialTotal, endDate, available` |
 | C03c | `GET /api/facilities/{id}/photos` | 4+ ảnh kèm chú thích (mặt tiền, sơ đồ, ...) |
 | C04 | `POST /api/reservations` | Tạo đơn `PENDING_PAYMENT`, trả `reservationId, expiresAt, timeoutSeconds, transferAmount, transferContent` (UI tự tạo VietQR từ tài khoản nhận) |
-| C04 | `POST /api/reservations/{id}/confirm-transfer` | → `PENDING_VERIFICATION`; sau `expiresAt` trả lỗi mã `EXPIRED` |
+| C04 | `POST /api/reservations/{id}/payos`, `POST /api/reservations/{id}/pay-at-facility` | PayOS + thanh toán tại cửa hàng — hợp đồng JSON ở `BACKEND-TODO.md` mục "Mới 16/10". `confirm-transfer` (đã có) chỉ còn là dự phòng khi chưa có `pay-at-facility` |
 | C04b | (job nền) | Tự chuyển `PENDING_PAYMENT` quá hạn sang `CANCELLED`, `cancelReason` kiểu "Quá 1 phút chưa xác nhận" |
 | C14, C05 | `GET /api/reservations`, `GET /api/reservations/{id}` | |
 | C06, C07 | `GET /api/contracts`, `GET /api/contracts/{id}` | Thêm `unitNumber, sizeM2, location, handedOver, depositAmount` |
@@ -93,18 +93,30 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 
 - Tài khoản nhận chuyển khoản đang cấu hình ở `.env` (`VITE_BANK_*`); nếu mỗi cơ sở nhận tiền riêng thì trả kèm theo đơn.
 - Khoảng cách "Cách bạn X km" cần vị trí khách; hiện lấy từ dữ liệu cơ sở.
-- Ảnh cơ sở đang là file tĩnh trong `public/images/`; khi có API ảnh (`GET /api/facilities/{id}/photos`), thay các hàm trong `src/config/media.js`.
+- Ảnh cơ sở đang là file tĩnh trong `public/images/`; khi có API ảnh (`GET /api/facilities/{id}/photos`), thay các hàm trong `src/app/config/media.js`.
 - Khu Nhân viên cơ sở (S01–S09) và Quản lý cơ sở (M01–M08) đã có giao diện, đang chạy trên dữ liệu trong trình duyệt
-  (`src/ops/`). Endpoint cần có ở mục 5.
+  (`src/features/facility-operations/`). Endpoint cần có ở mục 5.
 - Kho dữ liệu cục bộ lưu cả mật khẩu để đăng nhập được khi chưa có server; khi nối API, bỏ trường này.
 
 ## 5. Endpoint cho sơ đồ ô kho, bản đồ và khu vận hành (giao diện đã sẵn, đang dùng dữ liệu cục bộ)
 
 | Màn | Endpoint đề xuất | Thay ở |
 |---|---|---|
-| C03b-sđ | `GET /api/facilities/{id}/units` → `unitNumber, zone, floor, sizeM2, unitTypeId, status` (StorageUnit) | `unitsFor()` trong `src/lib/units.js`; `fromBackendStatus()` đã map trạng thái |
-| C02m | Thêm `latitude, longitude` vào `GET /api/facilities` | `coordsOf()` trong `src/config/geo.js` |
-| S01–S09, M01–M08 | `/api/ops/*` — **đã chốt hợp đồng ở `BACKEND-TODO.md` mục A2–A3**, giao diện gọi qua `src/ops/api.js` | `src/ops/store.jsx` |
+| C03b-sđ | **Đã có** `GET /api/facilities/{id}/units` → `unitId, facilityId, unitTypeId, unitNumber, floor, zone, locationDescription, sizeM2, climateControlled, status` | `customerApi.facilityUnits`, `AppProvider.getFacilityUnits`, `FacilityDetailPage.jsx`, `unitsFor()` trong `units.js` |
 
-Hình dạng dữ liệu giao diện đang dùng nằm ở `src/ops/data.js`; nghiệp vụ (điều kiện chặn, chuyển trạng thái) ở
-`src/ops/reducer.js` và có test (`tests/ops.test.js`) để backend đối chiếu.
+| C02m | **Đã có** `latitude, longitude` trong `GET /api/facilities` (nhập ở B05a) | `mapCatalog` gán `lat/lng`; `coordsOf()` trong `src/app/config/geo.js` chỉ dùng toạ độ dự phòng khi cơ sở chưa có toạ độ |
+| S01–S09, M01–M08 | `/api/ops/*` — **đã chốt hợp đồng ở `BACKEND-TODO.md` mục A2–A3**, giao diện gọi qua `src/features/facility-operations/api/facilityOperationsApi.js` | `src/features/facility-operations/state/FacilityOperationsProvider.jsx` |
+
+Hình dạng dữ liệu giao diện đang dùng nằm ở `src/features/facility-operations/data/facilityOperationsSeed.js`; nghiệp vụ (điều kiện chặn, chuyển trạng thái) ở
+`src/features/facility-operations/state/facilityOperationsReducer.js` và có test (`tests/ops.test.js`) để backend đối chiếu.
+
+## Bổ sung 20/10 — thu tiền trước phân bổ và trạng thái ô
+
+Đã triển khai API chọn trả tại kho, PaymentMethod, ghi khoản thu theo ReservationId rồi gắn ContractId, kiểm chuyển tiếp ô và lịch sử. Xem `docs/payment-integrity-2026-10-20.md` và D23–D24 để biết hợp đồng API, migration, phạm vi test và các ca cần chạy thật. FE không còn dùng confirm-transfer làm fallback cho chọn trả tại kho. Các API /api/ops tương thích được đăng ký duy nhất trong FacilityOpsEndpoints.
+
+
+## Đồng bộ 22/10 — D26
+- Dùng GET /api/ops/board và mutation /api/ops cho hàng chờ theo role; 404/405 mới dùng board vai trò dự phòng.
+- POST /api/ops/keys/{id}/receipt ghi nhận nhận chìa khóa, không kích hoạt hợp đồng.
+- AccessQrDto có validFrom, backupCode là PIN6; POST /api/access/scan nhận thêm unitNumber (bắt buộc khi dùng PIN). ContractDetailDto có accessUpdatedAt để tạo thông báo cấp lại mã.
+- PayOS thành công tự phân bổ/cấp hợp đồng, không còn yêu cầu bàn giao. Xem đầy đủ tại docs/figma-ui-sync-2026-10-22.md.

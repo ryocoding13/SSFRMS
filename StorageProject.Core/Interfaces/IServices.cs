@@ -1,3 +1,4 @@
+using StorageProject.Core.DTOs.Access;
 using StorageProject.Core.DTOs.Auth;
 using StorageProject.Core.DTOs.Contract;
 using StorageProject.Core.DTOs.Facility;
@@ -13,6 +14,9 @@ public interface IAuthService
     Task<AuthUserDto> RegisterAsync(RegisterRequest request, CancellationToken ct = default);
     Task<LoginResponse> LoginAsync(LoginRequest request, string? ipAddress, string? deviceInfo, CancellationToken ct = default);
     Task LogoutAsync(long loginHistoryId, CancellationToken ct = default);
+    Task<UserProfileDto> GetUserProfileAsync(long userId, CancellationToken ct = default);
+    Task<UserProfileDto> UpdateUserProfileAsync(long userId, UpdateProfileRequest request, CancellationToken ct = default);
+    Task ChangePasswordAsync(long userId, ChangePasswordRequest request, CancellationToken ct = default);
 }
 
 public interface IFacilityService
@@ -23,7 +27,9 @@ public interface IFacilityService
     Task<UnitTypeDto?> GetUnitTypeByIdAsync(long unitTypeId, CancellationToken ct = default);
     Task<IReadOnlyList<RentalRateDto>> GetActiveRatesAsync(long? facilityId, long? unitTypeId, CancellationToken ct = default);
     Task<AvailabilityResultDto?> CheckAvailabilityAsync(AvailabilityQueryRequest request, CancellationToken ct = default);
+    Task<IReadOnlyList<FacilityUnitDto>> GetUnitsByFacilityIdAsync(long facilityId, CancellationToken ct = default);
 }
+
 
 public interface IReservationService
 {
@@ -31,12 +37,20 @@ public interface IReservationService
     Task<ReservationDetailDto?> GetReservationDetailAsync(long customerId, long reservationId, CancellationToken ct = default);
     Task<ReservationDto> CreateReservationAsync(long customerId, CreateReservationRequest request, CancellationToken ct = default);
     Task CancelReservationAsync(long customerId, long reservationId, string reason, CancellationToken ct = default);
+    Task<ReservationDto> ConfirmTransferAsync(long customerId, long reservationId, CancellationToken ct = default);
 }
 
 public interface IContractService
 {
     Task<IReadOnlyList<ContractSummaryDto>> GetMyContractsAsync(long customerId, CancellationToken ct = default);
     Task<ContractDetailDto?> GetContractDetailAsync(long customerId, long contractId, CancellationToken ct = default);
+    Task<MoveOutResponseDto> RegisterMoveOutAsync(long customerId, long contractId, MoveOutRequest request, CancellationToken ct = default);
+}
+
+public interface IAccessService
+{
+    Task<AccessQrDto> GetQrAsync(long customerId, long contractId, CancellationToken ct = default);
+    Task<ScanResultDto> ScanAsync(string? code, string? ipAddress, CancellationToken ct = default, string? unitNumber = null);
 }
 
 public interface IPaymentService

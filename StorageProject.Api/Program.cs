@@ -1,9 +1,13 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Text;
+using StorageProject.Api.Workers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using StorageProject.Api.Endpoints;
+using StorageProject.Core.DTOs.Access;
 using StorageProject.Core.Interfaces;
 using StorageProject.Infrastructure.Data;
 using StorageProject.Infrastructure.Services;
@@ -36,6 +40,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options => {
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("access-scan", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+});
 
 // 3. Swagger / OpenAPI Configuration
 builder.Services.AddEndpointsApiExplorer();
@@ -45,7 +55,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "SSFRMS Customer API",
         Version = "v1",
-        Description = "Self-Storage Facility Rental Management System - Customer Scope API"
+        Description = "Self-Storage Facility Rental Management System - Customer, Admin & Business Operations API"
     });
 
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -88,6 +98,18 @@ builder.Services.AddScoped<IRenewalService, RenewalService>();
 builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
 builder.Services.AddScoped<IHandoverService, HandoverService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IOperationsService, OperationsService>();
+builder.Services.AddScoped<IOperationsReportService, OperationsReportService>();
+builder.Services.AddScoped<IFacilityOpsService, FacilityOpsService>();
+builder.Services.AddScoped<IPayOSGateway, SdkPayOSGateway>();
+builder.Services.AddHostedService<ExpiredCashHoldWorker>();
+builder.Services.AddScoped<IPayOSService, PayOSService>();
+builder.Services.AddSingleton(new AccessQrOptions(
+    builder.Configuration["AccessQr:Secret"] ?? jwtSecret,
+    !bool.TryParse(builder.Configuration["AccessQr:DenyOverdue"], out var denyOverdue) || denyOverdue));
+builder.Services.AddScoped<IAccessService, AccessService>();
+builder.Services.AddScoped<IStaffService, StaffService>();
+builder.Services.AddScoped<IManagerService, ManagerService>();
 
 var app = builder.Build();
 
@@ -107,6 +129,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 // 7. Map Minimal API Endpoints
 app.MapAuthEndpoints();
@@ -117,6 +140,11 @@ app.MapPaymentEndpoints();
 app.MapRenewalEndpoints();
 app.MapSupportTicketEndpoints();
 app.MapAdminEndpoints();
+app.MapOperationsEndpoints();
+app.MapFacilityOpsEndpoints();
+app.MapStaffEndpoints();
+app.MapManagerEndpoints();
+app.MapAccessEndpoints();
 
 // Root status check
 app.MapGet("/health", () => Results.Ok(new
@@ -132,6 +160,7 @@ using (var scope = app.Services.CreateScope())
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await context.Database.MigrateAsync();
     await DbSeeder.SeedAsync(context);
+    await FacilityCoordinateSeeder.SeedAsync(context);
 }
 
 

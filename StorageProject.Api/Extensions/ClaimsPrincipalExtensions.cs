@@ -9,4 +9,11 @@ public static class ClaimsPrincipalExtensions
         var idClaim = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return long.TryParse(idClaim, out var id) ? id : 0;
     }
+
+    public static string GetUserRole(this ClaimsPrincipal principal)
+    {
+        return principal.FindFirst(ClaimTypes.Role)?.Value 
+            ?? principal.FindFirst("role")?.Value 
+            ?? "CUSTOMER";
+    }
 }
