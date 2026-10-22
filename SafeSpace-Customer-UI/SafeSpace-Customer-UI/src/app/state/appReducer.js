@@ -8,7 +8,7 @@ import {
   shortCode,
   timeoutLabel,
 } from "../../shared/utils/format.js";
-import { TICKET_TOPICS } from "../../shared/utils/status.js";
+import { TICKET_TOPICS, ticketTitle } from "../../shared/utils/status.js";
 
 export class DomainError extends Error {
   constructor(message, code = "INVALID") {
@@ -335,6 +335,8 @@ const handlers = {
 
   CREATE_TICKET(state, p, ctx) {
     if (!TICKET_TOPICS[p.topic]) fail("Vui lòng chọn chủ đề.");
+    const title = ticketTitle(p);
+    if (p.topic === "OTHER" && (!title || title.length > 100)) fail("Chủ đề của bạn phải có từ 1 đến 100 ký tự.");
     const description = (p.description || "").trim();
     if (!description) fail("Vui lòng mô tả vấn đề.");
     if (description.length > 1000) fail("Mô tả không quá 1000 ký tự.");
@@ -344,6 +346,7 @@ const handlers = {
       ticket_id: `HT-${pad(nextSeq(state.tickets, "ticket_id"))}`,
       contract_id: p.contract_id || null,
       topic: p.topic,
+      title,
       description,
       attachments,
       status: "OPEN",

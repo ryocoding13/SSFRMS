@@ -267,6 +267,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       monthly_rate: Number(c.agreedMonthlyRate),
       deposit: Number(c.depositAmount),
       status: CONTRACT[c.status] || "ACTIVE",
+      access_issued: ["ACTIVE", "EXPIRING", "OVERDUE"].includes(c.status),
       handed_over: Boolean(handover && (["HANDED_OVER", "COMPLETED"].includes(handover.status) || (handover.customerConfirmed && handover.staffConfirmed))),
       handover_api_id: handover?.handoverId ?? null,
       handover_pending_customer: Boolean(handover && !handover.customerConfirmed && handover.staffConfirmed),

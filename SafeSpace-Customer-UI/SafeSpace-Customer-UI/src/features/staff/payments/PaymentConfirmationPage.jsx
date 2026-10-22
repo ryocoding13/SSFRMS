@@ -21,7 +21,7 @@ export const HOLD_HOURS = 24;
 export function PaymentConfirmationPage({ query }) {
   const { ops, run } = useOps();
   const pending = ops.payments.filter((p) => p.status === "PENDING");
-  const p = ops.payments.find((x) => x.id === query.get("id")) || pending[0];
+  const p = query.get("id") ? ops.payments.find((x) => x.id === query.get("id")) : pending[0];
   const [busy, setBusy] = useState(false);
   if (!p)
     return (
@@ -45,7 +45,7 @@ export function PaymentConfirmationPage({ query }) {
       <a className="back-link" href={href("staff/reconcile")}>← Danh sách thu tiền</a>
       <section className="panel ops-card">
         <h1>Thu tiền tại kho</h1>
-        <p className="muted">Đơn #{p.id} — khách chọn thanh toán tại cửa hàng. Thu đủ số tiền rồi bấm xác nhận; chưa thu thì chưa được bàn giao.</p>
+        <p className="muted">Đơn #{p.id} — khách chọn thanh toán tại cửa hàng. Thu đủ số tiền rồi bấm xác nhận; chưa thu thì chưa cấp hợp đồng và mã ra vào.</p>
         <Facts
           rows={[
             ["Khách hàng", p.customer],

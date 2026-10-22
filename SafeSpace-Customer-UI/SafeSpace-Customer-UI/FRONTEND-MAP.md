@@ -61,8 +61,8 @@
 | Quản lý cơ sở / Kết quả — ManagerResultPage | `src/features/manager/results/ManagerResultPage.jsx` |
 | Quản lý cơ sở / Quản lý ô kho — UnitManagementPage | `src/features/manager/units/UnitManagementPage.jsx` |
 | Nhân viên / Tổng quan — StaffDashboardPage | `src/features/staff/dashboard/StaffDashboardPage.jsx` |
-| Nhân viên / Xác minh / bàn giao — CustomerVerificationPage | `src/features/staff/handovers/CustomerVerificationPage.jsx` |
-| Nhân viên / Xác minh / bàn giao — HandoverPage | `src/features/staff/handovers/HandoverPage.jsx` |
+| Nhân viên / Xác minh / nhận chìa khóa — CustomerVerificationPage | `src/features/staff/handovers/CustomerVerificationPage.jsx` |
+| Nhân viên / Xác minh / nhận chìa khóa — KeyReceiptPage | `src/features/staff/keys/KeyReceiptPage.jsx` |
 | Nhân viên / Thanh toán — PaymentConfirmationPage | `src/features/staff/payments/PaymentConfirmationPage.jsx` |
 | Nhân viên / Kết quả — StaffResultPage | `src/features/staff/results/StaffResultPage.jsx` |
 | Nhân viên / Trả kho — ReturnInspectionPage | `src/features/staff/returns/ReturnInspectionPage.jsx` |
@@ -75,7 +75,7 @@
 | Tìm cơ sở / bản đồ / chi tiết | `#/find`, `#/find/map`, `#/find/:id` |
 | Đặt chỗ / thanh toán / kết quả | `#/reservations`, `#/checkout/:id`, `#/confirmation/:id` |
 | Kho thuê / gia hạn / trả kho | `#/units`, `#/units/:id/renew`, `#/units/:id/return` |
-| Nhân viên thu tiền / xác minh / bàn giao | `#/staff/reconcile`, `#/staff/verify`, `#/staff/handover` |
+| Nhân viên thu tiền / xác minh / nhận chìa khóa | `#/staff/reconcile`, `#/staff/verify`, `#/staff/keys` (alias cũ: `#/staff/handover`) |
 | Quản lý ô / phân bổ / gia hạn | `#/manager/units`, `#/manager/allocate`, `#/manager/renewals` |
 | Vận hành kinh doanh / quản trị | `#/business`, `#/admin` |
 
@@ -169,7 +169,7 @@
 | `src/state/useAccessQr.js` | `src/features/customer/access/useAccessQr.js` |
 | `src/styles/access-qr.css` | `src/shared/styles/access-qr.css` |
 | `src/styles/ss.css` | `src/shared/styles/ss.css` |
-| `src/ops/StaffPages.jsx` | `src/features/staff/hooks/useStaffIdentity.js`, `src/features/staff/dashboard/StaffDashboardPage.jsx`, `src/features/staff/payments/PaymentConfirmationPage.jsx`, `src/features/staff/handovers/CustomerVerificationPage.jsx`, `src/features/staff/handovers/HandoverPage.jsx`, `src/features/staff/returns/ReturnInspectionPage.jsx`, `src/features/staff/support/StaffSupportPage.jsx`, `src/features/staff/results/StaffResultPage.jsx`, `src/features/facility-operations/utils/unitStateTag.js` |
+| `src/ops/StaffPages.jsx` | `src/features/staff/hooks/useStaffIdentity.js`, `src/features/staff/dashboard/StaffDashboardPage.jsx`, `src/features/staff/payments/PaymentConfirmationPage.jsx`, `src/features/staff/handovers/CustomerVerificationPage.jsx`, `src/features/staff/keys/KeyReceiptPage.jsx`, `src/features/staff/returns/ReturnInspectionPage.jsx`, `src/features/staff/support/StaffSupportPage.jsx`, `src/features/staff/results/StaffResultPage.jsx`, `src/features/facility-operations/utils/unitStateTag.js` |
 | `src/ops/ManagerPages.jsx` | `src/features/manager/dashboard/ManagerDashboardPage.jsx`, `src/features/manager/units/UnitManagementPage.jsx`, `src/features/manager/allocations/UnitAllocationPage.jsx`, `src/features/manager/components/PageHeaderBlock.jsx`, `src/features/manager/assignments/StaffAssignmentPage.jsx`, `src/features/manager/renewals/RenewalApprovalPage.jsx`, `src/features/manager/contracts/ContractListPage.jsx`, `src/features/manager/reports/FacilityReportPage.jsx`, `src/features/manager/results/ManagerResultPage.jsx` |
 | `src/pages/Units.jsx` | `src/features/customer/contracts/components/ContractNotFound.jsx`, `src/features/customer/contracts/RentedUnitListPage.jsx`, `src/features/customer/access/AccessQrModal.jsx`, `src/features/customer/contracts/RentedUnitDetailPage.jsx`, `src/features/customer/contracts/RenewalRequestPage.jsx`, `src/features/customer/contracts/ReturnRequestPage.jsx`, `src/features/customer/requests/RequestSentPage.jsx` |
 | `src/pages/Checkout.jsx` | `src/features/customer/reservations/components/ReservationNotFound.jsx`, `src/features/customer/payments/CheckoutPage.jsx`, `src/features/customer/payments/CheckoutFailedPage.jsx`, `src/features/customer/reservations/ReservationDetailPage.jsx` |

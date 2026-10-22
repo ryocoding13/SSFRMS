@@ -21,7 +21,7 @@ export function StaffAssignmentPage() {
   };
   return (
     <main className="container page">
-      <PageHeaderBlock title="Phân công & lịch vận hành" text={`Sắp xếp bàn giao, kiểm tra kho và xử lý sự cố tại ${ops.facility.name}.`} />
+      <PageHeaderBlock title="Phân công & lịch vận hành" text={`Sắp xếp nhận chìa khóa, kiểm tra kho và xử lý sự cố tại ${ops.facility.name}.`} />
       <div className="panel table-wrap">
         <table className="table">
           <thead><tr><th>Công việc</th><th>Lịch hẹn</th><th>Nhân viên</th><th>Trạng thái</th></tr></thead>

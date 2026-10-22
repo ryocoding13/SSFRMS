@@ -7,10 +7,11 @@ public record AccessQrDto(
     string UnitNumber,
     string? UnitType,
     string? Location,
-    string? ValidUntil
+    string? ValidUntil,
+    string? ValidFrom = null
 );
 
-public record ScanAccessRequest(string? Code);
+public record ScanAccessRequest(string? Code, string? UnitNumber = null);
 
 public record ScanResultDto(
     string Result, // "OPEN" | "DENIED"

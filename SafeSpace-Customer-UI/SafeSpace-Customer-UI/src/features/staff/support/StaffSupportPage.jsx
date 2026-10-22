@@ -17,9 +17,12 @@ export function StaffSupportPage({ query }) {
   const { ops, run } = useOps();
   const me = useMe();
   const mine = ops.tickets.filter((t) => t.status !== "DONE" && (t.assignee === me.staff_id || !t.assignee));
-  const t = ops.tickets.find((x) => x.id === query.get("id")) || mine[0];
+  const t = query.get("id") ? ops.tickets.find((x) => x.id === query.get("id")) : mine[0];
   const [note, setNote] = useState("Đã kiểm tra thông tin và hẹn hỗ trợ tại cơ sở.");
   const [next, setNext] = useState("WAITING_CUSTOMER");
+  const [accessType, setAccessType] = useState("QR");
+  const [reason, setReason] = useState("");
+  const [credentialBusy, setCredentialBusy] = useState(false);
   const [err, setErr] = useState("");
   if (!t)
     return (
@@ -35,6 +38,14 @@ export function StaffSupportPage({ query }) {
     const r = await run("TICKET_RESPONSE", { id: t.id, note, next, staff: me.staff_id }, `Đã lưu phản hồi ${t.id}`);
     if (!r.ok) return setErr(r.error);
     go("staff/done?kind=support");
+  };
+  const reissue = async () => {
+    if (!reason.trim()) return setErr("Nhập lý do cấp lại mã hoặc chìa khóa.");
+    setCredentialBusy(true);
+    const result = await run("REISSUE_CREDENTIAL", { unit: t.unit, type: accessType, reason: reason.trim() }, accessType === "KEY" ? "Đã tạo lịch nhận chìa khóa thay thế tại quầy." : "Đã cấp lại mã. Mã cũ cùng loại đã bị vô hiệu hóa.");
+    setCredentialBusy(false);
+    if (result.ok) setReason("");
+    else if (!result.cancelled) setErr(result.error);
   };
   return (
     <main className="container page page--narrow">
@@ -67,6 +78,15 @@ export function StaffSupportPage({ query }) {
               </Select>
             </Field>
             <Button type="submit">Lưu phản hồi</Button>
+            <section className="note-box" aria-label="Cấp lại mã và chìa khóa">
+              <h2 className="h-sub">Cấp lại QR, PIN & chìa khóa</h2>
+              <p className="hint">Kiểm tra danh tính khách trước khi cấp lại. QR/PIN cũ cùng loại sẽ bị vô hiệu hóa. Chìa khóa nhận tại quầy.</p>
+              <Field label="Mục cần cấp lại"><Select value={accessType} onChange={e => setAccessType(e.target.value)}>
+                <option value="QR">Cấp lại mã QR</option><option value="PIN">Đặt lại PIN 6 số</option><option value="KEY">Cấp lại chìa khóa vật lý</option>
+              </Select></Field>
+              <Field label="Lý do cấp lại"><textarea maxLength={500} rows={2} value={reason} onChange={e => setReason(e.target.value)} /></Field>
+              <Button variant="outline" disabled={credentialBusy} onClick={reissue}>{credentialBusy ? "Đang xử lý…" : "Cấp lại mục đã chọn"}</Button>
+            </section>
           </>
         )}
       </form>

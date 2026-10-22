@@ -289,6 +289,20 @@
       "state": "active",
       "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx --no-build -m:1; kiểm thử C13 và S05/C12 trên SQL Server của nhóm",
       "evidence": "2026-10-21: .NET SDK 10.0.402; build PASS; xUnit 34/34 (15 test main, 19 trường hợp AuthSupport); SQLite với constraint model; check:structure PASS; FE 68/68, business 9/9, SSR 92 route, build/init PASS. init dùng wrapper dotnet -m:1 do giới hạn tiến trình. Gói chỉ BE/test/tài liệu; không migration, FE, appsettings hay FinanceService. Chờ nhóm kiểm thử lại bản tách trên SQL Server; không xác nhận đồng bộ hình ảnh Figma."
+    },
+    {
+      "id": "F38",
+      "flow": [
+        1,
+        2,
+        4,
+        7
+      ],
+      "actor": "Khách hàng / Các vai trò vận hành",
+      "behavior": "Đồng bộ Figma 22/10: header/menu giữ nguyên khi cuộn, huy hiệu hàng chờ, chuông khách, chủ đề Khác, xác nhận mutation Staff, tự phân bổ sau thanh toán, QR/PIN6 và nhận chìa khóa độc lập (D26)",
+      "state": "active",
+      "verification": "npm run check:structure; npm test; npm run test:business; npm run test:render; npm run build; dotnet build/test -m:1; ./init.sh; kiểm tra browser và PayOS/SQL Server thật",
+      "evidence": "Bàn giao 22/10: browser 13 nhóm PASS; FE 76/76, business 9/9, SSR 92 route, structure/build đạt; backend build + 40 test SQLite. Chờ nhóm kiểm PayOS/SQL Server/thiết bị cửa thật trước merge."
     }
   ]
 }

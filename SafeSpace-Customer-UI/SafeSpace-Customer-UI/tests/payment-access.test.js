@@ -31,7 +31,7 @@ test("QR mở cửa, máy quét, xem trước hoàn tiền", () => {
   assert.deepEqual(normCancelPreview({ paidAmount: 4600000, cancellationFee: 345000 }), { paid: 4600000, fee: 345000, refund: 4255000, policy: null });
   assert.equal(normCancelPreview({}), null);
   const a = localAccessCode({ contract_id: "HĐ-2026-0086", unit_number: "B-015", end_date: "2026-09-25" });
-  assert.match(a.backup, /^\d{4} \d{4}$/);
+  assert.match(a.backup, /^\d{6}$/);
   assert.equal(localAccessCode({ contract_id: "HĐ-2026-0086", unit_number: "B-015" }).code, a.code);
 });
 

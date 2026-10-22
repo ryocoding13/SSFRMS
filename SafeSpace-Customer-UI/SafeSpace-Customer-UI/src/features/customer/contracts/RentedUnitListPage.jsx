@@ -2,7 +2,7 @@ import React from "react";
 import { EmptyInline } from "../../../shared/components/Inline.jsx";
 import { PageHeader, StatusTag } from "../../../shared/components/UI.jsx";
 import { typeLabel } from "../../../shared/utils/catalog.js";
-import { dateLabel } from "../../../shared/utils/format.js";
+import { dateLabel, today } from "../../../shared/utils/format.js";
 import { siteLabel } from "../../../shared/hooks/useBrowserEvents.js";
 import { href } from "../../../app/router.js";
 import { CONTRACT_STATUS } from "../../../shared/utils/status.js";
@@ -29,7 +29,7 @@ export function RentedUnitListPage() {
                 <p className="muted">
                   Ngày kết thúc: {dateLabel(c.end_date)}
                   <br />
-                  {c.handed_over ? "Đã bàn giao" : "Chờ bàn giao"} · Ra vào {f.hours}
+                  {c.start_date > today() ? "Chưa đến ngày sử dụng" : "Theo hiệu lực hợp đồng"} · Ra vào {f.hours}
                 </p>
                 <a className="btn btn--primary" href={href(`units/${c.contract_id}`)}>Xem hợp đồng & quản lý</a>
               </article>

@@ -70,19 +70,16 @@ const ACTIONS = {
   },
 
   // S03
-  HANDOVER(state, { id, method }, now) {
-    const h = find(state.handovers, id, "phiếu bàn giao");
-    if (h.status === "DONE") fail("Kho này đã được bàn giao.");
-    const v = state.verifications.find((x) => x.id === h.verification_id);
-    if (v && v.status !== "DONE") fail("Cần xác minh khách hàng trước khi bàn giao kho.");
-    if (!["CARD", "PIN", "FINGER"].includes(method)) fail("Chọn phương thức mở khoá.");
-    const next = {
-      ...state,
-      handovers: patch(state.handovers, id, () => ({ status: "DONE", method, done_at: iso(now) })),
-      units: patchUnit(state.units, h.unit, () => ({ status: "ACTIVE" })),
-      assignments: state.assignments.map((a) => (a.ref === id ? { ...a, status: "DONE" } : a)),
+  RECORD_KEY_RECEIPT(state, { id }, now) {
+    const h = find(state.handovers, id, "lịch nhận chìa khóa");
+    if (h.status === "DONE") return { state, result: { id } };
+    const v = state.verifications.find(x => x.id === h.verification_id);
+    if (v && v.status !== "DONE") fail("Cần xác minh giấy tờ trước khi nhận chìa khóa.");
+    const next = { ...state,
+      handovers: patch(state.handovers, id, () => ({ status: "DONE", method: "KEY", done_at: iso(now) })),
+      assignments: state.assignments.map(a => a.ref === id ? { ...a, status: "DONE" } : a),
     };
-    return { state: addLog(next, now, `Đã bàn giao kho ${h.unit} cho ${h.customer}`, "manager/units", "MANAGER"), result: { id } };
+    return { state: addLog(next, now, `Khách đã nhận chìa khóa kho ${h.unit}`, "manager/units", "MANAGER"), result: { id } };
   },
 
   // S04
@@ -115,6 +112,14 @@ const ACTIONS = {
     return { state: addLog(next, now, `Cập nhật ${id}: ${TICKET_STATE[status][0]}`, "manager/assign", "MANAGER"), result: { id } };
   },
 
+  REISSUE_CREDENTIAL(state, { unit, type, reason }, now) {
+    if (!["QR", "PIN", "KEY"].includes(type)) fail("Chọn QR, PIN hoặc chìa khóa vật lý.");
+    if (!String(reason || "").trim()) fail("Nhập lý do cấp lại.");
+    if (!state.units.some(u => u.code === unit)) fail("Không tìm thấy kho tại cơ sở.");
+    const next = { ...state, handovers: type === "KEY" ? state.handovers.map(h => h.unit === unit ? { ...h, status: "WAITING", done_at: null } : h) : state.handovers };
+    return { state: addLog(next, now, `Cấp lại ${type} · Kho ${unit} · ${reason}`, "staff/support", "STAFF"), result: { unit } };
+  },
+
   // M03
   DECIDE_RENEWAL(state, { id, approve, reason }, now) {
     const r = find(state.renewals, id, "yêu cầu gia hạn");
@@ -140,10 +145,10 @@ const ACTIONS = {
     const next = {
       ...state,
       allocations: patch(state.allocations, id, () => ({ status: "DONE", unit, allocated_at: iso(now) })),
-      units: patchUnit(state.units, unit, () => ({ status: "WAITING_HANDOVER", tenant: a.customer, end: a.end })),
+      units: patchUnit(state.units, unit, () => ({ status: "ACTIVE", tenant: a.customer, end: a.end })),
       verifications: [{ id: `XM-${ref}`, reservation_id: id, customer: a.customer, unit, appointment: a.pickup, status: "TODO" }, ...state.verifications],
       handovers: [{ id: `BG-${ref}`, verification_id: `XM-${ref}`, unit, customer: a.customer, status: "WAITING", method: null }, ...state.handovers],
-      assignments: [...state.assignments, { id: `PC-${ref}`, title: `Bàn giao ${unit} · ${a.customer}`, when: a.pickup, staff: null, status: "OPEN", ref: `BG-${ref}` }],
+      assignments: [...state.assignments, { id: `PC-${ref}`, title: `Nhận chìa khóa ${unit} · ${a.customer}`, when: a.pickup, staff: null, status: "OPEN", ref: `BG-${ref}` }],
     };
     return { state: addLog(next, now, `Đã phân bổ kho ${unit} cho đơn ${id}`, "staff/verify", "ALL"), result: { id, unit } };
   },
@@ -232,8 +237,3 @@ export const PAYMENT_STATE = {
   CONFIRMED: ["Đã thu tiền", "green"],
   MISMATCH: ["Báo sai lệch", "red"],
 };
-export const UNLOCK_METHODS = [
-  ["CARD", "Thẻ từ"],
-  ["PIN", "Mã PIN"],
-  ["FINGER", "Vân tay"],
-];

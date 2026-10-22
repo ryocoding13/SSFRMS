@@ -10,8 +10,8 @@ export const PROPOSALS = ["Chờ vệ sinh / kiểm tra trước khi cho thuê l
 export function ReturnInspectionPage({ query }) {
   const { ops, run } = useOps();
   const list = ops.returns.filter((r) => r.status === "SCHEDULED");
-  const r = ops.returns.find((x) => x.id === query.get("id")) || list[0] || ops.returns[0];
-  const [form, setForm] = useState({ items: "Đã chuyển hết đồ khỏi kho", walls: "Không ghi nhận hư hỏng mới", keys: "Đã nhận lại 01 thẻ", proposal: PROPOSALS[0] });
+  const r = query.get("id") ? ops.returns.find((x) => x.id === query.get("id")) : list[0] || ops.returns[0];
+  const [form, setForm] = useState({ items: "Đã chuyển hết đồ khỏi kho", walls: "Không ghi nhận hư hỏng mới", keys: "Đã nhận lại 01 chìa khóa", proposal: PROPOSALS[0] });
   const [err, setErr] = useState("");
   if (!r)
     return (
@@ -46,7 +46,7 @@ export function ReturnInspectionPage({ query }) {
         <form className="panel form-card" onSubmit={submit} noValidate>
           <Field label="Đồ lưu trữ"><input value={report.items} disabled={submitted} onChange={(e) => set("items", e.target.value)} /></Field>
           <Field label="Tường, sàn & cửa kho"><input value={report.walls} disabled={submitted} onChange={(e) => set("walls", e.target.value)} /></Field>
-          <Field label="Khóa / thẻ ra vào"><input value={report.keys} disabled={submitted} onChange={(e) => set("keys", e.target.value)} /></Field>
+          <Field label="Chìa khóa vật lý"><input value={report.keys} disabled={submitted} onChange={(e) => set("keys", e.target.value)} /></Field>
           <Field label="Đề xuất trạng thái kho">
             <Select value={report.proposal} disabled={submitted} onChange={(e) => set("proposal", e.target.value)}>
               {PROPOSALS.map((p) => <option key={p}>{p}</option>)}

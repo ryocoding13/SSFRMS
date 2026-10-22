@@ -17,7 +17,7 @@ export function UnitAllocationPage({ query }) {
   if (!a)
     return (
       <main className="container page">
-        <Empty title="Không có đơn chờ phân bổ" text="Đơn đặt chỗ đã thanh toán sẽ hiện ở đây để chọn kho cụ thể.">
+        <Empty title="Không có đơn chờ phân bổ" text="Hệ thống tự phân bổ sau thanh toán. Đơn cần xử lý ngoại lệ hoặc giữ chỗ tại quầy sẽ hiện ở đây.">
           <LinkButton to="manager">Về tổng quan</LinkButton>
         </Empty>
       </main>
@@ -31,13 +31,13 @@ export function UnitAllocationPage({ query }) {
       <QueuePicker label="Đơn chờ phân bổ" items={pending} current={a.id} base="manager/allocate" render={(x) => `${x.id.slice(-4)} · ${x.customer}`} />
       <PageHeaderBlock title="Phân bổ kho cho đơn đặt chỗ" text={`Phạm vi: ${ops.facility.name} · Chỉ hiển thị kho trống trong toàn bộ kỳ thuê.`} />
       <section className="panel ops-order">
-        <Tag tone="green">Đã thanh toán</Tag>
+        <Tag tone="blue">Cần xử lý phân bổ</Tag>
         <strong>{a.id} · {a.customer}</strong>
         <span className="muted">{a.offer} · {rangeLabel(a.start, a.end)}</span>
         <span className="muted">Lịch nhận dự kiến: {dateTimeLabel(a.pickup)}</span>
       </section>
-      {a.status === "DONE" ? (
-        <Notice tone="success">Đã phân bổ kho {a.unit} lúc {dateTimeLabel(a.allocated_at)}. Nhân viên sẽ xác minh và bàn giao theo lịch hẹn.</Notice>
+      {["DONE", "ALLOCATED"].includes(a.status) ? (
+        <Notice tone="success">Đã phân bổ kho {a.unit} lúc {dateTimeLabel(a.allocated_at)}. Hợp đồng và QR/PIN được cấp sau khi đủ khoản thu. Chìa khóa vật lý nhận tại quầy.</Notice>
       ) : units.length === 0 ? (
         <Notice tone="error">Không còn kho trống khớp loại kho và diện tích trong kỳ thuê. Liên hệ khách để đổi lựa chọn hoặc cơ sở.</Notice>
       ) : (

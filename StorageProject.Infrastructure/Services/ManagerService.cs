@@ -105,7 +105,7 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
             board.Assignments.Add(new OpsAssignmentDto
             {
                 Id = $"PC-{alloc.Id.Replace("SS-", "")}",
-                Title = $"Bàn giao {alloc.Unit} · {alloc.Customer}",
+                Title = $"Nhận chìa khóa {alloc.Unit} · {alloc.Customer}",
                 When = alloc.Pickup,
                 Staff = board.Staff.FirstOrDefault()?.StaffId ?? "NV-01",
                 Status = "OPEN",

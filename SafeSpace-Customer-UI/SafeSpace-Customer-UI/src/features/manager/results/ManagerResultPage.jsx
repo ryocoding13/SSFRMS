@@ -2,8 +2,8 @@ import React from "react";
 import { Icon, LinkButton, Tag } from "../../../shared/components/UI.jsx";
 
 export const DONE_TEXT = {
-  allocate: "Kho đã được giữ cho đơn đặt chỗ. Nhân viên cơ sở sẽ xác minh khách và bàn giao theo lịch hẹn.",
-  assign: "Nhân viên được phân công đã nhận thông báo công việc mới.",
+  allocate: "Kho đã được giữ cho đơn đặt chỗ. Hợp đồng và QR/PIN được cấp sau khi đủ khoản thu; nhân viên xác minh khi khách nhận chìa khóa tại quầy.",
+  assign: "Công việc đã xuất hiện trong hàng chờ của nhân viên được phân công.",
   refund: "Hợp đồng đã đóng, kho chuyển về trạng thái trống để cho thuê lại.",
 };
 

@@ -4,7 +4,7 @@ import { dateTimeLabel } from "../../../shared/utils/format.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 
 // C07r1 / C07r2 — Mô phỏng máy quét QR ở cửa kho (D21: mô phỏng, không dùng thiết bị thật).
-// Nhận mã từ QR mở cửa (C07q) hoặc mã dự phòng, gọi POST /api/access/scan, hiện "Mở cửa" / "Từ chối".
+// Nhận mã từ QR mở cửa (C07q) hoặc PIN 6 số, gọi POST /api/access/scan, hiện "Mở cửa" / "Từ chối".
 export default function DoorScannerPage({ query }) {
   const { services } = useApp();
   const unit = query.get("unit") || "";
@@ -14,10 +14,10 @@ export default function DoorScannerPage({ query }) {
   const [error, setError] = useState("");
 
   const scan = async (value = code) => {
-    if (!String(value).trim()) return setError("Đưa mã QR vào máy quét hoặc nhập mã dự phòng.");
+    if (!String(value).trim()) return setError("Đưa mã QR vào máy quét hoặc nhập PIN 6 số.");
     setState("busy");
     setError("");
-    const res = await services.scan(value);
+    const res = await services.scan(value, unit);
     if (res.ok) {
       setResult(res.scan);
       setState("idle");
@@ -71,9 +71,9 @@ export default function DoorScannerPage({ query }) {
         <span className="door__icon door__icon--idle"><Icon name="qr" size={30} /></span>
         <p className="door__head">{head}</p>
         <h1>Đưa mã QR vào máy quét</h1>
-        <p className="muted">Mở "Mở cửa kho" trong tài khoản SafeSpace rồi đưa mã QR vào máy quét. Không quét được thì nhập mã dự phòng.</p>
-        <Field label="Mã QR hoặc mã dự phòng" error={error}>
-          <input value={code} autoComplete="off" placeholder="Ví dụ: 4821 9037" onChange={(e) => { setCode(e.target.value); setError(""); }} />
+        <p className="muted">Mở "Mở cửa kho" trong tài khoản SafeSpace rồi đưa mã QR vào máy quét. Không quét được thì nhập PIN 6 số.</p>
+        <Field label="Mã QR hoặc PIN 6 số" error={error}>
+          <input value={code} autoComplete="off" placeholder="Ví dụ: 482193" onChange={(e) => { setCode(e.target.value); setError(""); }} />
         </Field>
         {state === "unsupported" && <Notice>Máy quét chưa kết nối được hệ thống mở cửa. Vui lòng liên hệ nhân viên cơ sở.</Notice>}
         <Button type="submit" block disabled={state === "busy"}>{state === "busy" ? "Đang kiểm tra…" : "Quét mã"}</Button>

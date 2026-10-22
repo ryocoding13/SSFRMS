@@ -11,7 +11,7 @@ export const DOC_TYPES = ["Căn cước công dân", "Chứng minh nhân dân", 
 export function CustomerVerificationPage({ query }) {
   const { ops, run } = useOps();
   const todo = ops.verifications.filter((v) => v.status === "TODO");
-  const v = ops.verifications.find((x) => x.id === query.get("id")) || todo[0];
+  const v = query.get("id") ? ops.verifications.find((x) => x.id === query.get("id")) : todo[0];
   const [form, setForm] = useState({ doc_type: DOC_TYPES[0], doc_no: "", photo_ok: false, info_ok: false });
   const [err, setErr] = useState("");
   if (!v)
@@ -31,7 +31,7 @@ export function CustomerVerificationPage({ query }) {
     const r = await run("VERIFY_CUSTOMER", { id: v.id, ...form }, `Đã xác minh ${v.customer}`);
     if (!r.ok) return setErr(r.error);
     const h = ops.handovers.find((x) => x.verification_id === v.id);
-    go(h ? `staff/handover?id=${h.id}` : "staff");
+    go(h ? `staff/keys?id=${h.id}` : "staff");
   };
   const handover = ops.handovers.find((x) => x.verification_id === v.id);
   return (
@@ -39,12 +39,12 @@ export function CustomerVerificationPage({ query }) {
       <a className="back-link" href={href("staff/verify")}>← Danh sách xác minh</a>
       <form className="panel ops-card" onSubmit={submit} noValidate>
         <h1>Xác minh khách hàng</h1>
-        <p className="muted">Kiểm tra giấy tờ tuỳ thân trùng khớp với thông tin đặt chỗ trước khi cấp quyền ra vào.</p>
+        <p className="muted">Kiểm tra giấy tờ tuỳ thân trùng khớp với thông tin đặt chỗ khi khách nhận chìa khóa tại quầy.</p>
         <Facts rows={[["Họ và tên khách hàng", v.customer], ["Mã đặt chỗ", `#${v.reservation_id}`], ["Kho nhận", `#${v.unit} · Hẹn ${slotLabel(v.appointment)}`]]} />
         {v.status === "DONE" ? (
           <>
             <Notice tone="success">Đã xác minh bằng {v.doc_type} (…{v.doc_last4}) lúc {dateTimeLabel(v.verified_at)}.</Notice>
-            {handover && handover.status !== "DONE" && <LinkButton to={`staff/handover?id=${handover.id}`}>Tiếp tục bàn giao kho</LinkButton>}
+            {handover && handover.status !== "DONE" && <LinkButton to={`staff/keys?id=${handover.id}`}>Tiếp tục nhận chìa khóa</LinkButton>}
           </>
         ) : (
           <>
@@ -65,7 +65,7 @@ export function CustomerVerificationPage({ query }) {
               Thông tin giấy tờ trùng khớp với đơn đặt chỗ
             </label>
             {err && <Notice tone="error">{err}</Notice>}
-            <Button type="submit" block>Xác minh thành công</Button>
+            <Button type="submit" block>Xác nhận giấy tờ</Button>
           </>
         )}
       </form>

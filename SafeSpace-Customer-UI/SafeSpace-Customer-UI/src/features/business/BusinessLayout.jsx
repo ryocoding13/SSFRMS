@@ -1,6 +1,6 @@
+import StickyHeader from "../../shared/components/StickyHeader.jsx";
 import "./business.css";
 import React, { useEffect, useRef, useState } from "react";
-import { businessApi } from "./api/businessApi.js";
 import { go, href } from "../../app/router.js";
 import { useApp } from "../../app/state/AppProvider.jsx";
 
@@ -63,102 +63,10 @@ export const BUSINESS_TABS = [
   ["business/reports", "Báo cáo"],
 ];
 
-const READ_KEY = "safespace.business.notices.read";
-const readSaved = () => {
-  try {
-    const saved = JSON.parse(localStorage.getItem(READ_KEY));
-    return Array.isArray(saved) ? saved : [];
-  } catch {
-    return [];
-  }
-};
-
-// Việc cần để ý trên toàn hệ thống, lấy từ API (không có bảng thông báo riêng)
-function useNotices() {
-  const { onApiError } = useApp();
-  const [items, setItems] = useState([]);
-  const [read, setRead] = useState(readSaved);
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const [facilities, report, drafts] = await Promise.all([
-          businessApi.facilities(),
-          businessApi.facilityReport({}),
-          businessApi.policies({ status: "DRAFT" }),
-        ]);
-        if (!alive) return;
-        const list = [];
-        const overdue = report?.totals?.overdueContracts || 0;
-        if (overdue) list.push({ id: `overdue-${overdue}`, title: `${overdue} hợp đồng quá hạn toàn hệ thống`, to: "business/reports" });
-        const missing = facilities.filter((f) => f.status === "ACTIVE" && (f.pricedUnitTypes === 0 || f.totalUnits === 0 || f.assignedStaff === 0));
-        if (missing.length) list.push({ id: `setup-${missing.map((f) => f.facilityId).join("-")}`, title: `${missing.length} cơ sở đang hoạt động còn thiếu giá, ô kho hoặc nhân sự`, to: "business/facilities" });
-        const closed = facilities.filter((f) => f.status === "TEMPORARILY_CLOSED");
-        if (closed.length) list.push({ id: `closed-${closed.map((f) => f.facilityId).join("-")}`, title: `${closed.length} cơ sở đang tạm đóng`, to: "business/facilities" });
-        if (drafts.length) list.push({ id: `drafts-${drafts.map((p) => p.policyId).join("-")}`, title: `${drafts.length} chính sách ở bản nháp, chưa áp dụng`, to: "business/policies" });
-        setItems(list);
-      } catch (e) {
-        onApiError?.(e);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [onApiError]);
-  const mark = (ids) => {
-    const next = [...new Set([...read, ...ids])].slice(-100);
-    setRead(next);
-    try {
-      localStorage.setItem(READ_KEY, JSON.stringify(next));
-    } catch {
-      /* trình duyệt chặn lưu: chỉ giữ trong phiên */
-    }
-  };
-  return { items: items.map((n) => ({ ...n, read: read.includes(n.id) })), mark };
-}
-
-function Bell() {
-  const { items, mark } = useNotices();
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useOutside(open, setOpen, ref);
-  const unread = items.filter((n) => !n.read).length;
-  return (
-    <div className="bell-anchor" ref={ref}>
-      <button type="button" className="bell" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={`Thông báo vận hành${unread ? `, ${unread} chưa đọc` : ""}`}>
-        <img src={`${import.meta.env.BASE_URL}images/business/bell.svg`} width="44" height="44" alt="" />
-      </button>
-      {open && (
-        <section className="popup" aria-label="Thông báo vận hành">
-          <div className="popup__head">
-            <h2>Cần để ý</h2>
-            <button type="button" className="popup__close" onClick={() => setOpen(false)} aria-label="Đóng thông báo">×</button>
-          </div>
-          <p className="popup__count">{unread ? `${unread} thông báo mới` : "Đã đọc tất cả"}</p>
-          <ul className="popup__list">
-            {items.map((n) => (
-              <li key={n.id}>
-                <button type="button" className={n.read ? "is-read" : ""} onClick={() => { mark([n.id]); setOpen(false); go(n.to); }}>
-                  <strong>{n.title}</strong>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {items.length === 0 && <p className="popup__empty">Hệ thống chưa có việc cần để ý.</p>}
-          {unread > 0 && (
-            <button type="button" className="btn btn--outline popup__all" onClick={() => mark(items.map((n) => n.id))}>
-              Đánh dấu tất cả đã đọc
-            </button>
-          )}
-        </section>
-      )}
-    </div>
-  );
-}
-
 export default function BusinessLayout({ active, children }) {
   return (
     <div className="business-app">
+      <StickyHeader>
       <header className="header">
         <div className="header__inner">
           <a className="brand" href={href("business")} aria-label="SafeSpace — Quản lý vận hành kinh doanh">
@@ -168,7 +76,6 @@ export default function BusinessLayout({ active, children }) {
           <nav className="header__nav" aria-label="Điều hướng chính" />
           <div className="header__user">
             <UserMenu roleLabel="Vận hành KD" tone="business" />
-            <Bell />
           </div>
         </div>
       </header>
@@ -181,6 +88,7 @@ export default function BusinessLayout({ active, children }) {
           ))}
         </div>
       </nav>
+      </StickyHeader>
       {children}
     </div>
   );
