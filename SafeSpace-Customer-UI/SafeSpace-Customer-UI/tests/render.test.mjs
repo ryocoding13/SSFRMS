@@ -86,8 +86,8 @@ try {
   // C12 phản hồi nhân viên, C14 huỷ đơn, S09 thu tiền tại kho, M02 đổi trạng thái ô
   seed(true);
   const pages = [
-    ["units/HĐ-2026-0142", ["Chờ nhận kho", "Xem lịch nhận kho", "Đổi lịch nhận kho", "Dùng được sau khi nhận kho", "Mở cửa kho (QR)"]],
-    ["units/HĐ-2026-0086", ["Mở cửa kho", "Yêu cầu gia hạn", "Đăng ký trả kho"]],
+    ["units/HĐ-2026-0142", ["Hợp đồng và mã ra vào đã được cấp", "Xem QR &amp; PIN 6 số", "Nhận tại quầy cơ sở"]],
+    ["units/HĐ-2026-0086", ["Xem QR &amp; PIN 6 số", "Yêu cầu gia hạn", "Đăng ký trả kho"]],
     ["payments", ["Thanh toán", "Gia hạn B-015 · 3 tháng", "Chờ thanh toán"]],
     ["support", ["Phản hồi của nhân viên", "Thẻ cũ bị lỗi từ"]],
     ["reservations", ["Huỷ đơn SS-0142", "Chỉ huỷ được đơn chưa nhận kho"]],
@@ -100,7 +100,7 @@ try {
     count++;
   }
   window.location.hash = "#/units/HĐ-2026-0142";
-  assert.ok(!/href="#\/units\/H%C4%90-2026-0142\/renew"|href="#\/units\/HĐ-2026-0142\/renew"/.test(renderToStaticMarkup(React.createElement(App))), "F29: hợp đồng chưa bàn giao không có link gia hạn");
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Xem QR &amp; PIN 6 số"), "D26: QR hiển thị trước khi nhận chìa khóa");
   seed(true, OPS_ACCOUNTS[0]);
   for (const [r, texts] of [["staff/reconcile", ["Thu tiền tại kho", "Chờ thu khi nhận kho"]], ["staff/reconcile?id=SS-20260914-0142", ["Xác nhận đã thu", "Để sau", "Thuê 3 tháng"]], ["staff", ["Chờ thu tiền tại kho", "THU TIỀN"]]]) {
     window.location.hash = `#/${r}`;

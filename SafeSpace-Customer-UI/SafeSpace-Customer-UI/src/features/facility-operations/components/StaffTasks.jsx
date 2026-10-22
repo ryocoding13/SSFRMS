@@ -13,7 +13,7 @@ const slot = (iso) => slotLabel(iso).replace(/^Hôm nay/, "hôm nay");
 // Danh sách việc của nhân viên dạng thẻ, lưới 3x3 (Figma S01 / S09a / S02a / S03a / S04a / S05a).
 export const KINDS = {
   reconcile: { label: "THU TIỀN", route: "staff/reconcile" },
-  handover: { label: "BÀN GIAO", route: "staff/handover" },
+  handover: { label: "NHẬN CHÌA KHÓA", route: "staff/keys" },
   verify: { label: "XÁC MINH", route: "staff/verify" },
   support: { label: "HỖ TRỢ", route: "staff/support" },
   return: { label: "TRẢ KHO", route: "staff/return" },
@@ -25,17 +25,17 @@ export const LIST_TEXT = {
   // S09a · Thu tiền tại kho: đơn khách chọn "Thanh toán tại cửa hàng" (đơn trả qua PayOS tự xác nhận, không hiện ở đây)
   reconcile: {
     title: "Thu tiền tại kho",
-    sub: (n) => (n ? `${n} đơn khách chọn thanh toán tại cửa hàng · thu đủ tiền và xác nhận trước khi bàn giao.` : "Đơn khách chọn thanh toán tại cửa hàng sẽ hiện ở đây."),
+    sub: (n) => (n ? `${n} đơn khách chọn thanh toán tại cửa hàng · thu đủ tiền và xác nhận trước khi nhận chìa khóa.` : "Đơn khách chọn thanh toán tại cửa hàng sẽ hiện ở đây."),
     empty: ["Chưa có đơn nào cần thu tại kho", "Khi khách chọn \"Thanh toán tại cửa hàng\", đơn sẽ hiện ở đây để thu tiền."],
   },
   verify: {
     title: "Xác minh khách hàng",
-    sub: (n) => (n ? `${n} khách đến nhận kho theo lịch hẹn · kiểm tra giấy tờ trước khi bàn giao.` : "Kiểm tra giấy tờ của khách đến nhận kho."),
+    sub: (n) => (n ? `${n} khách đến nhận kho theo lịch hẹn · kiểm tra giấy tờ trước khi nhận chìa khóa.` : "Kiểm tra giấy tờ của khách đến nhận kho."),
     empty: ["Chưa có khách cần xác minh", "Khách đến nhận kho theo lịch hẹn sẽ hiện ở đây."],
   },
   handover: {
-    title: "Bàn giao kho",
-    sub: () => "Kho đã phân bổ, chờ bàn giao. Kho chỉ bàn giao được sau khi khách được xác minh.",
+    title: "Nhận chìa khóa vật lý",
+    sub: () => "Nhận chìa khóa tại quầy sau khi xác minh giấy tờ.",
     empty: ["Chưa có kho chờ bàn giao", "Kho được quản lý phân bổ sẽ hiện ở đây."],
   },
   return: {
@@ -65,7 +65,7 @@ export function staffTasks(ops, me, kind = "all") {
           cta: "Thu tiền", to: `staff/reconcile?id=${p.id}`, sort: p.reported_at,
         }),
       );
-  if (kind === "all" || kind === "handover")
+  if (kind === "all" || kind === "handover" || kind === "verify")
     ops.handovers
       .filter((h) => h.status === "WAITING" && (kind === "handover" || verified(h)))
       .forEach((h) => {
@@ -73,12 +73,12 @@ export function staffTasks(ops, me, kind = "all") {
         const v = ops.verifications.find((x) => x.id === h.verification_id);
         const ready = verified(h);
         list.push({
-          key: h.id, kind: "handover", status: ready ? ["Sẵn sàng bàn giao", "green"] : ["Chờ xác minh", "gray"],
+          key: h.id, kind: "handover", status: ready ? ["Chờ nhận chìa khóa", "green"] : ["Chờ xác minh", "gray"],
           title: `Kho #${h.unit} · ${h.customer}`,
           meta: `${ready ? "Đã xác minh khách · " : ""}${unit?.type === "climate" ? "Kho lạnh" : "Kho thường"}${unit ? ` · ${unit.area} m²` : ""}`,
           when: v ? `Hẹn ${slot(v.appointment)}` : "Chưa có lịch hẹn",
-          cta: ready ? "Bàn giao" : "Xác minh trước", outline: !ready,
-          to: ready ? `staff/handover?id=${h.id}` : `staff/verify?id=${v?.id}`, sort: v?.appointment || "",
+          cta: ready ? "Nhận chìa khóa" : "Xác minh trước", outline: !ready,
+          to: ready ? `staff/keys?id=${h.id}` : `staff/verify?id=${v?.id}`, sort: v?.appointment || "",
         });
       });
   if (kind === "all" || kind === "verify")
@@ -93,7 +93,7 @@ export function staffTasks(ops, me, kind = "all") {
       );
   if (kind === "all" || kind === "support")
     ops.tickets
-      .filter((t) => t.status !== "DONE" && (t.assignee === me?.staff_id || !t.assignee))
+      .filter((t) => ["OPEN", "IN_PROGRESS"].includes(t.status) && (t.assignee === me?.staff_id || !t.assignee))
       .forEach((t) =>
         list.push({
           key: t.id, kind: "support", status: TICKET_STATE[t.status], title: `${t.id} · ${t.title}`,

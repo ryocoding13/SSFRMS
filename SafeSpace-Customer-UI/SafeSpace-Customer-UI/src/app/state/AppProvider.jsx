@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { customerNotifications } from "../../features/customer/notifications/customerNotifications.js";
 import { api } from "../../shared/api/customerApi.js";
 import { ApiError, setToken } from "../../shared/api/httpClient.js";
 import { isUnsupported, localAccessCode, normAccess, normCancelPreview, normPayos, normScan } from "../../features/customer/access/accessApi.js";
@@ -10,7 +11,7 @@ import { paymentTimeoutSeconds } from "../config/media.js";
 import { createEmptyData, createSeedData } from "../data/appSeed.js";
 import { RENTAL_PLANS, offerByKey } from "../../shared/utils/catalog.js";
 import { isEmail, localDate, shortCode, timeoutLabel } from "../../shared/utils/format.js";
-import { TICKET_TOPICS } from "../../shared/utils/status.js";
+import { TICKET_TOPICS, ticketTitle } from "../../shared/utils/status.js";
 import { isAdminRoles, isCustomerRoles, isOpsRoles, isBusinessRoles, rolesFromToken } from "../../shared/utils/roles.js";
 import { OPS_ACCOUNTS, OPS_PASSWORD } from "../../features/facility-operations/data/facilityOperationsSeed.js";
 import { cancelPreviewOf, reduce, sweepExpired, validateRegister } from "./appReducer.js";
@@ -177,21 +178,21 @@ function LocalProvider({ children }) {
         return { ok: true, paid: Boolean(r && ["CONFIRMED", "CHECKED_IN"].includes(r.status)), cancelled: r?.status === "CANCELLED" };
       },
       async accessQr(contract) {
-        if (!contract.handed_over || contract.status === "ENDED") return { ok: false, error: "QR mở cửa chỉ dùng được sau khi nhận kho và khi hợp đồng còn hiệu lực." };
+        if (contract.access_issued === false || ["DRAFT", "ENDED"].includes(contract.status)) return { ok: false, error: "QR mở cửa chỉ được cấp khi hợp đồng đã được xác nhận." };
         return { ok: true, access: localAccessCode(contract) };
       },
-      async scan(code) {
+      async scan(code, unit) {
         const d = ref.current.data;
         const clean = String(code || "").replace(/\s/g, "");
         const c = d.contracts.find((x) => {
           const a = localAccessCode(x);
-          return a.code === code || a.backup.replace(/\s/g, "") === clean;
+          return (!unit || x.unit_number === unit) && (a.code === code || a.backup.replace(/\s/g, "") === clean);
         });
         const now = new Date().toISOString();
         if (!c) return { ok: true, scan: { result: "DENIED", unit: null, customer: null, contract: null, at: now, reason: "Mã không đúng. Kiểm tra lại mã trên ứng dụng hoặc mã dự phòng." } };
         if (c.status === "ENDED") return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Mã đã hết hiệu lực — hợp đồng đã trả kho." } };
-        if (!c.handed_over) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Kho chưa được bàn giao cho khách." } };
-        if (c.end_date < localDate(new Date())) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Hợp đồng đã quá hạn. Vui lòng gia hạn hoặc liên hệ cơ sở." } };
+        if (c.access_issued === false || c.start_date > localDate(new Date())) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Chưa đến ngày bắt đầu hợp đồng hoặc mã chưa được cấp." } };
+        if (c.end_date <= localDate(new Date())) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Hợp đồng đã quá hạn. Vui lòng gia hạn hoặc liên hệ cơ sở." } };
         return { ok: true, scan: { result: "OPEN", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: null } };
       },
       async cancelPreview(r) {
@@ -316,10 +317,24 @@ function ApiProvider({ children }) {
       contracts: contractDetails,
       tickets: ticketDetails,
     };
+    const events = customerNotifications({ contracts: contractDetails, tickets: ticketDetails, reservations });
+    updateOverlay(o => {
+      const ids = new Set(o.notifications.map(n => n.id));
+      const incoming = events.filter(n => !ids.has(n.id));
+      return incoming.length ? { ...o, notifications: [...incoming, ...o.notifications] } : o;
+    });
     refs.current.remote = next;
     setRemote(next);
     setNow(new Date());
-  }, []);
+  }, [updateOverlay]);
+
+  useEffect(() => {
+    if (!session || !isCustomerRoles(session.roles || [])) return undefined;
+    const refresh = () => { if (!document.hidden) loadCustomer().catch(() => {}); };
+    const timer = setInterval(refresh, 30000);
+    window.addEventListener("focus", refresh);
+    return () => { clearInterval(timer); window.removeEventListener("focus", refresh); };
+  }, [session, loadCustomer]);
 
   const handleError = useCallback(
     (e) => {
@@ -556,6 +571,8 @@ function ApiProvider({ children }) {
           case "CREATE_TICKET": {
             const topic = TICKET_TOPICS[p.topic];
             if (!topic) return fail("Vui lòng chọn chủ đề.");
+            const title = ticketTitle(p);
+            if (p.topic === "OTHER" && (!title || title.length > 100)) return fail("Chủ đề của bạn phải có từ 1 đến 100 ký tự.");
             const description = String(p.description || "").trim();
             if (!description) return fail("Vui lòng mô tả vấn đề.");
             if (description.length > 1000) return fail("Mô tả không quá 1000 ký tự.");
@@ -564,14 +581,14 @@ function ApiProvider({ children }) {
             const dto = await api.createTicket({
               contractId: c.api_id,
               unitId: null,
-              issueType: p.topic,
-              title: topic.title,
+              issueType: topic.issueType || p.topic,
+              title,
               description,
               priority: ["ACCESS", "LOCK"].includes(p.topic) ? "HIGH" : "NORMAL",
             });
             const names = (p.attachments || []).slice(0, 3);
             if (names.length) updateOverlay((o) => ({ ...o, attachments: { ...o.attachments, [dto.ticketId]: names } }));
-            remember("Đã gửi yêu cầu hỗ trợ", `${ticketCode(dto.ticketId)} · ${topic.title}`, "support", `Yêu cầu hỗ trợ ${ticketCode(dto.ticketId)} đã được gửi`, "blue");
+            remember("Đã gửi yêu cầu hỗ trợ", `${ticketCode(dto.ticketId)} · ${title}`, "support", `Yêu cầu hỗ trợ ${ticketCode(dto.ticketId)} đã được gửi`, "blue");
             await loadCustomer();
             return { ok: true, ticket_id: ticketCode(dto.ticketId) };
           }
@@ -689,7 +706,7 @@ function ApiProvider({ children }) {
           const access = normAccess(await api.accessQr(contract.api_id));
           return access ? { ok: true, access } : fail("Máy chủ chưa trả mã mở cửa.");
         }),
-      scan: (code) => guard(async () => ({ ok: true, scan: normScan(await api.scanAccess({ code: String(code || "").trim() })) })),
+      scan: (code, unit) => guard(async () => ({ ok: true, scan: normScan(await api.scanAccess({ code: String(code || "").trim(), unitNumber: unit || null })) })),
       cancelPreview: (r) =>
         guard(async () => {
           const preview = normCancelPreview(await api.cancelPreview(r.api_id));

@@ -17,8 +17,14 @@ export function EmptyInline({ text, cta, to }) {
 export function ViewToggle({ active, listTo, mapTo }) {
   return (
     <nav className="view-toggle" aria-label="Chế độ xem">
-      <a href={href(listTo)} className={active === "list" ? "is-on" : ""} aria-current={active === "list" ? "page" : undefined}>☰ Danh sách</a>
-      <a href={href(mapTo)} className={active === "map" ? "is-on" : ""} aria-current={active === "map" ? "page" : undefined}>⌖ Bản đồ</a>
+      <a href={href(listTo)} className={active === "list" ? "is-on" : ""} aria-current={active === "list" ? "page" : undefined}>
+        <img src={`${import.meta.env.BASE_URL}images/view-toggle/list${active === "list" ? "-active" : ""}.svg`} width="20" height="20" alt="" />
+        Danh sách
+      </a>
+      <a href={href(mapTo)} className={active === "map" ? "is-on" : ""} aria-current={active === "map" ? "page" : undefined}>
+        <img src={`${import.meta.env.BASE_URL}images/view-toggle/map${active === "map" ? "-active" : ""}.svg`} width="20" height="20" alt="" />
+        Bản đồ
+      </a>
     </nav>
   );
 }

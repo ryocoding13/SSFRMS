@@ -16,6 +16,8 @@ export function ReservationDetailPage({ id, mode = "confirmation" }) {
   const facility = facilityOf(data, r.facility_id, r.facility_name);
   const isDetail = mode === "detail";
   const waiting = r.status === "PENDING_PAYMENT" && r.expires_at && new Date(r.expires_at) > now;
+  const contract = data.contracts.find(c => c.reservation_id === r.reservation_id);
+  const paid = ["CONFIRMED", "CHECKED_IN"].includes(r.status);
   const atStore = r.status === "PENDING_VERIFICATION";
   const statusText =
     r.status === "CANCELLED" && r.refund_status === "PENDING"
@@ -48,12 +50,14 @@ export function ReservationDetailPage({ id, mode = "confirmation" }) {
         <span className={`result__icon${r.status === "CANCELLED" ? " result__icon--fail" : ""}`}>
           <Icon name={r.status === "CANCELLED" ? "close" : "check"} size={24} />
         </span>
-        <h1>{isDetail ? titles[r.status] : atStore ? "Đã giữ chỗ cho bạn" : "Đã nhận thông tin đặt chỗ"}</h1>
+        <h1>{isDetail ? titles[r.status] : atStore ? "Đã giữ chỗ cho bạn" : paid ? "Thanh toán thành công" : "Đã nhận thông tin đặt chỗ"}</h1>
         <p className="result__code">Mã đặt chỗ #{r.reservation_id}</p>
         <DetailList items={rows} />
         {atStore && (
           <Notice>Vui lòng đến cơ sở và thanh toán bằng tiền mặt hoặc thẻ tại quầy trong thời gian giữ chỗ. Quá hạn, đơn đặt chỗ sẽ tự huỷ.</Notice>
         )}
+        {paid && <Notice tone={contract ? "success" : "info"}>{contract ? "Hợp đồng và QR/PIN đã được cấp. Mã chỉ mở được trong kỳ thuê; chìa khóa vật lý nhận tại quầy." : "Đã ghi nhận thanh toán. Cơ sở đang xử lý phân bổ ô kho; hợp đồng và mã ra vào sẽ hiển thị khi hoàn tất."}</Notice>}
+        {contract && <LinkButton to={`units/${contract.contract_id}`} block>Xem hợp đồng & mã mở kho</LinkButton>}
         {waiting && <LinkButton to={`checkout/${r.reservation_id}`} block>Tiếp tục thanh toán</LinkButton>}
         {isDetail ? (
           <>

@@ -350,3 +350,10 @@
 - Cảnh báo có sẵn NU1902/NU1903, nullable Board.cs và kích thước chunk/font frontend vẫn còn. Chưa chạy SQL Server thật cho bản tách riêng. Người dùng đã báo C13 và S05/C12 đạt trước khi tách; cần kiểm tra lại sau khi áp dụng. F37 giữ active.
 - Figma từ chối quyền đọc thiết kế/ảnh; không có thay đổi giao diện và không tuyên bố đã đối chiếu thiết kế trực tiếp.
 - Không push/PR/merge. Bàn giao patch, danh sách file và hướng dẫn tạo worktree riêng để người dùng tự kiểm tra, commit và push.
+
+## 2026-10-22 — F38 đồng bộ giao diện và luồng Figma
+- Nền 0e70026, giữ thay đổi quản trị và Auth/Support mới trên main. Tính năng phiên này duy nhất F38; không đổi trạng thái F35/F37 đang chờ nhóm kiểm chứng.
+- Người dùng chọn "Hệ thống tự chọn" khi hỏi cách phân bổ sau PayOS. D26 thay yêu cầu bàn giao, PIN8 và phân bổ thủ công thường lệ. Vì vậy các assertion cũ yêu cầu webhook không phân bổ, bàn giao kích hoạt, PIN8, QR bị khóa trước nhận chìa khóa cần cập nhật theo nghiệp vụ mới; giữ kiểm tiền, quyền sở hữu, chống trùng và các kiểm chứng khác.
+- Đang kiểm chứng toàn bộ FE/BE, tương tác trình duyệt và ZIP. Chưa tuyên bố PayOS/SQL Server/thiết bị thật đạt.
+
+- Bàn giao F38: frontend cuối 76/76, SSR 92 route, check:structure/build đạt; business 9/9; backend build + 40 test SQLite trong phiên. Browser 13 nhóm PASS, so ảnh header trước/sau cuộn ở 5 role không đổi; hủy xác nhận không request, xử lý xong giảm badge, thất bại giữ draft, mobile không tràn. Chưa xác nhận SQL Server/PayOS/thiết bị thật; xem docs/figma-ui-sync-2026-10-22.md.

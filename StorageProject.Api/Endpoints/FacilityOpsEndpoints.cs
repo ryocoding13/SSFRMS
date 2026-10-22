@@ -35,9 +35,9 @@ public static class FacilityOpsEndpoints
             Run(async () => { await ops.VerifyCustomerAsync(Actor(user), id, request, ct); return Done(); }))
             .WithSummary("S02 · Xác minh khách nhận kho; chỉ lưu 4 số cuối giấy tờ");
 
-        group.MapPost("/handovers/{id}/complete", (string id, OpsHandoverRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
-            Run(async () => { await ops.CompleteHandoverAsync(Actor(user), id, request, ct); return Done(); }))
-            .WithSummary("S03 · Bàn giao kho (CARD / PIN / FINGER): hợp đồng ACTIVE, ô OCCUPIED, cấp phương thức mở khoá");
+        group.MapPost("/keys/{id}/receipt", (string id, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => { await ops.RecordKeyReceiptAsync(Actor(user), id, ct); return Done(); }))
+            .WithSummary("Ghi nhận khách nhận chìa khóa vật lý; không kích hoạt hợp đồng");
 
         group.MapPost("/returns/{id}/inspection", (string id, OpsReturnInspectionRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
             Run(async () => { await ops.SubmitReturnInspectionAsync(Actor(user), id, request, ct); return Done(); }))

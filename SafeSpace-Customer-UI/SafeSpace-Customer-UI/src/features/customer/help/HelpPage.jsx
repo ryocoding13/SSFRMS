@@ -9,7 +9,7 @@ export const FAQ = [
   },
   {
     q: "Khi nào tôi nhận được mã kho?",
-    a: "Sau khi đơn được xác nhận, quản lý phân bổ kho. Bạn đến theo lịch hẹn để nhân viên xác minh và bàn giao.",
+    a: "Sau khi thanh toán được xác nhận, hệ thống tự chọn ô phù hợp và cấp hợp đồng cùng QR/PIN. Chìa khóa vật lý nhận tại quầy. Mã chỉ mở kho trong kỳ thuê.",
     steps: ["Theo dõi trạng thái tại mục Đặt chỗ.", "Cơ sở kiểm tra và phân bổ kho phù hợp với nhu cầu của bạn.", "Mang giấy đăng ký và mã đặt chỗ đến đúng giờ hẹn."],
   },
   {

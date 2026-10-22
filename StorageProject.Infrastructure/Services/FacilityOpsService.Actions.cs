@@ -12,7 +12,6 @@ namespace StorageProject.Infrastructure.Services;
 public partial class FacilityOpsService
 {
     private static readonly Regex DocNumberPattern = new(@"^\d{9}$|^\d{12}$|^[A-Z]\d{7}$", RegexOptions.IgnoreCase);
-    private static readonly string[] UnlockMethods = ["CARD", "PIN", "FINGER"];
     private static readonly string[] TicketNextStates = ["IN_PROGRESS", "WAITING_CUSTOMER", "DONE"];
 
     // ------------------------------------------------------------------
@@ -30,13 +29,13 @@ public partial class FacilityOpsService
 
     private async Task<HandoverRecord> HandoverAsync(long facilityId, string code, string prefix, CancellationToken ct)
     {
-        var id = ParseCode(code, prefix, prefix == "XM-" ? "lịch xác minh" : "phiếu bàn giao");
+        var id = ParseCode(code, prefix, prefix == "XM-" ? "lịch xác minh" : "lịch nhận chìa khóa");
         return await dbContext.HandoverRecords
                    .Include(h => h.Contract).ThenInclude(c => c.Unit)
                    .Include(h => h.Contract).ThenInclude(c => c.Reservation)
                    .Include(h => h.Contract).ThenInclude(c => c.AccessCredentials)
                    .FirstOrDefaultAsync(h => h.HandoverId == id && h.Contract.Unit.FacilityId == facilityId, ct)
-               ?? throw new KeyNotFoundException("Không tìm thấy lịch bàn giao tại cơ sở của bạn.");
+               ?? throw new KeyNotFoundException("Không tìm thấy lịch nhận chìa khóa tại cơ sở của bạn.");
     }
 
     private async Task<ReturnInspection> InspectionAsync(long facilityId, string code, CancellationToken ct)
@@ -111,6 +110,7 @@ public partial class FacilityOpsService
     {
         var facility = await FacilityOfAsync(actor, ct);
         var h = await HandoverAsync(facility.FacilityId, id, "XM-", ct);
+        if (h.Contract.Status is not ("ACTIVE" or "EXPIRING")) throw new InvalidOperationException("Cần thanh toán và được cấp hợp đồng trước khi nhận chìa khóa.");
         if (h.Status != "SCHEDULED") throw new InvalidOperationException("Khách hàng này đã được xác minh.");
 
         var docNumber = (request.DocNumber ?? string.Empty).Trim();
@@ -135,50 +135,32 @@ public partial class FacilityOpsService
     // =====================================================================
     // S03 · Bàn giao kho + cấp phương thức mở khoá
     // =====================================================================
-    public async Task CompleteHandoverAsync(OpsActor actor, string id, OpsHandoverRequest request, CancellationToken ct = default)
+    public Task CompleteHandoverAsync(OpsActor actor, string id, OpsHandoverRequest request, CancellationToken ct = default) =>
+        RecordKeyReceiptAsync(actor, id, ct);
+
+    public async Task RecordKeyReceiptAsync(OpsActor actor, string id, CancellationToken ct = default)
     {
         var facility = await FacilityOfAsync(actor, ct);
+        // Serialize repeated receipt requests without changing credentials or contract dates/status.
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"key-receipt:{facility.FacilityId}:{id}", ct);
         var h = await HandoverAsync(facility.FacilityId, id, "BG-", ct);
-        if (h.Status == "HANDED_OVER") throw new InvalidOperationException("Kho này đã được bàn giao.");
-        if (h.Status != "VERIFIED") throw new InvalidOperationException("Cần xác minh khách hàng trước khi bàn giao kho.");
-        var method = (request.UnlockMethod ?? string.Empty).Trim().ToUpperInvariant();
-        if (!UnlockMethods.Contains(method)) throw new ArgumentException("Chọn phương thức mở khoá.");
-
-        var contract = h.Contract;
-        var reservation = await dbContext.Reservations.SingleAsync(r => r.ReservationId == contract.ReservationId, ct);
-        await ReservationSettlement.RequirePaidAsync(dbContext, reservation, ct);
-        if (contract.Status != "DRAFT") throw new InvalidOperationException("Hợp đồng không ở trạng thái chờ bàn giao.");
-
-        var now = NowUtc;
+        if (h.Status == "HANDED_OVER") { await tx.CommitAsync(ct); return; }
+        if (h.Status != "VERIFIED") throw new InvalidOperationException("Cần xác minh giấy tờ trước khi nhận chìa khóa.");
+        if (h.Contract.Status is not ("ACTIVE" or "EXPIRING"))
+            throw new InvalidOperationException("Hợp đồng chưa được cấp hoặc không còn hiệu lực.");
+        await ReservationSettlement.RequirePaidAsync(dbContext, h.Contract.Reservation, ct);
         h.Status = "HANDED_OVER";
-        h.HandoverAt = now;
+        h.HandoverAt = NowUtc;
+        h.StaffId = actor.UserId;
         h.StaffConfirmed = true;
-        h.CustomerConfirmed = true; // khách có mặt và ký nhận tại quầy
-        if (!actor.IsManager) h.StaffId = actor.UserId;
-
-        contract.Status = "ACTIVE";
-        contract.ActivatedAt = now;
-        contract.Reservation.Status = "CHECKED_IN";
-        SetUnitStatus(contract.Unit, "OCCUPIED", actor.UserId, $"Bàn giao cho khách · {HandoverCode(h.HandoverId)}");
-
-        foreach (var old in contract.AccessCredentials.Where(a => a.Status == "ACTIVE"))
-        {
-            old.Status = "REPLACED";
-            old.ReturnedAt = now;
-        }
-        // Thẻ từ → ACCESS_CARD; mã PIN và vân tay đăng ký tại máy → ACCESS_CODE (không lưu bí mật)
-        dbContext.AccessCredentials.Add(new AccessCredential
-        {
-            ContractId = contract.ContractId,
-            UnitId = contract.UnitId,
-            IssuedBy = actor.UserId,
-            CredentialType = method == "CARD" ? "ACCESS_CARD" : "ACCESS_CODE",
-            CredentialReference = $"{method}-{contract.Unit.UnitNumber}-{now + VnOffset:yyMMdd}",
-            IssuedAt = now,
-            Status = "ACTIVE"
-        });
-        Log(actor.UserId, LogAction.HandoverCompleted, LogEntity.Handover, h.HandoverId, new { method });
+        h.CustomerConfirmed = true;
+        h.Notes = "Khách nhận 01 chìa khóa vật lý tại quầy";
+        if (!h.Contract.AccessCredentials.Any(c => c.CredentialType == "KEY" && c.Status == "ACTIVE"))
+            h.Contract.AccessCredentials.Add(new AccessCredential { UnitId = h.Contract.UnitId, IssuedBy = actor.UserId,
+                CredentialType = "KEY", CredentialReference = $"KEY-{h.HandoverId}-{Guid.NewGuid():N}", IssuedAt = NowUtc, Status = "ACTIVE" });
+        Log(actor.UserId, "PHYSICAL_KEY_RECEIVED", LogEntity.Handover, h.HandoverId, new { quantity = 1 });
         await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     // =====================================================================

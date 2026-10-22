@@ -29,27 +29,21 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
             throw new KeyNotFoundException("Không tìm thấy hợp đồng.");
         }
 
-        if (contract.HandoverRecord == null || contract.HandoverRecord.Status != "HANDED_OVER")
-        {
-            throw new InvalidOperationException("QR mở cửa chỉ dùng được sau khi nhân viên bàn giao kho.");
-        }
-
         if (contract.Status is "RETURN_PENDING" or "COMPLETED" or "TERMINATED" or "CANCELLED"
             || (contract.Status is not ("ACTIVE" or "EXPIRING" or "OVERDUE")))
         {
             throw new InvalidOperationException("Hợp đồng đã trả kho hoặc hết hiệu lực, mã mở cửa không còn dùng được.");
         }
 
-        var latestCred = contract.AccessCredentials
-            .OrderByDescending(c => c.IssuedAt)
-            .FirstOrDefault();
-
+        var latestCred = LatestCredential(contract, false);
         if (latestCred == null || latestCred.Status != "ACTIVE")
         {
-            throw new InvalidOperationException("Thẻ ra vào chưa được kích hoạt hoặc đã bị thu hồi.");
+            throw new InvalidOperationException("Mã ra vào chưa được cấp hoặc đã bị thu hồi.");
         }
 
-        var (code, backupCode) = ComputeCodes(contract.ContractId, latestCred.CredentialId, latestCred.IssuedAt);
+        var (code, _) = ComputeCodes(contract.ContractId, latestCred.CredentialId, latestCred.IssuedAt);
+        var pinCred = LatestCredential(contract, true);
+        var backupCode = pinCred?.Status == "ACTIVE" ? ComputeCodes(contract.ContractId, pinCred.CredentialId, pinCred.IssuedAt).BackupCode : "";
 
         return new AccessQrDto(
             contract.ContractId,
@@ -58,11 +52,12 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
             contract.Unit.UnitNumber,
             contract.Unit.UnitType?.TypeName ?? "Kho tự quản",
             contract.Unit.LocationDescription ?? contract.Unit.Floor ?? contract.Unit.Zone,
-            contract.EndDate.ToString("yyyy-MM-dd")
+            contract.EndDate.ToString("yyyy-MM-dd"),
+            contract.StartDate.ToString("yyyy-MM-dd")
         );
     }
 
-    public async Task<ScanResultDto> ScanAsync(string? rawCode, string? ipAddress, CancellationToken ct = default)
+    public async Task<ScanResultDto> ScanAsync(string? rawCode, string? ipAddress, CancellationToken ct = default, string? unitNumber = null)
     {
         if (string.IsNullOrWhiteSpace(rawCode))
         {
@@ -76,7 +71,7 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
         var qrMatch = Regex.Match(cleaned, @"^SSQR-(\d+)-([A-Fa-f0-9]{8})$", RegexOptions.IgnoreCase);
         if (qrMatch.Success)
         {
-            var contractId = long.Parse(qrMatch.Groups[1].Value);
+            var contractId = long.TryParse(qrMatch.Groups[1].Value, out var parsedId) ? parsedId : 0;
             var hex = qrMatch.Groups[2].Value;
 
             contract = await dbContext.RentalContracts
@@ -91,7 +86,7 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
                 return await LogAndDenyAsync(null, null, null, null, "Mã không đúng. Kiểm tra lại mã trên ứng dụng hoặc mã dự phòng.", ipAddress, ct);
             }
 
-            latestCred = contract.AccessCredentials.OrderByDescending(c => c.IssuedAt).FirstOrDefault();
+            latestCred = LatestCredential(contract, false);
             if (latestCred == null)
             {
                 return await LogAndDenyAsync(contract.ContractId, contract.Unit.UnitNumber, contract.Customer.FullName, FormatContractCode(contract), "Kho chưa được bàn giao cho khách.", ipAddress, ct);
@@ -106,28 +101,28 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
         else
         {
             var digitsOnly = Regex.Replace(cleaned, @"\s+", "");
-            if (digitsOnly.Length == 8 && digitsOnly.All(char.IsDigit))
+            if (digitsOnly.Length == 6 && digitsOnly.All(char.IsDigit) && !string.IsNullOrWhiteSpace(unitNumber))
             {
                 var candidates = await dbContext.RentalContracts
                     .Include(c => c.Customer)
                     .Include(c => c.Unit)
                     .Include(c => c.HandoverRecord)
                     .Include(c => c.AccessCredentials)
-                    .Where(c => c.AccessCredentials.Any())
+                    .Where(c => c.Unit.UnitNumber == unitNumber && c.AccessCredentials.Any(a => a.Status == "ACTIVE" && a.CredentialType != "KEY"))
                     .OrderByDescending(c => c.ContractId)
                     .ToListAsync(ct);
 
                 foreach (var candidate in candidates)
                 {
-                    var cred = candidate.AccessCredentials.OrderByDescending(a => a.IssuedAt).FirstOrDefault();
+                    var cred = LatestCredential(candidate, true);
                     if (cred != null)
                     {
                         var (_, expectedBackup) = ComputeCodes(candidate.ContractId, cred.CredentialId, cred.IssuedAt);
                         if (expectedBackup == digitsOnly)
                         {
+                            if (contract != null) return await LogAndDenyAsync(null, null, null, null, "PIN trùng giữa các cơ sở. Vui lòng quét mã QR.", ipAddress, ct);
                             contract = candidate;
                             latestCred = cred;
-                            break;
                         }
                     }
                 }
@@ -143,7 +138,9 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
             }
         }
 
-        var unitNumber = contract.Unit.UnitNumber;
+        if (!string.IsNullOrWhiteSpace(unitNumber) && contract.Unit.UnitNumber != unitNumber)
+            return await LogAndDenyAsync(null, null, null, null, "Mã không đúng ô kho.", ipAddress, ct);
+        var scannedUnit = contract.Unit.UnitNumber;
         var customerName = contract.Customer.FullName;
         var contractCode = FormatContractCode(contract);
         var vnToday = DateOnly.FromDateTime(DateTime.UtcNow + VnOffset);
@@ -152,31 +149,30 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
         // #3: Thẻ RETURNED hoặc hợp đồng đã kết thúc/trả kho
         if (latestCred.Status == "RETURNED" || contract.Status is "RETURN_PENDING" or "COMPLETED" or "TERMINATED" or "CANCELLED")
         {
-            return await LogAndDenyAsync(contract.ContractId, unitNumber, customerName, contractCode, "Mã đã hết hiệu lực — hợp đồng đã trả kho.", ipAddress, ct);
+            return await LogAndDenyAsync(contract.ContractId, scannedUnit, customerName, contractCode, "Mã đã hết hiệu lực — hợp đồng đã trả kho.", ipAddress, ct);
         }
 
         // #4: Thẻ bị thu hồi / mất / thay thế
         if (latestCred.Status is "REVOKED" or "LOST" or "REPLACED")
         {
-            return await LogAndDenyAsync(contract.ContractId, unitNumber, customerName, contractCode, "Mã đã bị thu hồi. Liên hệ nhân viên cơ sở để được cấp lại.", ipAddress, ct);
-        }
-
-        // #5: Chưa bàn giao
-        if (contract.HandoverRecord == null || contract.HandoverRecord.Status != "HANDED_OVER")
-        {
-            return await LogAndDenyAsync(contract.ContractId, unitNumber, customerName, contractCode, "Kho chưa được bàn giao cho khách.", ipAddress, ct);
+            return await LogAndDenyAsync(contract.ContractId, scannedUnit, customerName, contractCode, "Mã đã bị thu hồi. Liên hệ nhân viên cơ sở để được cấp lại.", ipAddress, ct);
         }
 
         // #6: Hợp đồng không còn hiệu lực
         if (contract.Status is not ("ACTIVE" or "EXPIRING" or "OVERDUE"))
         {
-            return await LogAndDenyAsync(contract.ContractId, unitNumber, customerName, contractCode, "Hợp đồng không còn hiệu lực.", ipAddress, ct);
+            return await LogAndDenyAsync(contract.ContractId, scannedUnit, customerName, contractCode, "Hợp đồng không còn hiệu lực.", ipAddress, ct);
         }
 
+        if (contract.StartDate > vnToday)
+            return await LogAndDenyAsync(contract.ContractId, scannedUnit, customerName, contractCode, "Chưa đến ngày bắt đầu hợp đồng.", ipAddress, ct);
+        if (latestCred.Status != "ACTIVE")
+            return await LogAndDenyAsync(contract.ContractId, scannedUnit, customerName, contractCode, "Mã không còn hiệu lực.", ipAddress, ct);
+
         // #7: Quá hạn
-        if (options.DenyOverdue && (contract.Status == "OVERDUE" || contract.EndDate < vnToday))
+        if (contract.Status == "OVERDUE" || contract.EndDate <= vnToday)
         {
-            return await LogAndDenyAsync(contract.ContractId, unitNumber, customerName, contractCode, "Hợp đồng đã quá hạn. Vui lòng gia hạn hoặc liên hệ cơ sở.", ipAddress, ct);
+            return await LogAndDenyAsync(contract.ContractId, scannedUnit, customerName, contractCode, "Hợp đồng đã quá hạn. Vui lòng gia hạn hoặc liên hệ cơ sở.", ipAddress, ct);
         }
 
         // Đạt toàn bộ kiểm tra -> OPEN
@@ -187,13 +183,23 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
             Action = "ACCESS_SCANNED",
             EntityType = "CONTRACT",
             EntityId = contract.ContractId,
-            NewValue = JsonSerializer.Serialize(new { result = "OPEN", unit = unitNumber, reason = (string?)null }),
+            NewValue = JsonSerializer.Serialize(new { result = "OPEN", unit = scannedUnit, reason = (string?)null }),
             IpAddress = ipAddress,
             LoggedAt = now
         });
         await dbContext.SaveChangesAsync(ct);
 
-        return new ScanResultDto("OPEN", unitNumber, customerName, contractCode, now, null);
+        return new ScanResultDto("OPEN", scannedUnit, customerName, contractCode, now, null);
+    }
+
+    private static AccessCredential? LatestCredential(RentalContract contract, bool pin)
+    {
+        var items = contract.AccessCredentials.Where(c => c.CredentialType != "KEY");
+        var prefix = pin ? "PIN-" : "QR-";
+        var matching = items.Where(c => (c.CredentialReference ?? "").StartsWith(prefix));
+        return matching.OrderByDescending(c => c.IssuedAt).ThenByDescending(c => c.CredentialId).FirstOrDefault()
+            ?? items.Where(c => !(c.CredentialReference ?? "").StartsWith("QR-") && !(c.CredentialReference ?? "").StartsWith("PIN-"))
+                .OrderByDescending(c => c.IssuedAt).ThenByDescending(c => c.CredentialId).FirstOrDefault();
     }
 
     private (string Code, string BackupCode) ComputeCodes(long contractId, long credentialId, DateTime issuedAt)
@@ -206,7 +212,7 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
         var code = $"SSQR-{contractId}-{hex}";
 
         var uintVal = BitConverter.ToUInt32(hash, 0);
-        var backupCode = (uintVal % 100000000).ToString("D8");
+        var backupCode = (uintVal % 1000000).ToString("D6");
 
         return (code, backupCode);
     }
@@ -216,7 +222,7 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
 
     private async Task<ScanResultDto> LogAndDenyAsync(
         long? contractId,
-        string? unitNumber,
+        string? scannedUnit,
         string? customerName,
         string? contractCode,
         string reason,
@@ -230,12 +236,12 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
             Action = "ACCESS_SCANNED",
             EntityType = "CONTRACT",
             EntityId = contractId,
-            NewValue = JsonSerializer.Serialize(new { result = "DENIED", unit = unitNumber, reason }),
+            NewValue = JsonSerializer.Serialize(new { result = "DENIED", unit = scannedUnit, reason }),
             IpAddress = ipAddress,
             LoggedAt = now
         });
         await dbContext.SaveChangesAsync(ct);
 
-        return new ScanResultDto("DENIED", unitNumber, customerName, contractCode, now, reason);
+        return new ScanResultDto("DENIED", scannedUnit, customerName, contractCode, now, reason);
     }
 }

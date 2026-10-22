@@ -30,14 +30,14 @@ export function useAccessQr(id) {
       unit: contract.unit_number,
       date: today(),
       code: crypto.randomUUID(),
-      backupCode: String(crypto.getRandomValues(new Uint32Array(1))[0] % 100000000).padStart(8, "0"),
+      backupCode: String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0"),
     };
     return credential;
   }, [data, id]);
 
   const scan = useCallback(async (credential, code, unit) => {
     if (USE_API) {
-      const res = await api.scanAccess(code);
+      const res = await api.scanAccess({ code, unitNumber: unit });
       const allowed = res.result === "OPEN";
       const at = res.scannedAt || new Date().toISOString();
       const key = `safespace.access.scans.${data.user.user_id}`;

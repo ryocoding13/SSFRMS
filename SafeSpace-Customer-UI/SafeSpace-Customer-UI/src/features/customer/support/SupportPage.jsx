@@ -2,7 +2,7 @@ import React, { useRef, useState } from "react";
 import { Select } from "../../../shared/components/Pickers.jsx";
 import { Button, Dialog, Field, Modal, Notice, PageHeader, StatusTag } from "../../../shared/components/UI.jsx";
 import { dateTimeLabel } from "../../../shared/utils/format.js";
-import { TICKET_STATUS, TICKET_TOPICS } from "../../../shared/utils/status.js";
+import { ACCESS_REQUESTS, TICKET_STATUS, TICKET_TOPICS } from "../../../shared/utils/status.js";
 import { facilityOf } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 
@@ -22,7 +22,7 @@ function TicketCard({ t }) {
   return (
     <article className="panel ticket">
       <StatusTag map={TICKET_STATUS} status={t.status} square />
-      <h3>{t.ticket_id} · {t.title || TICKET_TOPICS[t.topic].title}</h3>
+      <h3>{t.ticket_id} · {t.title || TICKET_TOPICS[t.topic]?.title || "Yêu cầu hỗ trợ"}</h3>
       <p className="muted">
         {t.staff_note}
         <br />
@@ -87,6 +87,8 @@ export default function SupportPage({ query }) {
     contract_id: data.contracts.some((c) => c.contract_id === preContract) ? preContract : data.contracts[0]?.contract_id || "",
     topic: TICKET_TOPICS[preTopic] ? preTopic : "ACCESS",
     description: "",
+    subject: "",
+    access_request: "QR",
   });
   const [files, setFiles] = useState([]);
   const [errors, setErrors] = useState({});
@@ -101,7 +103,7 @@ export default function SupportPage({ query }) {
     const next = [...files];
     let problem = "";
     for (const f of list) {
-      if (!f.type.startsWith("image/")) problem = "Chỉ đính kèm được file ảnh.";
+      if (!["image/jpeg", "image/png"].includes(f.type)) problem = "Chỉ đính kèm ảnh JPG hoặc PNG.";
       else if (f.size > MAX_MB * 1024 * 1024) problem = `Mỗi ảnh tối đa ${MAX_MB} MB.`;
       else if (next.length >= MAX_FILES) problem = `Tối đa ${MAX_FILES} ảnh.`;
       else next.push(f);
@@ -112,6 +114,7 @@ export default function SupportPage({ query }) {
   };
   const submit = async (e) => {
     e.preventDefault();
+    if (form.topic === "OTHER" && !form.subject.trim()) return setErrors({ subject: "Vui lòng nhập chủ đề của bạn." });
     if (!form.description.trim()) return setErrors({ description: "Vui lòng mô tả vấn đề bạn đang gặp." });
     setBusy(true);
     const res = await dispatch("CREATE_TICKET", { ...form, attachments: files.map((f) => f.name) });
@@ -127,7 +130,7 @@ export default function SupportPage({ query }) {
   return (
     <main className="container page">
       <PageHeader title="Bạn cần hỗ trợ điều gì?" description="Gửi yêu cầu đến đúng cơ sở. Theo dõi phản hồi ngay trong tài khoản." />
-      <div className="detail-grid detail-grid--even">
+      <div className="detail-grid support-grid">
         <form className="panel form-card" onSubmit={submit} noValidate>
           <Field label="Kho / hợp đồng liên quan">
             <Select value={form.contract_id} onChange={(e) => set("contract_id", e.target.value)}>
@@ -139,18 +142,29 @@ export default function SupportPage({ query }) {
           </Field>
           <Field label="Chủ đề">
             <Select value={form.topic} onChange={(e) => set("topic", e.target.value)}>
-              {Object.entries(TICKET_TOPICS).map(([k, t]) => (
+              {Object.entries(TICKET_TOPICS).filter(([, t]) => !t.legacy).map(([k, t]) => (
                 <option key={k} value={k}>{t.label}</option>
               ))}
             </Select>
           </Field>
+          {form.topic === "ACCESS" && <div className="field">
+            <span className="field__label" id="access-request-label">Bạn cần cấp lại mục nào?</span>
+            <div className="support-access-options" role="group" aria-labelledby="access-request-label">
+              {Object.entries(ACCESS_REQUESTS).map(([key, label]) => <Button key={key} variant={form.access_request === key ? "primary" : "outline"} aria-pressed={form.access_request === key} onClick={() => set("access_request", key)}>{label}</Button>)}
+            </div>
+            <p className="hint">QR và PIN được cấp theo hợp đồng. Chìa khóa vật lý nhận tại quầy cơ sở.</p>
+          </div>}
+          {form.topic === "OTHER" && <Field label="Chủ đề của bạn *" error={errors.subject} hint="Nhập tiêu đề ngắn gọn, tối đa 100 ký tự. Vui lòng không để trống.">
+            <input required maxLength={100} placeholder="VD: Cập nhật thông tin người liên hệ" value={form.subject} onChange={e => set("subject", e.target.value)} />
+          </Field>}
           <Field label="Mô tả vấn đề" error={errors.description}>
-            <textarea rows={3} maxLength={1000} placeholder="Ví dụ: Thẻ ra vào chưa mở được cổng cơ sở." value={form.description} onChange={(e) => set("description", e.target.value)} />
+            <textarea rows={3} maxLength={1000} placeholder="Mô tả chi tiết vấn đề để cơ sở hỗ trợ bạn…" value={form.description} onChange={(e) => set("description", e.target.value)} />
           </Field>
           <div className={`field${errors.files ? " field--invalid" : ""}`}>
             <span className="field__label">Ảnh đính kèm (không bắt buộc)</span>
-            <button type="button" className="attach" onClick={() => picker.current?.click()}>+ Thêm ảnh mô tả</button>
-            <input ref={picker} type="file" accept="image/*" multiple hidden onChange={(e) => addFiles([...e.target.files])} />
+            <button type="button" className="attach" onClick={() => picker.current?.click()}><span aria-hidden="true">+</span><span>Thêm ảnh</span></button>
+            <input ref={picker} type="file" accept="image/jpeg,image/png" multiple hidden onChange={(e) => addFiles([...e.target.files])} />
+            <p className="hint">Tối đa 3 ảnh · JPG, PNG · mỗi ảnh tối đa 5 MB</p>
             {files.length > 0 && (
               <ul className="files">
                 {files.map((f, i) => (

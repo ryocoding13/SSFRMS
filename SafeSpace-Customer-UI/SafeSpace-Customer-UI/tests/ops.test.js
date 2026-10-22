@@ -32,19 +32,20 @@ test("đối soát đơn chưa có kho → chuyển quản lý phân bổ, rồi
   assert.ok(unit);
   out = run(s, "ALLOCATE", { id: a.id, unit: unit.code });
   s = out.state;
-  assert.equal(s.units.find((u) => u.code === unit.code).status, "WAITING_HANDOVER");
+  assert.equal(s.units.find((u) => u.code === unit.code).status, "ACTIVE");
   assert.ok(s.handovers.some((h) => h.unit === unit.code));
   assert.ok(run(s, "ALLOCATE", { id: a.id, unit: unit.code }).error, "không phân bổ lần hai");
 });
 
-test("không bàn giao khi chưa xác minh; xác minh rồi bàn giao thì kho hoạt động", () => {
+test("không nhận chìa khóa khi chưa xác minh; nhận chìa khóa không đổi trạng thái kho", () => {
   let s = createOpsData(T);
-  assert.match(run(s, "HANDOVER", { id: "BG-0142", method: "CARD" }).error.message, /xác minh/);
+  assert.match(run(s, "RECORD_KEY_RECEIPT", { id: "BG-0142", method: "CARD" }).error.message, /xác minh/);
   assert.ok(run(s, "VERIFY_CUSTOMER", { id: "XM-0142", doc_type: "CCCD", doc_no: "123", photo_ok: true, info_ok: true }).error);
   s = run(s, "VERIFY_CUSTOMER", { id: "XM-0142", doc_type: "CCCD", doc_no: "079123456789", photo_ok: true, info_ok: true }).state;
   assert.equal(s.verifications.find((v) => v.id === "XM-0142").doc_last4, "6789");
-  s = run(s, "HANDOVER", { id: "BG-0142", method: "PIN" }).state;
-  assert.equal(s.units.find((u) => u.code === "K01").status, "ACTIVE");
+  const before = s.units.find(u => u.code === "K01").status;
+  s = run(s, "RECORD_KEY_RECEIPT", { id: "BG-0142" }).state;
+  assert.equal(s.units.find(u => u.code === "K01").status, before);
 });
 
 test("trả kho → quản lý xác nhận hoàn cọc = cọc − khoản nợ, kho trống lại", () => {

@@ -341,6 +341,8 @@ public class StaffService(AppDbContext dbContext) : IStaffService
             throw new InvalidOperationException("Đơn không còn chờ thu tại kho hoặc đã hết hạn.");
         await ReservationSettlement.RecordAsync(dbContext, found, "CASH", $"CASH:{found.ReservationId}", userId, ct);
         await dbContext.SaveChangesAsync(ct);
+        await ContractProvisioning.EnsureAsync(dbContext, found, userId, ct);
+        await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
     }
 
@@ -379,78 +381,18 @@ public class StaffService(AppDbContext dbContext) : IStaffService
         {
             await ReservationSettlement.RequirePaidAsync(dbContext, r, ct);
             var record = await dbContext.HandoverRecords.SingleOrDefaultAsync(h => h.Contract.ReservationId == r.ReservationId, ct)
-                ?? throw new InvalidOperationException("Đơn chưa được quản lý phân bổ và lập lịch bàn giao.");
+                ?? throw new InvalidOperationException("Đơn chưa được cấp hợp đồng và lịch nhận chìa khóa.");
             if (record.Status == "HANDED_OVER") return;
             record.Status = "VERIFIED";
+            record.VerifiedAt = DateTime.UtcNow;
             record.Notes = $"Đã xác minh giấy tờ kết thúc {docNo[^4..]}";
             await dbContext.SaveChangesAsync(ct);
         }
     }
 
-    public async Task CompleteHandoverAsync(long userId, string id, CompleteHandoverRequest request, CancellationToken ct = default)
-    {
-        var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
-        var num = FacilityOpsStateStore.ParseIdNumber(id);
-        var now = DateTime.UtcNow;
-
-        // 1. Thử tìm theo HandoverId hoặc ContractId
-        var handover = await dbContext.HandoverRecords
-            .Include(h => h.Contract).ThenInclude(c => c.Unit)
-            .Include(h => h.Contract).ThenInclude(c => c.AccessCredentials)
-            .Include(h => h.Contract).ThenInclude(c => c.Reservation)
-            .FirstOrDefaultAsync(h => h.HandoverId == num && h.Contract.Unit.FacilityId == fac.FacilityId, ct);
-
-        if (handover != null)
-        {
-            await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"reservation:{handover.Contract.ReservationId}", ct);
-            await dbContext.Entry(handover.Contract.Reservation).ReloadAsync(ct);
-            await ReservationSettlement.RequirePaidAsync(dbContext, handover.Contract.Reservation, ct);
-            if (handover.Status == "HANDED_OVER") { await tx.CommitAsync(ct); return; }
-            if (handover.Status != "VERIFIED") throw new InvalidOperationException("Cần xác minh khách hàng trước khi bàn giao.");
-            handover.Status = "HANDED_OVER";
-            handover.StaffConfirmed = true;
-            handover.CustomerConfirmed = true;
-            handover.StaffId = userId;
-            handover.HandoverAt = now;
-            handover.Notes = $"Phương thức mở khóa: {request.UnlockMethod}";
-
-            var contract = handover.Contract;
-            if (contract != null)
-            {
-                contract.Status = "ACTIVE";
-                contract.ActivatedAt ??= now;
-                if (contract.Unit != null)
-                {
-                    contract.Unit.Status = "OCCUPIED";
-                    contract.Unit.UpdatedAt = now;
-                }
-                if (contract.Reservation != null)
-                {
-                    contract.Reservation.Status = "CHECKED_IN";
-                }
-
-                if (!contract.AccessCredentials.Any(a => a.Status == "ACTIVE"))
-                {
-                    var method = (request.UnlockMethod ?? "CARD").ToUpperInvariant();
-                    dbContext.AccessCredentials.Add(new AccessCredential
-                    {
-                        ContractId = contract.ContractId,
-                        UnitId = contract.UnitId,
-                        IssuedBy = userId,
-                        CredentialType = method == "CARD" ? "ACCESS_CARD" : "ACCESS_CODE",
-                        CredentialReference = $"{method}-{contract.Unit?.UnitNumber ?? "K01"}-{now.AddHours(7):yyMMdd}",
-                        IssuedAt = now,
-                        Status = "ACTIVE"
-                    });
-                }
-            }
-            await dbContext.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
-            return;
-        }
-
-        throw new InvalidOperationException("Không tìm thấy lịch bàn giao. Quản lý cần phân bổ kho trước.");
-    }
+    // Legacy URL delegates to key receipt; it never activates a contract or selects an unlock method.
+    public Task CompleteHandoverAsync(long userId, string id, CompleteHandoverRequest request, CancellationToken ct = default) =>
+        new FacilityOpsService(dbContext).RecordKeyReceiptAsync(new(userId, false), id, ct);
 
     public async Task SubmitReturnInspectionAsync(long userId, string id, ReturnInspectionRequest request, CancellationToken ct = default)
     {
@@ -532,29 +474,41 @@ public class StaffService(AppDbContext dbContext) : IStaffService
         {
             throw new InvalidOperationException($"Không tìm thấy kho {id}.");
         }
-        var cred = await dbContext.AccessCredentials.FirstOrDefaultAsync(c => c.UnitId == unit.UnitId && c.Status == "ACTIVE", ct);
-        if (cred != null)
-        {
-            cred.Status = "REVOKED";
-            cred.ReturnedAt = DateTime.UtcNow;
-            await dbContext.SaveChangesAsync(ct);
-        }
+        var credentials = await dbContext.AccessCredentials.Where(c => c.UnitId == unit.UnitId && c.Status == "ACTIVE" && c.CredentialType != "KEY").ToListAsync(ct);
+        foreach (var credential in credentials) { credential.Status = "REVOKED"; credential.ReturnedAt = DateTime.UtcNow; }
+        await dbContext.SaveChangesAsync(ct);
     }
 
     public async Task ReissueCredentialAsync(long userId, ReissueCredentialRequest request, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
-        var unit = await dbContext.StorageUnits
-            .FirstOrDefaultAsync(u => u.FacilityId == fac.FacilityId && u.UnitNumber == request.UnitCode, ct);
-        if (unit == null)
+        var kind = (request.CredentialType ?? "").Trim().ToUpperInvariant();
+        if (!new[] { "QR", "PIN", "KEY" }.Contains(kind)) throw new ArgumentException("Chọn QR, PIN hoặc chìa khóa vật lý.");
+        var reason = request.Reason?.Trim() ?? "";
+        if (reason.Length is < 1 or > 500) throw new ArgumentException("Nhập lý do cấp lại (tối đa 500 ký tự).");
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"credential:{fac.FacilityId}:{request.UnitCode}", ct);
+        var contract = await dbContext.RentalContracts.Include(c => c.Unit).Include(c => c.AccessCredentials).Include(c => c.HandoverRecord)
+            .Where(c => c.Unit.FacilityId == fac.FacilityId && c.Unit.UnitNumber == request.UnitCode && (c.Status == "ACTIVE" || c.Status == "EXPIRING"))
+            .SingleOrDefaultAsync(ct) ?? throw new InvalidOperationException("Không tìm thấy hợp đồng đang hiệu lực tại cơ sở.");
+        var now = DateTime.UtcNow;
+        foreach (var old in contract.AccessCredentials.Where(c => c.Status == "ACTIVE" &&
+            (kind == "KEY" ? c.CredentialType == "KEY" : (c.CredentialReference ?? "").StartsWith(kind + "-"))))
+        { old.Status = "REPLACED"; old.ReturnedAt = now; }
+        if (kind == "KEY")
         {
-            throw new InvalidOperationException($"Không tìm thấy kho {request.UnitCode}.");
+            var receipt = contract.HandoverRecord ?? throw new InvalidOperationException("Chưa có lịch nhận chìa khóa.");
+            if (receipt.VerifiedAt == null && receipt.Status != "HANDED_OVER" && receipt.Status != "VERIFIED")
+                throw new InvalidOperationException("Cần xác minh giấy tờ trước khi cấp lại chìa khóa.");
+            receipt.Status = "VERIFIED";
+            receipt.HandoverAt = null;
+            receipt.StaffConfirmed = false;
+            receipt.CustomerConfirmed = false;
         }
-        var cred = await dbContext.AccessCredentials.FirstOrDefaultAsync(c => c.UnitId == unit.UnitId && c.Status == "ACTIVE", ct);
-        if (cred != null)
-        {
-            cred.CredentialType = request.CredentialType ?? cred.CredentialType;
-            await dbContext.SaveChangesAsync(ct);
-        }
+        else contract.AccessCredentials.Add(new AccessCredential { UnitId = contract.UnitId, IssuedBy = userId,
+            CredentialType = "ACCESS_CODE", CredentialReference = $"{kind}-{Guid.NewGuid():N}", IssuedAt = now, Status = "ACTIVE" });
+        dbContext.ActivityLogs.Add(new ActivityLog { UserId = userId, Action = "CREDENTIAL_REISSUED", EntityType = "RENTAL_CONTRACT",
+            EntityId = contract.ContractId, LoggedAt = now, NewValue = System.Text.Json.JsonSerializer.Serialize(new { kind, reason }) });
+        await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 }
