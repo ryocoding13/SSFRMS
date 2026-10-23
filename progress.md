@@ -16,6 +16,42 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên CI04 — 2026-10-24 — Kiểm chứng SQL Server thật và API Integration Tests
+
+- **Tính năng:** CI04 — Kiểm chứng SQL Server thật và API integration (`StorageProject.IntegrationTests`, `scripts/ci/run-integration.ps1`, `scripts/ci/run-integration.sh`, `.github/workflows/ci.yml`, `docs/verification.md`).
+- **Nền:** Nhánh `feature/cicd-ci04` (kế thừa commit `e0ddad1` từ CI03).
+- **Đã xong:**
+  - **Tạo project kiểm thử tích hợp chuyên biệt `StorageProject.IntegrationTests`:**
+    - Sử dụng `net10.0`, `Microsoft.AspNetCore.Mvc.Testing` (10.0.12), `Microsoft.AspNetCore.TestHost` (10.0.12), `Microsoft.EntityFrameworkCore.SqlServer` (10.0.12), xUnit.
+    - Cấu hình `SqlServerFixture`: Tự động tạo database ngẫu nhiên `SSFRMS_CI_<guid>` trên master SQL Server, chạy `MigrateAsync()` đủ 6 migrations, kiểm tra model drift, seed dữ liệu mẫu, và drop database trong `DisposeAsync()`.
+    - Hỗ trợ biến môi trường `SSFRMS_TEST_CONNECTION_STRING` và cờ `REQUIRE_SQLSERVER` (bắt buộc trên CI, an toàn bỏ qua nếu dev local chưa cấu hình SQL Server).
+    - Cấu hình `CustomWebApplicationFactory`: Test server in-process, ghi đè `FakePayOSGateway` (không gọi PayOS thật), tắt background worker qua cấu hình `Worker:EnableExpiredCashHold = false`, sử dụng khóa JWT test an toàn đồng bộ.
+  - **Viết 9 bài test tích hợp toàn diện trên SQL Server thật:**
+    - `SqlServer_AppliesAllSixMigrations_AndHasNoPendingModelChanges`: Kiểm tra chuỗi 6 migrations EF Core lịch sử, xác nhận migration cuối cùng là `20261020154838_ReservationPaymentIntegrity`, xác nhận zero model drift (`HasPendingModelChanges() == false`).
+    - `LivenessEndpoint_Returns200AndHealthy`: Endpoint `/health` trả về 200 OK và `status: "Healthy"`.
+    - `ReadinessEndpoint_Returns200AndReady_WhenDatabaseIsHealthy`: Endpoint `/health/ready` thực hiện query và kiểm tra pending migrations với SQL Server thật, trả về 200 OK và `status: "Ready"`, `database: "Connected"`.
+    - `AllFiveRoles_CanLoginSuccessfully_AndReceiveValidTokens`: Đăng nhập đầy đủ 5 vai trò (`customer01`, `staff01`, `manager01`, `ops01`, `admin`) với mật khẩu băm BCrypt, nhận JWT token hợp lệ.
+    - `ProtectedEndpoints_Return401_WhenNoTokenIsProvided`: Các endpoint bảo vệ (`/api/auth/profile`, `/api/ops/board`, `/api/operations/facilities`) trả về 401 Unauthorized khi không có JWT token.
+    - `RoleAuthorization_Returns403_WhenRoleIsForbidden`: Kiểm tra RBAC: Customer không được vào endpoint nhân viên/quản lý (`/api/ops/board`) -> 403 Forbidden; Nhân viên không được vào endpoint quản lý vận hành kinh doanh (`/api/operations/facilities`) -> 403 Forbidden.
+    - `CatalogEndpoints_ReturnRealData_FromSqlServer`: Lấy dữ liệu cơ sở và unit types thực tế từ SQL Server.
+    - `DuplicatePaymentConfirmation_IsIdempotent_AndDoesNotDuplicatePayments`: Gửi 2 lần liên tiếp webhook xác nhận thanh toán cho cùng 1 đơn, chứng minh cơ chế idempotent không tạo trùng bản ghi Payment và không vi phạm unique index.
+    - `ConcurrentUnitAllocation_UsesAppLock_AndPreventsDoubleAllocation`: Hai DbContext đồng thời gửi request phân bổ cùng 1 ô kho tại cơ sở, nhờ `sp_getapplock` và transaction serializing trên SQL Server thật, 1 bên thành công và 1 bên bị từ chối, chứng minh chống cấp phát trùng (double allocation).
+  - **Tạo script kiểm thử tích hợp cục bộ (`scripts/ci/run-integration.ps1`, `scripts/ci/run-integration.sh`):**
+    - Kiểm tra model drift, build Release và chạy xUnit xuất kết quả `artifacts/test-results/integration/integration.trx`.
+  - **Cập nhật GitHub Actions CI Workflow (`.github/workflows/ci.yml`):**
+    - Thêm service container `sqlserver` (`mcr.microsoft.com/mssql/server:2022-latest`, SA_PASSWORD, healthcheck query `SELECT 1`).
+    - Thêm job `integration-test`: restore, EF tools restore, check model drift, chạy 9 bài integration tests với SQL Server container thật, upload TRX artifact `integration-test-results`.
+    - Cập nhật `ci-gate`: tổng hợp kết quả của 3 jobs `[frontend, backend, integration-test]`.
+  - **Cập nhật tài liệu kiểm chứng (`docs/verification.md`):**
+    - Ghi nhận 57 unit tests và 9 SQL Server integration tests.
+- **Kiểm chứng:**
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\ci\run-integration.ps1`: PASS 100% (9/9 tests pass).
+  - `powershell -ExecutionPolicy Bypass -File .\init.ps1`: PASS 100% (FE 4 suites + BE Release build + 57 unit tests + 9 integration tests).
+  - `npx --yes yaml-lint .github/workflows/ci.yml`: PASS (0 YAML errors).
+- **Phiên sau:** Bắt đầu Task CI05 — Container và smoke test bản đóng gói (Dockerfile API, Dockerfile Web, migrator Dockerfile, Docker Compose staging/production, Nginx config proxy, scripts/ci/smoke.sh).
+
+
+
 ## Phiên CI03 — 2026-10-23 — Chuẩn hóa API cho deployment và cấu hình môi trường
 
 - **Tính năng:** CI03 — Chuẩn hóa API cho deployment (`StorageProject.Api/Program.cs`, `StorageProject.Api/appsettings.json`, `StorageProject.Infrastructure/Data/DbSeeder.cs`, `StorageProject.Infrastructure/Services/PayOSService.cs`, `deploy/.env.example`, `StorageProject.Tests/DeploymentConfigTests.cs`).

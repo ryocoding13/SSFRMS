@@ -140,7 +140,10 @@ builder.Services.AddScoped<IOperationsService, OperationsService>();
 builder.Services.AddScoped<IOperationsReportService, OperationsReportService>();
 builder.Services.AddScoped<IFacilityOpsService, FacilityOpsService>();
 builder.Services.AddScoped<IPayOSGateway, SdkPayOSGateway>();
-builder.Services.AddHostedService<ExpiredCashHoldWorker>();
+if (builder.Configuration.GetValue<bool>("Worker:EnableExpiredCashHold", true))
+{
+    builder.Services.AddHostedService<ExpiredCashHoldWorker>();
+}
 builder.Services.AddScoped<IPayOSService, PayOSService>();
 builder.Services.AddSingleton(new AccessQrOptions(
     builder.Configuration["AccessQr:Secret"] ?? jwtSecret,
@@ -283,3 +286,5 @@ if (autoMigrate || !string.Equals(seedMode, "None", StringComparison.OrdinalIgno
 }
 
 app.Run();
+
+public partial class Program { }

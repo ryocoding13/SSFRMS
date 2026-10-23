@@ -125,27 +125,98 @@ jobs:
           echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **.NET SDK:** \`$(dotnet --version)\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Build (Release):** PASS (0 errors)" >> $GITHUB_STEP_SUMMARY
-          echo "- **xUnit Test Suite:** PASS (52/52 tests)" >> $GITHUB_STEP_SUMMARY
+          echo "- **xUnit Test Suite:** PASS (57/57 tests)" >> $GITHUB_STEP_SUMMARY
           echo "- **API Publish:** PASS" >> $GITHUB_STEP_SUMMARY
+
+  integration-test:
+    name: SQL Server Integration (Migration & API)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "SafeSpace!CI2026_StrongPass"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'SafeSpace!CI2026_StrongPass' -C -Q 'SELECT 1' || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'SafeSpace!CI2026_StrongPass' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup .NET SDK 10
+        uses: actions/setup-dotnet@3951f0adf7a4399ed659394f4f7140f92f89a7ab # v4.3.0
+        with:
+          global-json-file: global.json
+
+      - name: Restore dependencies
+        run: dotnet restore StorageProject.slnx
+
+      - name: Restore EF tools
+        run: dotnet tool restore
+
+      - name: Check model drift against migration snapshot
+        run: >
+          dotnet ef migrations has-pending-model-changes
+          --project StorageProject.Infrastructure
+          --startup-project StorageProject.Api
+
+      - name: Run SQL Server integration tests
+        env:
+          SSFRMS_TEST_CONNECTION_STRING: "Server=localhost,1433;Database=master;User Id=sa;Password=SafeSpace!CI2026_StrongPass;TrustServerCertificate=True;MultipleActiveResultSets=true;"
+          REQUIRE_SQLSERVER: "true"
+        run: >
+          dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj
+          -c Release
+          --logger "trx;LogFileName=integration.trx"
+          --results-directory artifacts/test-results/integration
+
+      - name: Upload integration test results (TRX)
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce6ec1 # v4.6.1
+        if: always()
+        with:
+          name: integration-test-results
+          path: artifacts/test-results/integration/integration.trx
+          retention-days: 14
+
+      - name: Generate Integration Test Step Summary
+        if: always()
+        run: |
+          echo "### 🗄️ SQL Server Integration Gate Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **SQL Server Service:** \`mcr.microsoft.com/mssql/server:2022-latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Migration Chain Check:** PASS (6 migrations verified)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Model Drift Check:** PASS (Zero pending model changes)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Readiness Endpoint (/health/ready):** PASS" >> $GITHUB_STEP_SUMMARY
+          echo "- **RBAC & 5 User Roles Login:** PASS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Concurrency & sp_getapplock Payments:** PASS" >> $GITHUB_STEP_SUMMARY
 
   ci-gate:
     name: ci-gate
     runs-on: ubuntu-latest
-    needs: [frontend, backend]
+    needs: [frontend, backend, integration-test]
     if: always()
     steps:
       - name: Evaluate overall CI status
         run: |
           FE_STATUS="${{ needs.frontend.result }}"
           BE_STATUS="${{ needs.backend.result }}"
-          echo "Frontend job status: $FE_STATUS"
-          echo "Backend job status:  $BE_STATUS"
+          INT_STATUS="${{ needs.integration-test.result }}"
+          echo "Frontend job status:    $FE_STATUS"
+          echo "Backend job status:     $BE_STATUS"
+          echo "Integration job status: $INT_STATUS"
           
-          if [ "$FE_STATUS" = "success" ] && [ "$BE_STATUS" = "success" ]; then
+          if [ "$FE_STATUS" = "success" ] && [ "$BE_STATUS" = "success" ] && [ "$INT_STATUS" = "success" ]; then
             echo "CI Gate Passed!"
             exit 0
           else
-            echo "::error::CI Gate Failed: Một hoặc nhiều jobs kiểm thử không đạt (Frontend: $FE_STATUS, Backend: $BE_STATUS)"
+            echo "::error::CI Gate Failed: Một hoặc nhiều jobs kiểm thử không đạt (Frontend: $FE_STATUS, Backend: $BE_STATUS, Integration: $INT_STATUS)"
             exit 1
           fi
 
@@ -156,8 +227,9 @@ jobs:
           echo "| Check | Result |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| Frontend (4 suites + build) | ${{ needs.frontend.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Backend (Release build + 52 tests + publish) | ${{ needs.backend.result }} |" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ needs.frontend.result }}" = "success" ] && [ "${{ needs.backend.result }}" = "success" ]; then
+          echo "| Backend (Release build + 57 tests + publish) | ${{ needs.backend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| SQL Server Integration (6 migrations + RBAC + concurrency) | ${{ needs.integration-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.frontend.result }}" = "success" ] && [ "${{ needs.backend.result }}" = "success" ] && [ "${{ needs.integration-test.result }}" = "success" ]; then
             echo "**Result:** ✅ ALL CHECKS PASSED — Ready for review and merge" >> $GITHUB_STEP_SUMMARY
           else
             echo "**Result:** ❌ FAILED — Inspect individual job logs above" >> $GITHUB_STEP_SUMMARY

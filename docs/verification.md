@@ -13,7 +13,8 @@
 | FE Render mọi route | `npm run test:render` | 92 route SSR PASS |
 | FE Build | `npm run build` | PASS (Vite production bundle) |
 | BE Build | `dotnet build StorageProject.slnx` | PASS (0 Error, .NET 10) |
-| BE Test | `dotnet test StorageProject.slnx` | 52/52 test xUnit PASS (StorageProject.Tests) |
+| BE Test (Unit) | `dotnet test StorageProject.Tests/StorageProject.Tests.csproj` | 57/57 test xUnit PASS |
+| BE Test (SQL Integration) | `.\scripts\ci\run-integration.ps1` hoặc `scripts/ci/run-integration.sh` | 9/9 test xUnit PASS (kết nối SQL Server thật) |
 | BE EF Tool | `dotnet tool restore` | PASS (dotnet-ef 10.0.12 từ .config/dotnet-tools.json) |
 | Gọi thử API | `StorageProject.Api/StorageProject.Api.http` hoặc Swagger `/index.html` | Thủ công |
 

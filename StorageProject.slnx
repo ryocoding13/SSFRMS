@@ -3,4 +3,5 @@
   <Project Path="StorageProject.Core/StorageProject.Core.csproj" />
   <Project Path="StorageProject.Infrastructure/StorageProject.Infrastructure.csproj" />
   <Project Path="StorageProject.Tests/StorageProject.Tests.csproj" />
+  <Project Path="StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj" />
 </Solution>

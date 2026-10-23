@@ -355,10 +355,10 @@
       "uc": [],
       "actor": "DevOps / Kỹ thuật",
       "behavior": "Kiểm chứng SQL Server thật và API integration: chạy migration chain trên SQL Server rỗng, kiểm model drift, seed fixture, test 5 vai trò đăng nhập, lock và giao dịch thanh toán",
-      "state": "not_started",
+      "state": "passing",
       "depends_on": ["CI03"],
       "verification": "Chạy integration test/script với SQL Server container; migration áp dụng đủ 6 migration không lỗi",
-      "evidence": null
+      "evidence": "2026-10-24: Đã tạo StorageProject.IntegrationTests với 9 tests kết nối SQL Server thật (kiểm tra chuỗi 6 migrations, zero model drift, liveness /health, readiness /health/ready, đăng nhập 5 vai trò, RBAC 401/403, idempotency thanh toán webhook, concurrency lock sp_getapplock chống cấp phát trùng ô kho). Tạo scripts/ci/run-integration.ps1 (.sh) và tích hợp job integration-test với SQL Server 2022 service container vào .github/workflows/ci.yml nối tới ci-gate. Lệnh scripts/ci/run-integration.ps1 và init.ps1 pass 100%."
     },
     {
       "id": "CI05",
