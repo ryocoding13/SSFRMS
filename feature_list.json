@@ -377,10 +377,10 @@
       "uc": [],
       "actor": "DevOps / Kỹ thuật",
       "behavior": "Publish release và tự deploy staging: workflow release main, push GHCR theo sha-digest, release manifest, deploy script với backup database, migration bundle và smoke test staging",
-      "state": "not_started",
+      "state": "passing",
       "depends_on": ["CI02", "CI05"],
       "verification": "Kiểm tra workflow release và script deploy staging; validate release manifest format",
-      "evidence": null
+      "evidence": "2026-10-24: Đã xây dựng hoàn chỉnh pipeline release và staging deploy: deploy/release-manifest.schema.json, scripts/deploy/generate-manifest.ps1 (.sh), scripts/deploy/backup.ps1 (.sh) backup DB có kiểm exit code và trích xuất ngoài volume, scripts/deploy/deploy.ps1 (.sh) tuần tự 8 bước (lock deploy, resolve digest, pre-pull, backup DB, one-shot migrator, up services, wait readiness, smoke test, update release-current). Đã mở rộng .github/workflows/ci.yml với 2 jobs publish-release (build & push 3 image GHCR theo sha-digest, upload release manifest) và deploy-staging (kiểm tra gate ENABLE_STAGING_DEPLOY). Yaml lint và init.ps1 pass 100%."
     },
     {
       "id": "CI07",

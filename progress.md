@@ -16,6 +16,40 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên CI06 — 2026-10-24 — Publish Release Packages và Tự động hóa Deploy Staging
+
+- **Tính năng:** CI06 — Publish release và tự deploy staging (`deploy/release-manifest.schema.json`, `scripts/deploy/generate-manifest.ps1`, `scripts/deploy/generate-manifest.sh`, `scripts/deploy/backup.ps1`, `scripts/deploy/backup.sh`, `scripts/deploy/deploy.ps1`, `scripts/deploy/deploy.sh`, `.github/workflows/ci.yml`).
+- **Nền:** Nhánh `feature/cicd-ci06` (kế thừa commit `7e53130` từ CI05).
+- **Đã xong:**
+  - **Tạo JSON Schema cho Release Manifest (`deploy/release-manifest.schema.json`):**
+    - Quy định đầy đủ cấu trúc bắt buộc: `schemaVersion`, `commit` (full SHA), `repository`, `runId`, `timestamp`, `migrationHead`, `images` (`api`, `web`, `migrator` kèm tag và sha256 digest), và `gateResults`.
+  - **Tạo bộ sinh Release Manifest (`scripts/deploy/generate-manifest.ps1`, `scripts/deploy/generate-manifest.sh`):**
+    - Tự động trích xuất git commit SHA, migration head (`20261020154838_ReservationPaymentIntegrity`), và digests của 3 container images.
+  - **Tạo bộ kịch bản Sao lưu Cơ sở dữ liệu (`scripts/deploy/backup.ps1`, `scripts/deploy/backup.sh`):**
+    - Thực thi `BACKUP DATABASE` trên SQL Server với timestamp, kiểm tra exit code.
+    - Sao chép file `.bak` ra ngoài container và volume host theo đúng quy định an toàn dữ liệu, kiểm tra kích thước file > 0.
+  - **Tạo bộ kịch bản Triển khai Staging (`scripts/deploy/deploy.ps1`, `scripts/deploy/deploy.sh`):**
+    - Tuân thủ quy trình 8 bước chuẩn:
+      1. Khóa deploy môi trường (`/tmp/safespace-deploy.lock`) chống chạy đồng thời.
+      2. Kiểm tra tính hợp lệ của manifest và trích xuất image digests.
+      3. Pre-pull cả 3 images bằng exact digest trước khi đổi service.
+      4. Chạy backup database trước khi can thiệp schema.
+      5. Dừng app cũ, chạy migrator container one-shot (fail => abort ngay, không up API mới).
+      6. Chạy seed explicit nếu có cấu hình.
+      7. Khởi động API và Web containers mới, chờ readiness `/health/ready` sẵn sàng.
+      8. Chạy bộ smoke test `scripts/ci/smoke.sh`, cập nhật `deploy/release-current.json`.
+  - **Mở rộng Workflow GitHub Actions (`.github/workflows/ci.yml`):**
+    - Thêm job `publish-release`: Chỉ chạy khi push vào nhánh `main` và sau khi `ci-gate` pass 100%. Đăng nhập GHCR, build & push 3 container images theo tag `sha-<commit>`, trích xuất digests, sinh release manifest và upload artifact `release-manifest` (retention 30 ngày).
+    - Thêm job `deploy-staging`: Tải artifact `release-manifest`, kiểm tra gate biến môi trường `ENABLE_STAGING_DEPLOY`. Nếu chưa bật thì báo standby an toàn và ghi nhận lên Step Summary; nếu bật thì thực thi kịch bản deploy staging.
+- **Kiểm chứng:**
+  - `npx --yes yaml-lint .github/workflows/ci.yml`: PASS (0 YAML errors).
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\generate-manifest.ps1`: Tạo thành công manifest JSON hợp lệ.
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\deploy.ps1`: Kiểm tra luồng deploy thành công.
+  - `powershell -ExecutionPolicy Bypass -File .\init.ps1`: PASS 100% (FE 4 suites + BE Release build + 57 unit tests + 9 integration tests).
+- **Phiên sau:** Bắt đầu Task CI07 — Promotion production có kiểm soát (workflow manual dispatch deploy-production.yml, promote cùng image digest đã qua staging, Environment protection, backup và smoke production).
+
+
+
 ## Phiên CI05 — 2026-10-24 — Container và Smoke Test bản đóng gói
 
 - **Tính năng:** CI05 — Container và smoke test bản đóng gói (`StorageProject.Api/Dockerfile`, `SafeSpace-Customer-UI/SafeSpace-Customer-UI/Dockerfile`, `SafeSpace-Customer-UI/SafeSpace-Customer-UI/nginx.conf`, `deploy/migrator.Dockerfile`, `.dockerignore`, `deploy/nginx.conf`, `deploy/Caddyfile`, `deploy/compose.yml`, `deploy/compose.staging.yml`, `deploy/compose.production.yml`, `scripts/ci/smoke.ps1`, `scripts/ci/smoke.sh`, `.github/workflows/ci.yml`).
