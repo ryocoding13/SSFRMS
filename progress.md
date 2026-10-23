@@ -397,3 +397,12 @@
 - Thêm D28 cho Playwright devDependency để tránh trùng D26. Giữ toàn bộ các test main; thêm 3 test ghép API/mapper/null board; SSR thêm 2 route. Test mock của Mai đổi sang /api/ops, bấm xác nhận staff và giữ phone khi request không chứa phone; không nới assertion. Thông báo tên trống đồng bộ câu chữ gói Mai; sai mật khẩu tương thích cả error code mới và message backend cũ.
 - Kiểm: FE 79/79, Business 9/9, SSR 94, Playwright mock 14/14; .NET 54/54, 10 nhóm Chromium gọi backend Kestrel/JWT/SQLite riêng. Build/structure/init PASS, init wrapper thêm -m:1. Đã xem C12b desktop/C13 mobile. Chưa chạy SQL Server của nhóm; F37 giữ active.
 - Không thay backend tài chính, schema/migration hoặc config. Chỉ ZIP/patch, không push/PR/merge. Xem docs/mai-auth-support-integration.md.
+## 2026-10-24 — Cập nhật quy định AI/Git và tài liệu kiểm chứng
+
+- Theo yêu cầu thành viên: sửa quy định một lượt và bàn giao ZIP để thành viên tự push; không thao tác commit/push/PR/merge.
+- Phạm vi chỉ tài liệu: AGENTS gốc/FE, README, docs/conventions.md, docs/verification.md, DECISIONS.md và nhật ký này.
+- AI không tạo commit, không đổi danh tính Git. Giữ PR → main và review bởi thành viên khác; task có mục tiêu rõ, kiểm thử theo phạm vi, nêu giới hạn môi trường.
+- Figma chuẩn bố cục/tương tác, nghiệp vụ/quyền theo quyết định hiện hành; yêu cầu mock/offline nhận biết khi kiểm thử, không giả API thành công.
+- Sửa hướng dẫn .NET 10/Node >=22.12, bản đồ apiMappers.js và cấu trúc FE; bỏ số test cũ và khẳng định fallback/API badge đã lỗi thời.
+- Không sửa code/config/migration, không đổi trạng thái tính năng hoặc ghi đè nhật ký cũ. Ghi quy tắc thay thế tại PROCESS-2026-10-24, không sửa quyết định lịch sử.
+- Kiểm chứng gói tài liệu: đọc diff, kiểm đường dẫn/lệnh với nguồn, kiểm whitespace, áp dụng bản vá vào bản nguồn sạch và so byte đầu ra; kiểm tính toàn vẹn ZIP. Không chạy ứng dụng, npm/dotnet build/test hoặc SQL Server vì không đổi code; không nhận kết quả từ PR khác làm bằng chứng.
