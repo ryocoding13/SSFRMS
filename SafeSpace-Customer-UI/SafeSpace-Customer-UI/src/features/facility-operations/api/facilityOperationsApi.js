@@ -34,7 +34,7 @@ export async function loadBoard(role) {
     version: 1,
     log: [],
     payments: [], allocations: [], verifications: [], handovers: [], returns: [], tickets: [],
-    renewals: [], contracts: [], refunds: [], assignments: [], units: [], staff: [],
+    renewals: [], contracts: [], refunds: [], fee_collections: [], assignments: [], units: [], staff: [],
     revenue: { months: [], by_type: [], as_of: null },
     ...data,
   };
@@ -44,6 +44,8 @@ export async function loadBoard(role) {
 export const OPS_ACTIONS = {
   // Nhân viên (Staff)
   CONFIRM_PAYMENT: ({ id }) => ["POST", `/api/ops/payments/${enc(id)}/confirm`],
+  // S09f · Backend chưa có (BACKEND-TODO.md mục S09f)
+  CONFIRM_FEE_COLLECTION: ({ id }) => ["POST", `/api/ops/fees/${enc(id)}/confirm`],
   REPORT_MISMATCH: ({ id, note }) => ["POST", `/api/ops/payments/${enc(id)}/mismatch`, { note }],
   VERIFY_CUSTOMER: ({ id, doc_type, doc_no, photo_ok, info_ok }) => [
     "POST", `/api/ops/verifications/${enc(id)}`, { docType: doc_type, docNumber: String(doc_no || "").trim(), photoMatched: Boolean(photo_ok), infoMatched: Boolean(info_ok) },
@@ -65,8 +67,10 @@ export const OPS_ACTIONS = {
   CONFIRM_REFUND: ({ id }) => ["POST", `/api/ops/contracts/${enc(id)}/refund`],
   // M08 · D27: xác nhận đã chuyển khoản hoàn cho đơn khách huỷ (backend chưa nhận phương thức / mã giao dịch → gửi kèm để lưu sau)
   CONFIRM_RESERVATION_REFUND: ({ id, method, transaction_ref }) => ["POST", `/api/ops/reservations/${enc(id)}/refund`, { method: method || "BANK_TRANSFER", transactionRef: String(transaction_ref || "").trim() || null }],
-  CREATE_UNIT: (data) => ["POST", `/api/manager/units`, toApi(data)],
-  UPDATE_UNIT: ({ id, ...data }) => ["PUT", `/api/manager/units/${enc(id)}`, toApi(data)],
+  // M02b / M02c · CreateStorageUnitRequest / UpdateStorageUnitRequest (OpsDtos.cs). Backend chưa nhận loại kho + cỡ theo tên:
+  // gửi kèm unitTypeCode/area để BE chọn đúng UnitType (BACKEND-TODO.md mục M02b).
+  CREATE_UNIT: ({ code, location, type, area }) => ["POST", `/api/manager/units`, { unitNumber: code, locationDescription: location || null, unitTypeCode: type, area: Number(area) }],
+  UPDATE_UNIT: ({ id, code, location, type, area }) => ["PUT", `/api/manager/units/${enc(id)}`, { unitNumber: code, locationDescription: location || null, unitTypeCode: type, area: Number(area) }],
   LOCK_UNIT: ({ id, reason }) => ["POST", `/api/manager/units/${enc(id)}/lock`, { reason }],
 };
 

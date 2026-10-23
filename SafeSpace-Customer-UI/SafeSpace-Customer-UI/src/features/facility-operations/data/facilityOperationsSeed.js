@@ -147,6 +147,12 @@ export function createOpsData(t = today()) {
       { id: "HĐ-0077", customer: "Đỗ Minh Khang", unit: "K07", end: addDays(t, 6), due: "Yêu cầu gia hạn", amount: 0, state: "RENEWAL", reminders: [] },
     ],
 
+    // S09f / S09b · Phí phát sinh & công nợ khách chọn trả tại quầy (C11fc), nhân viên thu rồi xác nhận
+    fee_collections: [
+      { id: "PHI-0098", contract: "HĐ-0098", customer: "Lê Văn An", unit: "K04", items: [["Khoản chưa thanh toán", 460000], ["Phí vệ sinh", 150000]], amount: 610000, due: addDays(t, 2), status: "PENDING", requested_at: at(t, "08:20") },
+      { id: "PHI-0086", contract: "HĐ-0086", customer: "Nguyễn Thị Mai", unit: "K12", items: [["Phí hư hỏng", 300000], ["Phí vệ sinh", 150000]], amount: 450000, due: addDays(t, 3), status: "PENDING", requested_at: at(t, "09:05") },
+    ],
+
     // M08 · Hoàn tiền đơn khách huỷ trước ngày bắt đầu thuê (D27: phí 10% cọc, hoàn 100% tiền thuê + 90% cọc)
     refunds: [
       { id: "SS-20260918-0151", customer: "Nguyễn Hoàng Yến", cancelled_at: at(addDays(t, -1), "08:40"), rent: 3450000, deposit: 1150000, paid: 4600000, fee: 115000, amount: 4485000, status: "PENDING" },

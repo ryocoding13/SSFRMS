@@ -887,5 +887,11 @@ label.search-input input { border: 0; outline: 0; flex: 1; font-size: 14px; back
 
 /* Kết quả sau thao tác tại cơ sở (Figma 03a thành công / 03b thất bại) */
 .modal__state { display: none; }
-.modal:has(.modal__state--success) > h2 { color: var(--green); }
-.modal:has(.modal__state--failure) > h2 { color: var(--red); }
+.modal:has(> .modal__state--success) > h2 { color: var(--green); }
+.modal:has(> .modal__state--failure) > h2 { color: var(--red); }
+.ops-actions--col { flex-direction: column; align-items: flex-start; }
+.btn--fit { justify-self: start; width: auto; }
+.form-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 560px) { .form-pair { grid-template-columns: 1fr; } }
+.form-pair--3 { grid-template-columns: repeat(3, 1fr); }
+.form-card__sub { font-size: 16px; margin-top: 4px; }

@@ -365,3 +365,18 @@ Giao diện `#/manager/refunds` (Figma M08 828:10212, M08a 828:10262) đọc dan
   "rent": 3450000, "deposit": 1150000, "paid": 4600000, "fee": 115000, "amount": 4485000,
   "status": "PENDING", "paidAt": null, "transactionRef": null }   // status: PENDING | PAID
 ```
+
+## M02b / M02c — Thêm và sửa ô kho (F40)
+
+`POST /api/manager/units` và `PUT /api/manager/units/{id}` đã có nhưng `CreateUnitAsync` luôn lấy loại kho đầu tiên và bỏ qua loại/cỡ.
+Giao diện gửi `{ unitNumber, locationDescription, unitTypeCode: "normal" | "climate", area: 15 | 30 }`; backend cần chọn `UnitType`
+theo loại kho + diện tích (D17: cỡ M 15 m², cỡ L 30 m²) và từ chối đổi loại/cỡ khi ô đang có khách thuê.
+
+## Phí phát sinh khi trả kho và công nợ (F40: S04, S09f, C11f)
+
+Giao diện đã làm theo Figma; backend cần bổ sung:
+
+- `POST /api/ops/returns/{id}/inspection` (`OpsReturnInspectionRequest`): nhận thêm `damageFee`, `cleaningFee`, `overdueFee`, `feeReason`; ghi các khoản `DAMAGE_FEE` / `CLEANING_FEE` / `OVERDUE_FEE` trạng thái `PENDING` để M07 trừ cọc theo D27 và phần thiếu thành công nợ.
+- Khách trả phí qua PayOS: `POST /api/payments/{paymentId}/payos` cho khoản phí `PENDING` (cùng endpoint giao diện đang dùng cho gia hạn; hiện backend chưa có nên popup báo "tạm gián đoạn").
+- Khách chọn trả tại quầy (C11fc): API ghi nhận lựa chọn, ví dụ `POST /api/payments/{paymentId}/at-facility`. Giao diện tạm lưu trong trình duyệt (`overlay.feesAtCounter`).
+- Nhân viên thu tại quầy (S09f): `GET /api/ops/board` trả `feeCollections[]` `{ id, contract, customer, unit, items: [[nhãn, số tiền]], amount, due, status, requestedAt }` và `POST /api/ops/fees/{id}/confirm` chuyển các khoản sang `PAID`.

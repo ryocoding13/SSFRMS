@@ -3,6 +3,14 @@ import { dateLabel, money } from "../../../shared/utils/format.js";
 // Nội dung hộp thoại xác nhận (02), thành công (03a) và thất bại (03b) cho thao tác tại cơ sở.
 // Chữ lấy theo Figma: S02–S05, S09 (779:*), S05c–e (831:*), M03a–d (847:*), phân bổ / phân công (885:*).
 // confirm: false → trang đã có hộp thoại riêng (nhập lý do…), provider chỉ hiện kết quả.
+// D27: khoản chưa thanh toán và phí trong biên bản S04 trừ vào cọc; phần vượt cọc là công nợ (ước tính phía giao diện,
+// số chính thức do backend tính khi xác nhận).
+export function settleReturn(ret, contract) {
+  const fees = ["damage_fee", "cleaning_fee", "overdue_fee"].reduce((sum, k) => sum + (Number(ret?.report?.[k]) || 0), 0);
+  const owed = Number(ret?.unpaid ?? contract?.amount ?? 0) + fees;
+  const deposit = Number(ret?.deposit || 0);
+  return { refund: Math.max(0, deposit - owed), debt: Math.max(0, owed - deposit), owed };
+}
 const GENERIC_FAIL = "Chưa ghi nhận thay đổi. Giữ nội dung đã nhập để kiểm tra và thử lại.";
 const FEE_KEYS = [["damage_fee", "Hư hỏng"], ["cleaning_fee", "Vệ sinh"], ["overdue_fee", "Quá hạn"]];
 
@@ -17,6 +25,17 @@ export function opsConfirmation(type, payload, ops) {
         rows: [["Đơn đặt chỗ", `${p?.id} · ${p?.customer}`], ["Số tiền thực nhận", money(p?.amount)], ["Hình thức thu", "Tiền mặt / chuyển khoản tại quầy"]],
         success: { title: "Đã ghi nhận thanh toán", text: `Đã thu ${money(p?.amount)} cho đơn ${p?.id}. Hệ thống cập nhật hợp đồng và quyền mở kho theo kỳ thuê.`, action: "Về danh sách thu tiền" },
         failure: { title: "Chưa xác nhận được thanh toán", text: "Chưa xác nhận được kết quả lưu. Kiểm tra trạng thái đơn trước khi thực hiện lại để tránh ghi nhận trùng." },
+      };
+    }
+    case "CONFIRM_FEE_COLLECTION": {
+      const f = (ops.fee_collections || []).find((x) => x.id === payload.id);
+      const short = (label) => (/chưa thanh toán/i.test(label) ? "Nợ" : label.replace(/^Phí /, "").replace(/^./, (c) => c.toUpperCase()));
+      const split = (f?.items || []).map(([label, amount]) => `${short(label)}: ${money(amount)}`).join(" · ");
+      return {
+        title: "Xác nhận đã thu đủ tiền?", text: `Chỉ xác nhận sau khi đã nhận đủ ${money(f?.amount)} tại quầy và kiểm tra khoản này chưa được PayOS ghi nhận.`, label: "Xác nhận đã thu", hint: "Kiểm tra thông tin trước khi xác nhận.",
+        rows: [["Khách hàng / hợp đồng", `${f?.customer} · ${f?.contract}`], ["Phân bổ khoản thu", split], ["Tổng đã thực nhận", `${money(f?.amount)} · Tiền mặt`]],
+        success: { title: `Đã ghi nhận thu ${money(f?.amount)}`, text: `${f?.contract} đã thanh toán đủ ${(f?.items || []).map(([label]) => label.replace(/^Phí /, "").toLowerCase()).join(" và ")}. Danh sách chờ thu được cập nhật; khách thấy kết quả trong tài khoản.`, action: "Về danh sách thu tiền" },
+        failure: { title: "Chưa ghi nhận khoản thu", text: "Kiểm tra kết nối và trạng thái giao dịch trước khi lưu lại. Nếu đã nhận tiền, không yêu cầu khách trả thêm." },
       };
     }
     case "VERIFY_CUSTOMER": {
@@ -108,6 +127,35 @@ export function opsConfirmation(type, payload, ops) {
         failure: { title: "Chưa duyệt được gia hạn", text: GENERIC_FAIL },
       };
     }
+    // Các thao tác quản lý có hộp thoại nhập liệu riêng trên trang → chỉ hiện kết quả (Figma "Kết quả · … (trên M02/M07)")
+    case "CREATE_UNIT":
+      return {
+        confirm: false,
+        success: { title: `Đã thêm ô kho ${payload.code}`, text: "Ô mới ở trạng thái Trống, khách đặt được ngay.", action: "Đã hiểu" },
+        failure: { title: "Không thêm ô kho được", text: GENERIC_FAIL },
+      };
+    case "UPDATE_UNIT":
+      return {
+        confirm: false,
+        success: { title: `Đã lưu ô kho #${payload.code || payload.id}`, text: "Thông tin ô đã cập nhật trong danh sách kho.", action: "Đã hiểu" },
+        failure: { title: "Không lưu ô kho được", text: GENERIC_FAIL },
+      };
+    case "UPDATE_UNIT_STATUS":
+      return {
+        confirm: false,
+        success: { title: `Đã đổi trạng thái kho #${payload.code}`, text: "Lần đổi được ghi vào lịch sử trạng thái của ô.", action: "Đã hiểu" },
+        failure: { title: "Không đổi trạng thái được", text: GENERIC_FAIL },
+      };
+    case "CONFIRM_REFUND": {
+      const c = find("contracts");
+      const ret = (ops.returns || []).find((x) => x.contract === payload.id);
+      const { refund, debt } = settleReturn(ret, c);
+      return {
+        confirm: false,
+        success: { title: `Đã xác nhận trả kho${debt ? ` · Còn nợ ${money(debt)}` : ""}`, text: `Hợp đồng ${payload.id} đã hoàn tất trả kho.${refund ? ` Hoàn cọc ${money(refund)} sau khi trừ các khoản phải thu (D27).` : ""}`, action: "Đã hiểu" },
+        failure: { title: "Không xác nhận trả kho được", text: GENERIC_FAIL },
+      };
+    }
     default:
       return {
         title: "Xác nhận thay đổi?", text: "Kiểm tra thông tin trước khi lưu thay đổi tại cơ sở.", label: "Xác nhận thay đổi",
@@ -135,5 +183,6 @@ const REISSUE = {
   ],
 };
 
-// Thao tác của quản lý dùng hộp thoại xác nhận chung (Figma 885:*, M03a). M02a, M07a, M08a có hộp thoại riêng trên trang.
-export const MANAGER_CONFIRM = new Set(["ALLOCATE", "ASSIGN", "DECIDE_RENEWAL"]);
+// Thao tác của quản lý có hộp thoại kết quả (Figma 885:*, M03a–d, kết quả M02/M07). Mục có confirm: false dùng hộp thoại
+// nhập liệu riêng trên trang (M02a, M02b, M02c, M07a, M03b) nên provider chỉ hiện kết quả. M08a tự hiện kết quả trên trang.
+export const MANAGER_CONFIRM = new Set(["ALLOCATE", "ASSIGN", "DECIDE_RENEWAL", "CREATE_UNIT", "UPDATE_UNIT", "UPDATE_UNIT_STATUS", "CONFIRM_REFUND"]);

@@ -21,6 +21,13 @@ Figma: https://www.figma.com/design/SX8EvOf1TJkxfMl90bZsGN/SafeSpace---Modern-UI
 | Phân bổ ô kho, Lưu phân công · Xác nhận/Thành công/Thất bại | `#/manager/allocate`, `#/manager/assign` | provider |
 | Lưu chính sách cho thuê, Lưu giá và phí | `#/business/policies`, `#/business/pricing` | `shared/components/ChangeFlowDialog.jsx` |
 | Admin: tạo tài khoản, cấu hình quyền, thông tin, đặt lại mật khẩu, gán/thu hồi vai trò, phân công cơ sở | `#/admin/*` | `features/admin/**` + `ChangeFlowDialog.jsx` |
+| M05 · Còn N yêu cầu, Đã xử lý hết, M05-không ô | `#/manager/allocate` | `features/manager/allocations/UnitAllocationPage.jsx` |
+| M02b Thêm ô kho, M02c Sửa ô kho, kết quả M02 | `#/manager/units` | `features/manager/units/UnitManagementPage.jsx` |
+| B05b Thêm cơ sở, B05c Đổi trạng thái cơ sở, kết quả B05 | `#/business/facilities` | `features/business/facilities/FacilityManagementPage.jsx` |
+| C05-chờ ô (đã nhận tiền, đang cấp hợp đồng) | `#/confirmation/:id` | `features/customer/reservations/ReservationDetailPage.jsx` |
+| C11f, C11fb, C11fq, C11fc, C11fcp, C11-kiểm tra (phí phát sinh trả kho qua PayOS / tại quầy) | `#/payments` | `features/customer/payments/PaymentListPage.jsx`, `shared/components/PayosModal.jsx` |
+| S04 (phí hư hỏng / vệ sinh / quá hạn + lý do), M07a hiện phí theo biên bản | `#/staff/return`, `#/manager/contracts` | `features/staff/returns/ReturnInspectionPage.jsx`, `ContractListPage.jsx` |
+| S09a (thẻ thu phí), S09f / S09b, S09fc / S09c, S09fd / S09d, S09e | `#/staff/reconcile`, `#/staff/fees?id=` | `features/staff/payments/FeeCollectionPage.jsx`, `StaffTasks.jsx`, provider |
 
 ## Kiểm tra nhanh trên trình duyệt
 
@@ -29,3 +36,11 @@ Figma: https://www.figma.com/design/SX8EvOf1TJkxfMl90bZsGN/SafeSpace---Modern-UI
 3. Nhân viên `staff01`: thu tiền / xác minh / nhận chìa khóa / trả kho / phản hồi hỗ trợ → mỗi thao tác có hộp thoại xác nhận rồi hộp thoại "Đã …" với nút về danh sách.
 4. Quản lý: phân bổ, phân công, duyệt/từ chối gia hạn, xác nhận trả kho (M07a).
 5. Admin / Vận hành KD: lưu thay đổi → hộp thoại "<Thao tác>?" → "Đã …" hoặc "Không … được".
+
+## Chưa nối (cần nhóm quyết)
+
+- C11c / C11d / C11e / C11f (trang "Phí phát sinh & công nợ" riêng cho một hợp đồng): cùng luồng với C11f trong bảng Thanh toán đã nối; chưa tách trang riêng.
+- A01b / A01c đặt lại mật khẩu bằng mã 6 số: backend chưa có API gửi mã qua email, giao diện giữ hộp thoại "Quên mật khẩu?" hiện tại.
+- C12 danh sách chủ đề, C12-ảnh, C12-lỗi, C12b: thuộc nhánh `feature/ngoc-mai-auth-support` (chưa merge), không sửa ở đây để tránh xung đột.
+
+- C02-vị trí / C02-không vị trí: Figma có màn dùng vị trí trình duyệt, nhưng quy tắc nhóm là gợi ý cơ sở theo khu vực khách chọn (không theo vị trí). Chưa làm, chờ nhóm chốt có giữ hai màn này không.

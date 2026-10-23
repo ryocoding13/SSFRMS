@@ -26,7 +26,9 @@ function ReturnConfirmDialog({ contract, ret, onClose, onConfirm }) {
       <div className="refund-box">
         <dl className="pay-rows">
           <div><dt>Khoản chưa thanh toán</dt><dd className="tone-red">{money(unpaid)}</dd></div>
-          {fees > 0 && <div><dt>Phí phát sinh (biên bản S04)</dt><dd className="tone-red">{money(fees)}</dd></div>}
+          {[["damage_fee", "Phí hư hỏng"], ["cleaning_fee", "Phí vệ sinh"], ["overdue_fee", "Phí quá hạn"]].filter(([k]) => Number(ret?.report?.[k]) > 0).map(([k, label]) => (
+            <div key={k}><dt>{label} (biên bản S04)</dt><dd className="tone-red">{money(Number(ret.report[k]))}</dd></div>
+          ))}
           <div className="pay-rows__total"><dt>Tổng còn phải thu</dt><dd className="tone-amber">{money(unpaid + fees)}</dd></div>
         </dl>
       </div>
@@ -105,9 +107,8 @@ export function ContractListPage({ query }) {
               ret={ops.returns.find((x) => x.contract === sel.id)}
               onClose={() => setReturning(false)}
               onConfirm={async (note) => {
-                const out = await run("CONFIRM_REFUND", { id: sel.id, note }, "Đã xác nhận trả kho");
                 setReturning(false);
-                if (out.ok) go("manager/done?kind=refund");
+                await run("CONFIRM_REFUND", { id: sel.id, note }, "Đã xác nhận trả kho");
               }}
             />
           )}

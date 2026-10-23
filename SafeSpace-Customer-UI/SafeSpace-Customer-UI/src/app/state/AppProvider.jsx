@@ -637,6 +637,13 @@ function ApiProvider({ children }) {
             const out = runLocal(type, p);
             return out.error ? fail(out.error.message, out.error.code) : { ok: true, ...out.result };
           }
+          // C11fc: backend chưa có API chọn trả phí tại quầy → ghi trong trình duyệt; nhân viên thu ở S09f
+          case "CHOOSE_FEE_AT_COUNTER": {
+            const rows = d.ledger.filter((l) => p.refs.includes(l.ref) && l.fee && ["UNPAID", "AT_COUNTER"].includes(l.status));
+            if (!rows.length) return fail("Không còn khoản phí cần thanh toán.", "NOT_FOUND");
+            updateOverlay((o) => ({ ...o, feesAtCounter: { ...(o.feesAtCounter || {}), ...Object.fromEntries(rows.map((l) => [l.api_id, Date.now()])) } }));
+            return { ok: true, refs: rows.map((l) => l.ref) };
+          }
           default:
             return fail(`Thao tác không được hỗ trợ: ${type}`, "UNKNOWN");
         }

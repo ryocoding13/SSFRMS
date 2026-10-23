@@ -169,6 +169,19 @@ export function createSeedData(t = today()) {
         payable: true,
         period: { from: b015End, to: addMonths(b015End, 3), months: 3 },
       },
+      // C11f · Phí phát sinh theo biên bản trả kho, khách trả qua PayOS hoặc tại quầy (S09f)
+      {
+        ref: "SS-0086-FEE",
+        kind: "FEE",
+        label: "Phí phát sinh trả kho B-015",
+        contract_id: "HĐ-2026-0086",
+        reservation_id: "SS-20260615-0086",
+        amount: 450000,
+        status: "UNPAID",
+        payable: true,
+        fee: true,
+        detail: "Theo biên bản trả kho B-015: phí vệ sinh 150.000 đ, phí hư hỏng ổ khóa 300.000 đ.",
+      },
     ],
     appointments: [
       {

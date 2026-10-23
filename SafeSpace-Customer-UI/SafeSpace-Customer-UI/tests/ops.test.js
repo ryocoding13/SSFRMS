@@ -95,3 +95,14 @@ test("M08 · xác nhận hoàn tiền đơn huỷ theo D27: cần mã giao dịc
   assert.equal(out.result.refund, pending[0].amount);
   assert.match(run(s, "CONFIRM_RESERVATION_REFUND", { id, transaction_ref: "X" }).error.message, /đã được xác nhận/);
 });
+
+test("S09f · thu phí phát sinh & công nợ tại quầy: một lần, cập nhật hợp đồng còn nợ", () => {
+  let s = createOpsData(T);
+  const f = s.fee_collections.find((x) => x.id === "PHI-0098");
+  assert.equal(f.amount, f.items.reduce((sum, [, v]) => sum + v, 0));
+  const out = run(s, "CONFIRM_FEE_COLLECTION", { id: f.id });
+  assert.ok(!out.error);
+  s = out.state;
+  assert.equal(s.fee_collections.find((x) => x.id === f.id).status, "PAID");
+  assert.match(run(s, "CONFIRM_FEE_COLLECTION", { id: f.id }).error.message, /đã được thu/);
+});

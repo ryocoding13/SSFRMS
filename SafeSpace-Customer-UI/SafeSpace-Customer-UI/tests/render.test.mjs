@@ -40,7 +40,7 @@ try {
   // Khu vận hành: nhân viên (S01–S09) và quản lý cơ sở (M01–M08)
   const opsRoutes = {
     STAFF: [
-      "staff", "staff?page=2", "staff/reconcile", "staff/verify", "staff/handover", "staff/return", "staff/support",
+      "staff", "staff?page=2", "staff/reconcile", "staff/fees", "staff/fees?id=PHI-0086", "staff/verify", "staff/handover", "staff/return", "staff/support",
       "staff/reconcile?id=SS-20260914-0142", "staff/verify?id=XM-0142", "staff/handover?id=BG-0115", "staff/return?id=TK-0098",
       "staff/support?id=HT-0082", "staff/done?kind=payment", "staff/nope",
     ],
@@ -61,11 +61,11 @@ try {
   window.location.hash = "#/staff";
   const grid = renderToStaticMarkup(React.createElement(App));
   assert.equal((grid.match(/class="panel task-card"/g) || []).length, 9, "S01 hiện 9 thẻ / trang");
-  assert.ok(grid.includes("aria-label=\"Phân trang\"") && grid.includes("trên 10"), "S01 có phân trang (10 việc)");
+  assert.ok(grid.includes("aria-label=\"Phân trang\"") && grid.includes("trên 12"), "S01 có phân trang (12 việc: 10 việc cũ + 2 khoản thu phí tại quầy S09f)");
   // Không có việc → thông báo trống (S01-trống, S09a-trống)
   const { OPS_KEY } = await vite.ssrLoadModule("/src/features/facility-operations/state/FacilityOperationsProvider.jsx");
   const { createOpsData } = await vite.ssrLoadModule("/src/features/facility-operations/data/facilityOperationsSeed.js");
-  const none = { ...createOpsData(), payments: [], verifications: [], handovers: [], returns: [], tickets: [] };
+  const none = { ...createOpsData(), payments: [], fee_collections: [], verifications: [], handovers: [], returns: [], tickets: [] };
   memory.set(OPS_KEY, JSON.stringify(none));
   for (const [r, text] of [["staff", "Chưa có công việc nào hôm nay"], ["staff/reconcile", "Chưa có đơn nào cần thu tại kho"], ["staff/support", "Chưa có yêu cầu hỗ trợ"]]) {
     window.location.hash = `#/${r}`;
