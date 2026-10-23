@@ -1,8 +1,9 @@
 import React, { useRef, useState } from "react";
 import { Select } from "../../../shared/components/Pickers.jsx";
-import { Button, Dialog, Field, Modal, Notice, PageHeader, StatusTag } from "../../../shared/components/UI.jsx";
+import { Button, Dialog, Field, Icon, Modal, Notice, PageHeader, StatusTag } from "../../../shared/components/UI.jsx";
 import { dateTimeLabel } from "../../../shared/utils/format.js";
 import { ACCESS_REQUESTS, TICKET_STATUS, TICKET_TOPICS } from "../../../shared/utils/status.js";
+import { href } from "../../../app/router.js";
 import { facilityOf } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 
@@ -10,10 +11,8 @@ const MAX_FILES = 3;
 const MAX_MB = 5;
 
 function TicketCard({ t }) {
-  const { data, dispatch, notify } = useApp();
-  const [open, setOpen] = useState(false);
+  const { dispatch, notify } = useApp();
   const [confirm, setConfirm] = useState(false);
-  const c = data.contracts.find((x) => x.contract_id === t.contract_id);
   const cancel = async () => {
     const res = await dispatch("CANCEL_TICKET", { ticket_id: t.ticket_id });
     setConfirm(false);
@@ -23,44 +22,18 @@ function TicketCard({ t }) {
     <article className="panel ticket">
       <StatusTag map={TICKET_STATUS} status={t.status} square />
       <h3>{t.ticket_id} · {t.title || TICKET_TOPICS[t.topic]?.title || "Yêu cầu hỗ trợ"}</h3>
-      <p className="muted">
-        {t.staff_note}
+      <p className="muted ticket__preview">
+        {t.responses?.length > 0 && <span className="visually-hidden">Phản hồi của nhân viên: </span>}
+        {t.responses?.length ? `${t.responses.at(-1).by || "Nhân viên"}: “${t.responses.at(-1).text}”` : t.staff_note}
         <br />
         Cập nhật: {dateTimeLabel(t.updated_at)}
       </p>
-      {(t.responses || []).length > 0 && (
-        <div className="reply">
-          <p className="reply__head">
-            Phản hồi của nhân viên
-            <span> · {[t.responses.at(-1).at && dateTimeLabel(t.responses.at(-1).at), t.responses.at(-1).by].filter(Boolean).join(" · ")}</span>
-          </p>
-          <p>{t.responses.at(-1).text}</p>
-          {t.responses.length > 1 && (
-            <details>
-              <summary>Xem {t.responses.length - 1} phản hồi trước</summary>
-              <ul>
-                {t.responses.slice(0, -1).reverse().map((x, i) => (
-                  <li key={i}><span className="muted">{[x.at && dateTimeLabel(x.at), x.by].filter(Boolean).join(" · ")}</span><br />{x.text}</li>
-                ))}
-              </ul>
-            </details>
-          )}
-        </div>
-      )}
-      {t.status !== "CANCELLED" && t.status !== "RESOLVED" && (
+      {t.responses_error && <Notice tone="error">Chưa tải được phản hồi. Vui lòng cập nhật lại yêu cầu.</Notice>}
+      {t.status !== "CANCELLED" && (
         <p className="muted">Nếu đang đứng tại cổng cơ sở, liên hệ nhân viên trực để được hỗ trợ ngay.</p>
       )}
-      {open && (
-        <div className="ticket__more">
-          {c && <p><strong>Kho:</strong> {c.unit_number} · {facilityOf(data, c.facility_id, c.facility_name).name}</p>}
-          <p><strong>Nội dung:</strong> {t.description}</p>
-          {t.attachments.length > 0 && <p><strong>Ảnh đính kèm:</strong> {t.attachments.join(", ")}</p>}
-        </div>
-      )}
       <div className="stack">
-        <button type="button" className="link-btn" onClick={() => setOpen(!open)} aria-expanded={open}>
-          {open ? "Thu gọn" : "Xem nội dung"}
-        </button>
+        <a className="link-btn support-detail-link" aria-label="Xem chi tiết →" href={href(`support/${encodeURIComponent(t.ticket_id)}`)}>Xem chi tiết <Icon name="back" size={14} /></a>
         {t.status === "OPEN" && (
           <button type="button" className="link-btn link-btn--danger" onClick={() => setConfirm(true)}>Huỷ yêu cầu</button>
         )}
@@ -79,7 +52,8 @@ function TicketCard({ t }) {
 }
 
 export default function SupportPage({ query }) {
-  const { data, dispatch, mode } = useApp();
+  const { data, dispatch, mode, retry, loadError } = useApp();
+  const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
   const preContract = query.get("contract");
   const preTopic = query.get("topic");
@@ -129,7 +103,13 @@ export default function SupportPage({ query }) {
 
   return (
     <main className="container page">
-      <PageHeader title="Bạn cần hỗ trợ điều gì?" description="Gửi yêu cầu đến đúng cơ sở. Theo dõi phản hồi ngay trong tài khoản." />
+      <PageHeader title="Bạn cần hỗ trợ điều gì?" description="Gửi yêu cầu đến đúng cơ sở. Theo dõi phản hồi ngay trong tài khoản.">
+        {mode === "api" && <Button variant="outline" disabled={refreshing} onClick={async () => {
+          setRefreshing(true);
+          try { await retry(); } finally { setRefreshing(false); }
+        }}>{refreshing ? "Đang cập nhật…" : "Cập nhật yêu cầu"}</Button>}
+      </PageHeader>
+      {loadError && <Notice tone="error">{loadError}</Notice>}
       <div className="detail-grid support-grid">
         <form className="panel form-card" onSubmit={submit} noValidate>
           <Field label="Kho / hợp đồng liên quan">

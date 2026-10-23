@@ -52,6 +52,7 @@
 | Khách hàng / Đặt chỗ — ReservationDetailPage | `src/features/customer/reservations/ReservationDetailPage.jsx` |
 | Khách hàng / Đặt chỗ — ReservationListPage | `src/features/customer/reservations/ReservationListPage.jsx` |
 | Khách hàng / Hỗ trợ — SupportPage | `src/features/customer/support/SupportPage.jsx` |
+| Khách hàng / Tiến trình hỗ trợ — SupportTicketDetailPage | `src/features/customer/support/SupportTicketDetailPage.jsx` |
 | Quản lý cơ sở / Phân bổ kho — UnitAllocationPage | `src/features/manager/allocations/UnitAllocationPage.jsx` |
 | Quản lý cơ sở / Phân công — StaffAssignmentPage | `src/features/manager/assignments/StaffAssignmentPage.jsx` |
 | Quản lý cơ sở / Hợp đồng / kho đang thuê — ContractListPage | `src/features/manager/contracts/ContractListPage.jsx` |
@@ -74,6 +75,7 @@
 |---|---|
 | Tìm cơ sở / bản đồ / chi tiết | `#/find`, `#/find/map`, `#/find/:id` |
 | Đặt chỗ / thanh toán / kết quả | `#/reservations`, `#/checkout/:id`, `#/confirmation/:id` |
+| Hỗ trợ / tiến trình / hồ sơ | `#/support`, `#/support/:id`, `#/profile` |
 | Kho thuê / gia hạn / trả kho | `#/units`, `#/units/:id/renew`, `#/units/:id/return` |
 | Nhân viên thu tiền / xác minh / nhận chìa khóa | `#/staff/reconcile`, `#/staff/verify`, `#/staff/keys` (alias cũ: `#/staff/handover`) |
 | Quản lý ô / phân bổ / gia hạn | `#/manager/units`, `#/manager/allocate`, `#/manager/renewals` |
