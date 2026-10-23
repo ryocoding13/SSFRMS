@@ -3,24 +3,40 @@
 > Đọc file này ĐẦU TIÊN trong mọi phiên. File này là bản đồ, không phải bách khoa:
 > chi tiết nằm trong `docs/` và các file được liên kết bên dưới. Giữ file dưới 200 dòng.
 
-## 1. Quy tắc bắt buộc (không được vi phạm)
+## 1. Quy tắc bắt buộc
 
-1. **Mỗi phiên chỉ làm MỘT tính năng** trong `feature_list.json` (WIP = 1). Không "tiện tay" sửa tính năng khác.
-2. **"Xong" = kiểm chứng pass**, không phải "code trông ổn". Chạy lệnh `verification` của tính năng + `./init.sh`.
-3. **Không tự đổi `state` sang `passing`** khi chưa có bằng chứng (output lệnh, commit). `passing` không bao giờ lùi về trạng thái khác nếu không có lý do ghi trong `progress.md`.
-4. **Figma là chuẩn cho giao diện khách hàng.** Backend sửa theo giao diện, không sửa giao diện cho khớp backend (xem `DECISIONS.md` D01).
-   Figma đã rà hết mâu thuẫn ngày 26/09/2026 (D11). Ảnh, giá, số liệu trong Figma chỉ là minh hoạ — lấy từ backend.
-5. **Không đưa chữ "demo", "dữ liệu mẫu", "sample"… lên giao diện.** Sản phẩm phải trông như sản phẩm chính thức (D07).
-6. **Không commit bí mật**: chuỗi kết nối thật, JWT secret thật, `.env.local`, `appsettings.*.json`.
-7. **Không sửa migration đã có.** Thay đổi schema → tạo migration mới (`dotnet ef migrations add <Tên>`).
-8. **Không đảo ngược quyết định trong `DECISIONS.md`** mà không ghi quyết định mới kèm lý do.
-9. **Không xoá/sửa test để cho pass.** Test sai → ghi lý do trong `progress.md` rồi mới sửa.
-10. Làm trên nhánh `feature/<tên>` → Pull Request vào `main`. Không push thẳng `main`.
-11. Tiếng Việt cho giao diện và tài liệu; tên biến, hàm, API bằng tiếng Anh.
-12. **AI không được tự `git push`, tạo Pull Request hay merge lên repo này.** Chỉ sửa code và commit trên máy;
-    giao lại cho thành viên nhóm (patch / file zip / hướng dẫn lệnh) để người đó tự kiểm tra rồi tự push.
+1. **Mỗi task/PR có một mục tiêu rõ ràng.** Được sửa các phần liên quan cần thiết để hoàn thành mục tiêu;
+   không tự thêm tính năng, đổi cấu trúc hay format file ngoài phạm vi. Bản vá tài liệu không cần tạo tính năng sản phẩm giả.
+2. **Báo đúng mức hoàn thành.** Kiểm tra theo phạm vi trong `docs/verification.md`; ghi lệnh, kết quả và giới hạn.
+   Thiếu công cụ, backend, SQL Server hoặc khóa PayOS thì ghi chưa kiểm chứng, không báo pass thay.
+3. Chỉ chuyển tính năng sang `passing` khi có bằng chứng đáp ứng tiêu chí và thành viên phụ trách xác nhận.
+   Nếu phát hiện lỗi hồi quy, được đổi trạng thái kèm lý do/bằng chứng trong `progress.md`.
+4. **Figma là chuẩn về bố cục và tương tác khách hàng.** Nghiệp vụ, quyền truy cập, trạng thái và tính tiền theo
+   các quyết định nhóm đang có hiệu lực trong `DECISIONS.md`; không sửa API/quyền chỉ để giống ảnh.
+   Nếu Figma, SRS và quyết định mâu thuẫn thì nêu rõ để nhóm chốt. Ảnh/giá/số liệu minh họa không thay dữ liệu thật.
+5. Bản chạy chính giữ giao diện sản phẩm và không dùng dữ liệu giả để báo thao tác API thành công.
+   Chế độ mock/offline phải được chọn rõ và có dấu hiệu nhận biết cho người kiểm thử; API lỗi phải báo đúng.
+   Đây là yêu cầu cho các lần sửa liên quan, không khẳng định mọi màn hiện tại đã đáp ứng.
+6. **Không commit bí mật thật:** mật khẩu DB, khóa JWT/PayOS, token, `.env.local`, cấu hình riêng có thông tin nhạy cảm.
+   Cho phép `.env.example`, `appsettings.json` và cấu hình dùng chung/mẫu không chứa bí mật thật.
+   Không đưa bí mật vào biến `VITE_*` vì chúng có thể được đóng gói vào frontend.
+7. Không sửa migration đã merge hoặc áp dụng trên database dùng chung. Thay đổi schema sau đó phải tạo migration mới.
+   Migration chỉ ở nhánh riêng, chưa chia sẻ/chưa áp dụng trên DB dùng chung được chỉnh cùng model/snapshot.
+   Không tự xóa/reset database hoặc dữ liệu để xử lý lỗi; phải được người dùng cho phép rõ ràng.
+8. Không tự đảo ngược quyết định nghiệp vụ. Thay đổi đã được yêu cầu/chốt phải ghi mục mới trong `DECISIONS.md`
+   nêu phạm vi và quyết định bị thay thế; giữ nguyên lịch sử cũ.
+9. Không bỏ/nới test để che lỗi. Được sửa test khi yêu cầu thay đổi hoặc test sai, kèm lý do và kiểm chứng thay thế.
+10. Thành viên làm trên nhánh riêng (`feature/`, `fix/`, `docs/`, `chore/`) → PR vào `main`.
+    Không push thẳng `main`; merge PR vào `main` là bước tích hợp bình thường sau kiểm tra/review.
+11. Giao diện và tài liệu dùng tiếng Việt; tên biến/hàm/API dùng tiếng Anh. Comment ngắn, cần thiết, theo quy ước file.
+12. **AI chỉ hỗ trợ phân tích, sửa file và chạy kiểm thử. AI không tạo commit, push, tạo PR hoặc merge.**
+    Thành viên đọc hiểu, kiểm tra thay đổi rồi tự commit/push/tạo PR/merge bằng tài khoản của mình.
+    AI không đổi `user.name`/`user.email`, gán tác giả/đồng tác giả hay sửa lịch sử commit để thay danh tính.
+    Không cam kết số contributor chỉ bằng cách hạn chế push; sử dụng AI và ghi nhận đóng góp theo yêu cầu môn học.
+13. Khi sửa FE, đọc `docs/frontend-naming.md`, `SafeSpace-Customer-UI/SafeSpace-Customer-UI/AGENTS.md`
+    và `FRONTEND-MAP.md` cùng thư mục FE. Không tạo lại thư mục nguồn cũ.
 
-13. **Khi sửa FE, đọc bắt buộc `docs/frontend-naming.md`, `SafeSpace-Customer-UI/SafeSpace-Customer-UI/AGENTS.md` và `FRONTEND-MAP.md` cùng thư mục.** Không tạo lại thư mục cũ; chạy `npm run check:structure` trước khi bàn giao.
+Quy tắc quy trình mới được ghi tại `DECISIONS.md` mục `PROCESS-2026-10-24`.
 
 ## 2. Dự án là gì
 
@@ -37,11 +53,11 @@ Hệ thống quản lý và cho thuê kho tự phục vụ **SafeSpace** cho 5 n
 | `StorageProject.Api/` | .NET Minimal API: `Program.cs`, `Endpoints/*Endpoints.cs` |
 | `StorageProject.Core/` | Entities, DTOs, `Interfaces/IServices.cs` |
 | `StorageProject.Infrastructure/` | EF Core `AppDbContext`, `Migrations/`, `DbSeeder.cs`, `Services/*Service.cs` |
-| `SafeSpace-Customer-UI/SafeSpace-Customer-UI/` | React 19 + Vite: khách hàng, nhân viên, quản lý cơ sở, quản trị |
+| `SafeSpace-Customer-UI/SafeSpace-Customer-UI/` | React 19 + Vite: khách hàng, nhân viên, quản lý cơ sở, vận hành KD, quản trị |
 | `…/src/features/facility-operations/` | Khu Nhân viên `#/staff` + Quản lý cơ sở `#/manager` (gọi `/api/ops/*`, D15) |
 | `…/src/app/state/appReducer.js` | Nghiệp vụ phía giao diện (hàm thuần, có test) |
 | `…/src/app/state/AppProvider.jsx` | Phiên đăng nhập, 2 chế độ: API / lưu trình duyệt |
-| `…/src/shared/api/` | Gọi API + `mappers.js` chuyển dữ liệu backend → giao diện |
+| `…/src/shared/api/` | Gọi API + `apiMappers.js` chuyển dữ liệu backend → giao diện |
 | `…/BE-CONTRACT.md` | Endpoint giao diện cần backend bổ sung |
 | `…/BACKEND-TODO.md` | Việc backend còn thiếu, xếp ưu tiên A/B/C, mẫu JSON `GET /api/ops/board` |
 | `docs/facility-ops-api.md`, `docs/operations-api.md` | API khu Nhân viên / Quản lý cơ sở và khu Vận hành KD |
@@ -75,43 +91,40 @@ Tài khoản seed: `customer01`…`customer06`/`Customer@123`, `staff01`, `staff
 Không có backend: tạo `.env.local` với `VITE_USE_API=false`, hoặc `MOCK_OPS=1 npm run dev:mock` (máy chủ giả có cả `/api/ops/*`,
 thêm `manager01`/`Manager@123`).
 
-## 6. Vòng đời một phiên làm việc
+## 6. Vòng đời một task
 
 **Bắt đầu**
-1. Đọc `AGENTS.md` (file này).
-2. Chạy `./init.sh` (hoặc `./init.ps1`). Nếu fail → sửa môi trường trước, KHÔNG code tính năng.
-3. Đọc `progress.md` — phiên trước làm gì, dừng ở đâu.
-4. Đọc `feature_list.json` — chọn tính năng `active`; nếu không có, chọn `not_started` đầu tiên
-   có `depends_on` đã `passing`. Tính năng `blocked` chỉ làm khi đã gỡ được lý do chặn.
-5. `git log --oneline -10` để xem thay đổi gần đây.
+1. Đọc quy định, yêu cầu hiện tại và phần liên quan trong `progress.md`, `feature_list.json`, `DECISIONS.md`.
+2. Kiểm tra `git status` và lịch sử gần đây; giữ các thay đổi có sẵn của thành viên. Không tự stash/reset/clean.
+3. Ưu tiên task người dùng giao. Nếu chưa có task, đề xuất phần việc từ danh sách; không tự nhận việc của người khác.
+4. Chạy kiểm tra nền phù hợp. Nếu lỗi, phân biệt lỗi sẵn có/môi trường với lỗi do thay đổi mới.
+   Có thể tiếp tục phần độc lập, nhưng phải ghi giới hạn; không tuyên bố phần bị chặn đã đạt.
 
 **Làm việc**
-6. Đổi `state` tính năng đó sang `active`.
-7. Chỉ sửa những file cần cho tính năng đó.
-8. Chạy lệnh `verification` của tính năng; fail → sửa → chạy lại.
+5. Với tính năng sản phẩm, cập nhật trạng thái đúng phạm vi; task chỉ tài liệu không đổi trạng thái tính năng khác.
+6. Chỉ sửa phần cần thiết. Chạy kiểm tra theo `docs/verification.md`, sửa lỗi do task gây ra.
 
 **Kết thúc**
-9. Chạy lại `./init.sh` — toàn bộ phải pass.
-10. Cập nhật `feature_list.json` (`state`, `evidence`) và thêm một mục vào `progress.md`.
-11. Có quyết định kỹ thuật mới → thêm vào `DECISIONS.md`.
-12. Commit rõ ràng (`feat(F05): …`). Chỉ commit khi repo ở trạng thái chạy được.
+7. Ghi thay đổi, kết quả và giới hạn trong `progress.md`; cập nhật tài liệu/quyết định khi có thay đổi liên quan.
+8. AI bàn giao ZIP/patch, danh sách file, hướng dẫn áp dụng và kiểm tra; không commit/push/PR/merge.
+9. Thành viên kiểm diff và tác giả dự kiến trước khi tự commit; không tự thay tác giả của commit có sẵn.
+10. Trước merge code, chạy bộ kiểm tra đầy đủ phù hợp với nhánh hiện tại và kịch bản tích hợp liên quan.
+    Một thành viên khác review/xác nhận. Task chỉ tài liệu kiểm diff, đường dẫn và tính nhất quán, không cần build ứng dụng.
 
-## 7. Checklist trước khi nói "xong"
+## 7. Checklist bàn giao
 
-- [ ] `npm test` pass (thư mục frontend)
-- [ ] `npm run test:render` pass
-- [ ] `npm run build` pass
-- [ ] `dotnet build StorageProject.slnx` pass (khi có sửa backend)
-- [ ] Lệnh `verification` riêng của tính năng pass
-- [ ] Không còn `console.log`, `debugger`, TODO tạm, dữ liệu cứng để thử
-- [ ] Không có chữ "demo"/"sample" mới trên giao diện
-- [ ] Đã cập nhật `feature_list.json`, `progress.md` (và `DECISIONS.md` nếu có)
-- [ ] Tài liệu liên quan (`BE-CONTRACT.md`, `*-FLOW-COVERAGE.md`) khớp với code
+- [ ] Đúng phạm vi; không ghi đè thay đổi có sẵn của thành viên.
+- [ ] Các kiểm tra cần thiết đã chạy; phần không chạy/thất bại có lý do cụ thể.
+- [ ] Thay đổi code có build/test tương ứng; thay đổi giao diện đã xem màn hình nếu môi trường cho phép.
+- [ ] Phân biệt kiểm thử mock, SQLite, SQL Server và PayOS thật; không dùng kết quả này thay cho kết quả khác.
+- [ ] Không thêm bí mật, `debugger`, log thử hoặc hành vi giả thành công. TODO còn lại phải được ghi rõ.
+- [ ] Tài liệu và bằng chứng đúng hiện trạng; không tự nâng tính năng sang `passing`.
+- [ ] Thành viên tự commit/push/PR/merge; có người khác trong nhóm review trước merge.
 
 ## 8. Khi bị kẹt
 
-Ghi rõ vào `progress.md`: đang kẹt ở đâu, đã thử gì, cần ai quyết định. Đổi `state` thành `blocked`
-kèm `blocked_reason`. Không đoán nghiệp vụ — nếu SRS, Figma và code mâu thuẫn, hỏi nhóm và ghi vào `DECISIONS.md`.
+Ghi rõ vào `progress.md`: đang kẹt ở đâu, đã thử gì, cần ai quyết định. Với tính năng sản phẩm thực sự bị chặn,
+đổi `state` thành `blocked` kèm `blocked_reason`; không đổi trạng thái phần khác cho task chỉ tài liệu. Không đoán nghiệp vụ — nếu SRS, Figma và code mâu thuẫn, hỏi nhóm và ghi vào `DECISIONS.md`.
 
 ## 9. Nguồn tham khảo
 

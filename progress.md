@@ -373,3 +373,14 @@
 - Giả định cần nhóm xác nhận: (1) dừng sớm thì khấu trừ cố định 30% đã bao gồm khoản vệ sinh 10%; (2) khoản CLEANING_FEE chờ thanh toán được coi là đã nằm trong khoản khấu trừ cố định; (3) quá hạn tính từ EndDate đến ngày biên bản trả kho; (4) khoản gia hạn (RENEWAL) không nằm trong phần hoàn tiền thuê.
 - Không push/PR/merge.
 - Bổ sung cùng F39 (cùng đợt, trước khi merge): (a) F12 ô kho RESERVED → OCCUPIED khi đến StartDate, qua UnitStartActivation chạy trong worker hiện có, có test ReservedUnitBecomesOccupiedOnStartDateOnly; (b) đường hoàn cọc cũ của quản lý gọi chung logic D27, bỏ ManagerService.ConfirmRefundAsync (lỗi: đặt trạng thái ENDED, không theo D27). Cả hai chưa biên dịch trong phiên viết code; cần dotnet build/test của nhóm. Còn lại: nút xác nhận hoàn đơn huỷ ở M07 trên giao diện.
+
+
+## 2026-10-24 — Cập nhật quy định AI/Git và tài liệu kiểm chứng
+
+- Theo yêu cầu thành viên: sửa quy định một lượt và bàn giao ZIP để thành viên tự push; không thao tác commit/push/PR/merge.
+- Phạm vi chỉ tài liệu: AGENTS gốc/FE, README, docs/conventions.md, docs/verification.md, DECISIONS.md và nhật ký này.
+- AI không tạo commit, không đổi danh tính Git. Giữ PR → main và review bởi thành viên khác; task có mục tiêu rõ, kiểm thử theo phạm vi, nêu giới hạn môi trường.
+- Figma chuẩn bố cục/tương tác, nghiệp vụ/quyền theo quyết định hiện hành; yêu cầu mock/offline nhận biết khi kiểm thử, không giả API thành công.
+- Sửa hướng dẫn .NET 10/Node >=22.12, bản đồ apiMappers.js và cấu trúc FE; bỏ số test cũ và khẳng định fallback/API badge đã lỗi thời.
+- Không sửa code/config/migration, không đổi trạng thái tính năng hoặc ghi đè nhật ký cũ. Ghi quy tắc thay thế tại PROCESS-2026-10-24, không sửa quyết định lịch sử.
+- Kiểm chứng gói tài liệu: đọc diff, kiểm đường dẫn/lệnh với nguồn, kiểm whitespace, áp dụng bản vá vào bản nguồn sạch và so byte đầu ra; kiểm tính toàn vẹn ZIP. Không chạy ứng dụng, npm/dotnet build/test hoặc SQL Server vì không đổi code; không nhận kết quả từ PR khác làm bằng chứng.

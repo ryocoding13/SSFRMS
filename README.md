@@ -1,28 +1,32 @@
 # SSFRMS - Self-Storage Facility Rental Management System
 
-Hệ thống quản lý và cho thuê kho tự quản thông minh (SafeSpace Self-Storage), bao gồm API Backend trên nền tảng **.NET 9** và Giao diện khách hàng Frontend trên nền tảng **React (Vite)**.
+Hệ thống quản lý và cho thuê kho tự quản thông minh (SafeSpace Self-Storage), bao gồm API Backend trên nền tảng **.NET 10** và Giao diện khách hàng Frontend trên nền tảng **React (Vite)**.
 
 ---
 
-> **Quy định cho công cụ AI (Claude, Cursor, Copilot, Codex…):** AI chỉ được sửa code và commit trên máy,
-> **không được tự `git push`, tạo Pull Request hay merge** lên repo này. Thành viên nhóm tự kiểm tra rồi tự push.
+> **Quy định cho công cụ AI (Claude, Cursor, Copilot, Codex…):** AI hỗ trợ phân tích, sửa file và kiểm thử;
+> **không tạo commit, push, tạo PR hoặc merge, không thay đổi danh tính Git**. Thành viên đọc hiểu, kiểm tra rồi tự thao tác.
+> Dùng nhánh riêng → PR → review bởi thành viên khác → merge vào `main`; không push thẳng `main`.
+> Ghi nhận đóng góp và việc dùng AI theo yêu cầu môn học. Kiểm tra theo phạm vi tại [`docs/verification.md`](docs/verification.md).
 > Quy tắc đầy đủ cho AI nằm trong [`AGENTS.md`](AGENTS.md).
 
 ## 📋 Yêu Cầu Môi Trường (Prerequisites)
 
 Trước khi chạy dự án, hãy đảm bảo máy tính đã cài đặt các công cụ sau:
-- **[.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)** (hoặc phiên bản .NET tương thích)
-- **[Node.js](https://nodejs.org/)** (v18 trở lên) & **npm**
+- **[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)** (hoặc phiên bản .NET tương thích)
+- **[Node.js](https://nodejs.org/)** (>= 22.12) & **npm**
 - **[Microsoft SQL Server](https://www.microsoft.com/sql-server/sql-server-downloads)** (SQL Server Express, Developer Edition, LocalDB hoặc chạy qua Docker)
 - **[Git](https://git-scm.com/)**
 
 ---
 
-## ⚡ Khởi Chạy Nhanh Toàn Bộ Hệ Thống (1 Lệnh Duy Nhất)
+## ⚡ Khởi Chạy Nhanh Toàn Bộ Hệ Thống
 
-Sau khi cài đặt thư viện ở thư mục gốc (`npm install`), bạn có thể khởi chạy đồng thời **Backend (.NET)**, **Frontend (Vite React)** và **Ngrok tunnel** chỉ với một lệnh duy nhất:
+Sau khi cấu hình database/API và cài dependencies ở cả thư mục gốc lẫn FE, bạn có thể khởi chạy đồng thời **Backend (.NET)**, **Frontend (Vite React)** và **Ngrok tunnel** chỉ với một lệnh duy nhất:
 
 ```bash
+npm ci
+npm --prefix SafeSpace-Customer-UI/SafeSpace-Customer-UI ci
 npm run dev
 ```
 
@@ -46,6 +50,8 @@ npm run dev
      "DefaultConnection": "Server=.\\SQLEXPRESS;Database=SSFRMS;Trusted_Connection=True;TrustServerCertificate=True;"
    }
    ```
+   Đây là cấu hình local minh họa. Nếu có mật khẩu/khóa thật, dùng biến môi trường hoặc .NET User Secrets; không ghi vào cấu hình được commit.
+
    *(Nếu bạn không dùng `SQLEXPRESS`, đổi thành tên máy chủ của bạn, ví dụ `Server=localhost;...` hoặc `Server=(localdb)\\mssqllocaldb;...`)*.
 
 2. **Khôi phục công cụ Entity Framework Core & Chạy Migration**:
@@ -57,7 +63,7 @@ npm run dev
 
 3. **Khởi chạy Backend API**:
    ```bash
-   dotnet run --project StorageProject.Api
+   dotnet run --project StorageProject.Api --launch-profile http
    ```
    - **Backend Base URL:** `http://localhost:5151`
    - **Swagger UI (Tài liệu API):** `http://localhost:5151/index.html`
@@ -80,8 +86,9 @@ npm run dev
    ```
 
 3. **Cấu hình biến môi trường**:
-   Kiểm tra file `.env` đã có cấu hình trỏ về API Backend:
+   Chép `.env.example` thành `.env.local`, chỉnh địa chỉ API; không commit cấu hình riêng hoặc bí mật:
    ```env
+   VITE_USE_API=true
    VITE_API_URL=http://localhost:5151
    ```
 
@@ -90,7 +97,7 @@ npm run dev
    npm run dev
    ```
    - Mở trình duyệt tại: `http://localhost:5173` (hoặc cổng được hiển thị trên terminal).
-   - Thanh điều hướng (Breadcrumb) sẽ hiển thị tag màu xanh **`● KẾT NỐI API .NET`** báo hiệu đã liên kết thành công với Backend.
+   - Kiểm tra request trong DevTools và thử đăng nhập để xác nhận kết nối; việc giao diện render không chứng minh API đã hoạt động.
 
 ---
 
@@ -112,27 +119,13 @@ Hệ thống đã tạo sẵn các tài khoản để kiểm thử quy trình:
 
 ---
 
-## 🧠 Kiến Trúc: Cơ Chế Fallback Thông Minh (Smart Fallback Mode)
+## 🧠 Chế độ API và kiểm thử giao diện
 
-Giao diện SafeSpace hỗ trợ cơ chế hoạt động linh hoạt (dual-mode):
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  App Startup (App.jsx)                              │
-│  ──────────────────────────────────────────────────────     │
-│  1. loadServerData() → GET /api/facilities, /unit-types     │
-│     ├── Success → isLiveApi = true, load real data          │
-│     └── Failure → isLiveApi = false, keep demo data         │
-│                                                             │
-│  command() dispatcher:                                      │
-│    ├── isLiveApi && authenticated → call API service        │
-│    ├── isLiveApi && not authenticated → prompt AuthModal    │
-│    └── fallback → local reduceCustomer (demo mode)          │
-└─────────────────────────────────────────────────────────────┘
-```
-
-- **Khi Backend Online:** Dữ liệu được fetch trực tiếp từ cơ sở dữ liệu SQL Server, các thao tác đặt phòng, xem hợp đồng, gia hạn, tạo ticket đều gửi qua API.
-- **Khi Backend Offline:** Giao diện vẫn hoạt động trơn tru với dữ liệu mẫu tĩnh (hiển thị tag `BẢN DEMO UI` màu xám).
+- `VITE_USE_API=true`: dùng backend theo cấu hình `.env.local`; dữ liệu API đi qua `ApiProvider` và `apiMappers.js`.
+- `VITE_USE_API=false`: dùng chế độ lưu trình duyệt để thử giao diện; không xác nhận dữ liệu SQL Server/PayOS thật.
+- Có script mock riêng `npm run dev:mock` và `npm run dev:business`; đọc script/cấu hình trước khi dùng.
+- Quy định mới: mock/offline phải nhận biết khi kiểm thử, API lỗi không được giả thành công. Đây là yêu cầu cho các lần sửa liên quan;
+  bản cập nhật tài liệu này không bổ sung banner hay thay đổi cơ chế fallback trong code hiện có.
 
 ---
 
@@ -140,21 +133,19 @@ Giao diện SafeSpace hỗ trợ cơ chế hoạt động linh hoạt (dual-mode
 
 ```text
 SSFRMS/
-├── StorageProject.Api/                 # .NET 9 Minimal API, Middleware, Endpoints
-│   ├── Endpoints/                      # Auth, Facility, Reservation, Contract, Payment, SupportPage...
-│   └── appsettings.json                # Cấu hình DB, JWT
-├── StorageProject.Core/                # Domain Entities, DTOs, Service Interfaces
-├── StorageProject.Infrastructure/      # EF Core DbContext, Migrations, DbSeeder, Service Implementations
+├── StorageProject.Api/                 # .NET 10 Minimal API, endpoints, cấu hình
+├── StorageProject.Core/                # Entities, DTOs, interfaces
+├── StorageProject.Infrastructure/      # EF Core, migrations, seeder, services
+├── StorageProject.Tests/               # Kiểm thử backend
 ├── SafeSpace-Customer-UI/
-│   └── SafeSpace-Customer-UI/          # React + Vite Frontend
-│       ├── src/
-│       │   ├── components/             # UI Components (AuthModal, ActionModal, UI Elements)
-│       │   ├── pages/                  # Pages: FindStorage, CustomerDashboardPage, Records, SupportPage
-│       │   ├── services/               # API Clients & Service Adapters
-│       │   ├── App.jsx         # App Root & State Management
-│       │   └── customer.css            # SafeSpace Modern Design System
-│       └── .env                        # Environment Config (VITE_API_URL)
-└── README.md                           # Hướng dẫn dự án
+│   └── SafeSpace-Customer-UI/
+│       ├── src/app/                    # App, router, state, config
+│       ├── src/features/               # Màn hình và chức năng theo vai trò
+│       ├── src/shared/                 # API, components, styles, utils
+│       ├── tests/
+│       └── .env.example                # Cấu hình mẫu; chép thành .env.local
+├── AGENTS.md                           # Quy định làm việc
+└── docs/verification.md                # Kiểm tra theo phạm vi, điều kiện merge
 ```
 
 ---
@@ -166,4 +157,4 @@ SSFRMS/
 - **Gia hạn & Trả kho**: Gửi yêu cầu gia hạn hợp đồng (Renewal), yêu cầu trả kho.
 - **Hỗ trợ khách hàng**: Tạo vé hỗ trợ sự cố, xem tiến độ giải quyết, hủy vé hỗ trợ.
 - **Xác thực JWT**: Đăng nhập, đăng ký, tự động đính kèm Bearer Token vào các yêu cầu bảo mật.
-- **Cơ chế Fallback thông minh**: Tự động chuyển đổi mượt mà giữa chế độ Demo UI và Live API khi Backend online/offline.
+- **Chế độ kiểm thử**: phân biệt API thật và chế độ lưu trình duyệt; kết quả mock không thay cho kiểm chứng backend/SQL Server.
