@@ -303,13 +303,17 @@ function ApiProvider({ children }) {
   }, []);
 
   const loadCustomer = useCallback(async () => {
+    const activeSession = refs.current.session;
     const [reservations, contracts, tickets] = await Promise.all([api.reservations(), api.contracts(), api.tickets()]);
     const [reservationDetails, contractDetails, ticketDetails] = await Promise.all([
       Promise.all(reservations.filter((r) => r.status !== "CANCELLED").map((r) => api.reservation(r.reservationId).catch(() => null))),
       Promise.all(contracts.map((c) => api.contract(c.contractId).catch(() => ({ ...c, payments: [], renewals: [] })))),
-      Promise.all(tickets.map((t) => api.ticket(t.ticketId).catch(() => t))),
+      Promise.all(tickets.map((t) => api.ticket(t.ticketId).catch((e) => {
+        if (e.status === 401) throw e;
+        return { ...t, responsesError: true };
+      }))),
     ]);
-    if (!refs.current.session) return;
+    if (!activeSession || refs.current.session?.token !== activeSession.token) return;
     const next = {
       reservations,
       reservationDetails: Object.fromEntries(reservationDetails.filter(Boolean).map((d) => [d.reservationId, d])),
@@ -320,6 +324,25 @@ function ApiProvider({ children }) {
     setRemote(next);
     setNow(new Date());
   }, []);
+
+  // Hồ sơ do API xác nhận; không dùng tên lưu cục bộ để che dữ liệu trên máy chủ.
+  const applyProfile = useCallback((profile, activeSession) => {
+    if (!activeSession || refs.current.session?.token !== activeSession.token) return false;
+    if (String(profile.userId) !== String(activeSession.user.userId)) return false;
+    const next = { ...refs.current.session, user: { ...refs.current.session.user, ...profile } };
+    refs.current.session = next;
+    setSession(next);
+    setStorageError(!writeJson(SESSION_KEY, next));
+    updateOverlay((o) => ({ ...o, name: null }));
+    return true;
+  }, [updateOverlay]);
+
+  const loadProfile = useCallback(async () => {
+    const activeSession = refs.current.session;
+    if (!activeSession) return;
+    const profile = await api.getProfile();
+    applyProfile(profile, activeSession);
+  }, [applyProfile]);
 
   const handleError = useCallback(
     (e) => {
@@ -341,6 +364,7 @@ function ApiProvider({ children }) {
     setLoadError(null);
     try {
       await loadCatalog();
+      await loadProfile();
       if (refs.current.session) {
         if (isAdminRoles(refs.current.session.roles) || isOpsRoles(refs.current.session.roles) || isBusinessRoles(refs.current.session.roles)) setRemote(EMPTY_REMOTE);
         else await loadCustomer();
@@ -349,7 +373,7 @@ function ApiProvider({ children }) {
       if (e instanceof ApiError && e.status === 401) endSession("expired");
       else setLoadError(e?.message || "Không tải được dữ liệu.");
     }
-  }, [loadCatalog, loadCustomer, endSession]);
+  }, [loadCatalog, loadProfile, loadCustomer, endSession]);
 
   useEffect(() => {
     loadAll();
@@ -387,12 +411,13 @@ function ApiProvider({ children }) {
       refs.current.overlay = saved;
       setOverlay(saved);
       setSession(next);
+      await loadProfile();
       if (isAdminRoles(next.roles) || isOpsRoles(next.roles) || isBusinessRoles(next.roles)) {
         refs.current.remote = EMPTY_REMOTE;
         setRemote(EMPTY_REMOTE);
       } else await loadCustomer();
     },
-    [loadCustomer],
+    [loadCustomer, loadProfile],
   );
 
   const login = useCallback(
@@ -590,20 +615,19 @@ function ApiProvider({ children }) {
             return { ok: true };
           }
           case "CHANGE_PASSWORD": {
-            await api.changePassword({ currentPassword: p.current_password, newPassword: p.new_password });
-            notify("Đã đổi mật khẩu thành công.");
+            try {
+              await api.changePassword({ currentPassword: p.current, newPassword: p.next });
+            } catch (e) {
+              if (e.status === 400 && /mật khẩu hiện tại/i.test(e.message)) return fail(e.message, "BAD_PASSWORD");
+              throw e;
+            }
             return { ok: true };
           }
           case "UPDATE_NAME": {
-            const profile = await api.updateProfile({ fullName: p.name, phone: session?.user?.phone || null });
-            if (session) {
-              const updatedUser = { ...session.user, fullName: profile.fullName };
-              const updatedSession = { ...session, user: updatedUser };
-              writeJson(SESSION_KEY, updatedSession);
-              refs.current.session = updatedSession;
-              setSession(updatedSession);
-            }
-            runLocal(type, p);
+            const activeSession = refs.current.session;
+            if (!activeSession) return fail("Vui lòng đăng nhập lại.");
+            const profile = await api.updateProfile({ fullName: String(p.name || "").trim(), phone: activeSession.user.phone ?? null });
+            if (!applyProfile(profile, activeSession)) return fail("Phiên đăng nhập đã thay đổi. Vui lòng thử lại.");
             return { ok: true, name: profile.fullName };
           }
           case "REQUEST_RETURN": {
@@ -627,7 +651,7 @@ function ApiProvider({ children }) {
         return handleError(e);
       }
     },
-    [loadCustomer, updateOverlay, remember, runLocal, handleError],
+    [loadCustomer, updateOverlay, remember, runLocal, handleError, applyProfile],
   );
 
   const checkAvailability = useCallback(async ({ facility_id, offer, start_date, months }) => {

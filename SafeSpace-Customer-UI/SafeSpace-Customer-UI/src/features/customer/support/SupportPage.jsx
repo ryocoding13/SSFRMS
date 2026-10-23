@@ -1,19 +1,18 @@
 import React, { useRef, useState } from "react";
 import { Select } from "../../../shared/components/Pickers.jsx";
-import { Button, Dialog, Field, Modal, Notice, PageHeader, StatusTag } from "../../../shared/components/UI.jsx";
+import { Button, Dialog, Field, Icon, Modal, Notice, PageHeader, StatusTag } from "../../../shared/components/UI.jsx";
 import { dateTimeLabel } from "../../../shared/utils/format.js";
 import { TICKET_STATUS, TICKET_TOPICS } from "../../../shared/utils/status.js";
 import { facilityOf } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
+import { href } from "../../../app/router.js";
 
 const MAX_FILES = 3;
 const MAX_MB = 5;
 
 function TicketCard({ t }) {
-  const { data, dispatch, notify } = useApp();
-  const [open, setOpen] = useState(false);
+  const { dispatch, notify } = useApp();
   const [confirm, setConfirm] = useState(false);
-  const c = data.contracts.find((x) => x.contract_id === t.contract_id);
   const cancel = async () => {
     const res = await dispatch("CANCEL_TICKET", { ticket_id: t.ticket_id });
     setConfirm(false);
@@ -23,44 +22,18 @@ function TicketCard({ t }) {
     <article className="panel ticket">
       <StatusTag map={TICKET_STATUS} status={t.status} square />
       <h3>{t.ticket_id} · {t.title || TICKET_TOPICS[t.topic].title}</h3>
-      <p className="muted">
-        {t.staff_note}
+      <p className="muted ticket__preview">
+        {t.responses?.length > 0 && <span className="visually-hidden">Phản hồi của nhân viên: </span>}
+        {t.responses?.length ? `${t.responses.at(-1).by || "Nhân viên"}: “${t.responses.at(-1).text}”` : t.staff_note}
         <br />
         Cập nhật: {dateTimeLabel(t.updated_at)}
       </p>
-      {(t.responses || []).length > 0 && (
-        <div className="reply">
-          <p className="reply__head">
-            Phản hồi của nhân viên
-            <span> · {[t.responses.at(-1).at && dateTimeLabel(t.responses.at(-1).at), t.responses.at(-1).by].filter(Boolean).join(" · ")}</span>
-          </p>
-          <p>{t.responses.at(-1).text}</p>
-          {t.responses.length > 1 && (
-            <details>
-              <summary>Xem {t.responses.length - 1} phản hồi trước</summary>
-              <ul>
-                {t.responses.slice(0, -1).reverse().map((x, i) => (
-                  <li key={i}><span className="muted">{[x.at && dateTimeLabel(x.at), x.by].filter(Boolean).join(" · ")}</span><br />{x.text}</li>
-                ))}
-              </ul>
-            </details>
-          )}
-        </div>
-      )}
-      {t.status !== "CANCELLED" && t.status !== "RESOLVED" && (
+      {t.responses_error && <Notice tone="error">Chưa tải được phản hồi. Vui lòng cập nhật lại yêu cầu.</Notice>}
+      {t.status !== "CANCELLED" && (
         <p className="muted">Nếu đang đứng tại cổng cơ sở, liên hệ nhân viên trực để được hỗ trợ ngay.</p>
       )}
-      {open && (
-        <div className="ticket__more">
-          {c && <p><strong>Kho:</strong> {c.unit_number} · {facilityOf(data, c.facility_id, c.facility_name).name}</p>}
-          <p><strong>Nội dung:</strong> {t.description}</p>
-          {t.attachments.length > 0 && <p><strong>Ảnh đính kèm:</strong> {t.attachments.join(", ")}</p>}
-        </div>
-      )}
       <div className="stack">
-        <button type="button" className="link-btn" onClick={() => setOpen(!open)} aria-expanded={open}>
-          {open ? "Thu gọn" : "Xem nội dung"}
-        </button>
+        <a className="link-btn support-detail-link" aria-label="Xem chi tiết →" href={href(`support/${encodeURIComponent(t.ticket_id)}`)}>Xem chi tiết <Icon name="back" size={14} /></a>
         {t.status === "OPEN" && (
           <button type="button" className="link-btn link-btn--danger" onClick={() => setConfirm(true)}>Huỷ yêu cầu</button>
         )}
@@ -79,8 +52,9 @@ function TicketCard({ t }) {
 }
 
 export default function SupportPage({ query }) {
-  const { data, dispatch, mode } = useApp();
+  const { data, dispatch, mode, retry, loadError } = useApp();
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const preContract = query.get("contract");
   const preTopic = query.get("topic");
   const [form, setForm] = useState({
@@ -102,6 +76,7 @@ export default function SupportPage({ query }) {
     let problem = "";
     for (const f of list) {
       if (!f.type.startsWith("image/")) problem = "Chỉ đính kèm được file ảnh.";
+      else if (!["image/jpeg", "image/png"].includes(f.type)) problem = "Chỉ đính kèm được ảnh JPG hoặc PNG.";
       else if (f.size > MAX_MB * 1024 * 1024) problem = `Mỗi ảnh tối đa ${MAX_MB} MB.`;
       else if (next.length >= MAX_FILES) problem = `Tối đa ${MAX_FILES} ảnh.`;
       else next.push(f);
@@ -126,8 +101,14 @@ export default function SupportPage({ query }) {
 
   return (
     <main className="container page">
-      <PageHeader title="Bạn cần hỗ trợ điều gì?" description="Gửi yêu cầu đến đúng cơ sở. Theo dõi phản hồi ngay trong tài khoản." />
-      <div className="detail-grid detail-grid--even">
+      <PageHeader title="Bạn cần hỗ trợ điều gì?" description="Gửi yêu cầu đến đúng cơ sở. Theo dõi phản hồi ngay trong tài khoản.">
+        {mode === "api" && <Button variant="outline" disabled={refreshing} onClick={async () => {
+          setRefreshing(true);
+          try { await retry(); } finally { setRefreshing(false); }
+        }}>{refreshing ? "Đang cập nhật…" : "Cập nhật yêu cầu"}</Button>}
+      </PageHeader>
+      {loadError && <Notice tone="error">{loadError}</Notice>}
+      <div className="detail-grid support-grid">
         <form className="panel form-card" onSubmit={submit} noValidate>
           <Field label="Kho / hợp đồng liên quan">
             <Select value={form.contract_id} onChange={(e) => set("contract_id", e.target.value)}>
@@ -145,12 +126,12 @@ export default function SupportPage({ query }) {
             </Select>
           </Field>
           <Field label="Mô tả vấn đề" error={errors.description}>
-            <textarea rows={3} maxLength={1000} placeholder="Ví dụ: Thẻ ra vào chưa mở được cổng cơ sở." value={form.description} onChange={(e) => set("description", e.target.value)} />
+            <textarea rows={1} maxLength={1000} placeholder="Ví dụ: Thẻ ra vào chưa mở được cổng cơ sở." value={form.description} onChange={(e) => set("description", e.target.value)} />
           </Field>
           <div className={`field${errors.files ? " field--invalid" : ""}`}>
-            <span className="field__label">Ảnh đính kèm (không bắt buộc)</span>
-            <button type="button" className="attach" onClick={() => picker.current?.click()}>+ Thêm ảnh mô tả</button>
-            <input ref={picker} type="file" accept="image/*" multiple hidden onChange={(e) => addFiles([...e.target.files])} />
+            <span className="field__label">Ảnh đính kèm</span>
+            <button type="button" className="support-attach" onClick={() => picker.current?.click()}><span aria-hidden="true">+</span>Thêm ảnh</button>
+            <input ref={picker} type="file" accept="image/jpeg,image/png" multiple hidden onChange={(e) => addFiles([...e.target.files])} />
             {files.length > 0 && (
               <ul className="files">
                 {files.map((f, i) => (
@@ -162,6 +143,7 @@ export default function SupportPage({ query }) {
               </ul>
             )}
             {errors.files && <p className="field__error" role="alert">{errors.files}</p>}
+            <p className="hint">Tối đa 3 ảnh · JPG, PNG · mỗi ảnh tối đa 5 MB</p>
           </div>
           {errors.form && <Notice tone="error">{errors.form}</Notice>}
           <Button type="submit" disabled={busy}>{busy ? "Đang gửi…" : "Gửi yêu cầu"}</Button>

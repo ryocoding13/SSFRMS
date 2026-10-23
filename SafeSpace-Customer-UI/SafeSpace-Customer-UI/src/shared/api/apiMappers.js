@@ -5,6 +5,7 @@ import { localDate, timeoutLabel } from "../utils/format.js";
 import { TICKET_TOPICS } from "../utils/status.js";
 
 const TICKET_TOPIC_KEYS = Object.keys(TICKET_TOPICS);
+const TICKET_TOPIC_ALIASES = { ACCESS_CARD: "ACCESS", ACCESS_CODE: "ACCESS", STORED_ITEM: "ITEMS" };
 
 // ASP.NET trả DateTime đọc từ DB không kèm múi giờ nhưng thực chất là UTC → thêm "Z"
 export function parseUtc(value) {
@@ -159,7 +160,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
         username: session.user.username,
         full_name: overlay.name || session.user.fullName,
         email: session.user.email,
-        phone: overlay.phone || "",
+        phone: session.user.phone ?? overlay.phone ?? "",
       }
     : null;
   const base = {
@@ -361,19 +362,24 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       ticket_id: ticketCode(t.ticketId),
       api_id: t.ticketId,
       contract_id: contractCodeById.get(t.contractId) || null,
-      topic: TICKET_TOPIC_KEYS.includes(t.issueType) ? t.issueType : "OTHER",
+      topic: TICKET_TOPIC_ALIASES[t.issueType] || (TICKET_TOPIC_KEYS.includes(t.issueType) ? t.issueType : "OTHER"),
       title: t.title,
       description: t.description || "",
       attachments: overlay.attachments[t.ticketId] || [],
       status,
       staff_note: TICKET_NOTE[status],
-      // C12: phản hồi của nhân viên (S05). Backend trả mảng responses trong GET /api/tickets/{id} (BACKEND-TODO.md mục R)
+      responses_error: Boolean(t.responsesError),
+      assigned_at: isoOf(t.assignedAt),
+      resolved_at: isoOf(t.resolvedAt),
+      closed_at: isoOf(t.closedAt),
+      raw_status: t.status,
+      // C12 đọc phản hồi đã lưu trên máy chủ, kể cả sau khi tải lại trang.
       responses: (t.responses || [])
         .map((x) => ({ text: x.message ?? x.note ?? x.content ?? "", by: x.staffName ?? x.responderName ?? null, at: isoOf(x.createdAt ?? x.respondedAt) }))
         .filter((x) => x.text),
       unit_number: t.contractUnitNumber || null,
       created_at: isoOf(t.createdAt),
-      updated_at: isoOf(t.closedAt || t.resolvedAt || t.assignedAt || t.createdAt),
+      updated_at: isoOf(t.responses?.at(-1)?.createdAt || t.closedAt || t.resolvedAt || t.assignedAt || t.createdAt),
     };
   });
 

@@ -350,3 +350,22 @@
 - Cảnh báo có sẵn NU1902/NU1903, nullable Board.cs và kích thước chunk/font frontend vẫn còn. Chưa chạy SQL Server thật cho bản tách riêng. Người dùng đã báo C13 và S05/C12 đạt trước khi tách; cần kiểm tra lại sau khi áp dụng. F37 giữ active.
 - Figma từ chối quyền đọc thiết kế/ảnh; không có thay đổi giao diện và không tuyên bố đã đối chiếu thiết kế trực tiếp.
 - Không push/PR/merge. Bàn giao patch, danh sách file và hướng dẫn tạo worktree riêng để người dùng tự kiểm tra, commit và push.
+
+## 2026-10-22 — F37 nối frontend C13 và S05/C12
+
+- Người dùng xác nhận backend đã push trên `feature/ngoc-mai-auth-support`, Windows chạy 34/34 test. Yêu cầu tiếp theo là hoàn thiện frontend hai luồng này để đẩy tiếp; không đưa S04/M07/C14 vào.
+- Sửa payload đổi mật khẩu khớp form, lỗi mật khẩu hiện tại đặt đúng ô. Hồ sơ GET/PUT cập nhật session qua ref, giữ phone, bỏ tên overlay cũ và bỏ response trễ thuộc phiên trước; chặn lưu lặp và kiểm tên trước request.
+- C12 dùng ticket detail để hiển thị phản hồi/lịch sử và giờ cập nhật. Chi tiết lỗi hiện cảnh báo, nút cập nhật lấy lại API; 401 kết thúc phiên. S05 chặn phản hồi rỗng/gửi lặp; board null được chuẩn hoá để không trắng trang.
+- Thêm Playwright vào devDependencies theo D26. Test dùng Chromium thật và API giả lập theo DTO, không gọi SQL Server. 13/13 PASS: tên trim/phone/F5, tên overlay và đổi khách, lỗi lưu/validation, gửi lặp, sai mật khẩu/confirm, mật khẩu mới/cũ, lịch sử C12, lỗi chi tiết/thử lại, S05→C12, mobile 390px, 401, response lưu trễ sau đổi tài khoản. Đã xem ảnh desktop/mobile nội bộ, không đưa ảnh kiểm tra vào gói.
+- check:structure PASS; FE 68/68; business 9/9; SSR 92 routes; build PASS; init.sh đầy đủ PASS với wrapper dotnet -m:1, backend 34/34 SQLite. Các cảnh báo NU1902/NU1903, chunk và font cũ còn; không sửa ngoài phạm vi.
+- Figma plugin `get_design_context` kèm screenshot và `get_screenshot` đều từ chối quyền Can edit; chưa đọc được C12/C13 mới nhất. Chỉ hoàn thiện wiring trên UI hiện có, không tuyên bố đã khớp Figma. F37 giữ active chờ đối chiếu thiết kế và SQL Server thật.
+- Không thay backend/migration/entities/config trong gói FE, không chép sửa tài chính từ worktree cũ. Chỉ bàn giao patch/ZIP và hướng dẫn user tự kiểm tra, commit, push; không push/PR/merge từ phiên này.
+
+## 2026-10-22 — F37 đối chiếu Figma C12/C12b/C13a–d
+
+- Liên kết mới node 436:9217 đọc được. Context section là metadata; đã đọc 7 frame riêng kèm ảnh C12/C12b/C13/C13a/C13b/C13c/C13d để sửa, nguồn ghi trong docs/figma-auth-support-review.md. Không đổi các màn hoặc luồng tài chính ngoài phạm vi.
+- Bổ sung SupportTicketDetailPage tại #/support/:id, tiến trình và lịch sử phản hồi. C12 hiển thị trích đoạn/tên nhân viên và liên kết chi tiết. C13 có placeholder, nhắc xác nhận và trạng thái thiếu cả ba ô. CSS chỉ cho profile/support, dùng tokens/kích thước Figma và Manrope sẵn có.
+- Tải asset qua URL bị trả HTML; không giữ file hỏng. Xuất nguyên bản 5 SVG qua Figma Plugin API chỉ đọc, không sửa thiết kế. Kiểm file/kích thước thực tế của logo 36×36, chuông 44×44, mốc 14×17. Không chép ảnh minh hoạ làm ảnh của khách.
+- Test SSR ban đầu phát hiện mất nhãn phản hồi trong danh sách sau đổi bố cục; đã giữ nhãn cho trình đọc màn hình. Test lịch sử được cập nhật sang C12b theo Figma, giữ kiểm nội dung và F5. Test response trễ chuyển sang cổng chờ Promise và điều hướng SPA để không bị trình duyệt huỷ request do reload; không nới assertion.
+- Kiểm chứng: Chromium 14/14, FE 68/68, business 9/9, SSR 94 route (thêm chi tiết và không tìm thấy), structure/build/init PASS, backend 34/34 SQLite. Đã xem ảnh desktop, mobile, xác nhận sai/thiếu thông tin. Vẫn cần SQL Server thật trước merge; F37 active. Các cảnh báo thư viện/chunk cũ còn.
+- API chưa trả tên người phân công và chưa nhận ảnh. Ghi Nhân viên phản hồi theo response, không bịa assignee, giờ tiếp nhận hoặc ảnh. Đóng gói bản Figma mới thay gói frontend trước, có patch đầy đủ sau backend và patch cập nhật nếu đã áp dụng frontend cũ. Không push/PR/merge.

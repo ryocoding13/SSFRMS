@@ -9,6 +9,7 @@ import "@fontsource/inter/vietnamese-700.css";
 import "@fontsource/inter/latin-800.css";
 import "@fontsource/inter/vietnamese-800.css";
 import "../shared/styles/ss.css";
+import "../shared/styles/auth-support.css";
 import React, { useEffect } from "react";
 import Header from "../shared/components/Header.jsx";
 import { Button, Empty, Icon, LinkButton } from "../shared/components/UI.jsx";
@@ -35,6 +36,7 @@ import FacilityOperationsRoutes from "../features/facility-operations/FacilityOp
 import { OpsProvider } from "../features/facility-operations/state/FacilityOperationsProvider.jsx";
 import ReservationListPage from "../features/customer/reservations/ReservationListPage.jsx";
 import SupportPage from "../features/customer/support/SupportPage.jsx";
+import SupportTicketDetailPage from "../features/customer/support/SupportTicketDetailPage.jsx";
 import { RenewalRequestPage } from "../features/customer/contracts/RenewalRequestPage.jsx";
 import { ReturnRequestPage } from "../features/customer/contracts/ReturnRequestPage.jsx";
 import { RequestSentPage } from "../features/customer/requests/RequestSentPage.jsx";
@@ -87,7 +89,7 @@ function renderPage({ page, parts, query }) {
       return a ? <RentedUnitDetailPage id={a} /> : <RentedUnitListPage />;
     case "sent": return <RequestSentPage query={query} />;
     case "payments": return <PaymentListPage />;
-    case "support": return <SupportPage query={query} />;
+    case "support": return a ? <SupportTicketDetailPage id={a} /> : <SupportPage query={query} />;
     case "profile": return <CustomerProfilePage />;
     // C07r: máy quét ở cửa kho (mô phỏng), không cần đăng nhập như thiết bị gắn tại cơ sở
     case "door": return <DoorScannerPage query={query} />;
@@ -152,7 +154,7 @@ function Shell() {
     ) : null;
 
   return (
-    <div className="app">
+    <div className={`app${["profile", "support"].includes(route.page) ? " app--auth-support" : ""}`}>
       <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>Chuyển đến nội dung</a>
       {!(isAdminPage && !adminBody && authed) && !(isOpsPage && authed && opsAllowed) && !(isBusinessPage && !businessBody && authed) && <Header page={route.page} />}
       <div id="main" tabIndex={-1} key={route.raw.split("?")[0]}>

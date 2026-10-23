@@ -3,6 +3,8 @@ import { go, href } from "../../app/router.js";
 import { unreadCount, whenLabel } from "../../app/state/appSelectors.js";
 import { useApp } from "../../app/state/AppProvider.jsx";
 import { Icon } from "./UI.jsx";
+import accountBrand from "../../assets/customer/auth-support/brand.svg";
+import accountNotification from "../../assets/customer/auth-support/notification.svg";
 
 const PUBLIC_LINKS = [
   ["home", "Trang chủ"],
@@ -99,6 +101,7 @@ export default function Header({ page }) {
   const [open, setOpen] = useState(false);
   const anchor = useRef(null);
   const unread = authed ? unreadCount(data) : 3;
+  const accountScreen = ["profile", "support"].includes(page);
 
   useEffect(() => setOpen(false), [page]);
 
@@ -107,7 +110,7 @@ export default function Header({ page }) {
       <header className="header">
         <div className="header__inner">
           <a className="brand" href={href("home")} aria-label="SafeSpace — Trang chủ">
-            <span className="brand__mark"><Icon name="box" size={22} /></span>
+            {accountScreen ? <img src={accountBrand} alt="" /> : <span className="brand__mark"><Icon name="box" size={22} /></span>}
             SafeSpace
           </a>
           <nav className="header__nav" aria-label="Điều hướng chính">
@@ -131,8 +134,8 @@ export default function Header({ page }) {
                 aria-label={`Thông báo${unread ? `, ${unread} chưa đọc` : ""}`}
                 aria-expanded={open}
               >
-                <Icon name="bell" size={22} />
-                {unread > 0 && <i aria-hidden="true" />}
+                {accountScreen ? <img src={accountNotification} alt="" /> : <Icon name="bell" size={22} />}
+                {!accountScreen && unread > 0 && <i aria-hidden="true" />}
               </button>
               {open && <NotificationPopup onClose={() => setOpen(false)} anchorRef={anchor} />}
             </div>

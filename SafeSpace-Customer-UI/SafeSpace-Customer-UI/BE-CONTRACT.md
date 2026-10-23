@@ -73,7 +73,7 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 | A01 | `POST /api/auth/login` `{identifier, password}` | Sai mật khẩu nên trả **400/422**, không phải 401 (UI coi 401 là hết phiên) |
 | A02 | `POST /api/auth/register` `{fullName, email, phone, password}` | Tự gán role Customer; trả token + user |
 | A01 | `POST /api/auth/forgot-password` `{email}` | Luôn trả 200 |
-| C13 | `GET/PUT /api/auth/profile` | PUT chỉ nhận `fullName` |
+| C13 | `GET/PUT /api/auth/profile` | PUT gửi `fullName` đã trim và giữ `phone` từ GET; chỉ tên được sửa trên màn hình. Kết quả API cập nhật phiên hiện tại, không dùng tên overlay thay dữ liệu máy chủ. |
 | C13 | `POST /api/auth/change-password` `{currentPassword, newPassword}` | Sai mật khẩu hiện tại → 400 |
 | C02, C03 | `GET /api/facilities?type=&band=&area=&camera=&sort=&page=` | Trả: `id, name, district, city, address, distanceKm, hours, camera, hasClimate, basePrice`. `distanceKm` cần vị trí khách hoặc tạm tính |
 | C03b | `POST /api/quotes` `{facilityId, type, band, months, startDate}` | → `monthlyRate, rentTotal, deposit, initialTotal, endDate, available` |
@@ -87,6 +87,7 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 | C09 | `POST /api/contracts/{id}/move-out` `{date, slot, note}` | Tạo `Appointment MOVE_OUT` trạng thái `PENDING` |
 | C11 | `GET /api/appointments`, `GET /api/ledger` | Sổ khoản thu: `ref, label, amount, status, contractId?, reservationId?` |
 | C12 | `GET/POST /api/tickets`, `POST /api/tickets/{id}/cancel` | POST là multipart: `contractId?, topic, description, files[≤3, ≤5MB, image/*]`; chỉ huỷ được khi `OPEN` |
+| C12 | `GET /api/tickets/{id}` | Đã nối `responses: [{message, staffName, createdAt}]`; hiện phản hồi mới nhất và lịch sử, lỗi tải có thông báo và nút cập nhật. 401 kết thúc phiên. Tên ảnh đính kèm hiện lưu cục bộ; upload ảnh còn là đề xuất, không nằm trong gói C12/C13. |
 | Popup | `GET /api/notifications`, `POST /api/notifications/read` `{ids?}` | `id, title, detail, to, createdAt, read` |
 
 ## 4. Việc còn lại phía backend

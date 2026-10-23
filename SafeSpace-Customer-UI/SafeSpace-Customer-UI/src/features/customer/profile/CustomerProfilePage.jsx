@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button, Dialog, Field, PageHeader } from "../../../shared/components/UI.jsx";
 import { go } from "../../../app/router.js";
 import { maskPhone } from "../../../shared/utils/format.js";
@@ -12,10 +12,17 @@ export default function CustomerProfilePage() {
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
   const [pwErrors, setPwErrors] = useState({});
   const [dialog, setDialog] = useState(null);
+  const [savingName, setSavingName] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+  useEffect(() => setName(user.full_name), [user.user_id, user.full_name]);
 
   const saveName = async (e) => {
     e.preventDefault();
-    const res = await dispatch("UPDATE_NAME", { name });
+    if (savingName) return;
+    const trimmed = name.trim();
+    if (trimmed.length < 2 || trimmed.length > 100) return setNameError("Tên hiển thị cần từ 2 đến 100 ký tự.");
+    setSavingName(true);
+    const res = await dispatch("UPDATE_NAME", { name: trimmed }).finally(() => setSavingName(false));
     if (!res.ok) return setNameError(res.error);
     setName(res.name);
     setDialog({ title: "Đã lưu tên", message: "Tên hiển thị của bạn đã được cập nhật." });
@@ -27,6 +34,7 @@ export default function CustomerProfilePage() {
   };
   const changePassword = async (e) => {
     e.preventDefault();
+    if (savingPassword) return;
     const err = {};
     if (!pw.current) err.current = "Vui lòng nhập mật khẩu hiện tại.";
     if (!pw.next) err.next = "Vui lòng nhập mật khẩu mới.";
@@ -37,8 +45,13 @@ export default function CustomerProfilePage() {
       err.confirm = "Mật khẩu xác nhận chưa khớp";
       err.confirmHint = "Nhập lại đúng mật khẩu mới để tiếp tục.";
     }
+    if (!pw.current && !pw.next && !pw.confirm) {
+      err.summary = "Bạn chưa nhập đủ thông tin";
+      err.summaryHint = "Vui lòng nhập mật khẩu hiện tại, mật khẩu mới và xác nhận mật khẩu mới.";
+    }
     if (Object.keys(err).length) return setPwErrors(err);
-    const res = await dispatch("CHANGE_PASSWORD", { current: pw.current, next: pw.next });
+    setSavingPassword(true);
+    const res = await dispatch("CHANGE_PASSWORD", { current: pw.current, next: pw.next }).finally(() => setSavingPassword(false));
     if (!res.ok) return setPwErrors(res.code === "BAD_PASSWORD" ? { current: res.error } : res.code === "UNSUPPORTED" ? { form: res.error } : { next: res.error });
     setPw({ current: "", next: "", confirm: "" });
     setDialog({ title: "Đổi mật khẩu thành công", message: "Mật khẩu mới của bạn đã được cập nhật." });
@@ -61,24 +74,26 @@ export default function CustomerProfilePage() {
           </Field>
           <h3>Thông báo</h3>
           <p className="muted">Nhận nhắc lịch hẹn, hạn hợp đồng và cập nhật thanh toán trong ứng dụng.</p>
-          <Button type="submit">Lưu tên tài khoản</Button>
+          <Button type="submit" disabled={savingName}>{savingName ? "Đang lưu…" : "Lưu tên tài khoản"}</Button>
         </form>
 
-        <form className="panel form-card" onSubmit={changePassword} noValidate>
+        <form className={`panel form-card password-form${pwErrors.summary ? " password-form--missing" : ""}`} onSubmit={changePassword} noValidate>
           <h2>Đổi mật khẩu</h2>
           <Field label="Mật khẩu hiện tại" error={pwErrors.current}>
-            <input type="password" autoComplete="current-password" value={pw.current} onChange={(e) => setPwField("current", e.target.value)} />
+            <input type="password" placeholder="Nhập mật khẩu hiện tại" autoComplete="current-password" value={pw.current} onChange={(e) => setPwField("current", e.target.value)} />
           </Field>
           <Field label="Mật khẩu mới" error={pwErrors.next}>
-            <input type="password" autoComplete="new-password" value={pw.next} onChange={(e) => setPwField("next", e.target.value)} />
+            <input type="password" placeholder="Nhập mật khẩu mới" autoComplete="new-password" value={pw.next} onChange={(e) => setPwField("next", e.target.value)} />
           </Field>
           <Field label="Xác nhận mật khẩu mới" error={pwErrors.confirm}>
-            <input type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPwField("confirm", e.target.value)} />
+            <input type="password" placeholder="Nhập lại mật khẩu mới" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPwField("confirm", e.target.value)} />
           </Field>
           {pwErrors.confirmHint && <p className="field__error field__error--plain">{pwErrors.confirmHint}</p>}
+          {pwErrors.summary && <><h3 className="password-error">{pwErrors.summary}</h3><p className="password-error">{pwErrors.summaryHint}</p></>}
+          {!Object.keys(pwErrors).length && <><h3>Xác nhận để tránh nhập sai</h3><p className="muted">Mật khẩu mới và phần xác nhận phải giống nhau.</p></>}
           {!supports.changePassword && <p className="hint">Đổi mật khẩu đang tạm ngưng trên hệ thống. Liên hệ quản trị viên SafeSpace nếu cần đặt lại mật khẩu.</p>}
           {pwErrors.form && <p className="field__error field__error--plain">{pwErrors.form}</p>}
-          <Button type="submit" disabled={!supports.changePassword}>Cập nhật mật khẩu</Button>
+          <Button type="submit" disabled={!supports.changePassword || savingPassword}>{savingPassword ? "Đang cập nhật…" : "Cập nhật mật khẩu"}</Button>
         </form>
       </div>
       <Button

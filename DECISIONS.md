@@ -172,3 +172,7 @@
 ## D25 — 2026-10-20: Tổ chức FE theo vai trò và chức năng
 
 Theo yêu cầu nhóm, dùng src/app, src/features/<role>/<feature>, src/shared, src/assets. Tách từng Page từ các file tổng StaffPages/ManagerPages/Units/Auth/Checkout/Public; giữ code dùng chung Staff/Manager ở facility-operations. Giữ URL, API, localStorage và nghiệp vụ. Không đổi hai cấp thư mục gốc FE để không phá lệnh chạy/CI. docs/frontend-naming.md và FRONTEND-MAP.md là hướng dẫn bắt buộc; npm run check:structure kiểm tra quy ước cơ bản.
+
+## D26 — 2026-10-22: Kiểm thử tương tác C12/C13 bằng Playwright
+
+Thêm `@playwright/test` vào devDependencies để kiểm tra biểu mẫu React, đổi tài khoản, F5 và luồng nhân viên phản hồi → khách đọc. Test chạy Vite ở cổng 5273 và chặn request `/api/` bằng dữ liệu theo DTO backend; không gọi SQL Server hoặc API thanh toán. Không thêm thư viện giao diện. Chromium được cài riêng bằng `npx playwright install chromium`; có thể truyền `PLAYWRIGHT_EXECUTABLE_PATH` khi môi trường đã có trình duyệt. Không commit binary, ảnh kiểm tra hoặc test-results. Kết quả API giả lập không thay kiểm chứng trên SQL Server thật. Sau khi đọc được section 436:9217, đối chiếu thiết kế được ghi riêng tại docs/figma-auth-support-review.md.

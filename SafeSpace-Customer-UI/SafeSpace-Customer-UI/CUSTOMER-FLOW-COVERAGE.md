@@ -30,8 +30,8 @@ Nguồn: file Figma "SafeSpace - Modern UI" (section Khách hàng + Trang chủ 
 | C09 / C09b Trả kho | `#/units/:id/return` | `src/features/customer/contracts/RentedUnitListPage.jsx` | Ngày (lịch), khung giờ, ghi chú, đối chiếu cọc |
 | C10 Yêu cầu đã gửi | `#/sent?type=&contract=` | `src/features/customer/contracts/RentedUnitListPage.jsx` | |
 | C11 / C11b Thanh toán & lịch hẹn | `#/payments` | `src/features/customer/payments/PaymentListPage.jsx` | Thẻ lịch hẹn + bảng khoản thu; khoản gia hạn đã duyệt có nút "Thanh toán" → C11q (`src/shared/components/PayosModal.jsx`, `POST /api/payments/{id}/payos`); trả xong hiện thông báo C11b |
-| C12 Hỗ trợ | `#/support` | `src/features/customer/support/SupportPage.jsx` | Có ảnh đính kèm (tối đa 3, 5 MB); danh sách yêu cầu bên phải; khối "Phản hồi của nhân viên" từ `responses[]` của `GET /api/tickets/{id}` |
-| C13, C13a–d, toast | `#/profile` | `src/features/customer/profile/CustomerProfilePage.jsx` | Chỉ sửa tên; email / SĐT chỉ đọc (SĐT che bớt); hộp thoại "Đã hiểu" |
+| C12 Hỗ trợ | `#/support` | `src/features/customer/support/SupportPage.jsx` | C12 trích đoạn phản hồi; C12b `#/support/:id` có tiến trình/lịch sử từ `GET /api/tickets/{id}`, có tên nhân viên và giờ UTC được định dạng; giữ sau F5; nút cập nhật và báo lỗi chi tiết. Tên ảnh hiện chỉ lưu cục bộ. |
+| C13, C13a–d, toast | `#/profile` | `src/features/customer/profile/CustomerProfilePage.jsx` | GET/PUT hồ sơ theo phiên hiện tại, tên 2–100 ký tự; giữ SĐT chỉ đọc. POST đổi mật khẩu đúng payload, sai mật khẩu hiện tại báo dưới ô nhập; chặn gửi lặp, hộp thoại thành công và kiểm đăng nhập lại. |
 | C14 / C14a / C14b Đơn đặt chỗ | `#/reservations`, `#/reservations/:id` | `src/features/customer/reservations/ReservationListPage.jsx`, `src/features/customer/payments/CheckoutPage.jsx` | Nút "Huỷ đơn" (đơn chưa nhận kho) → hộp thoại C14a: đã trả, phí huỷ, số tiền hoàn (`cancel-preview`); huỷ xong "Đã huỷ · Đang hoàn tiền" |
 | Popup thông báo (public / customer, đã đọc) | (header) | `src/shared/components/Header.jsx` | |
 

@@ -2,7 +2,7 @@
   "_readme": "Danh sách tính năng = ranh giới phạm vi cho AI agent. Mỗi mục: behavior (hành vi), verification (lệnh/cách kiểm chứng), state. state: not_started -> active -> passing | blocked. Chỉ đổi sang passing khi verification pass và ghi evidence. Mỗi phiên chỉ một mục active.",
   "_fe": "cd SafeSpace-Customer-UI/SafeSpace-Customer-UI && npm test && npm run test:render && npm run build",
   "_be": "dotnet build StorageProject.slnx",
-  "updated": "2026-10-20",
+  "updated": "2026-10-22",
   "features": [
     {
       "id": "F01", "flow": 1, "uc": ["UC01"], "actor": "Khách hàng",
@@ -285,10 +285,10 @@
         "UC11"
       ],
       "actor": "Ngọc Mai",
-      "behavior": "Tách backend C13 và S05/C12 trên main fc83c3a, độc lập với phí trả kho và huỷ/hoàn tiền",
+      "behavior": "Hoàn thiện backend và nối frontend C13, S05/C12 trên nền main fc83c3a; độc lập với phí trả kho và huỷ/hoàn tiền",
       "state": "active",
-      "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx --no-build -m:1; kiểm thử C13 và S05/C12 trên SQL Server của nhóm",
-      "evidence": "2026-10-21: .NET SDK 10.0.402; build PASS; xUnit 34/34 (15 test main, 19 trường hợp AuthSupport); SQLite với constraint model; check:structure PASS; FE 68/68, business 9/9, SSR 92 route, build/init PASS. init dùng wrapper dotnet -m:1 do giới hạn tiến trình. Gói chỉ BE/test/tài liệu; không migration, FE, appsettings hay FinanceService. Chờ nhóm kiểm thử lại bản tách trên SQL Server; không xác nhận đồng bộ hình ảnh Figma."
+      "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx --no-build -m:1; _fe; npm run check:structure; npm run test:business; npm run test:auth-support; ./init.sh; kiểm thử C13 và S05/C12 trên SQL Server của nhóm; đối chiếu C12/C12b/C13a–d theo docs/figma-auth-support-review.md",
+      "evidence": "2026-10-22: backend 34/34 SQLite. FE nối API, tách C12b #/support/:id theo Figma đã đọc; C13 giữ đúng phiên, phone, payload và các trạng thái lỗi. Chromium 14/14 với API giả lập; FE 68/68, business 9/9, SSR 94 routes, structure/build/init PASS. Đã xuất nguyên bản 5 SVG từ Figma, kiểm file và hình học rendered. Chỉ CSS/asset cho profile/support. Gói FE không backend/migration/appsettings/Finance. Chờ SQL Server thật, không reset DB. API chưa trả người được phân công và ảnh máy chủ; không bịa dữ liệu."
     }
   ]
 }

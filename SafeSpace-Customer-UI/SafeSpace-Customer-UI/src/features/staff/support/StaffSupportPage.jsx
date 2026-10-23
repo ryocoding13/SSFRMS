@@ -21,6 +21,7 @@ export function StaffSupportPage({ query }) {
   const [note, setNote] = useState("Đã kiểm tra thông tin và hẹn hỗ trợ tại cơ sở.");
   const [next, setNext] = useState("WAITING_CUSTOMER");
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
   if (!t)
     return (
       <main className="container page">
@@ -32,7 +33,10 @@ export function StaffSupportPage({ query }) {
   const assignee = ops.staff.find((s) => s.staff_id === t.assignee);
   const submit = async (e) => {
     e.preventDefault();
-    const r = await run("TICKET_RESPONSE", { id: t.id, note, next, staff: me.staff_id }, `Đã lưu phản hồi ${t.id}`);
+    if (busy) return;
+    if (!note.trim()) return setErr("Vui lòng nhập nội dung phản hồi.");
+    setBusy(true);
+    const r = await run("TICKET_RESPONSE", { id: t.id, note: note.trim(), next, staff: me.staff_id }, `Đã lưu phản hồi ${t.id}`).finally(() => setBusy(false));
     if (!r.ok) return setErr(r.error);
     go("staff/done?kind=support");
   };
@@ -66,7 +70,7 @@ export function StaffSupportPage({ query }) {
                 {NEXT_STATES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </Select>
             </Field>
-            <Button type="submit">Lưu phản hồi</Button>
+            <Button type="submit" disabled={busy}>{busy ? "Đang lưu…" : "Lưu phản hồi"}</Button>
           </>
         )}
       </form>

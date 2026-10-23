@@ -4,6 +4,8 @@
 
 ## Điểm bắt đầu
 
+C12/C13 nối API: xem `../../docs/frontend-auth-support.md`. Kiểm tra tương tác bằng `npm run test:auth-support` (Playwright, API giả lập). Đã đối chiếu C12/C12b và C13a–d trong Figma, nguồn tại `../../docs/figma-auth-support-review.md`.
+
 | Việc cần tìm | File |
 |---|---|
 | Khởi động React | `src/main.jsx` |
@@ -51,6 +53,7 @@
 | Khách hàng / Yêu cầu — RequestSentPage | `src/features/customer/requests/RequestSentPage.jsx` |
 | Khách hàng / Đặt chỗ — ReservationDetailPage | `src/features/customer/reservations/ReservationDetailPage.jsx` |
 | Khách hàng / Đặt chỗ — ReservationListPage | `src/features/customer/reservations/ReservationListPage.jsx` |
+| Khách hàng / Chi tiết hỗ trợ — SupportTicketDetailPage | `src/features/customer/support/SupportTicketDetailPage.jsx` |
 | Khách hàng / Hỗ trợ — SupportPage | `src/features/customer/support/SupportPage.jsx` |
 | Quản lý cơ sở / Phân bổ kho — UnitAllocationPage | `src/features/manager/allocations/UnitAllocationPage.jsx` |
 | Quản lý cơ sở / Phân công — StaffAssignmentPage | `src/features/manager/assignments/StaffAssignmentPage.jsx` |
@@ -74,6 +77,7 @@
 |---|---|
 | Tìm cơ sở / bản đồ / chi tiết | `#/find`, `#/find/map`, `#/find/:id` |
 | Đặt chỗ / thanh toán / kết quả | `#/reservations`, `#/checkout/:id`, `#/confirmation/:id` |
+| Hỗ trợ / chi tiết yêu cầu | `#/support`, `#/support/:id` |
 | Kho thuê / gia hạn / trả kho | `#/units`, `#/units/:id/renew`, `#/units/:id/return` |
 | Nhân viên thu tiền / xác minh / bàn giao | `#/staff/reconcile`, `#/staff/verify`, `#/staff/handover` |
 | Quản lý ô / phân bổ / gia hạn | `#/manager/units`, `#/manager/allocate`, `#/manager/renewals` |

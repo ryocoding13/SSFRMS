@@ -30,6 +30,8 @@ export async function loadBoard(role) {
     }
   }
   const data = fromApi(res);
+  // Board theo vai trò có thể trả null cho danh sách không sử dụng.
+  const lists = ["payments", "allocations", "verifications", "handovers", "returns", "tickets", "renewals", "contracts", "assignments", "units", "staff"];
   return {
     version: 1,
     log: [],
@@ -37,6 +39,8 @@ export async function loadBoard(role) {
     renewals: [], contracts: [], assignments: [], units: [], staff: [],
     revenue: { months: [], by_type: [], as_of: null },
     ...data,
+    ...Object.fromEntries(lists.map((key) => [key, Array.isArray(data[key]) ? data[key] : []])),
+    revenue: data.revenue ?? { months: [], by_type: [], as_of: null },
   };
 }
 
