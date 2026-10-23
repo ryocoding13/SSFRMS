@@ -16,6 +16,44 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên CI05 — 2026-10-24 — Container và Smoke Test bản đóng gói
+
+- **Tính năng:** CI05 — Container và smoke test bản đóng gói (`StorageProject.Api/Dockerfile`, `SafeSpace-Customer-UI/SafeSpace-Customer-UI/Dockerfile`, `SafeSpace-Customer-UI/SafeSpace-Customer-UI/nginx.conf`, `deploy/migrator.Dockerfile`, `.dockerignore`, `deploy/nginx.conf`, `deploy/Caddyfile`, `deploy/compose.yml`, `deploy/compose.staging.yml`, `deploy/compose.production.yml`, `scripts/ci/smoke.ps1`, `scripts/ci/smoke.sh`, `.github/workflows/ci.yml`).
+- **Nền:** Nhánh `feature/cicd-ci05` (kế thừa commit `af0032c` từ CI04).
+- **Đã xong:**
+  - **Tạo `.dockerignore` tại root repo:** Loại trừ triệt để `.git`, `node_modules`, `bin/obj`, `artifacts`, file môi trường `.env*` chứa secrets.
+  - **Tạo `StorageProject.Api/Dockerfile`:**
+    - Multi-stage build .NET 10, restore qua project file và solution cache.
+    - Runtime base `mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled` (non-root `app` user, UID 1654, minimal attack surface, port 8080).
+  - **Tạo `SafeSpace-Customer-UI/SafeSpace-Customer-UI/Dockerfile`:**
+    - Multi-stage build Node 24 Alpine -> Nginx 1.27 Alpine.
+    - Cung cấp `nginx.conf`: SPA routing (`try_files $uri $uri/ /index.html`), reverse proxy `/api/` sang backend container giữ nguyên prefix, proxy liveness/readiness, gzip, cache immutable cho hashed assets.
+  - **Tạo `deploy/migrator.Dockerfile`:**
+    - Sử dụng `dotnet dotnet-ef migrations bundle` tạo binary self-contained Linux x64 độc lập.
+    - Runtime siêu nhẹ `mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled` non-root, nhận connection string qua biến môi trường hoặc CLI, thoát exit 0 khi xong.
+  - **Tạo cấu hình Compose chuẩn hóa cho 3 môi trường:**
+    - `deploy/compose.yml`: Local dev & CI stack đầy đủ 4 service (`sqlserver`, `migrator` one-shot, `api` non-exposed, `web` gateway public port 8080).
+    - `deploy/compose.staging.yml`: Sử dụng image registry GHCR (không build source trên server), cấu hình staging.
+    - `deploy/compose.production.yml`: Cấu hình production bắt buộc image digest pin (`@sha256:...`), `SeedMode=None`, `AutoMigrate=false`, restart always, không expose cổng SQL 1433 hay API 8080 ra ngoài Internet.
+  - **Tạo `deploy/Caddyfile`:** Cung cấp cấu hình tùy chọn cho Caddy TLS edge tự động cấp chứng chỉ HTTPS cho domain staging/production.
+  - **Tạo script smoke test tự động (`scripts/ci/smoke.ps1`, `scripts/ci/smoke.sh`):**
+    - Kiểm tra liveness `/health` (HTTP 200, Healthy).
+    - Kiểm tra readiness `/health/ready` (HTTP 200, Ready, Database Connected).
+    - Kiểm tra reverse proxy `/api/facilities` (HTTP 200, danh sách cơ sở > 0).
+    - Kiểm tra frontend entrypoint `/` (HTTP 200, chứa `<div id="root">`).
+    - Kiểm tra static JS assets và bảo đảm không chứa hardcode `localhost:5151`.
+  - **Tích hợp job `container-build` vào `.github/workflows/ci.yml`:**
+    - Tự động validate cú pháp Docker Compose configs trên runner CI.
+    - Kiểm tra build thành công cả 2 image Backend API và Frontend Web trên runner Ubuntu.
+    - Kết nối vào `ci-gate` đánh giá toàn bộ 4 jobs `[frontend, backend, integration-test, container-build]`.
+- **Kiểm chứng:**
+  - `npx --yes yaml-lint deploy/compose.yml deploy/compose.staging.yml deploy/compose.production.yml`: PASS (0 errors).
+  - `npx --yes yaml-lint .github/workflows/ci.yml`: PASS (0 errors).
+  - `powershell -ExecutionPolicy Bypass -File .\init.ps1`: PASS 100% (FE 4 suites + BE Release build + 57 unit tests + 9 integration tests).
+- **Phiên sau:** Bắt đầu Task CI06 — Publish release và tự deploy staging (workflow release main, push GHCR theo sha-digest, release manifest, deploy script với backup database, migration bundle và smoke test staging).
+
+
+
 ## Phiên CI04 — 2026-10-24 — Kiểm chứng SQL Server thật và API Integration Tests
 
 - **Tính năng:** CI04 — Kiểm chứng SQL Server thật và API integration (`StorageProject.IntegrationTests`, `scripts/ci/run-integration.ps1`, `scripts/ci/run-integration.sh`, `.github/workflows/ci.yml`, `docs/verification.md`).

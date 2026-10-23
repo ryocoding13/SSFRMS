@@ -1,0 +1,81 @@
+# ==============================================================================
+# SafeSpace SSFRMS — Staging Docker Compose Stack (compose.staging.yml)
+# ==============================================================================
+# Triển khai staging bằng container image từ GitHub Container Registry (GHCR).
+# KHÔNG BUILD MÃ NGUỒN TRỰC TIẾP TRÊN MÁY CHỦ STAGING.
+# ==============================================================================
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: safespace-staging-sqlserver
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${SA_PASSWORD:?MSSQL SA Password is required}"
+      MSSQL_PID: "Standard"
+    volumes:
+      - staging_sql_data:/var/opt/mssql
+    networks:
+      - staging-net
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${SA_PASSWORD}' -C -Q 'SELECT 1' || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P '${SA_PASSWORD}' -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrator:
+    image: "${MIGRATOR_IMAGE:?Migrator image must be specified by digest or tag}"
+    container_name: safespace-staging-migrator
+    environment:
+      ConnectionStrings__DefaultConnection: "${DATABASE_CONNECTION_STRING:?Connection string is required}"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - staging-net
+    restart: "no"
+
+  api:
+    image: "${API_IMAGE:?API image must be specified by digest or tag}"
+    container_name: safespace-staging-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Staging"
+      ConnectionStrings__DefaultConnection: "${DATABASE_CONNECTION_STRING:?Connection string is required}"
+      Database__AutoMigrate: "false"
+      Database__SeedMode: "${SEED_MODE:-None}"
+      ADMIN_INITIAL_PASSWORD: "${ADMIN_INITIAL_PASSWORD:-}"
+      JwtSettings__Secret: "${JWT_SECRET:?JWT Secret is required}"
+      JwtSettings__Issuer: "SSFRMSApi"
+      JwtSettings__Audience: "SSFRMSClients"
+      AppSettings__FrontendUrl: "${FRONTEND_URL:?Frontend URL is required}"
+      PayOS__ClientId: "${PAYOS_CLIENT_ID:-}"
+      PayOS__ApiKey: "${PAYOS_API_KEY:-}"
+      PayOS__ChecksumKey: "${PAYOS_CHECKSUM_KEY:-}"
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - staging-net
+
+  web:
+    image: "${WEB_IMAGE:?Web image must be specified by digest or tag}"
+    container_name: safespace-staging-web
+    restart: unless-stopped
+    ports:
+      - "${STAGING_PORT:-8080}:80"
+    depends_on:
+      - api
+    networks:
+      - staging-net
+
+networks:
+  staging-net:
+    driver: bridge
+
+volumes:
+  staging_sql_data:
+    driver: local

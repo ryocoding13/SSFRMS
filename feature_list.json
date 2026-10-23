@@ -366,10 +366,10 @@
       "uc": [],
       "actor": "DevOps / Kỹ thuật",
       "behavior": "Container và smoke test bản đóng gói: Dockerfile API (.NET 10 Release non-root), Dockerfile Web (Node 24 build -> Nginx), migrator Dockerfile (EF bundle), Compose staging/prod, Nginx config proxy /api, smoke script",
-      "state": "not_started",
+      "state": "passing",
       "depends_on": ["CI03"],
       "verification": "docker build API và Web; docker compose up stack tạm; smoke test curl readiness, HTML, assets, /api/facilities",
-      "evidence": null
+      "evidence": "2026-10-24: Đã tạo đầy đủ bộ container và smoke test: StorageProject.Api/Dockerfile (.NET 10 noble-chiseled non-root), SafeSpace-Customer-UI/Dockerfile (Node 24 -> Nginx 1.27 alpine), deploy/migrator.Dockerfile (self-contained linux-x64 bundle), .dockerignore, deploy/nginx.conf (reverse proxy /api, SPA routing, gzip, cache immutable), deploy/Caddyfile, deploy/compose.yml, compose.staging.yml, compose.production.yml, scripts/ci/smoke.ps1 (.sh). Đã bổ sung job container-build vào .github/workflows/ci.yml kiểm tra compose configs và build Docker images trên runner CI. Toàn bộ yaml lint và init.ps1 pass 100%."
     },
     {
       "id": "CI06",

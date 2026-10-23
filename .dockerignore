@@ -1,0 +1,39 @@
+# ==============================================================================
+# SafeSpace SSFRMS — Global Docker Ignore (.dockerignore)
+# ==============================================================================
+
+# Version Control & IDE
+.git
+.github
+.gitignore
+.agents
+.vscode
+.idea
+*.swp
+*.bak
+
+# Build Artifacts & Caches
+**/bin/
+**/obj/
+**/dist/
+**/out/
+**/artifacts/
+*.trx
+*.log
+
+# Node & Package Managers
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & Secrets (NEVER bake into image layers)
+**/.env
+**/.env.local
+**/.env.*.local
+!**/.env.example
+
+# Temporary files
+**/temp/
+**/tmp/
+**/scratch/
