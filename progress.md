@@ -16,6 +16,36 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên CI08 — 2026-10-24 — Rollback An Toàn, Vận Hành và Bàn Giao Hoàn Tất Toàn Bộ CI/CD Pipeline
+
+- **Tính năng:** CI08 — Rollback, vận hành và bàn giao (`scripts/deploy/rollback.sh`, `scripts/deploy/rollback.ps1`, `docs/cicd.md`, `docs/deployment.md`, `docs/rollback.md`, `docs/verification.md`, `DECISIONS.md`, `feature_list.json`).
+- **Nền:** Nhánh `feature/cicd-ci08` (kế thừa commit `21d4dc8` từ CI07).
+- **Đã xong:**
+  - **Xây dựng Bộ Kịch Bản Rollback An Toàn 7 Bước (`scripts/deploy/rollback.sh` [100755] & `scripts/deploy/rollback.ps1`):**
+    - Quy tắc bảo vệ schema: **Tuyệt đối không tự động chạy EF Core Down**, bảo toàn cấu hình constraint và dữ liệu trong các bảng thanh toán / đặt kho. Mặc định áp dụng chiến lược Forward-fix.
+    - Quy trình 7 bước:
+      1. Khóa môi trường (`/tmp/safespace-rollback.lock`) chống xung đột thao tác.
+      2. Tự động xác định hoặc nhận chỉ định previous release manifest, trích xuất exact image digests của bản release an toàn trước đó.
+      3. Kiểm tra và xác nhận chính sách giữ nguyên database schema.
+      4. Tùy chọn khôi phục database: Chỉ thực hiện khi có cờ chỉ định file backup rõ ràng (`--restore-db <file.bak>`), có cảnh báo mất dữ liệu sau thời điểm backup.
+      5. Hoán chuyển và khởi động lại API + Web containers về exact digests đã ghim trong manifest cũ.
+      6. Chờ readiness probe `/health/ready` xác nhận dịch vụ đã phục hồi hoàn toàn.
+      7. Thực thi smoke test tự động và phục hồi `release-current.json` (hoặc `release-production-current.json`).
+  - **Hoàn Thiện Bộ 3 Tài Liệu Vận Hành Chuyên Sâu:**
+    - **`docs/cicd.md`:** Bản vẽ kiến trúc tổng thể toàn bộ hệ thống CI/CD, phân tích chi tiết 4 tầng kiểm thử trong PR CI Gate (`frontend`, `backend`, `integration-test`, `container-build`), luồng tự động publish GHCR + Staging CD trên nhánh `main`, luồng kiểm soát promotion Production có phê duyệt, ma trận biến môi trường và bí mật (Repository Variables & Environment Secrets).
+    - **`docs/deployment.md`:** Sổ tay hướng dẫn chi tiết triển khai máy chủ Staging và Production, thiết lập non-root container cho API (.NET 10 Chiseled), cấu hình Docker bridge networks không expose port nhạy cảm (1433, 8080) ra Internet, quy trình vận hành one-shot migrator, thiết lập Nginx/Caddy edge proxy và lịch sao lưu định kỳ.
+    - **`docs/rollback.md`:** Sổ tay hướng dẫn ứng cứu sự cố và rollback an toàn, phân loại 3 cấp độ sự cố (Lỗi ứng dụng, Lỗi migration, Hỏng hóc dữ liệu), runbook 7 bước khôi phục database thủ công từ file sao lưu `.bak`, hướng dẫn đọc báo cáo TRX/JUnit trên GitHub Actions và chẩn đoán log lỗi.
+  - **Cập nhật Tài liệu Kỹ thuật Dự án:**
+    - `DECISIONS.md`: Bổ sung **Quyết định D28** chốt toàn bộ chiến lược CI/CD đa tầng, container non-root, ghim digest bằng release manifest, controlled promotion và chính sách an toàn forward-fix schema.
+    - `docs/verification.md`: Bổ sung bảng đối chiếu các lệnh kiểm thử và triển khai CI/CD.
+    - `feature_list.json`: Đánh dấu `CI08` sang `passing` với đầy đủ bằng chứng. **Hoàn thành 100% toàn bộ chuỗi 8 task CI01–CI08!**
+- **Kiểm chứng:**
+  - `npx --yes yaml-lint .github/workflows/*.yml`: PASS 100% (0 errors).
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\rollback.ps1 -PreviousManifest nonexistent.json`: Bắt đúng lỗi manifest không tồn tại.
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\rollback.ps1 -?`: Trả về cú pháp trợ giúp chính xác, không lỗi parser.
+  - `powershell -ExecutionPolicy Bypass -File .\init.ps1`: PASS 100% (FE 4 suites + BE Release build + 57 unit tests + 9 integration tests).
+- **Trạng thái tổng thể CI/CD:** Hoàn thành trọn vẹn toàn bộ 8/8 tính năng CI01–CI08 trong kế hoạch triển khai.
+
 ## Phiên CI07 — 2026-10-24 — Promotion Production có Kiểm Soát
 
 - **Tính năng:** CI07 — Promotion production có kiểm soát (`.github/workflows/deploy-production.yml`, `scripts/deploy/promote-production.sh`, `scripts/deploy/promote-production.ps1`, `scripts/deploy/backup.ps1`, `scripts/deploy/deploy.ps1`, `scripts/deploy/generate-manifest.ps1`, `scripts/ci/smoke.ps1`, `.gitignore`).

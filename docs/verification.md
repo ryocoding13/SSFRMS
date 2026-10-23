@@ -16,6 +16,12 @@
 | BE Test (Unit) | `dotnet test StorageProject.Tests/StorageProject.Tests.csproj` | 57/57 test xUnit PASS |
 | BE Test (SQL Integration) | `.\scripts\ci\run-integration.ps1` hoặc `scripts/ci/run-integration.sh` | 9/9 test xUnit PASS (kết nối SQL Server thật) |
 | BE EF Tool | `dotnet tool restore` | PASS (dotnet-ef 10.0.12 từ .config/dotnet-tools.json) |
+| CI Local Runner | `.\scripts\ci\run-ci.ps1` hoặc `bash scripts/ci/run-ci.sh` | Chạy toàn bộ luồng CI Gate trên máy local |
+| Container Smoke | `.\scripts\ci\smoke.ps1` hoặc `bash scripts/ci/smoke.sh` | Smoke test kiểm tra 5 tiêu chí bản đóng gói |
+| Workflow YAML Lint | `npx --yes yaml-lint .github/workflows/*.yml` | 0 YAML syntax errors |
+| Deploy Staging | `.\scripts\deploy\deploy.ps1` hoặc `bash scripts/deploy/deploy.sh` | Triển khai 8 bước an toàn Staging |
+| Promote Production | `.\scripts\deploy\promote-production.ps1` hoặc `.sh` | Triển khai 9 bước kiểm soát Production (No Rebuild) |
+| Safe Rollback | `.\scripts\deploy\rollback.ps1` hoặc `bash scripts/deploy/rollback.sh` | Rollback an toàn (Forward-fix, no EF Down) |
 | Gọi thử API | `StorageProject.Api/StorageProject.Api.http` hoặc Swagger `/index.html` | Thủ công |
 
 ## Mức kiểm chứng theo loại thay đổi

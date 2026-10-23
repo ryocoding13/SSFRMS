@@ -399,10 +399,10 @@
       "uc": [],
       "actor": "DevOps / Kỹ thuật",
       "behavior": "Rollback, vận hành và bàn giao: script rollback an toàn (giữ schema, forward fix, restore DB có runbook), tài liệu docs/cicd.md, docs/deployment.md, docs/rollback.md",
-      "state": "not_started",
+      "state": "passing",
       "depends_on": ["CI07"],
       "verification": "Kiểm tra rollback script; review tài liệu hướng dẫn vận hành",
-      "evidence": null
+      "evidence": "2026-10-24: Đã hoàn thành toàn bộ kịch bản Rollback an toàn và bộ tài liệu vận hành: scripts/deploy/rollback.sh (chmod 100755) và scripts/deploy/rollback.ps1 gồm 7 bước chuẩn hóa (concurrency lock, resolve previous release manifest, thực thi chính sách schema forward-fix giữ nguyên cấu trúc database không chạy EF Down, tùy chọn khôi phục DB có cờ chỉ định rõ ràng, revert containers về exact SHA-256 digests, readiness probe và smoke test verification). Đã biên soạn bộ 3 tài liệu vận hành chuyên sâu: docs/cicd.md (kiến trúc CI/CD, PR gate, push main release, production promotion, ma trận biến và secrets), docs/deployment.md (sổ tay triển khai Staging/Production, cấu hình non-root container, Docker network, one-shot migrator, cron backup), docs/rollback.md (phân loại sự cố 3 cấp độ, runbook 7 bước khôi phục database từ file .bak, hướng dẫn debug và chẩn đoán). Cập nhật DECISIONS.md (Quyết định D28) và docs/verification.md. Toàn bộ 8 task CI/CD (CI01-CI08) đã hoàn thành và verified pass 100%."
     }
   ]
 }
