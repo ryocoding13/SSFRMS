@@ -1,5 +1,5 @@
 # ==============================================================================
-# SafeSpace SSFRMS — Staging Deployment Script (PowerShell)
+# SafeSpace SSFRMS - Staging Deployment Script (PowerShell)
 # ==============================================================================
 [CmdletBinding()]
 param(
@@ -12,11 +12,11 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "====================================================" -ForegroundColor Cyan
-Write-Host "  SafeSpace SSFRMS — Staging Deployment Pipeline    " -ForegroundColor Cyan
+Write-Host "  SafeSpace SSFRMS - Staging Deployment Pipeline    " -ForegroundColor Cyan
 Write-Host "====================================================" -ForegroundColor Cyan
 Write-Host "Manifest: $ManifestFile" -ForegroundColor Gray
 
-# ─── 1. Validate Manifest ─────────────────────────────────────────────────────
+# --- 1. Validate Manifest -----------------------------------------------------
 if (-not (Test-Path $ManifestFile)) {
     throw "Manifest file not found: $ManifestFile"
 }
@@ -32,7 +32,7 @@ Write-Host "API:      $apiDigest" -ForegroundColor Gray
 Write-Host "Web:      $webDigest" -ForegroundColor Gray
 Write-Host "Migrator: $migratorDigest" -ForegroundColor Gray
 
-# ─── 2. Database Backup ───────────────────────────────────────────────────────
+# --- 2. Database Backup -------------------------------------------------------
 Write-Host "`n[1/4] Running Pre-deployment Database Backup..." -ForegroundColor Yellow
 if (Test-Path "scripts/deploy/backup.ps1") {
     try {
@@ -42,11 +42,11 @@ if (Test-Path "scripts/deploy/backup.ps1") {
     }
 }
 
-# ─── 3. Run Migrator ──────────────────────────────────────────────────────────
+# --- 3. Run Migrator ----------------------------------------------------------
 Write-Host "`n[2/4] Running one-shot EF Core Database Migration..." -ForegroundColor Yellow
 Write-Host "Simulating migration run (one-shot bundle)..." -ForegroundColor Gray
 
-# ─── 4. Run Smoke Test ────────────────────────────────────────────────────────
+# --- 4. Run Smoke Test --------------------------------------------------------
 Write-Host "`n[3/4] Running Smoke Test Suite on Target..." -ForegroundColor Yellow
 if (Test-Path "scripts/ci/smoke.ps1") {
     try {
@@ -56,7 +56,7 @@ if (Test-Path "scripts/ci/smoke.ps1") {
     }
 }
 
-# ─── 5. Record Release Current ────────────────────────────────────────────────
+# --- 5. Record Release Current ------------------------------------------------
 Write-Host "`n[4/4] Recording current release manifest..." -ForegroundColor Yellow
 $currentReleasePath = "deploy/release-current.json"
 Copy-Item -Path $ManifestFile -Destination $currentReleasePath -Force

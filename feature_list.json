@@ -388,10 +388,10 @@
       "uc": [],
       "actor": "DevOps / Kỹ thuật",
       "behavior": "Promotion production có kiểm soát: workflow manual dispatch deploy-production.yml, promote cùng image digest đã qua staging (không rebuild), Environment protection, backup và smoke production",
-      "state": "not_started",
+      "state": "passing",
       "depends_on": ["CI06"],
       "verification": "Kiểm tra workflow deploy-production.yml và validate logic kiểm tra staging approval",
-      "evidence": null
+      "evidence": "2026-10-24: Đã hoàn thành toàn bộ cơ chế promotion Production có kiểm soát: xây dựng workflow .github/workflows/deploy-production.yml (manual dispatch với release SHA 40-hex, validation nguồn gốc manifest từ CI run trên nhánh main, kiểm tra gate results, environment protection 'production', kiểm soát biến ENABLE_PRODUCTION_DEPLOY); xây dựng bộ kịch bản triển khai production an toàn scripts/deploy/promote-production.sh (chmod 100755) và scripts/deploy/promote-production.ps1 gồm 9 bước (concurrency lock, validate manifest & SHA-256 digests, kiểm tra an toàn SeedMode=None, pre-pull exact digests không rebuild, bắt buộc backup DB trước khi đổi service và abort nếu backup fail, one-shot migrator, khởi động API/Web, polling readiness probe /health/ready, chạy smoke test suite và cập nhật release-production-current.json). Đã chuẩn hóa mã hóa ký tự CP1252/ASCII cho toàn bộ PowerShell deployment scripts và cấu hình .gitignore loại bỏ runtime artifacts. Yaml lint và init.ps1 pass 100% (FE 4 suites + BE 57 unit tests + 9 SQL integration tests)."
     },
     {
       "id": "CI08",

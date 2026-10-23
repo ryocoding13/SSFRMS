@@ -1,5 +1,5 @@
 # ==============================================================================
-# SafeSpace SSFRMS — Container Package Smoke Test Runner (PowerShell)
+# SafeSpace SSFRMS - Container Package Smoke Test Runner (PowerShell)
 # ==============================================================================
 [CmdletBinding()]
 param(
@@ -11,11 +11,11 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "====================================================" -ForegroundColor Cyan
-Write-Host "  SafeSpace SSFRMS — Container Smoke Tests          " -ForegroundColor Cyan
+Write-Host "  SafeSpace SSFRMS - Container Smoke Tests          " -ForegroundColor Cyan
 Write-Host "====================================================" -ForegroundColor Cyan
 Write-Host "Target Base URL: $BaseUrl" -ForegroundColor Gray
 
-# ─── Helper function ──────────────────────────────────────────────────────────
+# --- Helper function ----------------------------------------------------------
 function Test-HttpEndpoint {
     param(
         [string]$Url,
@@ -44,7 +44,7 @@ function Test-HttpEndpoint {
 }
 
 try {
-    # ─── 1. Health & Liveness Probe ───────────────────────────────────────────
+    # --- 1. Health & Liveness Probe -------------------------------------------
     Write-Host "`n[1/5] Checking Liveness Probe (/health)..." -ForegroundColor Yellow
     $liveness = Test-HttpEndpoint -Url "$BaseUrl/health" -ExpectedContentType "application/json" -Retries $MaxRetries
     $liveJson = $liveness.Content | ConvertFrom-Json
@@ -53,7 +53,7 @@ try {
     }
     Write-Host "Liveness: PASS (Status: Healthy)" -ForegroundColor Green
 
-    # ─── 2. Readiness Probe (SQL Server Connectivity) ─────────────────────────
+    # --- 2. Readiness Probe (SQL Server Connectivity) -------------------------
     Write-Host "`n[2/5] Checking Readiness Probe (/health/ready)..." -ForegroundColor Yellow
     $readiness = Test-HttpEndpoint -Url "$BaseUrl/health/ready" -ExpectedContentType "application/json" -Retries $MaxRetries
     $readyJson = $readiness.Content | ConvertFrom-Json
@@ -62,7 +62,7 @@ try {
     }
     Write-Host "Readiness: PASS (Status: Ready, Database: Connected)" -ForegroundColor Green
 
-    # ─── 3. API Catalog Endpoint (/api/facilities) ────────────────────────────
+    # --- 3. API Catalog Endpoint (/api/facilities) ----------------------------
     Write-Host "`n[3/5] Checking API Reverse Proxy (/api/facilities)..." -ForegroundColor Yellow
     $facilitiesResp = Test-HttpEndpoint -Url "$BaseUrl/api/facilities" -ExpectedContentType "application/json" -Retries 3
     $facilities = $facilitiesResp.Content | ConvertFrom-Json
@@ -71,7 +71,7 @@ try {
     }
     Write-Host "API Gateway: PASS (Retrieved $($facilities.Count) facilities)" -ForegroundColor Green
 
-    # ─── 4. Frontend SPA Entry Point (/) ──────────────────────────────────────
+    # --- 4. Frontend SPA Entry Point (/) --------------------------------------
     Write-Host "`n[4/5] Checking Frontend Web Entry Point (index.html)..." -ForegroundColor Yellow
     $htmlResp = Test-HttpEndpoint -Url "$BaseUrl/" -ExpectedContentType "text/html" -Retries 3
     $htmlContent = $htmlResp.Content
@@ -80,7 +80,7 @@ try {
     }
     Write-Host "Frontend HTML: PASS (Contains root container)" -ForegroundColor Green
 
-    # ─── 5. Static Assets & MIME-Type Check ───────────────────────────────────
+    # --- 5. Static Assets & MIME-Type Check -----------------------------------
     Write-Host "`n[5/5] Checking Static Asset Delivery & Cache Headers..." -ForegroundColor Yellow
     if ($htmlContent -match 'src="(\./assets/[^"]+\.js)"') {
         $assetPath = $matches[1].TrimStart('.')
@@ -91,7 +91,7 @@ try {
         Write-Host "Asset check note: Bundled JS asset resolved via index.html structure" -ForegroundColor Gray
     }
 
-    # Đảm bảo không chứa hardcode localhost:5151 trong bundle HTML
+    # dam bao khong chua hardcode localhost:5151 trong bundle HTML
     if ($htmlContent -match 'localhost:5151') {
         throw "Security/Deployment violation: Detected hardcoded 'localhost:5151' in frontend bundle"
     }

@@ -16,6 +16,38 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên CI07 — 2026-10-24 — Promotion Production có Kiểm Soát
+
+- **Tính năng:** CI07 — Promotion production có kiểm soát (`.github/workflows/deploy-production.yml`, `scripts/deploy/promote-production.sh`, `scripts/deploy/promote-production.ps1`, `scripts/deploy/backup.ps1`, `scripts/deploy/deploy.ps1`, `scripts/deploy/generate-manifest.ps1`, `scripts/ci/smoke.ps1`, `.gitignore`).
+- **Nền:** Nhánh `feature/cicd-ci07` (kế thừa commit `b11d908` từ CI06).
+- **Đã xong:**
+  - **Xây dựng Workflow Promotion Production (`.github/workflows/deploy-production.yml`):**
+    - Kích hoạt qua `workflow_dispatch` với input `release_sha` (kiểm tra regex `^[0-9a-fA-F]{40}$` nghiêm ngặt) và `run_id` tùy chọn.
+    - Chạy độc quyền trên default branch `main` tin cậy, ngăn chặn thực thi ref/branch tùy ý với production secrets.
+    - Tự động truy vấn và xác thực release manifest từ CI run thành công trên `main` qua GitHub CLI API.
+    - Kiểm tra provenance và tính toàn vẹn: cam kết chỉ promote release có `gateResults` (frontend, backend, integration, container) đều đạt `success`, image digests tuân thủ `sha256:...`.
+    - Thiết lập GitHub Environment `production` (hỗ trợ required reviewers / protection rules) và kiểm soát an toàn qua biến `ENABLE_PRODUCTION_DEPLOY` (chế độ Standby ghi rõ trạng thái lên `$GITHUB_STEP_SUMMARY` khi chưa cấu hình host).
+  - **Xây dựng Bộ Kịch Bản Triển Khai Production (`scripts/deploy/promote-production.sh` [100755] & `scripts/deploy/promote-production.ps1`):**
+    - Quy trình 9 bước bảo vệ Production tối đa:
+      1. Khóa deploy production (`/tmp/safespace-prod-deploy.lock`) chống xung đột tiến trình.
+      2. Xác thực release manifest, kiểm tra 4 gate checks pass và trích xuất exact digests.
+      3. Kiểm tra an toàn cấu hình môi trường: nghiêm cấm `Database__SeedMode` là Development/Staging trên Production.
+      4. Pre-pull images theo exact digest, cam kết **tuyệt đối KHÔNG rebuild mã nguồn** trên Production.
+      5. Bắt buộc sao lưu database Production (`safespace-prod-sqlserver` -> `/var/backups/safespace/prod/`) trước khi can thiệp schema; fail backup => dừng triển khai ngay lập tức.
+      6. Tạm dừng API/Web cũ, chạy one-shot migrator container; fail migration => dừng ngay, không chuyển sang app mới.
+      7. Khởi động API và Web production containers mới theo digest.
+      8. Chờ readiness probe `/health/ready` sẵn sàng (retry 30 lần, timeout 60s).
+      9. Thực thi smoke test suite và lưu trữ lịch sử release tại `deploy/releases/prod_<timestamp>_<sha>.json`.
+  - **Tối ưu Tương Thích & An Toàn Môi Trường:**
+    - Chuẩn hóa toàn bộ PowerShell scripts trong `scripts/deploy/` và `scripts/ci/` sang mã hóa ký tự tương thích CP1252/PowerShell 5.1 (tránh lỗi ngắt dòng do Unicode box-drawing).
+    - Bổ sung cấu hình `.gitignore` loại trừ thư mục runtime backups (`deploy/backups/`), releases (`deploy/releases/`) và manifest tạm thời.
+- **Kiểm chứng:**
+  - `npx --yes yaml-lint .github/workflows/deploy-production.yml .github/workflows/ci.yml`: PASS (0 YAML errors).
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\promote-production.ps1 -ManifestFile nonexistent.json`: Bắt đúng lỗi không tìm thấy manifest.
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\promote-production.ps1 -ManifestFile artifacts/release-manifest.json`: Kiểm tra xác thực manifest và digests thành công; dừng an toàn tại bước backup khi chưa có SQL Server Production container.
+  - `powershell -ExecutionPolicy Bypass -File .\init.ps1`: PASS 100% (FE 4 suites + BE Release build + 57 unit tests + 9 integration tests).
+- **Phiên sau:** Bắt đầu Task CI08 — Rollback, vận hành và bàn giao (`scripts/deploy/rollback.sh`, `scripts/deploy/rollback.ps1`, tài liệu `docs/cicd.md`, `docs/deployment.md`, `docs/rollback.md`, kiểm tra tổng thể).
+
 ## Phiên CI06 — 2026-10-24 — Publish Release Packages và Tự động hóa Deploy Staging
 
 - **Tính năng:** CI06 — Publish release và tự deploy staging (`deploy/release-manifest.schema.json`, `scripts/deploy/generate-manifest.ps1`, `scripts/deploy/generate-manifest.sh`, `scripts/deploy/backup.ps1`, `scripts/deploy/backup.sh`, `scripts/deploy/deploy.ps1`, `scripts/deploy/deploy.sh`, `.github/workflows/ci.yml`).

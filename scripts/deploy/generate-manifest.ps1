@@ -1,5 +1,5 @@
 # ==============================================================================
-# SafeSpace SSFRMS — Release Manifest Generator (PowerShell)
+# SafeSpace SSFRMS - Release Manifest Generator (PowerShell)
 # ==============================================================================
 [CmdletBinding()]
 param(
