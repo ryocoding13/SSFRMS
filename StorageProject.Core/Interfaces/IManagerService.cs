@@ -10,7 +10,6 @@ public interface IManagerService
     Task ApproveRenewalAsync(long userId, string id, CancellationToken ct = default);
     Task RejectRenewalAsync(long userId, string id, RejectRenewalRequest request, CancellationToken ct = default);
     Task AddContractReminderAsync(long userId, string id, AddReminderRequest request, CancellationToken ct = default);
-    Task ConfirmRefundAsync(long userId, string id, CancellationToken ct = default);
 
     // Facility storage unit management (UC13)
     Task<IReadOnlyList<OpsUnitDto>> GetFacilityUnitsAsync(long userId, CancellationToken ct = default);

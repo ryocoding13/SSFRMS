@@ -109,6 +109,21 @@ public sealed class CheckoutTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => new StaffService(f.Db).ConfirmPaymentAsync(1, "SS-0001"));
         Assert.Empty(await f.Db.Payments.ToListAsync());
     }
+    [Fact] public async Task ReservedUnitBecomesOccupiedOnStartDateOnly() {
+        await using var f = await Fixture.Create();
+        Assert.True(await f.PayOS.ProcessWebhookAsync("{}", null));
+        var unit = await f.Db.StorageUnits.SingleAsync();
+        Assert.Equal("RESERVED", unit.Status);
+        Assert.Equal(0, await UnitStartActivation.ActivateAsync(f.Db)); // chưa đến StartDate
+        Assert.Equal("RESERVED", unit.Status);
+        var contract = await f.Db.RentalContracts.SingleAsync();
+        contract.StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        await f.Db.SaveChangesAsync();
+        Assert.Equal(1, await UnitStartActivation.ActivateAsync(f.Db));
+        Assert.Equal("OCCUPIED", unit.Status);
+        Assert.Equal(0, await UnitStartActivation.ActivateAsync(f.Db)); // chạy lại không ghi thêm
+        Assert.Single(await f.Db.UnitStatusHistories.Where(h => h.NewStatus == "OCCUPIED").ToListAsync());
+    }
     [Fact] public async Task UnitMaintenanceWritesHistoryAndRefusesOccupiedUnit() {
         await using var f = await Fixture.Create(); var staff = new StaffService(f.Db);
         await Assert.ThrowsAsync<ArgumentException>(() => staff.UpdateUnitStatusAsync(1, "K01", new UpdateUnitStatusRequest { Status = "MAINTENANCE" }));

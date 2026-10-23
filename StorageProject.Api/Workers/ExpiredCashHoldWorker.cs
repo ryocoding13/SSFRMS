@@ -11,7 +11,9 @@ public sealed class ExpiredCashHoldWorker(IServiceScopeFactory scopes, ILogger<E
         do {
             try {
                 using var scope = scopes.CreateScope();
-                await CashHoldExpiry.ExpireAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>(), stoppingToken);
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                await CashHoldExpiry.ExpireAsync(db, stoppingToken);
+                await UnitStartActivation.ActivateAsync(db, stoppingToken);
             } catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
             catch (Exception ex) { logger.LogError(ex, "Không xử lý được các đơn hết hạn giữ chỗ"); }
         } while (await timer.WaitForNextTickAsync(stoppingToken));

@@ -45,6 +45,22 @@ public static class ReservationEndpoints
             }
         });
 
+        group.MapGet("/{id:long}/cancel-preview", async (long id, ClaimsPrincipal user, IReservationService reservationService, CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await reservationService.GetCancelPreviewAsync(user.GetUserId(), id, ct));
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return Results.NotFound(new { error = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
         group.MapPost("/{id:long}/cancel", async (long id, CancelReservationRequest request, ClaimsPrincipal user, IReservationService reservationService, CancellationToken ct) =>
         {
             try

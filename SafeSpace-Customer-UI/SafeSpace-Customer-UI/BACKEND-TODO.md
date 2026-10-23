@@ -23,7 +23,7 @@ tên route + tên trường JSON là giao diện chạy ngay, không phải sử
 | Q1 | `GET /api/contracts/{id}/access-qr` → `AccessQrDto` | Tiến | Popup C07q báo "Mã QR đang được cơ sở kích hoạt" |
 | Q2 | `POST /api/access/scan` `{ code }` → `ScanResultDto` (cho phép không đăng nhập — máy quét ở cửa) | Tiến | Màn `#/door` báo "Máy quét chưa kết nối được hệ thống" |
 | R1 | `GET /api/tickets/{id}` trả thêm `responses[]` | Ngọc Mai | C12 không hiện dòng phản hồi |
-| H1 | `GET /api/reservations/{id}/cancel-preview` → `CancelPreviewDto`; `ReservationDto` thêm `refundAmount`, `refundStatus` | Ngọc Mai | C14a ghi "Theo chính sách hiện hành / Cơ sở xác nhận sau khi huỷ" |
+| H1 | **Đã viết (D27)** `GET /api/reservations/{id}/cancel-preview` → `CancelPreviewDto`; `ReservationDto` thêm `refundAmount`, `refundStatus` (`PENDING` / `COMPLETED`). Chờ nhóm build và kiểm thử | Ngọc Mai, Đạt, Thắng | C14a ghi "Theo chính sách hiện hành / Cơ sở xác nhận sau khi huỷ" |
 | U1 | **Đã nối** `PUT /api/staff/units/{mã}/status` `{ status, reason }` có sẵn trên main (nhân viên + quản lý). Còn thiếu: kiểm chuyển tiếp hợp lệ, bắt buộc lý do, trạng thái `INSPECTION` | Thắng | — |
 
 ### P · PayOS (D19) và thanh toán tại cửa hàng
@@ -66,10 +66,10 @@ Hợp đồng quá hạn có khoá QR hay không: nhóm chốt (giao diện ch�
 
 ### H · Huỷ đơn đã thanh toán (Ngọc Mai)
 ```json
-// CancelPreviewDto — theo chính sách CANCELLATION đang hiệu lực ở B02
-{ "paidAmount": 4600000, "cancellationFee": 345000, "refundAmount": 4255000, "policyName": "Huỷ trước ngày nhận kho: phí 10% tiền thuê" }
+// CancelPreviewDto — theo D27 (ví dụ: cọc 1.150.000 đ, tiền thuê 3.450.000 đ)
+{ "paidAmount": 4600000, "cancellationFee": 115000, "refundAmount": 4485000, "policyName": "Huỷ trước ngày bắt đầu: phí 10% tiền cọc, hoàn đủ tiền thuê và 90% tiền cọc" }
 ```
-`POST /api/reservations/{id}/cancel` (đã có, nhận `PENDING_PAYMENT` / `CONFIRMED`) với đơn đã trả: ghi khoản `REFUND`, trả
+`POST /api/reservations/{id}/cancel` (đã có, nhận `PENDING_PAYMENT` / `CONFIRMED`) với đơn đã trả: ghi một khoản `REFUND` (`PENDING`, `BANK_TRANSFER`), trả
 `refundAmount` + `refundStatus: "PENDING"` trong `ReservationDto` để C14b hiện "Đã huỷ · Đang hoàn tiền".
 
 ### U · Đổi trạng thái ô kho — F12 (Thắng)
@@ -329,7 +329,7 @@ Luật nghiệp vụ chi tiết (điều kiện chặn, chuyển trạng thái) 
 }
 ```
 
-## D27 — Hoàn tiền và cọc (chốt 22/10/2026, chưa code)
+## D27 — Hoàn tiền và cọc (chốt 22/10/2026; code đã viết, chờ nhóm build và kiểm thử)
 
 Nguồn: DECISIONS.md D27. Các việc backend cần làm:
 
@@ -341,4 +341,12 @@ Nguồn: DECISIONS.md D27. Các việc backend cần làm:
 - Ghi trạng thái hoàn khi Quản lý xác nhận ở M07; chuyển khoản thủ công.
 - Đồng bộ FE: appReducer.js `CANCEL_FEE_RATE` và màn C14a phải theo công thức trên.
 
+Trạng thái triển khai D27 (22/10/2026):
 
+- `StorageProject.Core/Policies/RefundPolicy.cs`: hàm thuần tính 3 tình huống (huỷ trước StartDate, dừng sớm, trả kho) kèm `OverdueFeeFor` đọc tham số `OVERDUE`; thiếu hoặc không hỗ trợ cấu hình thì báo lỗi, không tự đặt mức phí. Phí quá hạn: `PERCENTAGE` = % tiền thuê tháng mỗi ngày trễ, `FIXED` = số tiền cố định mỗi ngày trễ.
+- `GET /api/reservations/{id}/cancel-preview` và `POST /api/reservations/{id}/cancel`: đơn đã thanh toán chỉ huỷ được trước StartDate (giờ Việt Nam); ghi đúng một khoản `REFUND` trạng thái `PENDING`.
+- `POST /api/ops/reservations/{id}/refund` (M07, chỉ quản lý): xác nhận đã chuyển khoản hoàn cho đơn đã huỷ, `PENDING` → `PAID`, chỉ chạy được một lần.
+- `POST /api/ops/contracts/{id}/refund` (M07): tính theo D27 từ biên bản trả kho. Trả trước EndDate = dừng sớm; trễ so với EndDate = quá hạn. Ghi một khoản `REFUND` gồm hoàn thuê + hoàn cọc; hư hỏng/quá hạn chỉ trừ trong phạm vi cọc, phần thiếu giữ trạng thái chưa thanh toán (công nợ).
+- Giao diện: `cancelPreviewOf` (appReducer.js) tính 10% tiền cọc; C14a hiển thị phí và số hoàn theo đó. Còn thiếu: nút xác nhận hoàn cho đơn đã huỷ ở màn M07.
+- Đường cũ `POST /api/manager/contracts/{id}/refund` giờ gọi chung `FacilityOpsService.ConfirmRefundAsync` (D27); đã bỏ `ManagerService.ConfirmRefundAsync` (trước đây đặt trạng thái `ENDED` không hợp lệ). Id phải là mã hiển thị `HĐ-…` như `/api/ops`; tài khoản ADMIN không có cơ sở được phân công nên nhận 403.
+- F12 · RESERVED → OCCUPIED: `UnitStartActivation` (chạy cùng worker mỗi phút) chuyển ô đang giữ chỗ sang đang thuê khi hợp đồng ACTIVE/EXPIRING đến `StartDate` (giờ Việt Nam), ghi `unit_status_histories`. Nhận chìa khóa vẫn không đổi trạng thái ô (D26). Chuyển RESERVED/OCCUPIED bằng tay vẫn bị chặn ở `UnitStatusRules`.

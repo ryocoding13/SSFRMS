@@ -28,4 +28,6 @@ public interface IFacilityOpsService
     Task RejectRenewalAsync(OpsActor actor, string id, OpsRejectRequest request, CancellationToken ct = default);
     Task RemindAsync(OpsActor actor, string id, OpsNoteRequest request, CancellationToken ct = default);
     Task<decimal> ConfirmRefundAsync(OpsActor actor, string id, CancellationToken ct = default);
+    /// <summary>M07 · Xác nhận đã chuyển khoản hoàn tiền cho đơn đã huỷ (D27).</summary>
+    Task<decimal> ConfirmReservationRefundAsync(OpsActor actor, string id, CancellationToken ct = default);
 }

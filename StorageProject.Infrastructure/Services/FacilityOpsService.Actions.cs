@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using StorageProject.Core.DTOs.FacilityOps;
 using StorageProject.Core.Entities;
+using StorageProject.Core.Policies;
 
 namespace StorageProject.Infrastructure.Services;
 
@@ -373,29 +374,50 @@ public partial class FacilityOpsService
         await dbContext.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// M07 · Hoàn cọc sau biên bản trả kho theo chính sách D27 (xem <see cref="RefundPolicy"/>).
+    /// Ghi đúng một khoản REFUND; khoản hư hỏng / quá hạn chỉ được trừ trong phạm vi tiền cọc còn lại,
+    /// phần thiếu giữ nguyên trạng thái chưa thanh toán (công nợ của khách).
+    /// </summary>
     public async Task<decimal> ConfirmRefundAsync(OpsActor actor, string id, CancellationToken ct = default)
     {
         RequireManager(actor);
         var facility = await FacilityOfAsync(actor, ct);
         var contract = await ContractAsync(facility.FacilityId, id, ct);
-        if (contract.Status != "RETURN_PENDING" || !contract.ReturnInspections.Any(i => i.Status == "COMPLETED"))
+        var inspection = contract.ReturnInspections.Where(i => i.Status == "COMPLETED")
+            .OrderByDescending(i => i.InspectedAt ?? i.CreatedAt).FirstOrDefault();
+        if (contract.Status != "RETURN_PENDING" || inspection == null)
         {
             throw new InvalidOperationException("Hợp đồng chưa có biên bản trả kho.");
         }
+        if (contract.Payments.Any(p => p.PaymentType == "REFUND"))
+        {
+            throw new InvalidOperationException("Hợp đồng đã ghi nhận hoàn tiền.");
+        }
 
         var now = NowUtc;
-        var unpaidPayments = contract.Payments.Where(p => (p.Status == "PENDING" || p.Status == "FAILED") && p.PaymentType != "REFUND").ToList();
-        var unpaid = unpaidPayments.Sum(p => p.Amount);
-        var refund = Math.Max(0, contract.DepositAmount - unpaid);
-
-        // Khoản còn nợ được trừ vào tiền cọc
-        foreach (var p in unpaidPayments)
+        var returnDate = DateOnly.FromDateTime((inspection.InspectedAt ?? now) + VnOffset);
+        var scenario = returnDate < contract.EndDate ? RefundScenario.EarlyStop : RefundScenario.NormalReturn;
+        var overdueDays = Math.Max(0, returnDate.DayNumber - contract.EndDate.DayNumber);
+        decimal overdueFee = 0;
+        if (overdueDays > 0)
         {
-            p.Status = "PAID";
-            p.PaidAt = now;
-            p.TransactionReference = "Trừ vào tiền cọc";
-            p.UpdatedAt = now;
+            var policy = await OpsRules.FindApplicablePolicyAsync(dbContext, "OVERDUE", facility.FacilityId,
+                contract.Unit.UnitTypeId, returnDate, ct);
+            overdueFee = RefundPolicy.OverdueFeeFor(policy?.CalculationType, policy?.Value, contract.AgreedMonthlyRate, overdueDays);
         }
+        var rentPaid = contract.Payments.Where(p => p.PaymentType == "RENT" && p.Status == "PAID").Sum(p => p.Amount);
+        var result = RefundPolicy.Calculate(new RefundInput(scenario, contract.DepositAmount, rentPaid,
+            contract.StartDate, contract.EndDate, returnDate,
+            HygieneViolation: inspection.CleaningRequired || inspection.CleaningFee > 0 || inspection.ConditionStatus == "DIRTY",
+            Overdue: overdueDays > 0, DamageFee: inspection.DamageFee, OverdueFee: overdueFee));
+
+        // Khoản đã phát sinh trên hợp đồng được bù trừ bằng đúng phần đã trừ vào cọc; phần còn lại vẫn là nợ.
+        SettleFromDeposit(contract, "DAMAGE_FEE", result.DamageDeduction, now);
+        SettleFromDeposit(contract, "OVERDUE_FEE", result.OverdueDeduction, now);
+        if (result.FixedDeduction > 0) SettleFromDeposit(contract, "CLEANING_FEE", decimal.MaxValue, now);
+
+        var refund = result.Total;
         if (refund > 0)
         {
             dbContext.Payments.Add(new Payment
@@ -413,8 +435,55 @@ public partial class FacilityOpsService
             oc.ResolvedAt = now;
         }
         SetUnitStatus(contract.Unit, "AVAILABLE", actor.UserId, $"Đã trả kho, hoàn cọc · {ContractCode(contract)}");
-        Log(actor.UserId, LogAction.DepositRefunded, LogEntity.Contract, contract.ContractId, new { refund, deducted = unpaid });
+        Log(actor.UserId, LogAction.DepositRefunded, LogEntity.Contract, contract.ContractId, new
+        {
+            refund, scenario = scenario.ToString(), rentRefund = result.RentRefund, depositRefund = result.DepositRefund,
+            fixedDeduction = result.FixedDeduction, damage = result.DamageDeduction, overdue = result.OverdueDeduction,
+            debt = result.Debt, overdueDays
+        });
         await dbContext.SaveChangesAsync(ct);
         return refund;
+    }
+
+    // Đánh dấu khoản chưa thanh toán loại `type` là đã trừ vào cọc tới tối đa `budget`; khoản trả một phần được tách đôi.
+    private void SettleFromDeposit(RentalContract contract, string type, decimal budget, DateTime now)
+    {
+        foreach (var p in contract.Payments.Where(p => p.PaymentType == type && (p.Status == "PENDING" || p.Status == "FAILED"))
+                     .OrderBy(p => p.PaymentId).ToList())
+        {
+            if (budget <= 0) break;
+            if (p.Amount <= budget)
+            {
+                budget -= p.Amount;
+                p.Status = "PAID"; p.PaidAt = now; p.UpdatedAt = now; p.TransactionReference = "Trừ vào tiền cọc";
+                continue;
+            }
+            dbContext.Payments.Add(new Payment
+            {
+                ContractId = p.ContractId, PaymentType = p.PaymentType, Amount = budget, Currency = p.Currency,
+                PaymentMethod = p.PaymentMethod, TransactionReference = "Trừ vào tiền cọc", DueDate = p.DueDate,
+                PaidAt = now, Status = "PAID", CreatedAt = now, UpdatedAt = now
+            });
+            p.Amount -= budget; p.UpdatedAt = now;
+            budget = 0;
+        }
+    }
+
+    /// <summary>M07 · Quản lý xác nhận đã chuyển khoản hoàn tiền cho đơn đã huỷ (khoản REFUND ghi lúc khách huỷ).</summary>
+    public async Task<decimal> ConfirmReservationRefundAsync(OpsActor actor, string id, CancellationToken ct = default)
+    {
+        RequireManager(actor);
+        var facility = await FacilityOfAsync(actor, ct);
+        var r = await ReservationAsync(facility.FacilityId, id, ct);
+        if (r.Status != "CANCELLED") throw new InvalidOperationException("Đơn chưa bị huỷ nên không có khoản hoàn tiền.");
+        var refunds = await dbContext.Payments.Where(p => p.ReservationId == r.ReservationId && p.PaymentType == "REFUND").ToListAsync(ct);
+        if (refunds.Count == 0) throw new InvalidOperationException("Đơn này không có khoản hoàn tiền.");
+        var pending = refunds.FirstOrDefault(p => p.Status == "PENDING")
+            ?? throw new InvalidOperationException("Khoản hoàn tiền này đã được xác nhận.");
+        var now = NowUtc;
+        pending.Status = "PAID"; pending.PaidAt = now; pending.UpdatedAt = now;
+        Log(actor.UserId, LogAction.DepositRefunded, LogEntity.Reservation, r.ReservationId, new { refund = pending.Amount, reservation = true });
+        await dbContext.SaveChangesAsync(ct);
+        return pending.Amount;
     }
 }

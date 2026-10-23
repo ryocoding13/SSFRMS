@@ -2,7 +2,8 @@ namespace StorageProject.Infrastructure.Services;
 
 public static class UnitStatusRules
 {
-    // Lifecycle transitions RESERVED/OCCUPIED/INSPECTION are owned by allocation/handover/return services.
+    // Lifecycle transitions RESERVED/OCCUPIED/INSPECTION are owned by allocation, UnitStartActivation (RESERVED → OCCUPIED
+    // khi đến StartDate) and return services.
     public static string Normalize(string status) => status.Trim().ToUpperInvariant() switch {
         "EMPTY" => "AVAILABLE", "ACTIVE" => "OCCUPIED", "WAITING_HANDOVER" => "RESERVED",
         "LOCKED" => "OUT_OF_SERVICE", var value => value

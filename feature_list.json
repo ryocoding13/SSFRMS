@@ -2,7 +2,7 @@
   "_readme": "Danh sách tính năng = ranh giới phạm vi cho AI agent. Mỗi mục: behavior (hành vi), verification (lệnh/cách kiểm chứng), state. state: not_started -> active -> passing | blocked. Chỉ đổi sang passing khi verification pass và ghi evidence. Mỗi phiên chỉ một mục active.",
   "_fe": "cd SafeSpace-Customer-UI/SafeSpace-Customer-UI && npm test && npm run test:render && npm run build",
   "_be": "dotnet build StorageProject.slnx",
-  "updated": "2026-10-20",
+  "updated": "2026-10-22",
   "features": [
     {
       "id": "F01", "flow": 1, "uc": ["UC01"], "actor": "Khách hàng",
@@ -303,6 +303,19 @@
       "state": "active",
       "verification": "npm run check:structure; npm test; npm run test:business; npm run test:render; npm run build; dotnet build/test -m:1; ./init.sh; kiểm tra browser và PayOS/SQL Server thật",
       "evidence": "Bàn giao 22/10: browser 13 nhóm PASS; FE 76/76, business 9/9, SSR 92 route, structure/build đạt; backend build + 40 test SQLite. Chờ nhóm kiểm PayOS/SQL Server/thiết bị cửa thật trước merge."
+    },
+    {
+      "id": "F39",
+      "flow": [
+        1,
+        3,
+        6
+      ],
+      "actor": "Đạt + Thắng",
+      "behavior": "Chính sách cọc và hoàn tiền D27: RefundPolicy tính 3 tình huống (huỷ trước StartDate, dừng sớm, trả kho), cancel-preview, ghi một khoản REFUND khi huỷ, M07 xác nhận hoàn, C14a/B02 hiển thị theo D27, ô kho RESERVED → OCCUPIED khi đến StartDate (F12), đường hoàn cọc cũ dùng chung logic D27",
+      "state": "active",
+      "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx --no-build -m:1 (RefundPolicyTests); npm test; npm run test:render; npm run check:structure; npm run build; kiểm tra huỷ đơn, cancel-preview và M07 trên SQL Server của nhóm",
+      "evidence": "2026-10-22: viết xong code BE (RefundPolicy, GetCancelPreviewAsync, CancelReservationAsync ghi REFUND PENDING, ConfirmRefundAsync theo D27, POST /api/ops/reservations/{id}/refund) và 11 test xUnit cho công thức, UnitStartActivation (RESERVED → OCCUPIED) và test ReservedUnitBecomesOccupiedOnStartDateOnly. Lượt đầu đã build + 51 test đạt trên máy nhóm; phần bổ sung F12 và đường hoàn cọc cũ chưa được biên dịch (không có .NET SDK trong phiên); FE: npm test 76/76, test:render, check:structure, build đạt (xem progress.md). Giữ active đến khi nhóm chạy dotnet build/test và kiểm thử luồng thật."
     }
   ]
 }
