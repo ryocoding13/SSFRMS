@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Button, Dialog, Field, PageHeader } from "../../../shared/components/UI.jsx";
 import { go } from "../../../app/router.js";
 import { maskPhone } from "../../../shared/utils/format.js";
@@ -12,13 +12,28 @@ export default function CustomerProfilePage() {
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
   const [pwErrors, setPwErrors] = useState({});
   const [dialog, setDialog] = useState(null);
+  const [savingName, setSavingName] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+  const namePending = useRef(false);
+  const passwordPending = useRef(false);
 
   const saveName = async (e) => {
     e.preventDefault();
-    const res = await dispatch("UPDATE_NAME", { name });
-    if (!res.ok) return setNameError(res.error);
-    setName(res.name);
-    setDialog({ title: "Đã lưu tên", message: "Tên hiển thị của bạn đã được cập nhật." });
+    if (namePending.current) return;
+    const fullName = name.trim();
+    if (fullName.length < 2 || fullName.length > 100) return setNameError("Tên hiển thị phải từ 2 đến 100 ký tự.");
+    namePending.current = true;
+    setSavingName(true);
+    setNameError("");
+    try {
+      const res = await dispatch("UPDATE_NAME", { name: fullName });
+      if (!res.ok) return setNameError(res.error);
+      setName(res.name);
+      setDialog({ title: "Đã lưu tên", message: "Tên hiển thị của bạn đã được cập nhật." });
+    } finally {
+      namePending.current = false;
+      setSavingName(false);
+    }
   };
 
   const setPwField = (k, v) => {
@@ -27,6 +42,7 @@ export default function CustomerProfilePage() {
   };
   const changePassword = async (e) => {
     e.preventDefault();
+    if (passwordPending.current) return;
     const err = {};
     if (!pw.current) err.current = "Vui lòng nhập mật khẩu hiện tại.";
     if (!pw.next) err.next = "Vui lòng nhập mật khẩu mới.";
@@ -38,10 +54,18 @@ export default function CustomerProfilePage() {
       err.confirmHint = "Nhập lại đúng mật khẩu mới để tiếp tục.";
     }
     if (Object.keys(err).length) return setPwErrors(err);
-    const res = await dispatch("CHANGE_PASSWORD", { current: pw.current, next: pw.next });
-    if (!res.ok) return setPwErrors(res.code === "BAD_PASSWORD" ? { current: res.error } : res.code === "UNSUPPORTED" ? { form: res.error } : { next: res.error });
-    setPw({ current: "", next: "", confirm: "" });
-    setDialog({ title: "Đổi mật khẩu thành công", message: "Mật khẩu mới của bạn đã được cập nhật." });
+    passwordPending.current = true;
+    setSavingPassword(true);
+    setPwErrors({});
+    try {
+      const res = await dispatch("CHANGE_PASSWORD", { current: pw.current, next: pw.next });
+      if (!res.ok) return setPwErrors(res.code === "BAD_PASSWORD" ? { current: res.error } : { form: res.error });
+      setPw({ current: "", next: "", confirm: "" });
+      setDialog({ title: "Đổi mật khẩu thành công", message: "Mật khẩu mới của bạn đã được cập nhật." });
+    } finally {
+      passwordPending.current = false;
+      setSavingPassword(false);
+    }
   };
 
   return (
@@ -51,7 +75,7 @@ export default function CustomerProfilePage() {
         <form className="panel form-card" onSubmit={saveName} noValidate>
           <h2>Thông tin cá nhân</h2>
           <Field label="Tên tài khoản (hiển thị)" error={nameError}>
-            <input autoComplete="name" maxLength={100} value={name} onChange={(e) => { setName(e.target.value); setNameError(""); }} />
+            <input autoComplete="name" maxLength={100} disabled={savingName} value={name} onChange={(e) => { setName(e.target.value); setNameError(""); }} />
           </Field>
           <Field label="Email">
             <input readOnly value={user.email} />
@@ -61,24 +85,24 @@ export default function CustomerProfilePage() {
           </Field>
           <h3>Thông báo</h3>
           <p className="muted">Nhận nhắc lịch hẹn, hạn hợp đồng và cập nhật thanh toán trong ứng dụng.</p>
-          <Button type="submit">Lưu tên tài khoản</Button>
+          <Button type="submit" disabled={savingName}>{savingName ? "Đang lưu…" : "Lưu tên tài khoản"}</Button>
         </form>
 
         <form className="panel form-card" onSubmit={changePassword} noValidate>
           <h2>Đổi mật khẩu</h2>
           <Field label="Mật khẩu hiện tại" error={pwErrors.current}>
-            <input type="password" autoComplete="current-password" value={pw.current} onChange={(e) => setPwField("current", e.target.value)} />
+            <input type="password" autoComplete="current-password" disabled={savingPassword} value={pw.current} onChange={(e) => setPwField("current", e.target.value)} />
           </Field>
           <Field label="Mật khẩu mới" error={pwErrors.next}>
-            <input type="password" autoComplete="new-password" value={pw.next} onChange={(e) => setPwField("next", e.target.value)} />
+            <input type="password" autoComplete="new-password" disabled={savingPassword} value={pw.next} onChange={(e) => setPwField("next", e.target.value)} />
           </Field>
           <Field label="Xác nhận mật khẩu mới" error={pwErrors.confirm}>
-            <input type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPwField("confirm", e.target.value)} />
+            <input type="password" autoComplete="new-password" disabled={savingPassword} value={pw.confirm} onChange={(e) => setPwField("confirm", e.target.value)} />
           </Field>
           {pwErrors.confirmHint && <p className="field__error field__error--plain">{pwErrors.confirmHint}</p>}
           {!supports.changePassword && <p className="hint">Đổi mật khẩu đang tạm ngưng trên hệ thống. Liên hệ quản trị viên SafeSpace nếu cần đặt lại mật khẩu.</p>}
           {pwErrors.form && <p className="field__error field__error--plain">{pwErrors.form}</p>}
-          <Button type="submit" disabled={!supports.changePassword}>Cập nhật mật khẩu</Button>
+          <Button type="submit" disabled={!supports.changePassword || savingPassword}>{savingPassword ? "Đang cập nhật…" : "Cập nhật mật khẩu"}</Button>
         </form>
       </div>
       <Button

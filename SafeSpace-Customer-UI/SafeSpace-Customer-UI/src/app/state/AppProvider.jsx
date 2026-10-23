@@ -236,8 +236,8 @@ function LocalProvider({ children }) {
 
 // =====================================================================
 // Chế độ API (VITE_USE_API=true)
-// Luồng backend đã có → gọi API. Luồng backend chưa có (trả kho, lịch trả kho,
-// thông báo, đổi tên hiển thị) → lưu trong trình duyệt theo từng tài khoản ("overlay").
+// Hồ sơ, mật khẩu, hỗ trợ và trả kho gọi API thật.
+// Thông báo phía khách và dữ liệu phụ dùng overlay riêng theo từng tài khoản.
 // =====================================================================
 function readSession() {
   const s = readJson(SESSION_KEY);
@@ -308,7 +308,7 @@ function ApiProvider({ children }) {
     const [reservationDetails, contractDetails, ticketDetails] = await Promise.all([
       Promise.all(reservations.filter((r) => r.status !== "CANCELLED").map((r) => api.reservation(r.reservationId).catch(() => null))),
       Promise.all(contracts.map((c) => api.contract(c.contractId).catch(() => ({ ...c, payments: [], renewals: [] })))),
-      Promise.all(tickets.map((t) => api.ticket(t.ticketId).catch(() => t))),
+      Promise.all(tickets.map((t) => api.ticket(t.ticketId))),
     ]);
     if (!refs.current.session) return;
     const next = {
@@ -352,11 +352,25 @@ function ApiProvider({ children }) {
     [endSession],
   );
 
+  const loadProfile = useCallback(async () => {
+    const current = refs.current.session;
+    if (!current) return;
+    const profile = await api.getProfile();
+    if (refs.current.session?.token !== current.token) return;
+    const next = { ...refs.current.session, user: { ...refs.current.session.user, ...profile } };
+    refs.current.session = next;
+    writeJson(SESSION_KEY, next);
+    setSession(next);
+    // Tên lấy từ máy chủ; bỏ tên cũ chỉ lưu trong trình duyệt.
+    updateOverlay(o => ({ ...o, name: null }));
+  }, [updateOverlay]);
+
   const loadAll = useCallback(async () => {
     setLoadError(null);
     try {
       await loadCatalog();
       if (refs.current.session) {
+        await loadProfile();
         if (isAdminRoles(refs.current.session.roles) || isOpsRoles(refs.current.session.roles) || isBusinessRoles(refs.current.session.roles)) setRemote(EMPTY_REMOTE);
         else await loadCustomer();
       }
@@ -364,7 +378,7 @@ function ApiProvider({ children }) {
       if (e instanceof ApiError && e.status === 401) endSession("expired");
       else setLoadError(e?.message || "Không tải được dữ liệu.");
     }
-  }, [loadCatalog, loadCustomer, endSession]);
+  }, [loadCatalog, loadCustomer, loadProfile, endSession]);
 
   useEffect(() => {
     loadAll();
@@ -402,12 +416,13 @@ function ApiProvider({ children }) {
       refs.current.overlay = saved;
       setOverlay(saved);
       setSession(next);
+      await loadProfile();
       if (isAdminRoles(next.roles) || isOpsRoles(next.roles) || isBusinessRoles(next.roles)) {
         refs.current.remote = EMPTY_REMOTE;
         setRemote(EMPTY_REMOTE);
       } else await loadCustomer();
     },
-    [loadCustomer],
+    [loadCustomer, loadProfile],
   );
 
   const login = useCallback(
@@ -607,20 +622,25 @@ function ApiProvider({ children }) {
             return { ok: true };
           }
           case "CHANGE_PASSWORD": {
-            await api.changePassword({ currentPassword: p.current_password, newPassword: p.new_password });
-            notify("Đã đổi mật khẩu thành công.");
+            try {
+              await api.changePassword({ currentPassword: p.current, newPassword: p.next });
+            } catch (e) {
+              if (e instanceof ApiError && e.data?.code === "BAD_PASSWORD") return fail(e.message, "BAD_PASSWORD");
+              throw e;
+            }
             return { ok: true };
           }
           case "UPDATE_NAME": {
-            const profile = await api.updateProfile({ fullName: p.name, phone: session?.user?.phone || null });
-            if (session) {
-              const updatedUser = { ...session.user, fullName: profile.fullName };
-              const updatedSession = { ...session, user: updatedUser };
+            const profile = await api.updateProfile({ fullName: String(p.name || "").trim() });
+            const current = refs.current.session;
+            if (current) {
+              const updatedUser = { ...current.user, ...profile };
+              const updatedSession = { ...current, user: updatedUser };
               writeJson(SESSION_KEY, updatedSession);
               refs.current.session = updatedSession;
               setSession(updatedSession);
             }
-            runLocal(type, p);
+            updateOverlay(o => ({ ...o, name: null }));
             return { ok: true, name: profile.fullName };
           }
           case "REQUEST_RETURN": {

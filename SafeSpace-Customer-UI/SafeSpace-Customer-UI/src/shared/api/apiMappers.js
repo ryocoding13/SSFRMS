@@ -159,7 +159,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
         username: session.user.username,
         full_name: overlay.name || session.user.fullName,
         email: session.user.email,
-        phone: overlay.phone || "",
+        phone: session.user.phone ?? overlay.phone ?? "",
       }
     : null;
   const base = {

@@ -285,10 +285,10 @@
         "UC11"
       ],
       "actor": "Ngọc Mai",
-      "behavior": "Tách backend C13 và S05/C12 trên main fc83c3a, độc lập với phí trả kho và huỷ/hoàn tiền",
+      "behavior": "Hoàn thiện C13 và S05/C12: nối profile/password/response API thật, kiểm endpoint HTTP và trình duyệt; độc lập với trả kho và hoàn tiền",
       "state": "active",
-      "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx --no-build -m:1; kiểm thử C13 và S05/C12 trên SQL Server của nhóm",
-      "evidence": "2026-10-21: .NET SDK 10.0.402; build PASS; xUnit 34/34 (15 test main, 19 trường hợp AuthSupport); SQLite với constraint model; check:structure PASS; FE 68/68, business 9/9, SSR 92 route, build/init PASS. init dùng wrapper dotnet -m:1 do giới hạn tiến trình. Gói chỉ BE/test/tài liệu; không migration, FE, appsettings hay FinanceService. Chờ nhóm kiểm thử lại bản tách trên SQL Server; không xác nhận đồng bộ hình ảnh Figma."
+      "verification": "dotnet test StorageProject.slnx -m:1; npm test; npm run test:business; npm run test:render; npm run check:structure; npm run build; browser theo docs/backend-auth-support.md; kiểm lại SQL Server của nhóm",
+      "evidence": "2026-10-23: sửa payload CHANGE_PASSWORD và hồ sơ lấy từ GET profile, bỏ overlay tên cũ, chặn gửi trùng; backend 54/54 PASS (52 cũ + 2 HTTP/JWT mới), FE 76/76, business 9/9, SSR 92 route, structure/build và init.sh PASS (.NET 10.0.100, wrapper -m:1). SQLite file riêng, endpoint/service thật. Giữ active vì chưa chạy SQL Server của nhóm; kết quả browser xem docs/auth-support-validation-2026-10-23.md."
     },
     {
       "id": "F38",
