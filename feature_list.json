@@ -333,10 +333,10 @@
       "uc": [],
       "actor": "DevOps / Kỹ thuật",
       "behavior": "Workflow CI cho PR và main (.github/workflows/ci.yml): job frontend (check:structure, test, test:business, test:render, build), job backend (restore, build Release, test xUnit xuất TRX, publish Release), ci-gate tổng hợp",
-      "state": "not_started",
+      "state": "passing",
       "depends_on": ["CI01"],
       "verification": "Chạy kiểm chứng local script CI tương đương ci.yml; validate cú pháp workflow YAML",
-      "evidence": null
+      "evidence": "2026-10-23: .github/workflows/ci.yml tạo với 3 job (frontend, backend, ci-gate); action pin bằng full commit SHA (checkout v4.2.2, setup-node v4.2.0, setup-dotnet v4.3.0, upload-artifact v4.6.1); npx yaml-lint PASS; scripts/ci/run-ci.ps1 và run-ci.sh mô phỏng đầy đủ 10 bước pass 100% (FE 4 suite + build, BE restore, EF tools, Release build 0 error, 52/52 xUnit test xuất backend.trx, API publish); init.ps1 PASS."
     },
     {
       "id": "CI03",

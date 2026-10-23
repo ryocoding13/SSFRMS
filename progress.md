@@ -16,6 +16,29 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên CI02 — 2026-10-23 — Xây dựng GitHub Actions CI workflow cho PR và main
+
+- **Tính năng:** CI02 — Workflow CI cho PR và main (`.github/workflows/ci.yml`, `scripts/ci/run-ci.ps1`, `scripts/ci/run-ci.sh`).
+- **Nền:** Nhánh `feature/cicd-ci02` (kế thừa commit `ea713ff` từ CI01).
+- **Đã xong:**
+  - **Tạo workflow `.github/workflows/ci.yml`:**
+    - Triggers: `pull_request` (vào `main`), `push` (trên `main`), và `workflow_dispatch`.
+    - Concurrency: Nhóm theo workflow và git ref, tự động hủy run cũ khi có push mới trên PR (`cancel-in-progress: true`).
+    - Quyền tối thiểu: `permissions: contents: read`.
+    - Pin Action bằng full SHA-1 đã xác thực: `actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683` (v4.2.2), `actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a` (v4.2.0), `actions/setup-dotnet@3951f0adf7a4399ed659394f4f7140f92f89a7ab` (v4.3.0), `actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce6ec1` (v4.6.1).
+    - Job `frontend`: Chạy đúng thư mục lồng `SafeSpace-Customer-UI/SafeSpace-Customer-UI`, cache npm theo lockfile FE, chạy đủ 4 suite: `check:structure`, `test` (76 test), `test:business` (9 test), `test:render` (92 routes), build dist và upload artifact `frontend-dist`.
+    - Job `backend`: Cài .NET 10 qua `global.json`, `dotnet restore`, `dotnet tool restore`, `dotnet build -c Release --no-restore`, `dotnet test -c Release --no-build --no-restore --logger "trx;LogFileName=backend.trx" --results-directory artifacts/test-results/backend` (52 xUnit tests), `dotnet publish -c Release --no-build --no-restore -o artifacts/api`, upload artifact `backend-test-results`.
+    - Job `ci-gate`: Tổng hợp kết quả frontend và backend, fail nếu có bất kỳ job nào thất bại/bị hủy/bị skip không hợp lệ, xuất báo cáo ra `$GITHUB_STEP_SUMMARY`.
+  - **Tạo script mô phỏng CI local (`scripts/ci/run-ci.ps1`, `scripts/ci/run-ci.sh`):** Hỗ trợ chạy toàn bộ 10 bước CI cục bộ giống hệt runner Actions.
+  - **Cập nhật `.gitignore`:** Thêm `artifacts/` để không theo dõi file kết quả test `.trx` và publish output.
+- **Kiểm chứng:**
+  - `npx --yes yaml-lint .github/workflows/ci.yml`: YAML Lint successful (0 syntax errors).
+  - Chạy `scripts\ci\run-ci.ps1` hoàn tất 10/10 bước:
+    - Frontend: check:structure PASS, 76/76 unit tests PASS, 9/9 business tests PASS, 92/92 routes render PASS, production bundle build PASS.
+    - Backend: dotnet restore PASS, dotnet tool restore PASS, Release build PASS (0 errors), 52/52 xUnit tests PASS (xuất kết quả `artifacts\test-results\backend\backend.trx`), Release publish PASS (`artifacts\api`).
+  - `powershell .\init.ps1`: PASS toàn bộ.
+- **Phiên sau:** Bắt đầu Task CI03 — Chuẩn hóa API cho deployment (tách secret khỏi appsettings.json, AutoMigrate, SeedMode, health ready kiểm tra DB, proxy forwarded headers).
+
 ## Phiên CI01 — 2026-10-23 — Chốt baseline và cấu hình tái lập pipeline CI/CD
 
 - **Tính năng:** CI01 — Chốt baseline môi trường và cấu hình tái lập (sprint contract `docs/sprints/CI-cicd-pipeline.md`, kế hoạch `SSFRMS-CICD-IMPLEMENTATION-PLAN.md`).
