@@ -3,6 +3,7 @@ import { Empty, LinkButton } from "../../shared/components/UI.jsx";
 import { UnitAllocationPage } from "../manager/allocations/UnitAllocationPage.jsx";
 import { StaffAssignmentPage } from "../manager/assignments/StaffAssignmentPage.jsx";
 import { ContractListPage } from "../manager/contracts/ContractListPage.jsx";
+import { CancellationRefundPage } from "../manager/refunds/CancellationRefundPage.jsx";
 import { ManagerResultPage } from "../manager/results/ManagerResultPage.jsx";
 import { ManagerDashboardPage } from "../manager/dashboard/ManagerDashboardPage.jsx";
 import { RenewalApprovalPage } from "../manager/renewals/RenewalApprovalPage.jsx";
@@ -44,6 +45,7 @@ const MANAGER = {
   assign: [StaffAssignmentPage, "manager/assign"],
   renewals: [RenewalApprovalPage, "manager/renewals"],
   contracts: [ContractListPage, "manager/contracts"],
+  refunds: [CancellationRefundPage, "manager/contracts"],
   report: [FacilityReportPage, "manager/report"],
   done: [ManagerResultPage, "manager"],
 };

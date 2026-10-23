@@ -92,7 +92,7 @@ const ACTIONS = {
       ...state,
       returns: patch(state.returns, id, () => ({ status: "SUBMITTED", report, submitted_at: iso(now) })),
       units: patchUnit(state.units, r.unit, () => ({ status: "INSPECTION" })),
-      contracts: state.contracts.map((c) => (c.id === r.contract ? { ...c, state: "RETURNED", due: `${money(r.unpaid)} · Chờ quản lý xác nhận hoàn cọc` } : c)),
+      contracts: state.contracts.map((c) => (c.id === r.contract ? { ...c, state: "RETURNED", due: `Còn phải thu ${money(r.unpaid)}` } : c)),
       assignments: state.assignments.map((a) => (a.ref === id ? { ...a, status: "DONE" } : a)),
     };
     return { state: addLog(next, now, `Biên bản trả kho ${r.unit} chờ quản lý xác nhận`, "manager/contracts", "MANAGER"), result: { id } };
@@ -184,6 +184,16 @@ const ACTIONS = {
       units: r ? patchUnit(state.units, r.unit, () => ({ status: "EMPTY", tenant: null, end: null })) : state.units,
     };
     return { state: addLog(next, now, `Đã xác nhận hoàn cọc ${money(refund)} · ${id}`, "manager/contracts", "MANAGER"), result: { id, refund } };
+  },
+
+  // M08 · Quản lý xác nhận đã chuyển khoản hoàn tiền cho đơn khách huỷ (D27)
+  CONFIRM_RESERVATION_REFUND(state, { id, method, transaction_ref }, now) {
+    const r = find(state.refunds || [], id, "yêu cầu hoàn tiền");
+    if (r.status !== "PENDING") fail("Khoản hoàn tiền này đã được xác nhận.");
+    const ref = String(transaction_ref || "").trim();
+    if (method !== "CASH" && !ref) fail("Nhập mã giao dịch hoàn tiền.");
+    const next = { ...state, refunds: patch(state.refunds, id, () => ({ status: "PAID", paid_at: iso(now), method: method || "BANK_TRANSFER", transaction_ref: ref || null })) };
+    return { state: addLog(next, now, `Đã xác nhận hoàn ${money(r.amount)} · ${id}`, "manager/refunds", "MANAGER"), result: { id, refund: r.amount } };
   },
 
   // M02a · F12

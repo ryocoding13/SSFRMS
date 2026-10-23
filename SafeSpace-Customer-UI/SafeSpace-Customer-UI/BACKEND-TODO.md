@@ -350,3 +350,18 @@ Trạng thái triển khai D27 (22/10/2026):
 - Giao diện: `cancelPreviewOf` (appReducer.js) tính 10% tiền cọc; C14a hiển thị phí và số hoàn theo đó. Còn thiếu: nút xác nhận hoàn cho đơn đã huỷ ở màn M07.
 - Đường cũ `POST /api/manager/contracts/{id}/refund` giờ gọi chung `FacilityOpsService.ConfirmRefundAsync` (D27); đã bỏ `ManagerService.ConfirmRefundAsync` (trước đây đặt trạng thái `ENDED` không hợp lệ). Id phải là mã hiển thị `HĐ-…` như `/api/ops`; tài khoản ADMIN không có cơ sở được phân công nên nhận 403.
 - F12 · RESERVED → OCCUPIED: `UnitStartActivation` (chạy cùng worker mỗi phút) chuyển ô đang giữ chỗ sang đang thuê khi hợp đồng ACTIVE/EXPIRING đến `StartDate` (giờ Việt Nam), ghi `unit_status_histories`. Nhận chìa khóa vẫn không đổi trạng thái ô (D26). Chuyển RESERVED/OCCUPIED bằng tay vẫn bị chặn ở `UnitStatusRules`.
+
+## M08 — Hoàn tiền đơn huỷ trên giao diện quản lý (F40, 23/10/2026)
+
+Giao diện `#/manager/refunds` (Figma M08 828:10212, M08a 828:10262) đọc danh sách từ `GET /api/ops/board` và gọi
+`POST /api/ops/reservations/{id}/refund` (đã có, D27). Backend cần bổ sung:
+
+- `GET /api/ops/board` trả thêm mảng `refunds` cho cơ sở của quản lý (đơn `CANCELLED` có khoản `REFUND`). Khi chưa có, trang hiện "Chưa có đơn huỷ cần hoàn tiền."
+- Body của `POST /api/ops/reservations/{id}/refund`: nhận và lưu `method` (`BANK_TRANSFER`) và `transactionRef` (mã giao dịch quản lý nhập). Hiện endpoint bỏ qua body.
+
+```jsonc
+// GET /api/ops/board → refunds[] (camelCase; giao diện tự đổi sang snake_case)
+{ "id": "SS-20260918-0151", "customer": "Nguyễn Hoàng Yến", "cancelledAt": "2026-10-22T08:40:00",
+  "rent": 3450000, "deposit": 1150000, "paid": 4600000, "fee": 115000, "amount": 4485000,
+  "status": "PENDING", "paidAt": null, "transactionRef": null }   // status: PENDING | PAID
+```

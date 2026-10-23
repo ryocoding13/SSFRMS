@@ -872,3 +872,20 @@ label.search-input input { border: 0; outline: 0; flex: 1; font-size: 14px; back
 .support-grid .attach span:first-child { font-size:22px; }
 .modal--access-qr .modal__actions--full { width:100%; display:flex; }
 @media(max-width:520px) { .support-access-options { flex-direction:column; } .support-access-options .btn { min-height:44px; width:100%; } }
+
+/* C14 · Đơn đặt chỗ: thao tác trên từng dòng (Figma 436:11750, 629:9047, 828:10346) */
+.table th.table__actions, .table td.table__actions { text-align: right; white-space: nowrap; }
+.row-actions { display: inline-flex; gap: 8px; justify-content: flex-end; }
+.btn.btn--danger-outline { color: var(--red); border-color: var(--red); background: #fff; }
+.hint--narrow { max-width: 440px; }
+
+/* M08 · Hoàn tiền đơn huỷ (Figma 828:10212) */
+.tone-amber { color: #b45309 !important; }
+.form-card > .btn--fit, .form-card > a.btn { justify-self: start; }
+.refund-box + .radio-list { margin-top: 4px; }
+.radio-list legend { margin-bottom: 8px; }
+
+/* Kết quả sau thao tác tại cơ sở (Figma 03a thành công / 03b thất bại) */
+.modal__state { display: none; }
+.modal:has(.modal__state--success) > h2 { color: var(--green); }
+.modal:has(.modal__state--failure) > h2 { color: var(--red); }

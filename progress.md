@@ -373,3 +373,11 @@
 - Giả định cần nhóm xác nhận: (1) dừng sớm thì khấu trừ cố định 30% đã bao gồm khoản vệ sinh 10%; (2) khoản CLEANING_FEE chờ thanh toán được coi là đã nằm trong khoản khấu trừ cố định; (3) quá hạn tính từ EndDate đến ngày biên bản trả kho; (4) khoản gia hạn (RENEWAL) không nằm trong phần hoàn tiền thuê.
 - Không push/PR/merge.
 - Bổ sung cùng F39 (cùng đợt, trước khi merge): (a) F12 ô kho RESERVED → OCCUPIED khi đến StartDate, qua UnitStartActivation chạy trong worker hiện có, có test ReservedUnitBecomesOccupiedOnStartDateOnly; (b) đường hoàn cọc cũ của quản lý gọi chung logic D27, bỏ ManagerService.ConfirmRefundAsync (lỗi: đặt trạng thái ENDED, không theo D27). Cả hai chưa biên dịch trong phiên viết code; cần dotnet build/test của nhóm. Còn lại: nút xác nhận hoàn đơn huỷ ở M07 trên giao diện.
+
+## 2026-10-23 — F40 đồng bộ Figma 23/10 (đợt 1)
+
+- Rà Figma: sửa tràn chữ C04b, chữ ngắn xuống dòng, nút lệch, thống nhất "huỷ". Cập nhật Figma theo repo: luồng đặt chỗ hiện tiền cọc, các màn huỷ/hoàn tiền theo D27, B02 phí quá hạn theo D27.
+- Code: C14 thao tác trên từng dòng + C14a–c theo D27; M08 hoàn tiền đơn huỷ (`#/manager/refunds`, action `CONFIRM_RESERVATION_REFUND` gọi `POST /api/ops/reservations/{id}/refund`); M07a xác nhận trả kho; hộp thoại xác nhận/thành công/thất bại cho nhân viên, quản lý, Vận hành KD và Admin (D28).
+- Test cập nhật có lý do: `render.test.mjs` C14 đổi chữ mong đợi từ "Chỉ huỷ được đơn chưa nhận kho" sang chữ chính sách D27 và cột "Thao tác" vì Figma C14 đổi giao diện; thêm route `manager/refunds`. Thêm test reducer M08 (phí 10% cọc, hoàn 100% thuê + 90% cọc, bắt buộc mã giao dịch, chỉ xác nhận một lần).
+- Kiểm chứng: check:structure PASS; npm test 77/77; test:business 9/9; test:render 93 route; build PASS. Chromium (dữ liệu trình duyệt + máy chủ giả lập): C14 huỷ đơn, M08 hai đơn, S04 → M07a, S09, M03, phân bổ, Admin đặt lại mật khẩu. Chưa chạy .NET/SQL Server thật; M08 cần backend trả `refunds` trong board.
+- Không push/PR/merge. Bàn giao ZIP để người dùng tự kiểm tra và push.

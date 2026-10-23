@@ -34,7 +34,7 @@ export async function loadBoard(role) {
     version: 1,
     log: [],
     payments: [], allocations: [], verifications: [], handovers: [], returns: [], tickets: [],
-    renewals: [], contracts: [], assignments: [], units: [], staff: [],
+    renewals: [], contracts: [], refunds: [], assignments: [], units: [], staff: [],
     revenue: { months: [], by_type: [], as_of: null },
     ...data,
   };
@@ -63,6 +63,8 @@ export const OPS_ACTIONS = {
   ASSIGN: ({ id, staff }) => ["PUT", `/api/ops/assignments/${enc(id)}`, { staffId: staff }],
   REMIND: ({ id, note }) => ["POST", `/api/ops/contracts/${enc(id)}/reminders`, { note: note || "" }],
   CONFIRM_REFUND: ({ id }) => ["POST", `/api/ops/contracts/${enc(id)}/refund`],
+  // M08 · D27: xác nhận đã chuyển khoản hoàn cho đơn khách huỷ (backend chưa nhận phương thức / mã giao dịch → gửi kèm để lưu sau)
+  CONFIRM_RESERVATION_REFUND: ({ id, method, transaction_ref }) => ["POST", `/api/ops/reservations/${enc(id)}/refund`, { method: method || "BANK_TRANSFER", transactionRef: String(transaction_ref || "").trim() || null }],
   CREATE_UNIT: (data) => ["POST", `/api/manager/units`, toApi(data)],
   UPDATE_UNIT: ({ id, ...data }) => ["PUT", `/api/manager/units/${enc(id)}`, toApi(data)],
   LOCK_UNIT: ({ id, reason }) => ["POST", `/api/manager/units/${enc(id)}/lock`, { reason }],

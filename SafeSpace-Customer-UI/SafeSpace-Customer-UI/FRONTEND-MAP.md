@@ -58,6 +58,7 @@
 | Quản lý cơ sở / Tổng quan — ManagerDashboardPage | `src/features/manager/dashboard/ManagerDashboardPage.jsx` |
 | Quản lý cơ sở / Gia hạn — RenewalApprovalPage | `src/features/manager/renewals/RenewalApprovalPage.jsx` |
 | Quản lý cơ sở / Báo cáo — FacilityReportPage | `src/features/manager/reports/FacilityReportPage.jsx` |
+| Quản lý cơ sở / Hoàn tiền đơn huỷ — CancellationRefundPage | `src/features/manager/refunds/CancellationRefundPage.jsx` |
 | Quản lý cơ sở / Kết quả — ManagerResultPage | `src/features/manager/results/ManagerResultPage.jsx` |
 | Quản lý cơ sở / Quản lý ô kho — UnitManagementPage | `src/features/manager/units/UnitManagementPage.jsx` |
 | Nhân viên / Tổng quan — StaffDashboardPage | `src/features/staff/dashboard/StaffDashboardPage.jsx` |
@@ -77,6 +78,7 @@
 | Kho thuê / gia hạn / trả kho | `#/units`, `#/units/:id/renew`, `#/units/:id/return` |
 | Nhân viên thu tiền / xác minh / nhận chìa khóa | `#/staff/reconcile`, `#/staff/verify`, `#/staff/keys` (alias cũ: `#/staff/handover`) |
 | Quản lý ô / phân bổ / gia hạn | `#/manager/units`, `#/manager/allocate`, `#/manager/renewals` |
+| Hoàn tiền đơn huỷ (M08) | `#/manager/refunds` |
 | Vận hành kinh doanh / quản trị | `#/business`, `#/admin` |
 
 ## Ví dụ lần theo code

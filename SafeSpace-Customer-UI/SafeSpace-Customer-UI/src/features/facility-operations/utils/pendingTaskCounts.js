@@ -14,6 +14,6 @@ export function pendingTaskCounts(ops, role, me) {
     "manager/allocate": count(ops.allocations, a => a.status === "PENDING"),
     "manager/assign": count(ops.assignments, a => a.status === "OPEN"),
     "manager/renewals": count(ops.renewals, r => r.status === "PENDING"),
-    "manager/contracts": count(ops.contracts, c => ["OVERDUE", "RETURNED"].includes(c.state)),
+    "manager/contracts": count(ops.contracts, c => ["OVERDUE", "RETURNED"].includes(c.state)) + count(ops.refunds, r => r.status === "PENDING"),
   };
 }

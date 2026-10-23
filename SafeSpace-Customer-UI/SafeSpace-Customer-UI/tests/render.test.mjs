@@ -44,7 +44,7 @@ try {
       "staff/reconcile?id=SS-20260914-0142", "staff/verify?id=XM-0142", "staff/handover?id=BG-0115", "staff/return?id=TK-0098",
       "staff/support?id=HT-0082", "staff/done?kind=payment", "staff/nope",
     ],
-    MANAGER: ["manager", "manager/units", "manager/units?tab=OVERDUE", "manager/units?tab=MAINTENANCE", "manager/allocate", "manager/assign", "manager/renewals", "manager/contracts", "manager/report", "manager/done", "staff"],
+    MANAGER: ["manager", "manager/units", "manager/units?tab=OVERDUE", "manager/units?tab=MAINTENANCE", "manager/allocate", "manager/assign", "manager/renewals", "manager/contracts", "manager/refunds", "manager/report", "manager/done", "staff"],
   };
   for (const acc of OPS_ACCOUNTS) {
     seed(true, acc);
@@ -90,7 +90,7 @@ try {
     ["units/HĐ-2026-0086", ["Xem QR &amp; PIN 6 số", "Yêu cầu gia hạn", "Đăng ký trả kho"]],
     ["payments", ["Thanh toán", "Gia hạn B-015 · 3 tháng", "Chờ thanh toán"]],
     ["support", ["Phản hồi của nhân viên", "Thẻ cũ bị lỗi từ"]],
-    ["reservations", ["Huỷ đơn SS-0142", "Chỉ huỷ được đơn chưa nhận kho"]],
+    ["reservations", ["Huỷ đơn SS-0142", "Thao tác", "phí huỷ 10% tiền cọc"]],
     ["find/1", ["Chỉ đường đến cơ sở", "google.com/maps/dir"]],
   ];
   for (const [r, texts] of pages) {

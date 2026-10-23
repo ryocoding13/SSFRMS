@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Button, Empty, LinkButton, Notice, Tag } from "../../../shared/components/UI.jsx";
 import { dateTimeLabel, rangeLabel } from "../../../shared/utils/format.js";
-import { go } from "../../../app/router.js";
 import { candidateUnits } from "../../facility-operations/state/facilityOperationsReducer.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
 import { QueuePicker } from "../../facility-operations/components/FacilityOperationsComponents.jsx";
@@ -23,8 +22,8 @@ export function UnitAllocationPage({ query }) {
       </main>
     );
   const submit = async () => {
-    const r = await run("ALLOCATE", { id: a.id, unit: chosen?.code }, `Đã phân bổ kho ${chosen?.code}`);
-    if (r.ok) go("manager/done?kind=allocate");
+    // Figma 885:10453–10477: xác nhận → kết quả “Về màn hình trước”, ở lại trang phân bổ
+    await run("ALLOCATE", { id: a.id, unit: chosen?.code }, `Đã phân bổ kho ${chosen?.code}`);
   };
   return (
     <main className="container page">

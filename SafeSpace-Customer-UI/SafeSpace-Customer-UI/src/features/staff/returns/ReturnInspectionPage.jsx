@@ -28,8 +28,8 @@ export function ReturnInspectionPage({ query }) {
   const submit = async (e) => {
     e.preventDefault();
     const out = await run("SUBMIT_RETURN", { id: r.id, report: form }, "Đã gửi biên bản trả kho cho quản lý");
-    if (!out.ok) return setErr(out.error);
-    go("staff/done?kind=return");
+    if (!out.ok) return setErr(out.shown || out.cancelled ? "" : out.error);
+    go("staff/return");
   };
   const submitted = r.status === "SUBMITTED";
   const report = submitted ? r.report : form;
@@ -53,7 +53,7 @@ export function ReturnInspectionPage({ query }) {
             </Select>
           </Field>
           {err && <Notice tone="error">{err}</Notice>}
-          {submitted ? <Notice tone="success">Đã gửi biên bản lúc {dateTimeLabel(r.submitted_at)}. Chờ quản lý xác nhận hoàn cọc.</Notice> : <Button type="submit">Gửi biên bản cho quản lý</Button>}
+          {submitted ? <Notice tone="success">Đã gửi biên bản lúc {dateTimeLabel(r.submitted_at)}. Chờ quản lý xác nhận trả kho.</Notice> : <Button type="submit">Gửi biên bản cho quản lý</Button>}
         </form>
         <aside className="panel booking">
           <h2>Cọc đang giữ: {money(r.deposit)}</h2>
