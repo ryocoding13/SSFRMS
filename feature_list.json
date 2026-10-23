@@ -344,10 +344,10 @@
       "uc": [],
       "actor": "DevOps / Kỹ thuật",
       "behavior": "Chuẩn hóa API cho deployment: tách secret khỏi appsettings.json theo dõi, cấu hình Database:AutoMigrate và SeedMode, readiness /health/ready kiểm tra SQL Server, proxy / forwarded headers, xử lý payment URL",
-      "state": "not_started",
+      "state": "passing",
       "depends_on": ["CI01"],
       "verification": "dotnet build StorageProject.slnx; kiểm tra cấu hình production không auto-migrate/seed; /health và /health/ready",
-      "evidence": null
+      "evidence": "2026-10-23: Đã chuẩn hóa API deployment (xóa secret PayOS khỏi git, JWT validation cấm placeholder trên Staging/Prod, AutoMigrate/SeedMode cấu hình qua env, CLI bootstrap/seed, ForwardedHeaders proxy, endpoint /health và /health/ready kiểm tra SQL Server và pending migration, config FrontendUrl cho PayOS return/cancel URL). Đã thêm 5 unit tests DeploymentConfigTests (tổng 57 tests pass, init.ps1 pass 100%)."
     },
     {
       "id": "CI04",

@@ -16,6 +16,38 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên CI03 — 2026-10-23 — Chuẩn hóa API cho deployment và cấu hình môi trường
+
+- **Tính năng:** CI03 — Chuẩn hóa API cho deployment (`StorageProject.Api/Program.cs`, `StorageProject.Api/appsettings.json`, `StorageProject.Infrastructure/Data/DbSeeder.cs`, `StorageProject.Infrastructure/Services/PayOSService.cs`, `deploy/.env.example`, `StorageProject.Tests/DeploymentConfigTests.cs`).
+- **Nền:** Nhánh `feature/cicd-ci03` (kế thừa commit `1cc7a66` từ CI02).
+- **Đã xong:**
+  - **Loại bỏ secret thật khỏi git:**
+    - Thay thế các secret PayOS cứng trong `appsettings.json` bằng placeholder an toàn (`YOUR_PAYOS_CLIENT_ID`, `YOUR_PAYOS_API_KEY`, `YOUR_PAYOS_CHECKSUM_KEY`).
+    - Tạo `deploy/.env.example` đầy đủ và chuẩn hóa toàn bộ các biến môi trường cấu hình: `ASPNETCORE_ENVIRONMENT`, `ConnectionStrings__DefaultConnection`, `Database__AutoMigrate`, `Database__SeedMode`, `ADMIN_INITIAL_PASSWORD`, `JwtSettings__*`, `PayOS__*`, `AppSettings__FrontendUrl`, `Cors__AllowedOrigins__*`.
+  - **Validation cấu hình khi khởi động (`Program.cs`):**
+    - Kiểm tra chuỗi kết nối SQL Server (bắt buộc).
+    - Kiểm tra `JwtSettings:Secret`: yêu cầu tối thiểu 32 ký tự, cấm secret mặc định/placeholder khi chạy ở môi trường ngoài Development (Staging, Production...).
+  - **Tách biệt AutoMigrate và SeedMode:**
+    - `Database:AutoMigrate` (bool): cho phép bật ở Dev hoặc CI container, mặc định tắt ở Production.
+    - `Database:SeedMode` (enum: `None`, `Reference`, `Staging`, `Development`): điều khiển seeding linh hoạt.
+    - Tách nhỏ hàm `DbSeeder`: `EnsureRolesAndPermissionsAsync`, `EnsurePoliciesAsync`, `SeedReferenceAsync`, `SeedStagingAsync`, `SeedByModeAsync`.
+    - Hỗ trợ CLI commands trước khi khởi chạy web server: `--bootstrap` (tạo role/permission + admin khởi tạo) và `--seed-reference` (chỉ nạp danh mục).
+  - **Reverse Proxy & Forwarded Headers:**
+    - Cấu hình `UseForwardedHeaders` với `ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto`, xóa `KnownIPNetworks` và `KnownProxies` để nhận diện IP và Scheme đúng phía sau Docker/Nginx/Ingress.
+    - Cấu hình CORS `DefaultCorsPolicy` đọc từ `Cors:AllowedOrigins` kèm fallback mặc định cho local frontend và ngrok.
+  - **Health Checks & Readiness (`/health` & `/health/ready`):**
+    - Endpoint `/health`: Liveness probe (trả về 200 OK ngay).
+    - Endpoint `/health/ready`: Readiness probe thực hiện `CanConnectAsync()` và `GetPendingMigrationsAsync()` tới SQL Server. Trả về HTTP 200 kèm danh sách migration nếu sẵn sàng, hoặc HTTP 503 Service Unavailable kèm chi tiết lỗi nếu DB chưa sẵn sàng hoặc còn migration đang chờ.
+  - **Động hóa URL thanh toán PayOS (`PayOSService.cs`):**
+    - Hỗ trợ đọc `AppSettings:FrontendUrl` (hoặc `Frontend:BaseUrl`) thay vì fix cứng `http://localhost:5173`.
+  - **Bổ sung Unit Tests kiểm chứng cấu hình (`DeploymentConfigTests.cs`):**
+    - 5 bài test bao phủ: JWT secret validation (pass dev, fail prod khi dùng secret yếu hoặc placeholder), AutoMigrate & SeedMode default values, và PayOS ReturnUrl fallback khi có `FrontendUrl`.
+- **Kiểm chứng:**
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: 57/57 tests PASS (toàn bộ 5 test mới pass).
+  - `powershell .\init.ps1`: 100% PASS (check:structure, 76 unit test FE, 9 business test FE, 92 route render FE, build FE dist, build Release BE, 57 unit test BE).
+- **Phiên sau:** Bắt đầu Task CI04 — Kiểm chứng SQL Server thật và API integration test (migration chain 6 migrations, check model drift, concurrency lock payment).
+
+
 ## Phiên CI02 — 2026-10-23 — Xây dựng GitHub Actions CI workflow cho PR và main
 
 - **Tính năng:** CI02 — Workflow CI cho PR và main (`.github/workflows/ci.yml`, `scripts/ci/run-ci.ps1`, `scripts/ci/run-ci.sh`).
