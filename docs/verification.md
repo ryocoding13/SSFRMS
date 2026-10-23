@@ -4,15 +4,18 @@
 
 ## Lệnh kiểm chứng
 
-| Phạm vi | Lệnh | Hiện trạng (2026-09-26) |
+| Phạm vi | Lệnh | Hiện trạng (Baseline CI01 - 2026-10-23) |
 |---|---|---|
-| Toàn bộ | `./init.sh` hoặc `.\init.ps1` | FE pass; BE chưa chạy trên máy thiết lập |
-| Nghiệp vụ FE | `npm test` (trong thư mục frontend) | 28/28 pass |
-| Render mọi route | `npm run test:render` | 38 route PASS |
-| Build FE | `npm run build` | OK |
-| Build BE | `dotnet build StorageProject.slnx` | — |
-| Test BE | `dotnet test StorageProject.slnx` | Chưa có project test (F28) |
-| Gọi thử API | `StorageProject.Api/StorageProject.Api.http` hoặc Swagger `http://localhost:5151/index.html` | Thủ công |
+| Toàn bộ | `./init.sh` hoặc `.\init.ps1` | Toàn bộ PASS (FE 4 suite + BE build/test) |
+| FE Cấu trúc | `npm run check:structure` | PASS (kiểm tra cấu trúc module và quy tắc đặt tên) |
+| FE Nghiệp vụ | `npm test` (trong thư mục frontend) | 76/76 test PASS |
+| FE Vận hành KD | `npm run test:business` (trong thư mục frontend) | 9/9 test PASS |
+| FE Render mọi route | `npm run test:render` | 92 route SSR PASS |
+| FE Build | `npm run build` | PASS (Vite production bundle) |
+| BE Build | `dotnet build StorageProject.slnx` | PASS (0 Error, .NET 10) |
+| BE Test | `dotnet test StorageProject.slnx` | 52/52 test xUnit PASS (StorageProject.Tests) |
+| BE EF Tool | `dotnet tool restore` | PASS (dotnet-ef 10.0.12 từ .config/dotnet-tools.json) |
+| Gọi thử API | `StorageProject.Api/StorageProject.Api.http` hoặc Swagger `/index.html` | Thủ công |
 
 ## Mức kiểm chứng theo loại thay đổi
 

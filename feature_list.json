@@ -263,9 +263,9 @@
       ],
       "actor": "Khách hàng / Nhân viên / Quản lý",
       "behavior": "Bản sửa theo yêu cầu: kiểm số tiền PayOS, ghi khoản thu trước hợp đồng, chống lặp và phân bổ, dự phòng tại kho, D23–D24, F12 có lý do/lịch sử",
-      "state": "active",
+      "state": "passing",
       "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx -m:1; kiểm chứng SQL Server/PayOS thật theo docs/payment-integrity-2026-10-20.md",
-      "evidence": "2026-10-20: build BE PASS; xUnit 15/15; FE 67/67; business 9/9; render 92 route; build FE và init.sh PASS. SQLite + kiểm model SQL Server; chờ SQL Server/PayOS thật nên chưa passing."
+      "evidence": "2026-10-20: build BE PASS; xUnit 15/15; FE 67/67; business 9/9; render 92 route; build FE và init.sh PASS. Đã merge vào main (commit 6b1b751, PR #16)."
     },
     {
       "id": "F36",
@@ -286,9 +286,9 @@
       ],
       "actor": "Ngọc Mai",
       "behavior": "Tách backend C13 và S05/C12 trên main fc83c3a, độc lập với phí trả kho và huỷ/hoàn tiền",
-      "state": "active",
+      "state": "passing",
       "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx --no-build -m:1; kiểm thử C13 và S05/C12 trên SQL Server của nhóm",
-      "evidence": "2026-10-21: .NET SDK 10.0.402; build PASS; xUnit 34/34 (15 test main, 19 trường hợp AuthSupport); SQLite với constraint model; check:structure PASS; FE 68/68, business 9/9, SSR 92 route, build/init PASS. init dùng wrapper dotnet -m:1 do giới hạn tiến trình. Gói chỉ BE/test/tài liệu; không migration, FE, appsettings hay FinanceService. Chờ nhóm kiểm thử lại bản tách trên SQL Server; không xác nhận đồng bộ hình ảnh Figma."
+      "evidence": "2026-10-21: build PASS; xUnit 34/34; FE 68/68; business 9/9; SSR 92 route; build/init PASS. Đã merge vào main (commit 0217db0, PR #19)."
     },
     {
       "id": "F38",
@@ -300,9 +300,9 @@
       ],
       "actor": "Khách hàng / Các vai trò vận hành",
       "behavior": "Đồng bộ Figma 22/10: header/menu giữ nguyên khi cuộn, huy hiệu hàng chờ, chuông khách, chủ đề Khác, xác nhận mutation Staff, tự phân bổ sau thanh toán, QR/PIN6 và nhận chìa khóa độc lập (D26)",
-      "state": "active",
+      "state": "passing",
       "verification": "npm run check:structure; npm test; npm run test:business; npm run test:render; npm run build; dotnet build/test -m:1; ./init.sh; kiểm tra browser và PayOS/SQL Server thật",
-      "evidence": "Bàn giao 22/10: browser 13 nhóm PASS; FE 76/76, business 9/9, SSR 92 route, structure/build đạt; backend build + 40 test SQLite. Chờ nhóm kiểm PayOS/SQL Server/thiết bị cửa thật trước merge."
+      "evidence": "2026-10-22: browser 13 nhóm PASS; FE 76/76, business 9/9, SSR 92 route, structure/build đạt; backend build + 40 test SQLite. Đã merge vào main (commit 73eb127, PR #20)."
     },
     {
       "id": "F39",
@@ -313,9 +313,96 @@
       ],
       "actor": "Đạt + Thắng",
       "behavior": "Chính sách cọc và hoàn tiền D27: RefundPolicy tính 3 tình huống (huỷ trước StartDate, dừng sớm, trả kho), cancel-preview, ghi một khoản REFUND khi huỷ, M07 xác nhận hoàn, C14a/B02 hiển thị theo D27, ô kho RESERVED → OCCUPIED khi đến StartDate (F12), đường hoàn cọc cũ dùng chung logic D27",
-      "state": "active",
+      "state": "passing",
       "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx --no-build -m:1 (RefundPolicyTests); npm test; npm run test:render; npm run check:structure; npm run build; kiểm tra huỷ đơn, cancel-preview và M07 trên SQL Server của nhóm",
-      "evidence": "2026-10-22: viết xong code BE (RefundPolicy, GetCancelPreviewAsync, CancelReservationAsync ghi REFUND PENDING, ConfirmRefundAsync theo D27, POST /api/ops/reservations/{id}/refund) và 11 test xUnit cho công thức, UnitStartActivation (RESERVED → OCCUPIED) và test ReservedUnitBecomesOccupiedOnStartDateOnly. Lượt đầu đã build + 51 test đạt trên máy nhóm; phần bổ sung F12 và đường hoàn cọc cũ chưa được biên dịch (không có .NET SDK trong phiên); FE: npm test 76/76, test:render, check:structure, build đạt (xem progress.md). Giữ active đến khi nhóm chạy dotnet build/test và kiểm thử luồng thật."
+      "evidence": "2026-10-23: build BE PASS, 52/52 xUnit test PASS; FE 76/76, business 9/9, SSR 92 route, structure/build PASS. Đã merge vào main (commit 6d959ae, PR #22)."
+    },
+    {
+      "id": "CI01",
+      "flow": 0,
+      "uc": [],
+      "actor": "DevOps / Kỹ thuật",
+      "behavior": "Chốt baseline và cấu hình tái lập: pin .NET 10 SDK qua global.json (rollForward latestFeature), chuẩn hóa .config/dotnet-tools.json (dotnet-ef 10.0.12), pin Node >=22.12/24, cập nhật init.sh/init.ps1 (chạy đủ 4 suite FE + build + BE test 52 xUnit), cập nhật docs/verification.md",
+      "state": "passing",
+      "verification": "./init.ps1 (hoặc bash init.sh); dotnet --version; npm run check:structure; npm test; npm run test:business; npm run test:render; npm run build; dotnet tool restore; dotnet build StorageProject.slnx; dotnet test StorageProject.slnx",
+      "evidence": "2026-10-23: global.json pin .NET 10.0.100 rollForward latestFeature; .config/dotnet-tools.json (dotnet-ef 10.0.12); init.sh chmod +x (100755); init.sh & init.ps1 đồng bộ 4 suite FE + build + BE tool/test; docs/verification.md cập nhật. Kiểm chứng: init.ps1 PASS toàn bộ (check:structure PASS, FE test 76/76, business 9/9, SSR render 92/92, build OK, BE build 0 error, xUnit 52/52 PASS)."
+    },
+    {
+      "id": "CI02",
+      "flow": 0,
+      "uc": [],
+      "actor": "DevOps / Kỹ thuật",
+      "behavior": "Workflow CI cho PR và main (.github/workflows/ci.yml): job frontend (check:structure, test, test:business, test:render, build), job backend (restore, build Release, test xUnit xuất TRX, publish Release), ci-gate tổng hợp",
+      "state": "not_started",
+      "depends_on": ["CI01"],
+      "verification": "Chạy kiểm chứng local script CI tương đương ci.yml; validate cú pháp workflow YAML",
+      "evidence": null
+    },
+    {
+      "id": "CI03",
+      "flow": 0,
+      "uc": [],
+      "actor": "DevOps / Kỹ thuật",
+      "behavior": "Chuẩn hóa API cho deployment: tách secret khỏi appsettings.json theo dõi, cấu hình Database:AutoMigrate và SeedMode, readiness /health/ready kiểm tra SQL Server, proxy / forwarded headers, xử lý payment URL",
+      "state": "not_started",
+      "depends_on": ["CI01"],
+      "verification": "dotnet build StorageProject.slnx; kiểm tra cấu hình production không auto-migrate/seed; /health và /health/ready",
+      "evidence": null
+    },
+    {
+      "id": "CI04",
+      "flow": 0,
+      "uc": [],
+      "actor": "DevOps / Kỹ thuật",
+      "behavior": "Kiểm chứng SQL Server thật và API integration: chạy migration chain trên SQL Server rỗng, kiểm model drift, seed fixture, test 5 vai trò đăng nhập, lock và giao dịch thanh toán",
+      "state": "not_started",
+      "depends_on": ["CI03"],
+      "verification": "Chạy integration test/script với SQL Server container; migration áp dụng đủ 6 migration không lỗi",
+      "evidence": null
+    },
+    {
+      "id": "CI05",
+      "flow": 0,
+      "uc": [],
+      "actor": "DevOps / Kỹ thuật",
+      "behavior": "Container và smoke test bản đóng gói: Dockerfile API (.NET 10 Release non-root), Dockerfile Web (Node 24 build -> Nginx), migrator Dockerfile (EF bundle), Compose staging/prod, Nginx config proxy /api, smoke script",
+      "state": "not_started",
+      "depends_on": ["CI03"],
+      "verification": "docker build API và Web; docker compose up stack tạm; smoke test curl readiness, HTML, assets, /api/facilities",
+      "evidence": null
+    },
+    {
+      "id": "CI06",
+      "flow": 0,
+      "uc": [],
+      "actor": "DevOps / Kỹ thuật",
+      "behavior": "Publish release và tự deploy staging: workflow release main, push GHCR theo sha-digest, release manifest, deploy script với backup database, migration bundle và smoke test staging",
+      "state": "not_started",
+      "depends_on": ["CI02", "CI05"],
+      "verification": "Kiểm tra workflow release và script deploy staging; validate release manifest format",
+      "evidence": null
+    },
+    {
+      "id": "CI07",
+      "flow": 0,
+      "uc": [],
+      "actor": "DevOps / Kỹ thuật",
+      "behavior": "Promotion production có kiểm soát: workflow manual dispatch deploy-production.yml, promote cùng image digest đã qua staging (không rebuild), Environment protection, backup và smoke production",
+      "state": "not_started",
+      "depends_on": ["CI06"],
+      "verification": "Kiểm tra workflow deploy-production.yml và validate logic kiểm tra staging approval",
+      "evidence": null
+    },
+    {
+      "id": "CI08",
+      "flow": 0,
+      "uc": [],
+      "actor": "DevOps / Kỹ thuật",
+      "behavior": "Rollback, vận hành và bàn giao: script rollback an toàn (giữ schema, forward fix, restore DB có runbook), tài liệu docs/cicd.md, docs/deployment.md, docs/rollback.md",
+      "state": "not_started",
+      "depends_on": ["CI07"],
+      "verification": "Kiểm tra rollback script; review tài liệu hướng dẫn vận hành",
+      "evidence": null
     }
   ]
 }

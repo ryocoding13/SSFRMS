@@ -16,6 +16,31 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên CI01 — 2026-10-23 — Chốt baseline và cấu hình tái lập pipeline CI/CD
+
+- **Tính năng:** CI01 — Chốt baseline môi trường và cấu hình tái lập (sprint contract `docs/sprints/CI-cicd-pipeline.md`, kế hoạch `SSFRMS-CICD-IMPLEMENTATION-PLAN.md`).
+- **Nền:** HEAD commit `6d959ae` (Merge pull request #22 from ryocoding13/feat/d27-refund). Nhánh `feature/cicd-ci01`.
+- **Đã xong:**
+  - **Tạo `global.json`:** Ghim SDK `10.0.100` với chính sách rollForward `latestFeature`, bảo đảm khớp các patch `10.0.401` trên local và các runner CI có .NET 10.
+  - **Chuẩn hóa công cụ EF Core:** Thêm `.config/dotnet-tools.json` định nghĩa `dotnet-ef` phiên bản `10.0.12`, giúp `dotnet tool restore` hoạt động chuẩn theo quy ước .NET không cần truyền tham số thủ công.
+  - **Phân quyền thực thi `init.sh`:** Cập nhật git index mode `100755` cho `init.sh` để runner Linux/macOS có thể thực thi trực tiếp `./init.sh`.
+  - **Bổ sung kiểm thử vào init scripts (`init.sh` và `init.ps1`):** Thêm 2 bước kiểm tra bị thiếu: `npm run check:structure` (kiểm tra phân tách mô đun và quy tắc đặt tên FE) và `npm run test:business` (9/9 kiểm thử chính sách kinh doanh).
+  - **Cập nhật tài liệu kiểm chứng (`docs/verification.md`):** Cập nhật bảng kiểm chứng phản ánh đúng số lượng test thực tế: 4 suite frontend (structure check, 76 unit/integration test, 9 business test, 92 route SSR render) và 52 bài test xUnit của backend trong `StorageProject.Tests`.
+  - **Lập danh sách tính năng CI/CD (`feature_list.json`):** Thêm đầy đủ 8 task `CI01`–`CI08`, tạo sprint contract `docs/sprints/CI-cicd-pipeline.md`.
+- **Kiểm chứng:**
+  - `.\init.ps1` chạy pass 100%:
+    - Node v24.21.0 & .NET 10.0.401: OK
+    - Frontend `check:structure`: PASS
+    - Frontend `npm test`: 76/76 PASS
+    - Frontend `npm run test:business`: 9/9 PASS
+    - Frontend `npm run test:render`: 92/92 routes PASS
+    - Frontend `npm run build`: Vite build thành công
+    - Backend `dotnet tool restore`: OK
+    - Backend `dotnet build StorageProject.slnx`: 0 Error, 4 Warnings (vulnerability NuGet đã biết)
+    - Backend `dotnet test StorageProject.slnx`: 52/52 tests PASS (xUnit)
+  - `node -e "JSON.parse(...)"` kiểm tra `feature_list.json`: cú pháp JSON hoàn toàn hợp lệ.
+- **Phiên sau:** Bắt đầu Task CI02 — Viết workflow GitHub Actions `.github/workflows/ci.yml` và script chạy CI nội bộ.
+
 ## Phiên 9 — 2026-10-16 — Sửa lỗi tính tiền thanh toán đơn đặt chỗ (tiền thuê + cọc)
 
 - **Vấn đề:** Khách hàng vào màn hình thanh toán đơn đặt chỗ (PayOS QR), tổng thanh toán hiển thị chỉ có tiền cọc (1.000 đ) mà không cộng tiền thuê 3 tháng (3.000 đ), link PayOS cũng chỉ thu 1.000 đ thay vì 4.000 đ.
