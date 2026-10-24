@@ -60,7 +60,37 @@ jobs:
           mkdir -p ./verified_manifest
           RUN_ID="${SPECIFIED_RUN_ID}"
 
-          if [ -z "${RUN_ID}" ]; then
+          if [ -n "${RUN_ID}" ]; then
+            echo "Verifying specified run ID ${RUN_ID} against provenance rules..."
+            RUN_INFO=$(gh run view "${RUN_ID}" \
+              --repo "${{ github.repository }}" \
+              --json workflowName,headBranch,headSha,conclusion,status 2>/dev/null || echo "")
+            
+            if [ -z "${RUN_INFO}" ]; then
+              echo "::error::Could not find or access CI run ${RUN_ID} in ${{ github.repository }}."
+              exit 1
+            fi
+
+            RUN_SHA=$(echo "${RUN_INFO}" | jq -r '.headSha // empty')
+            RUN_BRANCH=$(echo "${RUN_INFO}" | jq -r '.headBranch // empty')
+            RUN_CONCLUSION=$(echo "${RUN_INFO}" | jq -r '.conclusion // empty')
+
+            if [ "${RUN_SHA}" != "${RELEASE_SHA}" ]; then
+              echo "::error::Run ${RUN_ID} commit (${RUN_SHA}) does not match requested release SHA (${RELEASE_SHA})!"
+              exit 1
+            fi
+
+            if [ "${RUN_BRANCH}" != "main" ]; then
+              echo "::error::Run ${RUN_ID} branch is '${RUN_BRANCH}', not trusted default branch 'main'!"
+              exit 1
+            fi
+
+            if [ "${RUN_CONCLUSION}" != "success" ]; then
+              echo "::error::Run ${RUN_ID} conclusion is '${RUN_CONCLUSION}', not 'success'!"
+              exit 1
+            fi
+            echo "Specified Run ID ${RUN_ID} verified: successful CI run on main for ${RELEASE_SHA}."
+          else
             echo "Searching for successful CI run for commit ${RELEASE_SHA} on branch main..."
             RUN_ID=$(gh run list \
               --repo "${{ github.repository }}" \
@@ -73,7 +103,7 @@ jobs:
           fi
 
           if [ -n "${RUN_ID}" ]; then
-            echo "Found CI Run ID: ${RUN_ID}. Downloading release-manifest artifact..."
+            echo "Found verified CI Run ID: ${RUN_ID}. Downloading release-manifest artifact..."
             gh run download "${RUN_ID}" \
               --repo "${{ github.repository }}" \
               --name "release-manifest" \
@@ -89,6 +119,24 @@ jobs:
           if [ ! -f "./verified_manifest/release-manifest.json" ]; then
             echo "::error::release-manifest.json was not present in the downloaded artifact."
             exit 1
+          fi
+
+      - name: Verify Staging Precondition
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_SHA: ${{ steps.validate_sha.outputs.sha }}
+          REQUIRE_STAGING_DEPLOY: ${{ vars.REQUIRE_STAGING_DEPLOY || 'false' }}
+        run: |
+          echo "Checking Staging deployment precondition for commit ${RELEASE_SHA}..."
+          if [ "${REQUIRE_STAGING_DEPLOY}" = "true" ]; then
+            STAGING_STATUS=$(gh api "repos/${{ github.repository }}/deployments?environment=staging&sha=${RELEASE_SHA}" --jq '.[0].id // empty' 2>/dev/null || echo "")
+            if [ -z "${STAGING_STATUS}" ]; then
+              echo "::error::No verified staging deployment found for commit ${RELEASE_SHA}. Production promotion is blocked until staging succeeds."
+              exit 1
+            fi
+            echo "Staging deployment verified (Deployment ID: ${STAGING_STATUS})."
+          else
+            echo "ℹ️ Staging deployment precondition check is in standby mode (REQUIRE_STAGING_DEPLOY=${REQUIRE_STAGING_DEPLOY})."
           fi
 
       - name: Parse & Validate Manifest Schema
@@ -197,13 +245,17 @@ jobs:
             exit 0
           fi
 
-          if [ -z "${PRODUCTION_SSH_HOST}" ] && [ "${PRODUCTION_RUNNER_IS_HOST:-false}" != "true" ]; then
-            echo "::error::ENABLE_PRODUCTION_DEPLOY is true but PRODUCTION_SSH_HOST secret is not configured. Ephemeral runner cannot serve as persistent production environment."
+          if [ -z "${PRODUCTION_SSH_HOST}" ] || [ -z "${PRODUCTION_SSH_USER}" ] || [ -z "${PRODUCTION_SSH_KEY}" ]; then
+            echo "::error::ENABLE_PRODUCTION_DEPLOY is true but required SSH secrets (PRODUCTION_SSH_HOST, PRODUCTION_SSH_USER, PRODUCTION_SSH_KEY) are missing. Ephemeral runner cannot serve as persistent production environment."
             exit 1
           fi
 
-          echo "Live Production deployment active. Executing promote-production.sh..."
-          bash scripts/deploy/promote-production.sh artifacts/release-manifest.json deploy/.env.production deploy/compose.production.yml
+          echo "Connecting to remote production server ${PRODUCTION_SSH_HOST} via SSH..."
+          mkdir -p ~/.ssh
+          echo "${PRODUCTION_SSH_KEY}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}" \
+            "cd /opt/safespace && bash scripts/deploy/promote-production.sh artifacts/release-manifest.json deploy/.env.production deploy/compose.production.yml"
 
           echo "### 🚀 Production Deployment Completed" >> $GITHUB_STEP_SUMMARY
           echo "- **Target:** Production Environment (${PRODUCTION_URL})" >> $GITHUB_STEP_SUMMARY

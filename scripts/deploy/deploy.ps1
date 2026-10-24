@@ -82,14 +82,14 @@ try {
     # ─── 3. Pre-Pull Images by Exact Digest ───────────────────────────────────
     Write-Host "`n[Step 3/8] Pre-pulling container images by exact digest..." -ForegroundColor Yellow
     $dockerInstalled = (Get-Command docker -ErrorAction SilentlyContinue)
-    if ($dockerInstalled) {
-        docker pull $apiFullRef
-        docker pull $webFullRef
-        docker pull $migratorFullRef
-        Write-Host "Pre-pull step: PASS" -ForegroundColor Green
-    } else {
-        Write-Host "Notice: Docker not found in PATH or running in mock mode. Digest syntax validated." -ForegroundColor Yellow
+    if (-not $dockerInstalled) {
+        throw "CRITICAL ERROR: Docker is required for staging deployment but is not found in PATH."
     }
+
+    docker pull $apiFullRef
+    docker pull $webFullRef
+    docker pull $migratorFullRef
+    Write-Host "Pre-pull step: PASS" -ForegroundColor Green
 
     # ─── 4. Run Pre-deployment Database Backup (Fail-Closed) ──────────────────
     Write-Host "`n[Step 4/8] Running pre-deployment database backup..." -ForegroundColor Yellow
@@ -104,61 +104,57 @@ try {
 
     # ─── 5. Database Migration (One-Shot Migrator) ────────────────────────────
     Write-Host "`n[Step 5/8] Running one-shot EF Core database migration..." -ForegroundColor Yellow
-    if ($dockerInstalled) {
-        # Dung API cu neu dang chay de tranh race condition
-        docker compose --env-file $EnvFile -f $ComposeFile -p $ProjectName stop api web 2>$null
+    # Dung API cu neu dang chay de tranh race condition
+    docker compose --env-file $EnvFile -f $ComposeFile -p $ProjectName stop api web 2>$null
 
-        Write-Host "Executing migrator..." -ForegroundColor Gray
-        docker compose --env-file $EnvFile -f $ComposeFile -p $ProjectName run --rm migrator
-        if ($LASTEXITCODE -ne 0) {
-            throw "CRITICAL ERROR: Database migration failed! Aborting deployment. API not switched."
-        }
-        Write-Host "Database migration: SUCCESS" -ForegroundColor Green
-    } else {
-        Write-Host "Notice: Docker not available, skipping docker compose execution." -ForegroundColor Yellow
+    Write-Host "Executing migrator..." -ForegroundColor Gray
+    docker compose --env-file $EnvFile -f $ComposeFile -p $ProjectName run --rm migrator
+    if ($LASTEXITCODE -ne 0) {
+        throw "CRITICAL ERROR: Database migration failed! Aborting deployment. API not switched."
     }
+    Write-Host "Database migration: SUCCESS" -ForegroundColor Green
 
     # ─── 6. Explicit Staging Seeding (If configured) ──────────────────────────
     Write-Host "`n[Step 6/8] Checking staging seed requirements..." -ForegroundColor Yellow
-    if ($env:RUN_STAGING_SEED -eq "true" -and $dockerInstalled) {
+    if ($env:RUN_STAGING_SEED -eq "true") {
         Write-Host "Running explicit staging fixture seed..." -ForegroundColor Gray
         docker compose --env-file $EnvFile -f $ComposeFile -p $ProjectName run --rm api --seed-reference
     }
 
     # ─── 7. Start New Application Services & Readiness Wait ────────────────────
     Write-Host "`n[Step 7/8] Starting new API and Web services..." -ForegroundColor Yellow
-    if ($dockerInstalled) {
-        docker compose --env-file $EnvFile -f $ComposeFile -p $ProjectName up -d --no-deps api web
+    docker compose --env-file $EnvFile -f $ComposeFile -p $ProjectName up -d --no-deps api web
 
-        Write-Host "Waiting for readiness probe ($BaseUrl/health/ready)..." -ForegroundColor Gray
-        $ready = $false
-        for ($i = 1; $i -le 30; $i++) {
-            try {
-                $resp = Invoke-RestMethod -Uri "$BaseUrl/health/ready" -TimeoutSec 3 -ErrorAction Stop
-                if ($resp.status -eq "Ready" -or "$resp" -match "Ready") {
-                    $ready = $true
-                    break
-                }
-            } catch {
-                # Cho service khoi dong
+    Write-Host "Waiting for readiness probe ($BaseUrl/health/ready)..." -ForegroundColor Gray
+    $ready = $false
+    for ($i = 1; $i -le 30; $i++) {
+        try {
+            $resp = Invoke-RestMethod -Uri "$BaseUrl/health/ready" -TimeoutSec 3 -ErrorAction Stop
+            if ($resp.status -eq "Ready" -or "$resp" -match "Ready") {
+                $ready = $true
+                break
             }
-            Start-Sleep -Seconds 2
+        } catch {
+            # Cho service khoi dong
         }
-
-        if (-not $ready) {
-            docker compose --env-file $EnvFile -f $ComposeFile -p $ProjectName logs --tail 40 api web
-            throw "ERROR: Service readiness probe failed after 60 seconds at $BaseUrl/health/ready."
-        }
-        Write-Host "Service is Ready and healthy!" -ForegroundColor Green
+        Start-Sleep -Seconds 2
     }
+
+    if (-not $ready) {
+        docker compose --env-file $EnvFile -f $ComposeFile -p $ProjectName logs --tail 40 api web
+        throw "ERROR: Service readiness probe failed after 60 seconds at $BaseUrl/health/ready."
+    }
+    Write-Host "Service is Ready and healthy!" -ForegroundColor Green
 
     # ─── 8. Execute Smoke Test & Update Current Release ───────────────────────
     Write-Host "`n[Step 8/8] Executing container package smoke test..." -ForegroundColor Yellow
-    if (Test-Path "scripts/ci/smoke.ps1") {
-        & .\scripts\ci\smoke.ps1 -BaseUrl $BaseUrl -MaxRetries 10 -RetryDelay 2
-        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
-            throw "CRITICAL: Smoke test failed on target deployment!"
-        }
+    if (-not (Test-Path "scripts/ci/smoke.ps1")) {
+        throw "CRITICAL ERROR: scripts/ci/smoke.ps1 not found! Staging deploy requires smoke testing."
+    }
+
+    & .\scripts\ci\smoke.ps1 -BaseUrl $BaseUrl -MaxRetries 10 -RetryDelay 2
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
+        throw "CRITICAL: Smoke test failed on target deployment!"
     }
 
     $releasesStagingDir = "deploy/releases/staging"

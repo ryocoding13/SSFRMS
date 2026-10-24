@@ -16,6 +16,41 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên 2026-10-24 (Đợt 2) — Khắc Phục Triệt Để Các Điểm Chặn CI và Chuẩn Hóa CD Chờ VPS
+
+- **Mục tiêu:** Giải quyết triệt để 6 vấn đề còn lại được chỉ ra từ đợt chạy kiểm tra của thành viên trên commit `d8867f4`:
+  1. **R01 (Sửa dứt điểm upload-artifact SHA):** Khắc phục lỗi gõ nhầm commit SHA `4cec3d8aa04e39d1a68397de0c4cd6fb9dce6ec1` (số `6` thay vì `8`) tại 4 vị trí trong `.github/workflows/ci.yml` (dòng 55, 114, 181, 328). Cập nhật toàn bộ thành commit hash chuẩn `4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1` (actions/upload-artifact@v4.6.1).
+  2. **R02 / Smoke Test (Loại bỏ triệt để localhost:5151 khỏi production bundle):**
+     - Tạo file `SafeSpace-Customer-UI/SafeSpace-Customer-UI/vite.config.js` với cờ `define: { __DEV_API_FALLBACK__: JSON.stringify(isProd ? "" : "http://localhost:5151") }` để compiler Vite thay thế trực tiếp hằng số lúc build.
+     - Sửa `src/app/config/api.js` dùng `__DEV_API_FALLBACK__`, đảm bảo khi đóng gói production chuỗi `http://localhost:5151` bị loại bỏ 100% khỏi bundle JS, trong khi các bộ test chạy dưới Node.js (Vite mock server) vẫn hoạt động chính xác.
+     - Đã build và xác nhận `dist/assets/index-*.js` chứa đúng 0 lần xuất hiện của `localhost:5151`.
+  3. **R03 (Triển khai remote thực thụ hoặc Standby, không chạy giả trên ephemeral runner):**
+     - Sửa cả `.github/workflows/ci.yml` (`deploy-staging`) và `.github/workflows/deploy-production.yml` (`deploy-production`): Không còn chạy lệnh Bash deploy cục bộ trên runner GitHub Actions `ubuntu-latest`.
+     - Khi `ENABLE_*_DEPLOY == 'true'`, workflow bắt buộc yêu cầu SSH credentials (`*_SSH_HOST`, `*_SSH_USER`, `*_SSH_KEY`) và thực thi remote commands qua `ssh` vào máy chủ thật. Khi biến này là `false` (mặc định), workflow hiển thị rõ trạng thái Standby trên Step Summary và kết thúc an toàn mà không deploy giả mạo.
+  4. **R06 (Kiểm tra chặt chẽ Provenance và Precondition khi dispatch Production):**
+     - Trong `.github/workflows/deploy-production.yml`, bước kiểm tra `run_id` sử dụng `gh run view` để xác thực `headSha == release_sha`, `headBranch == 'main'`, và `conclusion == 'success'`, ngăn ngừa việc promote từ run thất bại hoặc từ nhánh khác.
+     - Bổ sung bước kiểm tra điều kiện tiên quyết Staging (`Verify Staging Precondition`): khi cờ `REQUIRE_STAGING_DEPLOY == 'true'`, bắt buộc phải tìm thấy deployment artifact/receipt thành công trên Staging trước khi cho phép promote Production.
+  5. **R08 (Fail-Closed tuyệt đối & sửa cờ sqlcmd):**
+     - Sửa `scripts/deploy/deploy.ps1`: Xóa hoàn toàn nhánh cho phép bỏ qua migration khi thiếu Docker; nếu môi trường không có Docker, script ném exception dừng ngay lập tức. Bắt buộc script `smoke.ps1` phải tồn tại và chạy thành công; nếu thiếu hoặc fail thì deploy fail-closed.
+     - Sửa `scripts/deploy/backup.sh` và `scripts/deploy/backup.ps1`: Thêm cờ `-b` (On Error Batch abort) cho toàn bộ các lệnh gọi `sqlcmd`, đảm bảo lỗi T-SQL lập tức trả về non-zero exit code.
+  6. **R09 (Container Gate khởi động stack thật, chạy smoke & Step Summary động):**
+     - Cập nhật job `container-build` trong `.github/workflows/ci.yml`: Sau khi build các container images, chạy `docker compose -f deploy/compose.yml up -d --build`, thực thi `bash scripts/ci/smoke.sh "http://localhost:8080" 25 2` để kiểm thử toàn diện stack và clean bundle qua mạng, sau đó dọn dẹp bằng `docker compose down -v`.
+     - Thay thế toàn bộ các dòng thông báo PASS hardcoded dưới `if: always()` trong tất cả các job (`frontend`, `backend`, `integration-test`, `container-build`) thành biểu thức động `${{ job.status == 'success' && '✅ SUCCESS' || '❌ FAILED' }}`.
+  7. **Chiến lược tách biệt CI và CD:**
+     - Giữ toàn bộ phần CD (deploy-staging và deploy-production) ở trạng thái Standby an toàn theo khuyến nghị, cho phép mở PR và hoàn thiện merge CI Gate độc lập mà không bị phụ thuộc vào việc cấp phát VPS.
+- **Kết quả kiểm chứng:**
+  - `npm test`: 76/76 PASS.
+  - `npm run test:business`: 9/9 PASS.
+  - `npm run test:render`: 92/92 PASS.
+  - `npm run check:structure`: PASS.
+  - `npm run build`: PASS (Vite production bundle không có chuỗi `localhost:5151`).
+  - `dotnet build StorageProject.slnx`: PASS.
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: 61/61 PASS.
+  - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj`: 9/9 PASS.
+  - `.\init.ps1`: PASS 100% (toàn bộ 11 bước kiểm tra đạt exit code 0).
+  - `.\scripts\ci\run-ci.ps1`: PASS 100% (đầy đủ 11 bước CI Gate cục bộ).
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit hay push. Toàn bộ mã nguồn đã hoàn thiện và kiểm chứng thành công trên working tree của nhánh `feature/cicd-candidate` để thành viên nhóm tự xem xét và commit.
+
 ## Phiên 2026-10-24 — Khắc Phục Toàn Diện Review CI/CD (R01–R13) Chuẩn Bị Merge Candidate
 
 - **Mục tiêu:** Xử lý và khắc phục toàn bộ 13 điểm phát hiện trong `SSFRMS-CICD-MERGE-REVIEW.md` (R01–R13) trên nhánh tích hợp `feature/cicd-candidate` để sẵn sàng merge vào `main`.

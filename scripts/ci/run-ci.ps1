@@ -63,6 +63,25 @@ $ApiOutDir = Join-Path $Root "artifacts\api"
 Run-Cmd "dotnet publish StorageProject.Api/StorageProject.Api.csproj -c Release --no-build --no-restore -o `"$ApiOutDir`""
 Pop-Location
 
+Step "11. Container Config & Clean Bundle Verification"
+$dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
+if ($dockerCmd) {
+    Run-Cmd "docker compose -f deploy/compose.yml config --quiet"
+    Run-Cmd "docker compose --env-file deploy/.env.example -f deploy/compose.staging.yml config --quiet"
+    Run-Cmd "docker compose --env-file deploy/.env.example -f deploy/compose.production.yml config --quiet"
+    Write-Host "Docker compose configs: PASS (all 3 files valid)" -ForegroundColor Green
+} else {
+    Write-Host "Notice: docker command not available in current environment." -ForegroundColor Yellow
+}
+
+$hasLocalhost = (Get-ChildItem (Join-Path $Fe "dist\assets\*.js") | Select-String "localhost:5151")
+if ($hasLocalhost) {
+    Write-Host "[CI FAILED] Frontend bundle contains hardcoded localhost:5151!" -ForegroundColor Red
+    exit 1
+} else {
+    Write-Host "Frontend bundle origin check: PASS (clean of localhost:5151)" -ForegroundColor Green
+}
+
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor Green
 Write-Host "  ✅ ALL CI CHECKS PASSED (Local Simulation)" -ForegroundColor Green

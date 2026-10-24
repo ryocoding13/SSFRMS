@@ -62,6 +62,23 @@ dotnet publish StorageProject.Api/StorageProject.Api.csproj \
   --no-restore \
   -o "$ROOT/artifacts/api"
 
+step "11. Container Config & Clean Bundle Verification"
+cd "$ROOT"
+if command -v docker &>/dev/null; then
+  docker compose -f deploy/compose.yml config --quiet
+  docker compose --env-file deploy/.env.example -f deploy/compose.staging.yml config --quiet
+  docker compose --env-file deploy/.env.example -f deploy/compose.production.yml config --quiet
+  echo "Docker compose configs: PASS (all 3 files valid)"
+else
+  echo "Notice: docker command not available in current environment."
+fi
+
+if grep -q "localhost:5151" "$FE/dist/assets/"*.js 2>/dev/null; then
+  fail "Frontend bundle contains hardcoded localhost:5151!"
+else
+  echo "Frontend bundle origin check: PASS (clean of localhost:5151)"
+fi
+
 printf '\n\033[1;32m==================================================\033[0m\n'
 printf '\033[1;32m  ✅ ALL CI CHECKS PASSED (Local Simulation)\033[0m\n'
 printf '\033[1;32m==================================================\033[0m\n'

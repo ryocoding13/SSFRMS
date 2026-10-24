@@ -52,7 +52,7 @@ jobs:
         run: npm run build
 
       - name: Upload frontend build artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce6ec1 # v4.6.1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         if: always()
         with:
           name: frontend-dist
@@ -64,12 +64,8 @@ jobs:
         run: |
           echo "### 🎨 Frontend Quality Gate Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Node.js:** \`$(node -v)\` | **NPM:** \`$(npm -v)\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Structure Check:** PASS" >> $GITHUB_STEP_SUMMARY
-          echo "- **Unit Tests:** PASS (76/76)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Business Tests:** PASS (9/9)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Route Render Tests:** PASS (92 routes)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Vite Build:** PASS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Node.js:** \`$(node -v 2>/dev/null || echo 'N/A')\` | **NPM:** \`$(npm -v 2>/dev/null || echo 'N/A')\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Job Status:** ${{ job.status == 'success' && '✅ SUCCESS' || '❌ FAILED' }}" >> $GITHUB_STEP_SUMMARY
 
   backend:
     name: Backend (Build & Test)
@@ -111,7 +107,7 @@ jobs:
           -o artifacts/api
 
       - name: Upload test results (TRX)
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce6ec1 # v4.6.1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         if: always()
         with:
           name: backend-test-results
@@ -123,10 +119,8 @@ jobs:
         run: |
           echo "### ⚙️ Backend Quality Gate Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **.NET SDK:** \`$(dotnet --version)\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Build (Release):** PASS (0 errors)" >> $GITHUB_STEP_SUMMARY
-          echo "- **xUnit Test Suite:** PASS (57/57 tests)" >> $GITHUB_STEP_SUMMARY
-          echo "- **API Publish:** PASS" >> $GITHUB_STEP_SUMMARY
+          echo "- **.NET SDK:** \`$(dotnet --version 2>/dev/null || echo 'N/A')\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Job Status:** ${{ job.status == 'success' && '✅ SUCCESS' || '❌ FAILED' }}" >> $GITHUB_STEP_SUMMARY
 
   integration-test:
     name: SQL Server Integration (Migration & API)
@@ -178,7 +172,7 @@ jobs:
           --results-directory artifacts/test-results/integration
 
       - name: Upload integration test results (TRX)
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce6ec1 # v4.6.1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         if: always()
         with:
           name: integration-test-results
@@ -191,11 +185,7 @@ jobs:
           echo "### 🗄️ SQL Server Integration Gate Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **SQL Server Service:** \`mcr.microsoft.com/mssql/server:2022-latest\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Migration Chain Check:** PASS (6 migrations verified)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Model Drift Check:** PASS (Zero pending model changes)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Readiness Endpoint (/health/ready):** PASS" >> $GITHUB_STEP_SUMMARY
-          echo "- **RBAC & 5 User Roles Login:** PASS" >> $GITHUB_STEP_SUMMARY
-          echo "- **Concurrency & sp_getapplock Payments:** PASS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Job Status:** ${{ job.status == 'success' && '✅ SUCCESS' || '❌ FAILED' }}" >> $GITHUB_STEP_SUMMARY
 
   container-build:
     name: Container Build & Config Validation
@@ -220,15 +210,23 @@ jobs:
       - name: Build EF Core Migrator Docker Image
         run: docker build -f deploy/migrator.Dockerfile -t ssfrms-migrator:test .
 
+      - name: Start Docker Stack and Run Smoke Tests
+        run: |
+          docker compose -f deploy/compose.yml up -d --build
+          bash scripts/ci/smoke.sh "http://localhost:8080" 25 2
+
+      - name: Teardown Docker Stack
+        if: always()
+        run: |
+          docker compose -f deploy/compose.yml logs --tail 50 || true
+          docker compose -f deploy/compose.yml down -v || true
+
       - name: Generate Container Step Summary
         if: always()
         run: |
           echo "### 🐳 Container Packaging Gate Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **API Dockerfile Build:** PASS (Non-root noble-chiseled)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Web Dockerfile Build:** PASS (Node 24 -> Nginx alpine)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Migrator Dockerfile Build:** PASS (One-shot efbundle chiseled)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Compose Config Validation:** PASS (compose.yml, staging, production via .env.example)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Job Status:** ${{ job.status == 'success' && '✅ SUCCESS' || '❌ FAILED' }}" >> $GITHUB_STEP_SUMMARY
 
   ci-gate:
     name: ci-gate
@@ -325,7 +323,7 @@ jobs:
             "${MIGRATOR_DIGEST}"
 
       - name: Upload Release Manifest Artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce6ec1 # v4.6.1
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: release-manifest
           path: artifacts/release-manifest.json
@@ -374,16 +372,19 @@ jobs:
             exit 0
           fi
 
-          if [ -z "${STAGING_SSH_HOST}" ] && [ "${STAGING_RUNNER_IS_HOST:-false}" != "true" ]; then
-            echo "::error::ENABLE_STAGING_DEPLOY is true but STAGING_SSH_HOST secret is not configured. Ephemeral runner cannot serve as persistent staging environment."
+          if [ -z "${STAGING_SSH_HOST}" ] || [ -z "${STAGING_SSH_USER}" ] || [ -z "${STAGING_SSH_KEY}" ]; then
+            echo "::error::ENABLE_STAGING_DEPLOY is true but required SSH secrets (STAGING_SSH_HOST, STAGING_SSH_USER, STAGING_SSH_KEY) are missing. Ephemeral runner cannot serve as persistent staging environment."
             exit 1
           fi
 
-          echo "Staging deployment active. Running deployment..."
-          bash scripts/deploy/deploy.sh artifacts/release-manifest.json deploy/.env deploy/compose.staging.yml
+          echo "Connecting to remote staging server ${STAGING_SSH_HOST} via SSH..."
+          mkdir -p ~/.ssh
+          echo "${STAGING_SSH_KEY}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
+            "cd /opt/safespace && bash scripts/deploy/deploy.sh artifacts/release-manifest.json deploy/.env deploy/compose.staging.yml"
           
           echo "### ✅ Staging Deployment Completed" >> $GITHUB_STEP_SUMMARY
-          echo "- **Target:** Staging Environment" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target:** Staging Environment (${STAGING_SSH_HOST})" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Smoke Status:** PASS" >> $GITHUB_STEP_SUMMARY
 

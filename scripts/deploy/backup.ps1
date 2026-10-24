@@ -58,7 +58,7 @@ catch {
     $saPass = $env:SA_PASSWORD
     if (-not $saPass) { $saPass = "SafeSpace!Dev2026_StrongPassword" }
 
-    docker exec $ContainerName /opt/mssql-tools18/bin/sqlcmd `
+    docker exec $ContainerName /opt/mssql-tools18/bin/sqlcmd -b `
         -S localhost -U sa -P $saPass -C `
         -Q "BACKUP DATABASE [$DatabaseName] TO DISK = N'/var/opt/mssql/data/$backupFileName' WITH INIT"
 

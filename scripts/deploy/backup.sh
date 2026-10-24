@@ -23,18 +23,18 @@ echo "Backup to: ${BACKUP_DIR}/${BACKUP_FILENAME}"
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
   echo "WARNING: Container ${CONTAINER_NAME} is not running. Checking if local sqlcmd exists..."
   if command -v sqlcmd &> /dev/null; then
-    sqlcmd -S localhost -U sa -P "${SA_PASSWORD:?SA_PASSWORD required}" -C \
+    sqlcmd -b -S localhost -U sa -P "${SA_PASSWORD:?SA_PASSWORD required}" -C \
       -Q "BACKUP DATABASE [${DB_NAME}] TO DISK = N'/var/opt/mssql/data/${BACKUP_FILENAME}' WITH INIT, STATS = 10"
   else
     echo "ERROR: Cannot backup database: SQL Server container is not running."
     exit 1
   fi
 else
-  # Thực thi lệnh BACKUP DATABASE trong container
-  docker exec "${CONTAINER_NAME}" /opt/mssql-tools18/bin/sqlcmd \
+  # Thực thi lệnh BACKUP DATABASE trong container với cờ -b (fail-on-error)
+  docker exec "${CONTAINER_NAME}" /opt/mssql-tools18/bin/sqlcmd -b \
     -S localhost -U sa -P "${SA_PASSWORD:?SA_PASSWORD required}" -C \
     -Q "BACKUP DATABASE [${DB_NAME}] TO DISK = N'/var/opt/mssql/data/${BACKUP_FILENAME}' WITH INIT, STATS = 10" || \
-  docker exec "${CONTAINER_NAME}" /opt/mssql-tools/bin/sqlcmd \
+  docker exec "${CONTAINER_NAME}" /opt/mssql-tools/bin/sqlcmd -b \
     -S localhost -U sa -P "${SA_PASSWORD:?SA_PASSWORD required}" \
     -Q "BACKUP DATABASE [${DB_NAME}] TO DISK = N'/var/opt/mssql/data/${BACKUP_FILENAME}' WITH INIT, STATS = 10"
 
