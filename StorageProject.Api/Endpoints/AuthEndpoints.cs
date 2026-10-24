@@ -93,7 +93,11 @@ public static class AuthEndpoints
                 await authService.ChangePasswordAsync(userId, request, ct);
                 return Results.Ok(new { message = "Đổi mật khẩu thành công." });
             }
-            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message, code = "BAD_PASSWORD" });
+            }
+            catch (ArgumentException ex)
             {
                 return Results.BadRequest(new { error = ex.Message });
             }

@@ -16,39 +16,35 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
-## Phiên 2026-10-24 (Đợt 2) — Khắc Phục Triệt Để Các Điểm Chặn CI và Chuẩn Hóa CD Chờ VPS
+## Phiên 2026-10-24 (Đợt 2) — Đồng Bộ Main Mới, Khắc Phục Triệt Để CI/CD và Tách Biệt CD Chờ VPS
 
-- **Mục tiêu:** Giải quyết triệt để 6 vấn đề còn lại được chỉ ra từ đợt chạy kiểm tra của thành viên trên commit `d8867f4`:
-  1. **R01 (Sửa dứt điểm upload-artifact SHA):** Khắc phục lỗi gõ nhầm commit SHA `4cec3d8aa04e39d1a68397de0c4cd6fb9dce6ec1` (số `6` thay vì `8`) tại 4 vị trí trong `.github/workflows/ci.yml` (dòng 55, 114, 181, 328). Cập nhật toàn bộ thành commit hash chuẩn `4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1` (actions/upload-artifact@v4.6.1).
-  2. **R02 / Smoke Test (Loại bỏ triệt để localhost:5151 khỏi production bundle):**
-     - Tạo file `SafeSpace-Customer-UI/SafeSpace-Customer-UI/vite.config.js` với cờ `define: { __DEV_API_FALLBACK__: JSON.stringify(isProd ? "" : "http://localhost:5151") }` để compiler Vite thay thế trực tiếp hằng số lúc build.
-     - Sửa `src/app/config/api.js` dùng `__DEV_API_FALLBACK__`, đảm bảo khi đóng gói production chuỗi `http://localhost:5151` bị loại bỏ 100% khỏi bundle JS, trong khi các bộ test chạy dưới Node.js (Vite mock server) vẫn hoạt động chính xác.
-     - Đã build và xác nhận `dist/assets/index-*.js` chứa đúng 0 lần xuất hiện của `localhost:5151`.
-  3. **R03 (Triển khai remote thực thụ hoặc Standby, không chạy giả trên ephemeral runner):**
-     - Sửa cả `.github/workflows/ci.yml` (`deploy-staging`) và `.github/workflows/deploy-production.yml` (`deploy-production`): Không còn chạy lệnh Bash deploy cục bộ trên runner GitHub Actions `ubuntu-latest`.
-     - Khi `ENABLE_*_DEPLOY == 'true'`, workflow bắt buộc yêu cầu SSH credentials (`*_SSH_HOST`, `*_SSH_USER`, `*_SSH_KEY`) và thực thi remote commands qua `ssh` vào máy chủ thật. Khi biến này là `false` (mặc định), workflow hiển thị rõ trạng thái Standby trên Step Summary và kết thúc an toàn mà không deploy giả mạo.
-  4. **R06 (Kiểm tra chặt chẽ Provenance và Precondition khi dispatch Production):**
-     - Trong `.github/workflows/deploy-production.yml`, bước kiểm tra `run_id` sử dụng `gh run view` để xác thực `headSha == release_sha`, `headBranch == 'main'`, và `conclusion == 'success'`, ngăn ngừa việc promote từ run thất bại hoặc từ nhánh khác.
-     - Bổ sung bước kiểm tra điều kiện tiên quyết Staging (`Verify Staging Precondition`): khi cờ `REQUIRE_STAGING_DEPLOY == 'true'`, bắt buộc phải tìm thấy deployment artifact/receipt thành công trên Staging trước khi cho phép promote Production.
-  5. **R08 (Fail-Closed tuyệt đối & sửa cờ sqlcmd):**
-     - Sửa `scripts/deploy/deploy.ps1`: Xóa hoàn toàn nhánh cho phép bỏ qua migration khi thiếu Docker; nếu môi trường không có Docker, script ném exception dừng ngay lập tức. Bắt buộc script `smoke.ps1` phải tồn tại và chạy thành công; nếu thiếu hoặc fail thì deploy fail-closed.
-     - Sửa `scripts/deploy/backup.sh` và `scripts/deploy/backup.ps1`: Thêm cờ `-b` (On Error Batch abort) cho toàn bộ các lệnh gọi `sqlcmd`, đảm bảo lỗi T-SQL lập tức trả về non-zero exit code.
-  6. **R09 (Container Gate khởi động stack thật, chạy smoke & Step Summary động):**
-     - Cập nhật job `container-build` trong `.github/workflows/ci.yml`: Sau khi build các container images, chạy `docker compose -f deploy/compose.yml up -d --build`, thực thi `bash scripts/ci/smoke.sh "http://localhost:8080" 25 2` để kiểm thử toàn diện stack và clean bundle qua mạng, sau đó dọn dẹp bằng `docker compose down -v`.
-     - Thay thế toàn bộ các dòng thông báo PASS hardcoded dưới `if: always()` trong tất cả các job (`frontend`, `backend`, `integration-test`, `container-build`) thành biểu thức động `${{ job.status == 'success' && '✅ SUCCESS' || '❌ FAILED' }}`.
-  7. **Chiến lược tách biệt CI và CD:**
-     - Giữ toàn bộ phần CD (deploy-staging và deploy-production) ở trạng thái Standby an toàn theo khuyến nghị, cho phép mở PR và hoàn thiện merge CI Gate độc lập mà không bị phụ thuộc vào việc cấp phát VPS.
-- **Kết quả kiểm chứng:**
-  - `npm test`: 76/76 PASS.
-  - `npm run test:business`: 9/9 PASS.
-  - `npm run test:render`: 92/92 PASS.
-  - `npm run check:structure`: PASS.
-  - `npm run build`: PASS (Vite production bundle không có chuỗi `localhost:5151`).
-  - `dotnet build StorageProject.slnx`: PASS.
-  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: 61/61 PASS.
-  - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj`: 9/9 PASS.
-  - `.\init.ps1`: PASS 100% (toàn bộ 11 bước kiểm tra đạt exit code 0).
-  - `.\scripts\ci\run-ci.ps1`: PASS 100% (đầy đủ 11 bước CI Gate cục bộ).
+- **Mục tiêu:** Giải quyết triệt để các vấn đề còn lại từ đợt kiểm tra candidate và gộp các thay đổi mới nhất từ `origin/main` (commit `a632cb7` - PR #25 của Ngọc Mai):
+  1. **Xử lý xung đột với main mới:**
+     - Gộp commit `a632cb7` từ `origin/main` vào nhánh `feature/cicd-candidate`.
+     - Giải quyết xung đột nội dung tại `feature_list.json`: Giữ nguyên tính năng `F37` mới nhất (C12/C12b/C13 auth support của Mai), đồng thời bảo toàn trọn vẹn danh sách tính năng `CI01`–`CI08`. Cú pháp JSON được validate hợp lệ 100%.
+     - Chuẩn hóa số hiệu quyết định tại `DECISIONS.md`: Đổi mục CI/CD từ `D28` thành `D29` để không trùng với quyết định `D28` (Playwright C12/C13) vừa được merge từ `main`.
+  2. **R01 (Sửa dứt điểm upload-artifact SHA):**
+     - Sửa lỗi gõ nhầm commit SHA `4cec3d8aa04e39d1a68397de0c4cd6fb9dce6ec1` (số `6` thay vì `8`) tại cả 4 vị trí trong `.github/workflows/ci.yml` (dòng 55, 114, 181, 328) sang commit chuẩn `4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1` (v4.6.1).
+  3. **R02 / Smoke Test (Loại bỏ localhost:5151 khỏi production bundle):**
+     - Cấu hình `SafeSpace-Customer-UI/vite.config.js` với `define: { __DEV_API_FALLBACK__: JSON.stringify(isProd ? "" : "http://localhost:5151") }`.
+     - Cập nhật `src/app/config/api.js` dùng `__DEV_API_FALLBACK__`. Khi build production, chuỗi `localhost:5151` bị xóa sạch khỏi `dist/assets/index-*.js` (0 lần xuất hiện), trong khi test Node.js vẫn giữ kết nối mock server.
+  4. **R03 & R08 (Đồng bộ release sang server qua SCP & Verified known_hosts):**
+     - Trong cả `.github/workflows/ci.yml` (`deploy-staging`) và `.github/workflows/deploy-production.yml` (`deploy-production`):
+       - Thay thế hoàn toàn cờ `StrictHostKeyChecking=no` bằng xác thực `known_hosts`: đọc từ secret `*_SSH_KNOWN_HOSTS` nếu có, hoặc quét và ghi nhận host key an toàn trước khi kết nối.
+       - Bổ sung bước đồng bộ release: Trước khi gọi lệnh deploy/promote từ xa, workflow sử dụng `scp` chuyển file `release-manifest.json` đã được xác minh cùng bộ kịch bản triển khai (`scripts/deploy/*`, `scripts/ci/smoke.sh`, file compose tương ứng) sang thư mục `/opt/safespace` trên máy chủ từ xa, đảm bảo server luôn có đúng manifest và script phiên bản mới nhất.
+       - Khi `ENABLE_*_DEPLOY == 'false'` (mặc định), workflow hiển thị rõ trạng thái Standby an toàn trên `$GITHUB_STEP_SUMMARY`, tuyệt đối không chạy mô phỏng trên ephemeral runner.
+  5. **R06 (Kiểm tra chặt chẽ Provenance và Precondition khi dispatch Production):**
+     - Trong `.github/workflows/deploy-production.yml`, bước kiểm tra `run_id` sử dụng `gh run view` xác thực đầy đủ 5 tiêu chí: `headSha == release_sha`, `headBranch == 'main'`, `conclusion == 'success'`, `event in ('push', 'workflow_dispatch')`, và `workflowName` là workflow CI chuẩn (`SafeSpace CI / CD Pipeline` / `ci.yml`).
+     - Bổ sung bước kiểm tra điều kiện tiên quyết Staging: truy vấn GitHub API `/deployments?environment=staging&sha=${RELEASE_SHA}` lấy `deployment_id`, sau đó kiểm tra `/deployments/{id}/statuses` xác nhận trạng thái mới nhất là `state == 'success'`. Biến `REQUIRE_STAGING_DEPLOY` mặc định là `'true'`.
+  6. **R08 (Fail-Closed tuyệt đối & cờ sqlcmd -b):**
+     - `scripts/deploy/deploy.ps1`: Xóa bỏ hoàn toàn nhánh skip migration khi thiếu Docker (ném exception dừng ngay lập tức); bắt buộc `smoke.ps1` phải tồn tại và chạy thành công.
+     - `scripts/deploy/backup.sh` và `backup.ps1`: Thêm cờ `-b` vào toàn bộ lệnh gọi `sqlcmd`, bắt lỗi T-SQL fail-closed.
+  7. **R09 (Container Gate khởi động stack thật, chạy smoke & Step Summary động):**
+     - Job `container-build` trong `ci.yml` khởi động stack bằng `docker compose -f deploy/compose.yml up -d --build`, chạy `bash scripts/ci/smoke.sh "http://localhost:8080" 25 2` kiểm tra live stack và bundle sạch, sau đó dọn dẹp bằng `docker compose down -v`.
+     - Chuyển toàn bộ step summaries dưới `if: always()` sang trạng thái động: `${{ job.status == 'success' && '✅ SUCCESS' || '❌ FAILED' }}`.
+  8. **Ranh giới kiểm thử và chiến lược tách biệt CI/CD:**
+     - Ghi nhận rõ ràng ranh giới kiểm thử: Các lượt chạy integration test tại local không có SQL Server sẽ tự động skip và **không được tính là bằng chứng vượt qua kiểm thử SQL Server integration**. Bằng chứng hợp lệ chỉ được xác lập khi chạy với `REQUIRE_SQLSERVER=true` trên service container SQL Server của GitHub Actions runner (hoặc local có SQL Server thật đang chạy).
+     - Giữ toàn bộ phần CD ở trạng thái Standby (`ENABLE_STAGING_DEPLOY: false`, `ENABLE_PRODUCTION_DEPLOY: false`), sẵn sàng để thành viên mở PR merge CI vào `main` trước mà không bị phụ thuộc vào việc cấp phát VPS.
 - **Tuân thủ AGENTS.md:** AI không thực hiện commit hay push. Toàn bộ mã nguồn đã hoàn thiện và kiểm chứng thành công trên working tree của nhánh `feature/cicd-candidate` để thành viên nhóm tự xem xét và commit.
 
 ## Phiên 2026-10-24 — Khắc Phục Toàn Diện Review CI/CD (R01–R13) Chuẩn Bị Merge Candidate
@@ -696,6 +692,28 @@
 - Bổ sung cùng F39 (cùng đợt, trước khi merge): (a) F12 ô kho RESERVED → OCCUPIED khi đến StartDate, qua UnitStartActivation chạy trong worker hiện có, có test ReservedUnitBecomesOccupiedOnStartDateOnly; (b) đường hoàn cọc cũ của quản lý gọi chung logic D27, bỏ ManagerService.ConfirmRefundAsync (lỗi: đặt trạng thái ENDED, không theo D27). Cả hai chưa biên dịch trong phiên viết code; cần dotnet build/test của nhóm. Còn lại: nút xác nhận hoàn đơn huỷ ở M07 trên giao diện.
 
 
+## 2026-10-23 — F37 hoàn thiện nối API C13 và kiểm C12/S05
+
+- Nền main 6d959ae. Người dùng yêu cầu hai task của Ngọc Mai; không sửa trả kho, thanh toán, cọc hay Figma.
+- Phát hiện và sửa CHANGE_PASSWORD đọc sai tên trường (UI gửi current/next, provider đọc current_password/new_password). Sai mật khẩu hiện tại trả BAD_PASSWORD và hiện đúng trường.
+- GET profile được dùng khi đăng nhập và khôi phục phiên; bỏ tên overlay cũ, đọc số điện thoại thật, cập nhật session từ response; bỏ closure session cũ trong UPDATE_NAME. Biểu mẫu khóa khi đang lưu và giữ dữ liệu nếu lỗi.
+- C12/S05 đã có backend lưu/đọc activity_logs, ánh xạ responses và giao diện lịch sử. Bỏ fallback âm thầm che lỗi GET chi tiết ticket.
+- Thêm 2 HTTP test Kestrel/JWT/SQLite file riêng và browser script với host .NET riêng. Host dùng endpoint/service thật; reservations trống chỉ để khởi động FE, không dùng chứng minh đặt kho/thanh toán.
+- Kiểm chứng: .NET 10.0.100; build PASS; 54/54 xUnit (52 trước sửa + 2 HTTP); FE 76/76; business 9/9; SSR 92 route; check:structure/build PASS; init.sh PASS qua wrapper dotnet thêm -m:1 vì môi trường giới hạn tiến trình. Không sửa init.sh.
+- Chromium Headless Shell 145: 10 nhóm browser PASS: profile API; tên sai/lưu/reload; mật khẩu xác nhận sai và mật khẩu hiện tại sai; JSON password chính xác + login lại; overlay cũ; lỗi mạng; gửi ticket; staff phản hồi; lịch sử + mobile; tài khoản khác và không pageerror.
+- Trong lúc xây browser test, chỉnh selector theo chủ đề UNIT đang hiển thị (LOCK là legacy bị ẩn), đợi login staff trước khi điều hướng và chọn li lịch sử chứa timestamp. Không đổi nghiệp vụ hay giảm assertion.
+- Cảnh báo dependency NU1902/NU1903, nullable Board.cs, font/chunk frontend có sẵn từ main. Chưa chạy SQL Server của nhóm. F37 giữ active; không nói hệ thống không có lỗi.
+- Chỉ bàn giao ZIP + patch. Không push/PR/merge.
+
+
+## 2026-10-23 — F37 ghép frontend Mai C12/C12b/C13 trên main mới
+
+- Nguồn task ZIP SSFRMS_Frontend_AuthSupport_Figma_2026-10-22, 29 file khớp e615dad. Nền main 6d959ae; chỉ lấy thay đổi C12/C12b/C13 và guard phản hồi S05, không merge lịch sử nhánh cũ.
+- Giữ StickyHeader/PendingBadge, polling/thông báo, OTHER subject, yêu cầu cấp lại QR/PIN/key, modal STAFF, /api/ops chuẩn và RECORD_KEY_RECEIPT. Thêm timeline, preview, retry, asset/CSS theo gói đã có, trạng thái thiếu thông tin C13. Không gọi hay sửa Figma trong phiên.
+- Provider kiểm token/userId khi applyProfile, đọc hồ sơ qua API, không ghi đè phone khi chỉ đổi tên; mật khẩu dùng đúng payload và BAD_PASSWORD/400 tương thích. Ticket detail lỗi có cờ lỗi/retry, giữ dữ liệu đã tải được; vẫn truyền 401. Normalize danh sách null của board mà không thay API.
+- Thêm D28 cho Playwright devDependency để tránh trùng D26. Giữ toàn bộ các test main; thêm 3 test ghép API/mapper/null board; SSR thêm 2 route. Test mock của Mai đổi sang /api/ops, bấm xác nhận staff và giữ phone khi request không chứa phone; không nới assertion. Thông báo tên trống đồng bộ câu chữ gói Mai; sai mật khẩu tương thích cả error code mới và message backend cũ.
+- Kiểm: FE 79/79, Business 9/9, SSR 94, Playwright mock 14/14; .NET 54/54, 10 nhóm Chromium gọi backend Kestrel/JWT/SQLite riêng. Build/structure/init PASS, init wrapper thêm -m:1. Đã xem C12b desktop/C13 mobile. Chưa chạy SQL Server của nhóm; F37 giữ active.
+- Không thay backend tài chính, schema/migration hoặc config. Chỉ ZIP/patch, không push/PR/merge. Xem docs/mai-auth-support-integration.md.
 ## 2026-10-24 — Cập nhật quy định AI/Git và tài liệu kiểm chứng
 
 - Theo yêu cầu thành viên: sửa quy định một lượt và bàn giao ZIP để thành viên tự push; không thao tác commit/push/PR/merge.

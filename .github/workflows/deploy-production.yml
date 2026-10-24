@@ -64,7 +64,7 @@ jobs:
             echo "Verifying specified run ID ${RUN_ID} against provenance rules..."
             RUN_INFO=$(gh run view "${RUN_ID}" \
               --repo "${{ github.repository }}" \
-              --json workflowName,headBranch,headSha,conclusion,status 2>/dev/null || echo "")
+              --json workflowName,headBranch,headSha,conclusion,status,event 2>/dev/null || echo "")
             
             if [ -z "${RUN_INFO}" ]; then
               echo "::error::Could not find or access CI run ${RUN_ID} in ${{ github.repository }}."
@@ -74,6 +74,8 @@ jobs:
             RUN_SHA=$(echo "${RUN_INFO}" | jq -r '.headSha // empty')
             RUN_BRANCH=$(echo "${RUN_INFO}" | jq -r '.headBranch // empty')
             RUN_CONCLUSION=$(echo "${RUN_INFO}" | jq -r '.conclusion // empty')
+            RUN_EVENT=$(echo "${RUN_INFO}" | jq -r '.event // empty')
+            RUN_WORKFLOW=$(echo "${RUN_INFO}" | jq -r '.workflowName // empty')
 
             if [ "${RUN_SHA}" != "${RELEASE_SHA}" ]; then
               echo "::error::Run ${RUN_ID} commit (${RUN_SHA}) does not match requested release SHA (${RELEASE_SHA})!"
@@ -89,7 +91,17 @@ jobs:
               echo "::error::Run ${RUN_ID} conclusion is '${RUN_CONCLUSION}', not 'success'!"
               exit 1
             fi
-            echo "Specified Run ID ${RUN_ID} verified: successful CI run on main for ${RELEASE_SHA}."
+
+            if [ "${RUN_EVENT}" != "push" ] && [ "${RUN_EVENT}" != "workflow_dispatch" ]; then
+              echo "::error::Run ${RUN_ID} event is '${RUN_EVENT}', expected 'push' or 'workflow_dispatch' on main!"
+              exit 1
+            fi
+
+            if [[ "${RUN_WORKFLOW}" != *"SafeSpace CI"* ]] && [[ "${RUN_WORKFLOW}" != *"ci.yml"* ]]; then
+              echo "::error::Run ${RUN_ID} workflow is '${RUN_WORKFLOW}', expected 'SafeSpace CI / CD Pipeline' (ci.yml)!"
+              exit 1
+            fi
+            echo "Specified Run ID ${RUN_ID} verified: successful CI run (${RUN_WORKFLOW}, event: ${RUN_EVENT}) on main for ${RELEASE_SHA}."
           else
             echo "Searching for successful CI run for commit ${RELEASE_SHA} on branch main..."
             RUN_ID=$(gh run list \
@@ -125,16 +137,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_SHA: ${{ steps.validate_sha.outputs.sha }}
-          REQUIRE_STAGING_DEPLOY: ${{ vars.REQUIRE_STAGING_DEPLOY || 'false' }}
+          REQUIRE_STAGING_DEPLOY: ${{ vars.REQUIRE_STAGING_DEPLOY || 'true' }}
         run: |
           echo "Checking Staging deployment precondition for commit ${RELEASE_SHA}..."
           if [ "${REQUIRE_STAGING_DEPLOY}" = "true" ]; then
-            STAGING_STATUS=$(gh api "repos/${{ github.repository }}/deployments?environment=staging&sha=${RELEASE_SHA}" --jq '.[0].id // empty' 2>/dev/null || echo "")
-            if [ -z "${STAGING_STATUS}" ]; then
-              echo "::error::No verified staging deployment found for commit ${RELEASE_SHA}. Production promotion is blocked until staging succeeds."
+            DEPLOYMENT_ID=$(gh api "repos/${{ github.repository }}/deployments?environment=staging&sha=${RELEASE_SHA}" --jq '.[0].id // empty' 2>/dev/null || echo "")
+            if [ -z "${DEPLOYMENT_ID}" ]; then
+              echo "::error::No staging deployment found for commit ${RELEASE_SHA}. Production promotion is blocked until staging succeeds."
               exit 1
             fi
-            echo "Staging deployment verified (Deployment ID: ${STAGING_STATUS})."
+
+            LATEST_STATE=$(gh api "repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" --jq '.[0].state // empty' 2>/dev/null || echo "")
+            if [ "${LATEST_STATE}" != "success" ]; then
+              echo "::error::Staging deployment ${DEPLOYMENT_ID} latest status is '${LATEST_STATE}', not 'success'! Production promotion is blocked."
+              exit 1
+            fi
+            echo "Staging deployment ${DEPLOYMENT_ID} verified with state 'success'."
           else
             echo "ℹ️ Staging deployment precondition check is in standby mode (REQUIRE_STAGING_DEPLOY=${REQUIRE_STAGING_DEPLOY})."
           fi
@@ -230,7 +248,7 @@ jobs:
           PRODUCTION_SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
           PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
           PRODUCTION_SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
-          PRODUCTION_RUNNER_IS_HOST: ${{ vars.PRODUCTION_RUNNER_IS_HOST }}
+          PRODUCTION_SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
           PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://safespace.vn' }}
         run: |
           echo "Checking Production Deploy Gate: ENABLE_PRODUCTION_DEPLOY=${ENABLE_PRODUCTION_DEPLOY:-false}"
@@ -250,15 +268,34 @@ jobs:
             exit 1
           fi
 
-          echo "Connecting to remote production server ${PRODUCTION_SSH_HOST} via SSH..."
+          echo "Setting up SSH key and known_hosts for ${PRODUCTION_SSH_HOST}..."
           mkdir -p ~/.ssh
           echo "${PRODUCTION_SSH_KEY}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}" \
+
+          if [ -n "${PRODUCTION_SSH_KNOWN_HOSTS}" ]; then
+            echo "${PRODUCTION_SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          else
+            echo "Scanning host key for ${PRODUCTION_SSH_HOST}..."
+            ssh-keyscan -H "${PRODUCTION_SSH_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 644 ~/.ssh/known_hosts
+
+          echo "Ensuring deployment directory structure on ${PRODUCTION_SSH_HOST}..."
+          ssh -o ConnectTimeout=15 "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}" \
+            "mkdir -p /opt/safespace/artifacts /opt/safespace/scripts/deploy /opt/safespace/scripts/ci /opt/safespace/deploy"
+
+          echo "Transferring verified production manifest and deploy assets to ${PRODUCTION_SSH_HOST}..."
+          scp -o ConnectTimeout=15 artifacts/release-manifest.json "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}:/opt/safespace/artifacts/release-manifest.json"
+          scp -o ConnectTimeout=15 scripts/deploy/* "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}:/opt/safespace/scripts/deploy/"
+          scp -o ConnectTimeout=15 scripts/ci/smoke.sh "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}:/opt/safespace/scripts/ci/smoke.sh"
+          scp -o ConnectTimeout=15 deploy/compose.production.yml "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}:/opt/safespace/deploy/compose.production.yml"
+
+          echo "Executing promote-production.sh on remote production host..."
+          ssh -o ConnectTimeout=15 "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}" \
             "cd /opt/safespace && bash scripts/deploy/promote-production.sh artifacts/release-manifest.json deploy/.env.production deploy/compose.production.yml"
 
           echo "### 🚀 Production Deployment Completed" >> $GITHUB_STEP_SUMMARY
           echo "- **Target:** Production Environment (${PRODUCTION_URL})" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** \`${{ needs.validate-release-provenance.outputs.release_sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Migration Head:** \`${{ needs.validate-release-provenance.outputs.migration_head }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Smoke Status:** PASS" >> $GITHUB_STEP_SUMMARY

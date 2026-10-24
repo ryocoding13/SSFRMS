@@ -24,7 +24,7 @@ try {
   const privateRoutes = [
     "overview", "units", "units/HĐ-2026-0142", "units/HĐ-2026-0086", "units/HĐ-2026-0086/renew", "units/HĐ-2026-0142/return", "units/unknown",
     "sent?type=renew&contract=HĐ-2026-0086", "reservations", "reservations/SS-20260914-0142", "reservations/none",
-    "confirmation/SS-20260914-0142", "checkout/SS-20260914-0142", "payments", "support", "support?contract=HĐ-2026-0142&topic=SCHEDULE", "profile",
+    "confirmation/SS-20260914-0142", "checkout/SS-20260914-0142", "payments", "support", "support/HT-0082", "support/unknown", "support?contract=HĐ-2026-0142&topic=SCHEDULE", "profile",
   ];
   let count = 0;
   for (const authed of [false, true]) {

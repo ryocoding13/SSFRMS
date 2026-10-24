@@ -285,10 +285,10 @@
         "UC11"
       ],
       "actor": "Ngọc Mai",
-      "behavior": "Tách backend C13 và S05/C12 trên main fc83c3a, độc lập với phí trả kho và huỷ/hoàn tiền",
-      "state": "passing",
-      "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx --no-build -m:1; kiểm thử C13 và S05/C12 trên SQL Server của nhóm",
-      "evidence": "2026-10-21: build PASS; xUnit 34/34; FE 68/68; business 9/9; SSR 92 route; build/init PASS. Đã merge vào main (commit 0217db0, PR #19)."
+      "behavior": "Hoàn thiện C12/C12b/C13 và S05 của Mai trên main mới, giữ API vận hành và QR/PIN/key hiện có",
+      "state": "active",
+      "verification": "dotnet test StorageProject.slnx -m:1; npm test; npm run test:business; npm run test:render; npm run check:structure; npm run build; browser theo docs/backend-auth-support.md; kiểm lại SQL Server của nhóm",
+      "evidence": "2026-10-23: nền 6d959ae; UI/task từ gói Mai e615dad ghép từng phần. FE 79/79, Business 9/9, SSR 94 route, Playwright mock 14/14, browser API .NET thật 10 nhóm, backend 54/54; structure/build/init PASS. SQLite riêng, chưa SQL Server nhóm; giữ active. Xem docs/mai-auth-support-integration.md."
     },
     {
       "id": "F38",

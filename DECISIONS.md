@@ -197,7 +197,7 @@ Theo yêu cầu nhóm, dùng src/app, src/features/<role>/<feature>, src/shared,
 - Thời hạn hoàn: 3–5 ngày làm việc, chuyển khoản thủ công sau khi trừ phí. Hệ thống ghi trạng thái hoàn khi Quản lý xác nhận ở M07.
 - Thay thế: quy định "phí hủy 10% tiền thuê" trong BACKEND-TODO (H1) và CANCEL_FEE_RATE (appReducer.js) không còn áp dụng; phải đổi theo D27. Chưa triển khai code.
 
-## D28 — Chiến lược CI/CD, Container hoá và Rollback an toàn (24/10/2026) — Đã chốt
+## D29 — Chiến lược CI/CD, Container hoá và Rollback an toàn (24/10/2026) — Đã chốt
 
 - **Chuẩn hoá Pipeline 8 bước (CI01–CI08):** Toàn bộ quy trình từ kiểm tra môi trường cục bộ (`init.sh`, `init.ps1`), CI gate (`.github/workflows/ci.yml`), xuất bản gói phát hành GHCR, tự động hóa deploy Staging, đến kiểm soát Promotion Production (`.github/workflows/deploy-production.yml`) và kịch bản Rollback an toàn (`scripts/deploy/rollback.sh`, `.ps1`).
 - **Kiểm thử Đa tầng:**
@@ -219,6 +219,9 @@ Theo yêu cầu nhóm, dùng src/app, src/features/<role>/<feature>, src/shared,
   - **Backup Bắt Buộc:** Mọi kịch bản deploy đều bắt buộc sao lưu database trước khi can thiệp schema; backup fail thì dừng triển khai ngay.
   - **Phục hồi Database có Runbook:** Chỉ phục hồi database từ file backup `.bak` khi có sự phê chuẩn và chỉ định rõ ràng file sao lưu, kèm chấp nhận downtime và mất mát dữ liệu sau thời điểm backup theo đúng runbook [docs/rollback.md](file:///d:/StorageProject/docs/rollback.md).
 
+## D28 — Kiểm thử giao diện C12/C12b/C13 bằng Playwright
+
+Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu mẫu và giao diện tiến trình. Bộ kiểm thử giả lập DTO chỉ xác nhận FE; dùng thêm host Kestrel/JWT/SQLite cho HTTP và trình duyệt với backend thật. Giữ D26/D27 và endpoint vận hành chuẩn trên main. Không lưu browser binary hoặc test-results trong git. Các SVG của C12/C13 được tái sử dụng từ gói frontend Ngọc Mai đã cung cấp; phiên này không sửa Figma.
 ## PROCESS-2026-10-24 — Quy trình AI, Git và kiểm chứng — Áp dụng khi nhóm tích hợp bản vá
 
 - Theo yêu cầu cập nhật quy định của thành viên ngày 24/10/2026; không khẳng định cả nhóm đã biểu quyết. Việc merge bản vá ghi nhận nhóm chấp nhận áp dụng.
