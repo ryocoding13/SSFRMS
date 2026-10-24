@@ -4,15 +4,39 @@ import { isEmail } from "../../../shared/utils/format.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 
 export function ForgotPassword({ onClose }) {
+  // Kiểm tra ứng dụng có hỗ trợ chức năng quên mật khẩu hay không.
+  // Nếu chưa hỗ trợ thì hướng dẫn người dùng liên hệ nhân viên.
   const { supports } = useApp();
+
+  // Lưu email người dùng đang nhập.
   const [email, setEmail] = useState("");
+
+  // Thông báo lỗi hiện bên dưới ô email.
   const [error, setError] = useState("");
+
+  // Khi sent = true, ẩn form và hiện thông báo hướng dẫn.
   const [sent, setSent] = useState(false);
+
   const submit = (e) => {
+    // Giữ nguyên trang hiện tại khi người dùng gửi form.
     e.preventDefault();
+
+    // Email sai định dạng thì báo lỗi và dừng tại đây.
     if (!isEmail(email)) return setError("Nhập email hợp lệ để nhận hướng dẫn.");
+
+    // Hiện tại chỉ đổi trạng thái giao diện, chưa gọi API gửi email.
+    // Vì vậy, thấy thông báo thành công chưa có nghĩa email đã được gửi.
     setSent(true);
   };
+
+  // Hộp thoại hiển thị theo 3 trường hợp:
+  // 1. Chưa hỗ trợ quên mật khẩu: hướng dẫn liên hệ nhân viên.
+  // 2. Đã gửi form hợp lệ: hiện thông báo hướng dẫn đặt lại mật khẩu.
+  // 3. Còn lại: hiện form nhập email.
+  //
+  // onClose được truyền từ component cha để đóng hộp thoại.
+  // Form dùng noValidate để tự kiểm tra email bằng isEmail ở trên.
+  // Khi người dùng sửa email, onChange cập nhật giá trị và xóa lỗi cũ.
   return (
     <Modal title="Quên mật khẩu?" onClose={onClose}>
       {!supports.forgotPassword ? (
