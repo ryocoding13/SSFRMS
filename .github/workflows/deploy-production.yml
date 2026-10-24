@@ -58,13 +58,26 @@ jobs:
           SPECIFIED_RUN_ID: ${{ github.event.inputs.run_id }}
         run: |
           mkdir -p ./verified_manifest
+
+          # 1. Tra cứu chính xác workflow ID của ci.yml qua GitHub API
+          EXPECTED_WORKFLOW_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml" --jq '.id // empty' 2>/dev/null || echo "")
+          if [ -z "${EXPECTED_WORKFLOW_ID}" ]; then
+            EXPECTED_WORKFLOW_ID=$(gh api "repos/${{ github.repository }}/actions/workflows" --jq '.workflows[] | select(.path == ".github/workflows/ci.yml") | .id' 2>/dev/null || echo "")
+          fi
+
+          if [ -z "${EXPECTED_WORKFLOW_ID}" ]; then
+            echo "::error::Could not resolve workflow ID for .github/workflows/ci.yml via GitHub API."
+            exit 1
+          fi
+          echo "Resolved expected CI workflow ID: ${EXPECTED_WORKFLOW_ID}"
+
           RUN_ID="${SPECIFIED_RUN_ID}"
 
           if [ -n "${RUN_ID}" ]; then
             echo "Verifying specified run ID ${RUN_ID} against provenance rules..."
             RUN_INFO=$(gh run view "${RUN_ID}" \
               --repo "${{ github.repository }}" \
-              --json workflowName,workflowPath,headBranch,headSha,conclusion,status,event 2>/dev/null || echo "")
+              --json workflowDatabaseId,workflowName,headBranch,headSha,conclusion,status,event 2>/dev/null || echo "")
             
             if [ -z "${RUN_INFO}" ]; then
               echo "::error::Could not find or access CI run ${RUN_ID} in ${{ github.repository }}."
@@ -75,8 +88,14 @@ jobs:
             RUN_BRANCH=$(echo "${RUN_INFO}" | jq -r '.headBranch // empty')
             RUN_CONCLUSION=$(echo "${RUN_INFO}" | jq -r '.conclusion // empty')
             RUN_EVENT=$(echo "${RUN_INFO}" | jq -r '.event // empty')
-            RUN_PATH=$(echo "${RUN_INFO}" | jq -r '.workflowPath // empty')
-            RUN_WORKFLOW=$(echo "${RUN_INFO}" | jq -r '.workflowName // empty')
+            RUN_WORKFLOW_ID=$(echo "${RUN_INFO}" | jq -r '.workflowDatabaseId // empty')
+            RUN_WORKFLOW_NAME=$(echo "${RUN_INFO}" | jq -r '.workflowName // empty')
+
+            # Đối chiếu workflow ID chuẩn qua API
+            if [ "${RUN_WORKFLOW_ID}" != "${EXPECTED_WORKFLOW_ID}" ]; then
+              echo "::error::Run ${RUN_ID} belongs to workflow ID ${RUN_WORKFLOW_ID} ('${RUN_WORKFLOW_NAME}'), expected ci.yml (workflow ID ${EXPECTED_WORKFLOW_ID})!"
+              exit 1
+            fi
 
             if [ "${RUN_SHA}" != "${RELEASE_SHA}" ]; then
               echo "::error::Run ${RUN_ID} commit (${RUN_SHA}) does not match requested release SHA (${RELEASE_SHA})!"
@@ -98,17 +117,12 @@ jobs:
               exit 1
             fi
 
-            # Xác minh chính xác bằng workflow file path .github/workflows/ci.yml
-            if [ "${RUN_PATH}" != ".github/workflows/ci.yml" ] && [[ "${RUN_PATH}" != *"/ci.yml" ]] && [ "${RUN_WORKFLOW}" != "CI" ] && [[ "${RUN_WORKFLOW}" != *"CI"* ]]; then
-              echo "::error::Run ${RUN_ID} workflow path is '${RUN_PATH}' (name: '${RUN_WORKFLOW}'), expected '.github/workflows/ci.yml'!"
-              exit 1
-            fi
-            echo "Specified Run ID ${RUN_ID} verified: successful CI run (.github/workflows/ci.yml, event: ${RUN_EVENT}) on main for ${RELEASE_SHA}."
+            echo "Specified Run ID ${RUN_ID} verified: successful CI run (workflow ID: ${RUN_WORKFLOW_ID}, event: ${RUN_EVENT}) on main for ${RELEASE_SHA}."
           else
-            echo "Searching for successful CI run for commit ${RELEASE_SHA} on branch main..."
+            echo "Searching for successful CI run for commit ${RELEASE_SHA} on branch main using workflow ID ${EXPECTED_WORKFLOW_ID}..."
             RUN_ID=$(gh run list \
               --repo "${{ github.repository }}" \
-              --workflow "ci.yml" \
+              --workflow "${EXPECTED_WORKFLOW_ID}" \
               --commit "${RELEASE_SHA}" \
               --branch "main" \
               --status "success" \
@@ -131,18 +145,22 @@ jobs:
           fi
 
           if [ ! -f "./verified_manifest/release-manifest.json" ]; then
-            echo "::error::release-manifest.json was not present in the downloaded artifact."
+            echo "::error::release-manifest.json was not present in the downloaded artifact from run ${RUN_ID}."
             exit 1
           fi
+
+          echo "run_id=${RUN_ID}" >> $GITHUB_OUTPUT
 
       - name: Verify Staging Precondition
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_SHA: ${{ steps.validate_sha.outputs.sha }}
+          CI_RUN_ID: ${{ steps.fetch_manifest.outputs.run_id }}
           REQUIRE_STAGING_DEPLOY: ${{ vars.REQUIRE_STAGING_DEPLOY || 'true' }}
         run: |
           echo "Checking Staging deployment precondition for commit ${RELEASE_SHA}..."
           if [ "${REQUIRE_STAGING_DEPLOY}" = "true" ]; then
+            # 1. Kiểm tra bản ghi GitHub Deployment thành công
             DEPLOYMENT_ID=$(gh api "repos/${{ github.repository }}/deployments?environment=staging&sha=${RELEASE_SHA}" --jq '.[0].id // empty' 2>/dev/null || echo "")
             if [ -z "${DEPLOYMENT_ID}" ]; then
               echo "::error::No staging deployment found for commit ${RELEASE_SHA}. Live staging deployment must succeed before promoting to production."
@@ -155,27 +173,102 @@ jobs:
               exit 1
             fi
 
-            echo "Verifying authentic Staging Deployment Receipt artifact..."
-            RECEIPT_RUN_ID=$(gh run list \
-              --repo "${{ github.repository }}" \
-              --workflow "ci.yml" \
-              --commit "${RELEASE_SHA}" \
-              --branch "main" \
-              --status "success" \
-              --json databaseId \
-              --jq '.[0].databaseId // empty' 2>/dev/null || echo "")
-            
-            if [ -n "${RECEIPT_RUN_ID}" ]; then
-              mkdir -p /tmp/staging_receipt
-              if gh run download "${RECEIPT_RUN_ID}" --repo "${{ github.repository }}" --name "staging-deployment-receipt" --dir "/tmp/staging_receipt" 2>/dev/null; then
-                echo "Verified staging deployment receipt found from CI run ${RECEIPT_RUN_ID}."
-              else
-                echo "::error::CI run ${RECEIPT_RUN_ID} does not contain staging-deployment-receipt artifact. Staging was in Standby mode and not actually deployed to server!"
-                exit 1
-              fi
+            # 2. Kiểm tra CI_RUN_ID và tải staging-deployment-receipt từ đúng CI run đã sinh manifest
+            if [ -z "${CI_RUN_ID}" ]; then
+              echo "::error::Verified CI Run ID is empty. Cannot retrieve staging deployment receipt. Promotion to Production is blocked!"
+              exit 1
             fi
 
-            echo "Staging deployment ${DEPLOYMENT_ID} verified with state 'success' and authentic deployment receipt."
+            echo "Downloading staging-deployment-receipt artifact from verified CI run ${CI_RUN_ID}..."
+            mkdir -p ./verified_receipt
+            if ! gh run download "${CI_RUN_ID}" --repo "${{ github.repository }}" --name "staging-deployment-receipt" --dir "./verified_receipt" 2>/dev/null; then
+              echo "::error::Artifact 'staging-deployment-receipt' was not found in CI run ${CI_RUN_ID}. Staging was either in Standby mode or deployment failed. Promotion to Production is blocked!"
+              exit 1
+            fi
+
+            RECEIPT_FILE="./verified_receipt/staging-deployment-receipt.json"
+            if [ ! -f "${RECEIPT_FILE}" ]; then
+              echo "::error::staging-deployment-receipt.json was not found in downloaded artifact from run ${CI_RUN_ID}."
+              exit 1
+            fi
+
+            # 3. Đối chiếu toàn diện receipt với release manifest bằng Node.js
+            echo "Validating staging deployment receipt against release manifest..."
+            node -e '
+              const fs = require("fs");
+              const manifestPath = "./verified_manifest/release-manifest.json";
+              const receiptPath = "./verified_receipt/staging-deployment-receipt.json";
+
+              const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+              const receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
+              const releaseSha = process.env.RELEASE_SHA;
+              const expectedRunId = process.env.CI_RUN_ID;
+
+              // Đối chiếu SHA
+              if (receipt.commit !== releaseSha) {
+                console.error(`::error::Receipt commit (${receipt.commit}) does not match release SHA (${releaseSha})!`);
+                process.exit(1);
+              }
+
+              // Đối chiếu run ID
+              if (String(receipt.run_id) !== String(expectedRunId)) {
+                console.error(`::error::Receipt run_id (${receipt.run_id}) does not match verified CI run ID (${expectedRunId})!`);
+                process.exit(1);
+              }
+
+              // Đối chiếu environment
+              if (receipt.environment !== "staging") {
+                console.error(`::error::Receipt environment (${receipt.environment}) is not "staging"!`);
+                process.exit(1);
+              }
+
+              // Đối chiếu trạng thái deploy và smoke
+              if (receipt.status !== "deployed") {
+                console.error(`::error::Receipt status (${receipt.status}) is not "deployed"!`);
+                process.exit(1);
+              }
+              if (receipt.smoke_status !== "passed") {
+                console.error(`::error::Receipt smoke_status (${receipt.smoke_status}) is not "passed"!`);
+                process.exit(1);
+              }
+
+              // Đối chiếu exact image digests
+              if (!receipt.images || !manifest.images) {
+                console.error(`::error::Missing images section in receipt or manifest!`);
+                process.exit(1);
+              }
+
+              const getDigest = (img) => {
+                if (!img) return "";
+                if (typeof img === "string") return img;
+                return img.digest || "";
+              };
+
+              const manifestApi = getDigest(manifest.images.api);
+              const manifestWeb = getDigest(manifest.images.web);
+              const manifestMigrator = getDigest(manifest.images.migrator);
+
+              const receiptApi = getDigest(receipt.images.api);
+              const receiptWeb = getDigest(receipt.images.web);
+              const receiptMigrator = getDigest(receipt.images.migrator);
+
+              if (!receiptApi || receiptApi !== manifestApi) {
+                console.error(`::error::Receipt API image digest (${receiptApi}) does not match release manifest (${manifestApi})!`);
+                process.exit(1);
+              }
+              if (!receiptWeb || receiptWeb !== manifestWeb) {
+                console.error(`::error::Receipt Web image digest (${receiptWeb}) does not match release manifest (${manifestWeb})!`);
+                process.exit(1);
+              }
+              if (!receiptMigrator || receiptMigrator !== manifestMigrator) {
+                console.error(`::error::Receipt Migrator image digest (${receiptMigrator}) does not match release manifest (${manifestMigrator})!`);
+                process.exit(1);
+              }
+
+              console.log("✅ Staging deployment receipt verified 100%: SHA, Run ID, Environment, Smoke status, and 3 Image Digests match release manifest exactly.");
+            '
+
+            echo "Staging deployment ${DEPLOYMENT_ID} verified with state 'success' and authentic verified receipt."
           else
             echo "ℹ️ Staging deployment precondition check is in standby mode (REQUIRE_STAGING_DEPLOY=${REQUIRE_STAGING_DEPLOY})."
           fi

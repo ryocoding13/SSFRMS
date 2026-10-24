@@ -405,23 +405,42 @@ jobs:
           ssh -o ConnectTimeout=15 "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
             "cd /opt/safespace && bash scripts/deploy/deploy.sh artifacts/release-manifest.json deploy/.env deploy/compose.staging.yml"
 
+          echo "Extracting image digests from release manifest..."
+          API_DIGEST=$(jq -r '.images.api.digest // .images.api // empty' artifacts/release-manifest.json)
+          WEB_DIGEST=$(jq -r '.images.web.digest // .images.web // empty' artifacts/release-manifest.json)
+          MIGRATOR_DIGEST=$(jq -r '.images.migrator.digest // .images.migrator // empty' artifacts/release-manifest.json)
+
           echo "Creating verified staging deployment receipt..."
           mkdir -p artifacts
-          cat <<EOF > artifacts/staging-deployment-receipt.json
-          {
-            "environment": "staging",
-            "commit": "${{ github.sha }}",
-            "host": "${STAGING_SSH_HOST}",
-            "status": "deployed",
-            "smoke_status": "passed",
-            "deployed_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          }
-          EOF
+          DEPLOYED_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          GITHUB_SHA="${{ github.sha }}" GITHUB_RUN_ID="${{ github.run_id }}" \
+          STAGING_SSH_HOST="${STAGING_SSH_HOST}" API_DIGEST="${API_DIGEST}" \
+          WEB_DIGEST="${WEB_DIGEST}" MIGRATOR_DIGEST="${MIGRATOR_DIGEST}" \
+          DEPLOYED_TIME="${DEPLOYED_TIME}" \
+          node -e '
+            const fs = require("fs");
+            const receipt = {
+              environment: "staging",
+              commit: process.env.GITHUB_SHA,
+              run_id: process.env.GITHUB_RUN_ID,
+              host: process.env.STAGING_SSH_HOST,
+              status: "deployed",
+              smoke_status: "passed",
+              images: {
+                api: process.env.API_DIGEST,
+                web: process.env.WEB_DIGEST,
+                migrator: process.env.MIGRATOR_DIGEST
+              },
+              deployed_at: process.env.DEPLOYED_TIME
+            };
+            fs.writeFileSync("artifacts/staging-deployment-receipt.json", JSON.stringify(receipt, null, 2));
+          '
           
           echo "### ✅ Staging Deployment Completed" >> $GITHUB_STEP_SUMMARY
           echo "- **Target:** Staging Environment (${STAGING_SSH_HOST})" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Receipt:** \`staging-deployment-receipt.json\` generated" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run ID:** \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Receipt:** \`staging-deployment-receipt.json\` generated with exact image digests" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload Staging Deployment Receipt Artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1

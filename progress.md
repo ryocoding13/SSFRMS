@@ -16,6 +16,36 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên 2026-10-24 (Đợt 3) — Khắc Phục Xác Thực Provenance Workflow ID và Đối Chiếu Toàn Diện Staging Deployment Receipt
+
+- **Mục tiêu:** Xử lý triệt để 2 điểm phát hiện cuối cùng trong production workflow theo yêu cầu review:
+  1. **Khắc phục lỗi `workflowPath` không được hỗ trợ trong `gh run view --json`:**
+     - `gh run view` không hỗ trợ trường `workflowPath` (gây lỗi khi gọi với `run_id` chỉ định) và việc so khớp chuỗi tên workflow dễ bị sai lệch khi đổi tên hiển thị.
+     - Khắc phục trong `.github/workflows/deploy-production.yml`:
+       - Tra cứu chính xác workflow ID chuẩn của CI qua GitHub API: `gh api repos/${{ github.repository }}/actions/workflows/ci.yml --jq '.id'`.
+       - Trong `gh run view`, sử dụng trường JSON chuẩn `workflowDatabaseId` và kiểm tra đối chiếu trực tiếp `RUN_WORKFLOW_ID == EXPECTED_WORKFLOW_ID`.
+       - Nhánh tìm kiếm run thành công tự động (`gh run list`) cũng lọc chính xác theo `--workflow "${EXPECTED_WORKFLOW_ID}"`.
+       - Xuất output `run_id=${RUN_ID}` từ step `fetch_manifest` để các step sau tái sử dụng chính xác.
+  2. **Hoàn thiện cấu trúc receipt và đối chiếu toàn diện Staging Deployment Receipt với Release Manifest:**
+     - Trong `.github/workflows/ci.yml` (`deploy-staging`):
+       - Trích xuất 3 image digests (`.images.api.digest`, `.images.web.digest`, `.images.migrator.digest`) từ `release-manifest.json`.
+       - Tạo file `artifacts/staging-deployment-receipt.json` chứa đầy đủ: `environment: "staging"`, `commit`, `run_id: "${{ github.run_id }}"`, `host`, `status: "deployed"`, `smoke_status: "passed"`, và `images: { api, web, migrator }`.
+       - Upload artifact `staging-deployment-receipt` để phục vụ đối chiếu khi promote lên production.
+     - Trong `.github/workflows/deploy-production.yml` (`Verify Staging Precondition`):
+       - Kiểm tra `CI_RUN_ID` (từ output của `fetch_manifest`): Nếu rỗng hoặc không tải được artifact `staging-deployment-receipt` từ đúng CI run đó -> fail-closed ngay lập tức (chặn promote nếu staging chỉ ở chế độ Standby hoặc deploy thất bại).
+       - Thực thi đoạn mã Node.js đối chiếu toàn diện 100% giữa receipt và manifest:
+         - Đối chiếu commit SHA: `receipt.commit === RELEASE_SHA`.
+         - Đối chiếu run ID: `String(receipt.run_id) === String(CI_RUN_ID)`.
+         - Đối chiếu environment: `receipt.environment === "staging"`.
+         - Đối chiếu trạng thái triển khai: `receipt.status === "deployed"`.
+         - Đối chiếu kiểm thử smoke: `receipt.smoke_status === "passed"`.
+         - Đối chiếu 3 image digests (API, Web, Migrator): hàm trích xuất hỗ trợ cả object `{ digest }` và string, đối chiếu khớp chính xác từng ký tự SHA256 với `release-manifest.json`.
+- **Kiểm chứng:**
+  - `npx --yes yaml-lint .github/workflows/*.yml`: PASS 100% toàn bộ workflows (`ci.yml`, `deploy-production.yml`, `rollback.yml`).
+  - Unit test Node.js cho logic đối chiếu receipt ↔ manifest: PASS (phát hiện và chặn đúng khi lệch SHA, run ID, environment, status, smoke_status, hoặc image digest).
+  - Khuyến nghị giữ CD ở chế độ Standby (`ENABLE_STAGING_DEPLOY: false`), mở PR để chạy kiểm thử CI thật trên GitHub Actions mà không phụ thuộc vào VPS.
+- **Tuân thủ AGENTS.md:** AI không chạy commit hay push. Toàn bộ thay đổi nằm sẵn trên working tree của nhánh `feature/cicd-candidate` để thành viên nhóm tự review và commit.
+
 ## Phiên 2026-10-24 (Đợt 2) — Đồng Bộ Main Mới, Khắc Phục Triệt Để CI/CD và Tách Biệt CD Chờ VPS
 
 - **Mục tiêu:** Giải quyết triệt để các vấn đề còn lại từ đợt kiểm tra candidate và gộp các thay đổi mới nhất từ `origin/main` (commit `a632cb7` - PR #25 của Ngọc Mai):
