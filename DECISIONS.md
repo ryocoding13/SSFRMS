@@ -197,6 +197,12 @@ Theo yêu cầu nhóm, dùng src/app, src/features/<role>/<feature>, src/shared,
 - Thời hạn hoàn: 3–5 ngày làm việc, chuyển khoản thủ công sau khi trừ phí. Hệ thống ghi trạng thái hoàn khi Quản lý xác nhận ở M07.
 - Thay thế: quy định "phí hủy 10% tiền thuê" trong BACKEND-TODO (H1) và CANCEL_FEE_RATE (appReducer.js) không còn áp dụng; phải đổi theo D27. Chưa triển khai code.
 
+## D28 — 2026-10-23: Đồng bộ Figma 23/10 (huỷ/hoàn tiền D27 và hộp thoại kết quả)
+
+- Figma được cập nhật theo D27: luồng đặt chỗ hiện tiền cọc (thuê + cọc 1 tháng = tổng ban đầu); huỷ trước ngày bắt đầu thuê: phí 10% tiền cọc, hoàn 100% tiền thuê và 90% cọc; B02 phí quá hạn 5% giá thuê tháng mỗi ngày trễ. Code giữ số liệu từ backend, chỉ đổi chữ và bố cục theo Figma.
+- C14 đặt nút "Xem đơn / Huỷ đơn" trên từng dòng; C14b/C14c hiện "Đã huỷ · Đang hoàn tiền" (`refundStatus` PENDING) và "Đã huỷ · Đã hoàn tiền" (COMPLETED).
+- Mọi thao tác ghi của nhân viên và các thao tác phân bổ, phân công, duyệt/từ chối gia hạn của quản lý đi qua: xác nhận → thành công (03a) hoặc thất bại (03b) theo Figma 779:*, 847:*, 885:*. Admin và Vận hành KD dùng chung `shared/components/ChangeFlowDialog.jsx`. Sau thành công, trang quay về danh sách đúng theo nút trên Figma thay vì trang kết quả `staff/done`.
+- M08 hoàn tiền đơn huỷ là trang riêng `#/manager/refunds` nằm dưới tab "Hợp đồng & quá hạn" (Figma đặt cùng tab). Chỉ hoàn bằng chuyển khoản vì khách đã trả qua PayOS; bắt buộc nhập mã giao dịch.
 
 ## D28 — Kiểm thử giao diện C12/C12b/C13 bằng Playwright
 

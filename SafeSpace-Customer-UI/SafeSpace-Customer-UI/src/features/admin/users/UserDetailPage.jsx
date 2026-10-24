@@ -11,10 +11,10 @@
  *    - Nút "Lưu thay đổi" chỉ bật khi có dữ liệu thay đổi (dirty) và không trong trạng thái đang gửi request.
  * 3. Thẻ 2: Đặt lại mật khẩu (PasswordCard):
  *    - Cho phép Admin nhập mật khẩu mới hoặc bấm "Tạo ngẫu nhiên" mật khẩu mạnh 12 ký tự.
- *    - Gọi API resetPassword và mở Modal hiển thị mật khẩu mới để Admin sao chép gửi cho người dùng.
+ *    - Gọi API resetPassword qua hộp thoại xác nhận; hộp thoại thành công hiện mật khẩu mới một lần (Figma 885:10676).
  * 4. Thẻ 3: Quản lý vai trò (RolesCard):
  *    - Danh sách các vai trò tài khoản đang sở hữu dưới dạng pill.
- *    - Nút xoá (x) trên từng pill để thu hồi vai trò kèm Modal cảnh báo xác nhận.
+ *    - Nút xoá (x) trên từng pill để thu hồi vai trò qua hộp thoại xác nhận chung (Figma 885:10725).
  *    - Dropdown chọn vai trò để gán thêm vai trò mới (chỉ hiển thị những vai trò tài khoản chưa có).
  * 5. Thẻ 4: Phân công cơ sở phụ trách (FacilityCard):
  *    - Hiển thị cơ sở đang phụ trách hiện tại (ACTIVE).
@@ -26,7 +26,8 @@
 import React, { useEffect, useState } from "react";
 import { adminApi } from "../api/adminApi.js";
 import { DatePicker, Select } from "../../../shared/components/Pickers.jsx";
-import { Button, Empty, Field, LinkButton, Modal, Notice, StatusTag } from "../../../shared/components/UI.jsx";
+import { Button, Empty, Field, LinkButton, Notice, StatusTag } from "../../../shared/components/UI.jsx";
+import { useChangeFlow } from "../../../shared/components/ChangeFlowDialog.jsx";
 import { isEmail, isPhone, today } from "../../../shared/utils/format.js";
 import { ASSIGNMENT_STATUS, USER_STATUS, needsFacility, roleLabel, sortRoles } from "../../../shared/utils/roles.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
@@ -40,7 +41,8 @@ import { dateOnlyLabel, dateTime, tempPassword, useLoad } from "../utils/adminUt
  * - onSaved: callback làm mới lại dữ liệu từ server sau khi cập nhật thành công
  */
 function InfoCard({ user, onSaved }) {
-  const { onApiError, notify } = useApp();
+  const { onApiError } = useApp();
+  const [flowEl, runChange] = useChangeFlow();
 
   // State lưu dữ liệu form chỉnh sửa
   const [form, setForm] = useState({ fullName: user.fullName, email: user.email, phone: user.phone || "", status: user.status });
@@ -72,21 +74,20 @@ function InfoCard({ user, onSaved }) {
     if (form.phone && !isPhone(form.phone)) err.phone = "Số điện thoại chưa đúng định dạng.";
     if (Object.keys(err).length) return setErrors(err);
 
+    // Figma 885:10623–10647: xác nhận → đã lưu / không lưu được
     setBusy(true);
-    try {
-      await adminApi.updateUser(user.userId, {
+    const out = await runChange({
+      action: "Lưu thông tin tài khoản", scope: `Tài khoản ${user.fullName}`, content: "Thông tin và trạng thái tài khoản đã chỉnh sửa",
+      perform: () => adminApi.updateUser(user.userId, {
         fullName: form.fullName.trim(),
         email: form.email.trim().toLowerCase(),
         phone: form.phone.replace(/[\s.-]/g, "") || null,
         status: form.status,
-      });
-      notify("Đã cập nhật tài khoản.");
-      onSaved();
-    } catch (ex) {
-      onApiError(ex);
-      setErrors({ form: ex.message });
-    }
+      }),
+    });
     setBusy(false);
+    if (out.error) onApiError(out.error);
+    if (out.ok) onSaved();
   };
 
   return (
@@ -124,6 +125,7 @@ function InfoCard({ user, onSaved }) {
       <Button type="submit" disabled={!dirty || busy}>
         {busy ? "Đang lưu…" : "Lưu thay đổi"}
       </Button>
+      {flowEl}
     </form>
   );
 }
@@ -132,29 +134,29 @@ function InfoCard({ user, onSaved }) {
  * PasswordCard - Thẻ Đặt Lại Mật Khẩu Cho Người Dùng
  *
  * Cho phép Admin cấp lại mật khẩu mới cho người dùng.
- * Sau khi đổi xong sẽ bật Modal hiển thị mật khẩu để sao chép.
+ * Sau khi đổi xong, hộp thoại thành công hiện mật khẩu để sao chép.
  */
 function PasswordCard({ user }) {
   const { onApiError } = useApp();
   const [pw, setPw] = useState("");      // Mật khẩu mới đang nhập
   const [error, setError] = useState(""); // Lỗi độ dài mật khẩu
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(null); // Lưu mật khẩu vừa đặt thành công để hiển thị modal
+  const [flowEl, runChange] = useChangeFlow();
 
   const submit = async (e) => {
     e.preventDefault();
     if (pw.length < 8) return setError("Mật khẩu mới cần ít nhất 8 ký tự.");
 
+    // Figma 885:10657–10681: mật khẩu mới chỉ hiển thị một lần trong hộp thoại thành công
     setBusy(true);
-    try {
-      await adminApi.resetPassword(user.userId, pw);
-      setDone(pw);
-      setPw("");
-    } catch (ex) {
-      onApiError(ex);
-      setError(ex.message);
-    }
+    const out = await runChange({
+      action: "Đặt lại mật khẩu", scope: `Tài khoản ${user.fullName}`, content: "Mật khẩu mới trên biểu mẫu; chỉ hiển thị một lần",
+      successText: `Đã đặt lại mật khẩu. Mật khẩu mới của ${user.fullName}: ${pw}. Mật khẩu mới chỉ hiển thị một lần; quản trị viên gửi lại cho người dùng.`,
+      perform: () => adminApi.resetPassword(user.userId, pw),
+    });
     setBusy(false);
+    if (out.error) onApiError(out.error);
+    if (out.ok) setPw("");
   };
 
   return (
@@ -180,15 +182,7 @@ function PasswordCard({ user }) {
         {busy ? "Đang đặt lại…" : "Đặt lại mật khẩu"}
       </Button>
 
-      {/* Modal thông báo kết quả sau khi đặt lại mật khẩu */}
-      {done && (
-        <Modal title="Đã đặt lại mật khẩu" onClose={() => setDone(null)}>
-          <p className="modal__text">
-            Mật khẩu mới của {user.fullName}: <strong>{done}</strong>. Gửi cho người dùng và nhắc đổi sau khi đăng nhập.
-          </p>
-          <Button onClick={() => setDone(null)}>Đã hiểu</Button>
-        </Modal>
-      )}
+      {flowEl}
     </form>
   );
 }
@@ -202,11 +196,11 @@ function PasswordCard({ user }) {
  * - onSaved: callback làm mới dữ liệu
  */
 function RolesCard({ user, allRoles, onSaved }) {
-  const { onApiError, notify } = useApp();
+  const { onApiError } = useApp();
   const [adding, setAdding] = useState("");    // roleId được chọn trong dropdown để gán thêm
-  const [confirm, setConfirm] = useState(null); // Role đang chờ xác nhận thu hồi
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [flowEl, runChange] = useChangeFlow();
 
   // Tập hợp các roleId mà user đang sở hữu
   const owned = new Set(user.roles.map((r) => r.roleId));
@@ -214,18 +208,15 @@ function RolesCard({ user, allRoles, onSaved }) {
   const available = allRoles.filter((r) => !owned.has(r.roleId));
 
   // Hàm thực thi gọi API kèm xử lý loading/lỗi
-  const run = async (fn, msg) => {
+  // Figma 885:10691–10817: mỗi thay đổi đi qua xác nhận → đã … / không … được
+  const run = async (perform, action, content) => {
     setBusy(true);
     setError("");
-    try {
-      await fn();
-      notify(msg);
-      onSaved();
-    } catch (ex) {
-      onApiError(ex);
-      setError(ex.message);
-    }
+    const out = await runChange({ action, scope: `Tài khoản ${user.fullName}`, content, perform });
     setBusy(false);
+    if (out.error) onApiError(out.error);
+    if (out.ok) onSaved();
+    return out;
   };
 
   return (
@@ -241,7 +232,7 @@ function RolesCard({ user, allRoles, onSaved }) {
             <button
               type="button"
               aria-label={`Thu hồi vai trò ${roleLabel(r.roleName)}`}
-              onClick={() => setConfirm(r)}
+              onClick={() => run(() => adminApi.revokeRole(user.userId, r.roleId), "Thu hồi vai trò", `${roleLabel(r.roleName)} · giữ ít nhất một quản trị viên hoạt động`)}
               disabled={busy}
             >
               ×
@@ -262,7 +253,7 @@ function RolesCard({ user, allRoles, onSaved }) {
           </Select>
           <Button
             disabled={!adding || busy}
-            onClick={() => run(() => adminApi.assignRole(user.userId, Number(adding)), "Đã gán vai trò.").then(() => setAdding(""))}
+            onClick={() => run(() => adminApi.assignRole(user.userId, Number(adding)), "Gán vai trò", roleLabel(available.find((r) => String(r.roleId) === String(adding))?.roleName)).then((out) => out.ok && setAdding(""))}
           >
             Gán vai trò
           </Button>
@@ -271,27 +262,7 @@ function RolesCard({ user, allRoles, onSaved }) {
 
       {error && <Notice tone="error">{error}</Notice>}
 
-      {/* Modal xác nhận thu hồi vai trò */}
-      {confirm && (
-        <Modal title="Thu hồi vai trò?" onClose={() => setConfirm(null)}>
-          <p className="modal__text">
-            {user.fullName} sẽ mất vai trò <strong>{roleLabel(confirm.roleName)}</strong> và các quyền đi kèm.
-          </p>
-          <div className="modal__actions">
-            <Button
-              variant="danger"
-              onClick={() => {
-                const r = confirm;
-                setConfirm(null);
-                run(() => adminApi.revokeRole(user.userId, r.roleId), "Đã thu hồi vai trò.");
-              }}
-            >
-              Thu hồi
-            </Button>
-            <Button variant="outline" onClick={() => setConfirm(null)}>Giữ lại</Button>
-          </div>
-        </Modal>
-      )}
+      {flowEl}
     </section>
   );
 }
@@ -303,7 +274,8 @@ function RolesCard({ user, allRoles, onSaved }) {
  * Quy tắc nghiệp vụ: Mỗi người chỉ phụ trách 1 cơ sở tại một thời điểm.
  */
 function FacilityCard({ user, facilities, rows, onSaved }) {
-  const { onApiError, notify } = useApp();
+  const { onApiError } = useApp();
+  const [flowEl, runChange] = useChangeFlow();
   const [facilityId, setFacilityId] = useState(""); // Cơ sở chọn trong dropdown để phân công
   const [from, setFrom] = useState(today());        // Ngày bắt đầu phân công
   const [error, setError] = useState("");
@@ -313,18 +285,15 @@ function FacilityCard({ user, facilities, rows, onSaved }) {
   const active = rows.find((r) => r.status === "ACTIVE");
 
   // Hàm chạy API đổi trạng thái hoặc phân công
-  const run = async (fn, msg) => {
+  // Figma 885:10691–10817: mỗi thay đổi đi qua xác nhận → đã … / không … được
+  const run = async (perform, action, content) => {
     setBusy(true);
     setError("");
-    try {
-      await fn();
-      notify(msg);
-      onSaved();
-    } catch (ex) {
-      onApiError(ex);
-      setError(ex.message);
-    }
+    const out = await runChange({ action, scope: `Tài khoản ${user.fullName}`, content, perform });
     setBusy(false);
+    if (out.error) onApiError(out.error);
+    if (out.ok) onSaved();
+    return out;
   };
 
   return (
@@ -350,13 +319,14 @@ function FacilityCard({ user, facilities, rows, onSaved }) {
         <DatePicker value={from} min="2000-01-01" onChange={setFrom} className="inline-date" />
         <Button
           disabled={!facilityId || busy}
-          onClick={() => run(() => adminApi.assignFacility({ userId: user.userId, facilityId: Number(facilityId), assignedFrom: from, assignedTo: null }), "Đã phân công cơ sở.").then(() => setFacilityId(""))}
+          onClick={() => run(() => adminApi.assignFacility({ userId: user.userId, facilityId: Number(facilityId), assignedFrom: from, assignedTo: null }), "Phân công cơ sở", `${facilities.find((f) => String(f.facilityId) === String(facilityId))?.name || ""} · chỉ một cơ sở tại một thời điểm; kết thúc phân công cũ`).then((out) => out.ok && setFacilityId(""))}
         >
           Phân công
         </Button>
       </div>
 
       {error && <Notice tone="error">{error}</Notice>}
+      {flowEl}
 
       {/* Bảng lịch sử các đợt phân công cơ sở */}
       {rows.length > 0 && (
@@ -387,7 +357,7 @@ function FacilityCard({ user, facilities, rows, onSaved }) {
                           type="button"
                           className="link-btn"
                           disabled={busy}
-                          onClick={() => run(() => adminApi.setAssignmentStatus(r.userFacilityId, "SUSPENDED"), "Đã tạm ngưng phân công.")}
+                          onClick={() => run(() => adminApi.setAssignmentStatus(r.userFacilityId, "SUSPENDED"), "Tạm ngưng phân công", `${r.facilityName} · phân công cơ sở đang được chọn`)}
                         >
                           Tạm ngưng
                         </button>
@@ -395,7 +365,7 @@ function FacilityCard({ user, facilities, rows, onSaved }) {
                           type="button"
                           className="link-btn link-btn--danger"
                           disabled={busy}
-                          onClick={() => run(() => adminApi.setAssignmentStatus(r.userFacilityId, "ENDED"), "Đã kết thúc phân công.")}
+                          onClick={() => run(() => adminApi.setAssignmentStatus(r.userFacilityId, "ENDED"), "Kết thúc phân công", `${r.facilityName} · kết thúc phân công hiện tại; giữ lịch sử`)}
                         >
                           Kết thúc
                         </button>
@@ -407,7 +377,7 @@ function FacilityCard({ user, facilities, rows, onSaved }) {
                         type="button"
                         className="link-btn"
                         disabled={busy}
-                        onClick={() => run(() => adminApi.setAssignmentStatus(r.userFacilityId, "ACTIVE"), "Đã kích hoạt lại phân công.")}
+                        onClick={() => run(() => adminApi.setAssignmentStatus(r.userFacilityId, "ACTIVE"), "Kích hoạt lại phân công", r.facilityName)}
                       >
                         Kích hoạt lại
                       </button>

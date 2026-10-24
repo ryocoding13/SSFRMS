@@ -2,7 +2,7 @@
   "_readme": "Danh sách tính năng = ranh giới phạm vi cho AI agent. Mỗi mục: behavior (hành vi), verification (lệnh/cách kiểm chứng), state. state: not_started -> active -> passing | blocked. Chỉ đổi sang passing khi verification pass và ghi evidence. Mỗi phiên chỉ một mục active.",
   "_fe": "cd SafeSpace-Customer-UI/SafeSpace-Customer-UI && npm test && npm run test:render && npm run build",
   "_be": "dotnet build StorageProject.slnx",
-  "updated": "2026-10-22",
+  "updated": "2026-10-23",
   "features": [
     {
       "id": "F01", "flow": 1, "uc": ["UC01"], "actor": "Khách hàng",
@@ -316,6 +316,15 @@
       "state": "active",
       "verification": "dotnet build StorageProject.slnx -m:1; dotnet test StorageProject.slnx --no-build -m:1 (RefundPolicyTests); npm test; npm run test:render; npm run check:structure; npm run build; kiểm tra huỷ đơn, cancel-preview và M07 trên SQL Server của nhóm",
       "evidence": "2026-10-22: viết xong code BE (RefundPolicy, GetCancelPreviewAsync, CancelReservationAsync ghi REFUND PENDING, ConfirmRefundAsync theo D27, POST /api/ops/reservations/{id}/refund) và 11 test xUnit cho công thức, UnitStartActivation (RESERVED → OCCUPIED) và test ReservedUnitBecomesOccupiedOnStartDateOnly. Lượt đầu đã build + 51 test đạt trên máy nhóm; phần bổ sung F12 và đường hoàn cọc cũ chưa được biên dịch (không có .NET SDK trong phiên); FE: npm test 76/76, test:render, check:structure, build đạt (xem progress.md). Giữ active đến khi nhóm chạy dotnet build/test và kiểm thử luồng thật."
+    },
+    {
+      "id": "F40",
+      "flow": [1, 2, 3, 5, 6, 7],
+      "actor": "Nhi (FE)",
+      "behavior": "Đồng bộ code theo Figma cập nhật 23/10: C14/C14a–c theo D27 (thao tác trên từng dòng, phí huỷ 10% cọc), M08 hoàn tiền đơn huỷ (#/manager/refunds), M07a xác nhận trả kho, hộp thoại xác nhận → thành công/thất bại cho S02–S05, S09, M03, phân bổ, phân công, B02, B03 và Admin (Figma 779:*, 847:*, 885:*); các màn Figma mới chưa có backend xem docs/figma-ui-sync-2026-10-23.md",
+      "state": "active",
+      "verification": "npm run check:structure; npm test; npm run test:business; npm run test:render; npm run build; ./init.sh; kiểm tra trên trình duyệt theo docs/figma-ui-sync-2026-10-23.md; M08 cần backend trả refunds trong GET /api/ops/board (BACKEND-TODO.md mục M08)",
+      "evidence": "2026-10-23: xem progress.md mục F40. Chưa chạy backend .NET/SQL Server thật."
     }
   ]
 }

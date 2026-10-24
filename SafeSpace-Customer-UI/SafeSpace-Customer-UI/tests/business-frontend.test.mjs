@@ -8,6 +8,7 @@ import { activateWithConfirm, replacePolicy } from "../src/features/business/pol
 import { parseCsv, workbookBytes } from "../src/features/business/reports/reportExport.js";
 import { facilityToForm, formToRequest, splitCoordinates } from "../src/features/business/facilities/facilityForm.js";
 import { startMockApi } from '../mock/mock-api.mjs';
+import { API_URL } from '../src/app/config/api.js';
 const field = key => policyFields.find(f => f.key === key);
 const day='2026-10-15';
 const p=(extra={})=>({policyId:1,policyName:'Mức đặt cọc mặc định',policyType:'DEPOSIT',calculationType:'FIXED',value:1,status:'ACTIVE',facilityId:null,unitTypeId:null,effectiveFrom:'2026-01-01',effectiveTo:null,ruleDescription:'',...extra});
@@ -57,16 +58,37 @@ test('business API sends the shared JWT and correct query/body; returns 401/403/
  }finally{globalThis.fetch=old;setToken(null);}
 });
 test('strict contract: conflict cancellation never sends replaceExisting; confirmation does',async()=>{
- const {server}=await startMockApi(5151,{business:true});let asked=0;
+ // Port 0 isolates the test from the developer's API on :5151.
+ // Keep the real HTTP client and policy endpoints; route only the test transport.
+ const {server,state}=await startMockApi(0,{business:true,ops:false,legacy:false});
+ const base=`http://127.0.0.1:${server.address().port}`;
+ const realFetch=globalThis.fetch,requests=[];let asked=0;
  try{
-  const response=await fetch('http://localhost:5151/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'ops01',password:'Ops@123'})});setToken((await response.json()).token);
+  globalThis.fetch=(url,options)=>{
+   const target=new URL(url);
+   assert.equal(target.origin,new URL(API_URL).origin,'businessApi must use the configured API origin');
+   requests.push({method:options?.method||'GET',path:target.pathname,replaceExisting:target.searchParams.get('replaceExisting')});
+   return realFetch(`${base}${target.pathname}${target.search}`,options);
+  };
+  const response=await realFetch(`${base}/api/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'ops01',password:'Ops@123'})});
+  assert.equal(response.status,200,'mock operations login must succeed');
+  const session=await response.json();assert.ok(session.token,'mock login must return a token');setToken(session.token);
   const old=(await businessApi.policies()).find(x=>x.policyType==='OVERDUE');
-  const job=policyJobs([old],{overdue:'25000'},day)[0];
+  assert.ok(old,'isolated mock must return the OVERDUE policy');
+  assert.equal(old.policyId,state.policies.find(x=>x.policyType==='OVERDUE')?.policyId);
+  const job=policyJobs([old],{overdue:'25000'},old.effectiveFrom)[0];
   assert.equal(await replacePolicy(old,job.body,async()=>{asked++;return false;}),false);
   let active=await businessApi.policies({status:'ACTIVE'});assert.ok(active.some(x=>x.policyId===old.policyId));assert.equal(asked,1);
+  const activations=()=>requests.filter(x=>x.method==='POST' && x.path.endsWith('/activate'));
+  assert.equal(activations().length,1);assert.equal(activations()[0].replaceExisting,null,'cancel must never send replaceExisting');
   const draft=(await businessApi.policies({status:'DRAFT'})).find(x=>x.policyType==='OVERDUE');
+  assert.ok(draft,'cancelled replacement must remain a draft');
   assert.equal(await activateWithConfirm(draft,async()=>true),true);active=await businessApi.policies({status:'ACTIVE'});assert.ok(active.some(x=>x.policyId===draft.policyId));assert.ok(!active.some(x=>x.policyId===old.policyId));
- }finally{setToken(null);server.close();}
+  assert.deepEqual(activations().map(x=>x.replaceExisting),[null,null,'true'],'only the confirmed retry may replace an active policy');
+ }finally{
+  globalThis.fetch=realFetch;setToken(null);
+  await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+ }
 });
 
 test('B05a: toạ độ cơ sở — dán cặp số, bắt buộc đủ hai ô, trong Việt Nam, làm tròn 6 chữ số',()=>{

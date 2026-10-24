@@ -7,6 +7,7 @@ import { useApp } from "../../../app/state/AppProvider.jsx";
 import { createPolicy, replacePolicy } from "../policies/policyActions.js";
 import { POLICY_STATUS, parseMoney, policyFor, policyValueLabel, replacementOf } from "../utils/businessFormat.js";
 import { LoadState, PolicyForm, useConfirm } from "../components/BusinessComponents.jsx";
+import { useChangeFlow } from "../../../shared/components/ChangeFlowDialog.jsx";
 
 // Ba cột chính sách theo loại kho (Figma B03): khung giá, phí dịch vụ / tháng, phí quá hạn / ngày
 const COLUMNS = [
@@ -37,6 +38,7 @@ export default function PricingPage() {
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmEl, ask] = useConfirm();
+  const [flowEl, runChange] = useChangeFlow();
   const close = useCallback(() => setAdding(false), []);
 
   const saveTable = async ({ policies, unitTypes }) => {
@@ -63,15 +65,18 @@ export default function PricingPage() {
       setEdit({});
       return notify("Chưa có thay đổi nào.");
     }
+    // Figma 885:10521–10545: xác nhận → đã lưu / không lưu được
     setBusy(true);
     try {
-      for (const job of jobs) { const result = await job(); if (result === false || result?.active === false) return; }
-      notify(`Đã lưu ${jobs.length} thay đổi khung giá / phí. Áp dụng từ hôm nay.`);
-      setEdit({});
-      load.reload();
-    } catch (e) {
-      onApiError(e);
-      notify(e.message, "error");
+      const out = await runChange({
+        action: "Lưu giá và phí", scope: "Toàn hệ thống", content: `${jobs.length} thay đổi khung giá / phí, áp dụng từ hôm nay`,
+        perform: async () => {
+          for (const job of jobs) { const result = await job(); if (result === false || result?.active === false) return false; }
+          setEdit({});
+          return true;
+        },
+      });
+      if (out.error) onApiError(out.error);
       load.reload();
     } finally { setBusy(false); }
   };
@@ -179,6 +184,7 @@ export default function PricingPage() {
                 />
               )}
               {confirmEl}
+              {flowEl}
             </>
           );
         }}

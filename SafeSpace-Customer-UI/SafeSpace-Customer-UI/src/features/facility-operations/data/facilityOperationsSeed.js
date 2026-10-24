@@ -147,6 +147,19 @@ export function createOpsData(t = today()) {
       { id: "HĐ-0077", customer: "Đỗ Minh Khang", unit: "K07", end: addDays(t, 6), due: "Yêu cầu gia hạn", amount: 0, state: "RENEWAL", reminders: [] },
     ],
 
+    // S09f / S09b · Phí phát sinh & công nợ khách chọn trả tại quầy (C11fc), nhân viên thu rồi xác nhận
+    fee_collections: [
+      { id: "PHI-0098", contract: "HĐ-0098", customer: "Lê Văn An", unit: "K04", items: [["Khoản chưa thanh toán", 460000], ["Phí vệ sinh", 150000]], amount: 610000, due: addDays(t, 2), status: "PENDING", requested_at: at(t, "08:20") },
+      { id: "PHI-0086", contract: "HĐ-0086", customer: "Nguyễn Thị Mai", unit: "K12", items: [["Phí hư hỏng", 300000], ["Phí vệ sinh", 150000]], amount: 450000, due: addDays(t, 3), status: "PENDING", requested_at: at(t, "09:05") },
+    ],
+
+    // M08 · Hoàn tiền đơn khách huỷ trước ngày bắt đầu thuê (D27: phí 10% cọc, hoàn 100% tiền thuê + 90% cọc)
+    refunds: [
+      { id: "SS-20260918-0151", customer: "Nguyễn Hoàng Yến", cancelled_at: at(addDays(t, -1), "08:40"), rent: 3450000, deposit: 1150000, paid: 4600000, fee: 115000, amount: 4485000, status: "PENDING" },
+      { id: "SS-20260916-0149", customer: "Phạm Gia Hân", cancelled_at: at(addDays(t, -3), "16:15"), rent: 1140000, deposit: 1140000, paid: 2280000, fee: 114000, amount: 2166000, status: "PENDING" },
+      { id: "SS-20260905-0121", customer: "Võ Thanh Tùng", cancelled_at: at(addDays(t, -10), "10:05"), rent: 900000, deposit: 900000, paid: 1800000, fee: 0, amount: 1800000, status: "PAID", paid_at: at(addDays(t, -8), "15:20"), transaction_ref: "FT26249001233" },
+    ],
+
     // M06 · Công việc được phân công
     assignments: [
       { id: "PC-01", title: "Bàn giao K01 · Nguyễn Thị Mai", when: at(pickup, "09:00"), staff: "NV-01", status: "ACCEPTED", ref: "BG-0142" },

@@ -374,6 +374,21 @@
 - Không push/PR/merge.
 - Bổ sung cùng F39 (cùng đợt, trước khi merge): (a) F12 ô kho RESERVED → OCCUPIED khi đến StartDate, qua UnitStartActivation chạy trong worker hiện có, có test ReservedUnitBecomesOccupiedOnStartDateOnly; (b) đường hoàn cọc cũ của quản lý gọi chung logic D27, bỏ ManagerService.ConfirmRefundAsync (lỗi: đặt trạng thái ENDED, không theo D27). Cả hai chưa biên dịch trong phiên viết code; cần dotnet build/test của nhóm. Còn lại: nút xác nhận hoàn đơn huỷ ở M07 trên giao diện.
 
+## 2026-10-23 — F40 đồng bộ Figma 23/10 (đợt 1)
+
+- Rà Figma: sửa tràn chữ C04b, chữ ngắn xuống dòng, nút lệch, thống nhất "huỷ". Cập nhật Figma theo repo: luồng đặt chỗ hiện tiền cọc, các màn huỷ/hoàn tiền theo D27, B02 phí quá hạn theo D27.
+- Code: C14 thao tác trên từng dòng + C14a–c theo D27; M08 hoàn tiền đơn huỷ (`#/manager/refunds`, action `CONFIRM_RESERVATION_REFUND` gọi `POST /api/ops/reservations/{id}/refund`); M07a xác nhận trả kho; hộp thoại xác nhận/thành công/thất bại cho nhân viên, quản lý, Vận hành KD và Admin (D28).
+- Test cập nhật có lý do: `render.test.mjs` C14 đổi chữ mong đợi từ "Chỉ huỷ được đơn chưa nhận kho" sang chữ chính sách D27 và cột "Thao tác" vì Figma C14 đổi giao diện; thêm route `manager/refunds`. Thêm test reducer M08 (phí 10% cọc, hoàn 100% thuê + 90% cọc, bắt buộc mã giao dịch, chỉ xác nhận một lần).
+- Kiểm chứng: check:structure PASS; npm test 77/77; test:business 9/9; test:render 93 route; build PASS. Chromium (dữ liệu trình duyệt + máy chủ giả lập): C14 huỷ đơn, M08 hai đơn, S04 → M07a, S09, M03, phân bổ, Admin đặt lại mật khẩu. Chưa chạy .NET/SQL Server thật; M08 cần backend trả `refunds` trong board.
+- Không push/PR/merge. Bàn giao ZIP để người dùng tự kiểm tra và push.
+
+## 2026-10-23 — F40 đồng bộ Figma 23/10 (đợt 2: màn chưa có backend)
+
+- Thêm: M05 (danh sách yêu cầu, đã xử lý hết, chưa có ô phù hợp), M02b/M02c thêm/sửa ô kho + kết quả M02, B05b thêm cơ sở, B05c đổi trạng thái cơ sở + kết quả B05, C05-chờ ô, C11f/C11fb/C11fq/C11fc/C11fcp/C11-kiểm tra (phí phát sinh qua PayOS hoặc tại quầy), S04 nhập phí phát sinh, S09a/S09f/S09fc/S09fd/S09e thu phí tại quầy (`#/staff/fees`), kết quả M07a theo D27.
+- Backend: M02b/c và B05b/c gọi API đã có; phí phát sinh, thu phí tại quầy, PayOS cho phí và danh sách hoàn tiền chưa có → ghi BACKEND-TODO.md. Chế độ trình duyệt chạy đủ luồng.
+- Test cập nhật có lý do: render S01 đếm 12 việc (thêm 2 khoản thu phí S09f trong dữ liệu mẫu), fixture "không có việc" thêm `fee_collections: []`, thêm route `staff/fees`. Thêm test reducer S09f. Dòng phí trong dữ liệu mẫu khách đặt cuối sổ thu để không đổi test PayOS gia hạn.
+- Chưa làm (ghi trong docs/figma-ui-sync-2026-10-23.md): C02-vị trí (trái quy tắc gợi ý theo khu vực), A01b/A01c (thiếu API mã email), C12* (nhánh Ngọc Mai), trang C11c riêng.
+- Kiểm chứng: check:structure PASS; npm test 78/78; test:business 9/9; test:render 95 route; build PASS; Chromium chạy C11 phí, S04 → M07a, S09f, M02b/c, B05b/c, M05. Không push/PR/merge.
 
 ## 2026-10-23 — F37 hoàn thiện nối API C13 và kiểm C12/S05
 

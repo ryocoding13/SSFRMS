@@ -29,7 +29,7 @@ export function CustomerVerificationPage({ query }) {
   const submit = async (e) => {
     e.preventDefault();
     const r = await run("VERIFY_CUSTOMER", { id: v.id, ...form }, `Đã xác minh ${v.customer}`);
-    if (!r.ok) return setErr(r.error);
+    if (!r.ok) return setErr(r.shown || r.cancelled ? "" : r.error);
     const h = ops.handovers.find((x) => x.verification_id === v.id);
     go(h ? `staff/keys?id=${h.id}` : "staff");
   };

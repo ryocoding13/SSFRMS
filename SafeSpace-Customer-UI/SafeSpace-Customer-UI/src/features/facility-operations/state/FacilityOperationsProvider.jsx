@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
-import { Dialog } from "../../../shared/components/UI.jsx";
-import { opsConfirmation } from "../utils/opsConfirmation.js";
+import { Button, Modal } from "../../../shared/components/UI.jsx";
+import { MANAGER_CONFIRM, opsConfirmation } from "../utils/opsConfirmation.js";
 import { ApiError } from "../../../shared/api/httpClient.js";
 import { callAction, loadBoard } from "../api/facilityOperationsApi.js";
 import { createOpsData } from "../data/facilityOperationsSeed.js";
@@ -42,9 +42,11 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
   const [loadError, setLoadError] = useState(null);
   const [confirmation, setConfirmation] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [failure, setFailure] = useState("");
+  // Kết quả sau khi lưu (Figma 03a thành công / 03b thất bại): { kind, title, text, action, detail }
+  const [outcome, setOutcome] = useState(null);
   const activeAction = useRef(false);
   const confirmationRef = useRef(null);
+  const outcomeRef = useRef(null);
   const ref = useRef(state);
   ref.current = state;
 
@@ -129,37 +131,58 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
     [source, reload, commit, notify, onApiError],
   );
 
-  // Guard the mutation boundary, including future staff actions. Cancel never calls the API.
+  // Guard the mutation boundary. Nhân viên: mọi thao tác hỏi xác nhận rồi báo kết quả (S02–S05, S09).
+  // Quản lý: phân bổ, phân công, duyệt/từ chối gia hạn (Figma 885:*, M03a–d). Cancel never calls the API.
+  const showOutcome = useCallback((next) => new Promise((resolve) => {
+    outcomeRef.current = resolve;
+    setOutcome(next);
+  }), []);
   const run = useCallback(async (type, payload, message) => {
-    if (role !== "STAFF" || type === "MARK_READ") return execute(type, payload, message);
+    const guarded = type !== "MARK_READ" && (role === "STAFF" || MANAGER_CONFIRM.has(type));
+    if (!guarded) return execute(type, payload, message);
     if (activeAction.current) return { ok: false, cancelled: true };
     activeAction.current = true;
-    const accepted = await new Promise(resolve => {
-      confirmationRef.current = resolve;
-      setConfirmation(opsConfirmation(type, payload, ref.current));
-    });
-    confirmationRef.current = null;
-    if (!accepted) {
-      activeAction.current = false;
-      setConfirmation(null);
-      return { ok: false, cancelled: true };
-    }
-    setSaving(true);
+    const spec = opsConfirmation(type, payload, ref.current);
     try {
-      const result = await execute(type, payload, message);
-      if (!result.ok) setFailure(result.error || "Không lưu được thay đổi. Vui lòng kiểm tra lại trạng thái trước khi thử lại.");
+      if (spec.confirm !== false) {
+        const accepted = await new Promise(resolve => {
+          confirmationRef.current = resolve;
+          setConfirmation(spec);
+        });
+        confirmationRef.current = null;
+        if (!accepted) {
+          setConfirmation(null);
+          return { ok: false, cancelled: true };
+        }
+      }
+      setSaving(true);
+      let result;
+      try {
+        result = await execute(type, payload, message);
+      } catch (error) {
+        result = { ok: false, error: error?.message };
+      }
+      setSaving(false);
+      setConfirmation(null);
+      if (!result.ok) {
+        const failure = spec.failure || { title: "Chưa lưu được thay đổi", text: "Không lưu được thay đổi. Vui lòng kiểm tra lại trạng thái trước khi thử lại." };
+        await showOutcome({ kind: "failure", ...failure, detail: result.error && result.error !== failure.text ? result.error : "" });
+        return { ...result, shown: true };
+      }
+      if (spec.success) await showOutcome({ kind: "success", ...spec.success });
       return result;
-    } catch (error) {
-      const text = error?.message || "Chưa xác nhận được kết quả lưu. Kiểm tra trạng thái trước khi thực hiện lại.";
-      setFailure(text);
-      return { ok: false, error: text };
     } finally {
       activeAction.current = false;
       setSaving(false);
       setConfirmation(null);
     }
-  }, [role, execute]);
-  useEffect(() => () => confirmationRef.current?.(false), []);
+  }, [role, execute, showOutcome]);
+  const closeOutcome = useCallback(() => {
+    setOutcome(null);
+    outcomeRef.current?.();
+    outcomeRef.current = null;
+  }, []);
+  useEffect(() => () => { confirmationRef.current?.(false); outcomeRef.current?.(); }, []);
   useEffect(() => {
     if (mode !== "api") return undefined;
     const refresh = () => { if (!activeAction.current && !document.hidden) reload(); };
@@ -191,6 +214,15 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
   return <OpsContext.Provider value={value}>
     {children}
     {confirmation && <ConfirmDialog {...confirmation} busy={saving} onCancel={() => confirmationRef.current?.(false)} onConfirm={() => confirmationRef.current?.(true)} />}
-    {failure && <Dialog title="Chưa lưu được thay đổi" message={failure} actionLabel="Quay lại kiểm tra" onClose={() => setFailure("")} />}
+    {outcome && (
+      <Modal title={outcome.title} size="confirm" onClose={closeOutcome}>
+        <span className={`modal__state modal__state--${outcome.kind}`} aria-hidden="true" />
+        <p className="modal__text">{outcome.text}</p>
+        {outcome.detail && <p className="hint">{outcome.detail}</p>}
+        <Button variant={outcome.kind === "success" ? "primary" : "outline"} block onClick={closeOutcome}>
+          {outcome.action || (outcome.kind === "success" ? "Đã hiểu" : "Quay lại kiểm tra")}
+        </Button>
+      </Modal>
+    )}
   </OpsContext.Provider>;
 }

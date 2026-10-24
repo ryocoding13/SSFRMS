@@ -1,5 +1,6 @@
 // Nghiệp vụ vận hành tại cơ sở (thuần, có test). Mỗi action trả { state, result } hoặc ném OpsError.
 import { dateLabel, money } from "../../../shared/utils/format.js";
+import { settleReturn } from "../utils/opsConfirmation.js";
 
 export class OpsError extends Error {}
 const fail = (m) => {
@@ -92,7 +93,7 @@ const ACTIONS = {
       ...state,
       returns: patch(state.returns, id, () => ({ status: "SUBMITTED", report, submitted_at: iso(now) })),
       units: patchUnit(state.units, r.unit, () => ({ status: "INSPECTION" })),
-      contracts: state.contracts.map((c) => (c.id === r.contract ? { ...c, state: "RETURNED", due: `${money(r.unpaid)} · Chờ quản lý xác nhận hoàn cọc` } : c)),
+      contracts: state.contracts.map((c) => (c.id === r.contract ? { ...c, state: "RETURNED", due: `Còn phải thu ${money(r.unpaid + ["damage_fee", "cleaning_fee", "overdue_fee"].reduce((sum, k) => sum + (Number(report[k]) || 0), 0))}` } : c)),
       assignments: state.assignments.map((a) => (a.ref === id ? { ...a, status: "DONE" } : a)),
     };
     return { state: addLog(next, now, `Biên bản trả kho ${r.unit} chờ quản lý xác nhận`, "manager/contracts", "MANAGER"), result: { id } };
@@ -177,13 +178,35 @@ const ACTIONS = {
     const c = find(state.contracts, id, "hợp đồng");
     if (c.state !== "RETURNED") fail("Hợp đồng chưa có biên bản trả kho.");
     const r = state.returns.find((x) => x.contract === id);
-    const refund = r ? Math.max(0, r.deposit - r.unpaid) : 0;
+    const { refund, debt } = settleReturn(r, c);
     const next = {
       ...state,
-      contracts: patch(state.contracts, id, () => ({ state: "CLOSED", due: `Hoàn cọc ${money(refund)} sau khi trừ khoản còn nợ` })),
+      contracts: patch(state.contracts, id, () => ({ state: "CLOSED", due: debt ? `Đã trả kho · Còn nợ ${money(debt)}` : `Hoàn cọc ${money(refund)} sau khi trừ khoản còn nợ` })),
       units: r ? patchUnit(state.units, r.unit, () => ({ status: "EMPTY", tenant: null, end: null })) : state.units,
     };
     return { state: addLog(next, now, `Đã xác nhận hoàn cọc ${money(refund)} · ${id}`, "manager/contracts", "MANAGER"), result: { id, refund } };
+  },
+
+  // S09f · Nhân viên xác nhận đã thu phí phát sinh / công nợ tại quầy
+  CONFIRM_FEE_COLLECTION(state, { id }, now) {
+    const f = find(state.fee_collections || [], id, "khoản phí");
+    if (f.status !== "PENDING") fail("Khoản này đã được thu.");
+    const next = {
+      ...state,
+      fee_collections: patch(state.fee_collections, id, () => ({ status: "PAID", paid_at: iso(now) })),
+      contracts: state.contracts.map((c) => (c.id === f.contract && /phải thu|Chưa thanh toán/.test(c.due) ? { ...c, due: "Đã thu đủ phí phát sinh & công nợ", amount: 0 } : c)),
+    };
+    return { state: addLog(next, now, `Đã thu ${money(f.amount)} · ${f.contract}`, "staff/reconcile", "ALL"), result: { id, amount: f.amount } };
+  },
+
+  // M08 · Quản lý xác nhận đã chuyển khoản hoàn tiền cho đơn khách huỷ (D27)
+  CONFIRM_RESERVATION_REFUND(state, { id, method, transaction_ref }, now) {
+    const r = find(state.refunds || [], id, "yêu cầu hoàn tiền");
+    if (r.status !== "PENDING") fail("Khoản hoàn tiền này đã được xác nhận.");
+    const ref = String(transaction_ref || "").trim();
+    if (method !== "CASH" && !ref) fail("Nhập mã giao dịch hoàn tiền.");
+    const next = { ...state, refunds: patch(state.refunds, id, () => ({ status: "PAID", paid_at: iso(now), method: method || "BANK_TRANSFER", transaction_ref: ref || null })) };
+    return { state: addLog(next, now, `Đã xác nhận hoàn ${money(r.amount)} · ${id}`, "manager/refunds", "MANAGER"), result: { id, refund: r.amount } };
   },
 
   // M02a · F12
@@ -194,6 +217,25 @@ const ACTIONS = {
     const entry = { from: u.status, to: status, reason: reason.trim(), by: by || null, at: iso(now) };
     const next = { ...state, units: patchUnit(state.units, code, (x) => ({ status, history: [entry, ...(x.history || [])].slice(0, 20) })) };
     return { state: addLog(next, now, `Ô ${code}: ${status === "MAINTENANCE" ? "chuyển sang bảo trì" : "mở lại cho thuê"}`, "manager/units", "MANAGER"), result: { code, status } };
+  },
+
+  // M02b / M02c · Thêm và sửa ô kho (D17: cỡ M 15 m², cỡ L 30 m²; kho thường / kho lạnh)
+  CREATE_UNIT(state, { code, location, type, area }, now) {
+    const c = String(code || "").trim().toUpperCase();
+    if (!c) fail("Nhập mã ô.");
+    if (state.units.some((u) => u.code.toUpperCase() === c)) fail(`Mã ô ${c} đã tồn tại trong cơ sở.`);
+    if (!["normal", "climate"].includes(type) || ![15, 30].includes(Number(area))) fail("Chọn loại kho và cỡ hợp lệ.");
+    const unit = { code: c, tenant: null, area: Number(area), floor: String(location || "").trim() || "trệt", type, status: "EMPTY", end: null };
+    return { state: addLog({ ...state, units: [...state.units, unit] }, now, `Đã thêm ô kho ${c}`, "manager/units", "MANAGER"), result: { code: c } };
+  },
+  UPDATE_UNIT(state, { id, code, location, type, area }, now) {
+    const u = state.units.find((x) => x.code === id) || fail("Không tìm thấy ô kho.");
+    const c = String(code || id).trim().toUpperCase();
+    if (c !== u.code && state.units.some((x) => x.code.toUpperCase() === c)) fail(`Mã ô ${c} đã tồn tại trong cơ sở.`);
+    const changesShape = type !== u.type || Number(area) !== u.area;
+    if (changesShape && u.tenant) fail("Ô đang có khách thuê thì không đổi được loại kho và cỡ.");
+    const next = { ...state, units: state.units.map((x) => (x.code === id ? { ...x, code: c, floor: String(location || "").trim() || x.floor, type, area: Number(area) } : x)) };
+    return { state: addLog(next, now, `Đã lưu ô kho ${c}`, "manager/units", "MANAGER"), result: { code: c } };
   },
 
   MARK_READ(state, { ids }) {

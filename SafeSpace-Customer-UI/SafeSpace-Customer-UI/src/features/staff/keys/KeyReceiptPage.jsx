@@ -23,7 +23,7 @@ export function KeyReceiptPage({ query }) {
   const ready = !verification || verification.status === "DONE";
   const submit = async () => {
     const r = await run("RECORD_KEY_RECEIPT", { id: h.id }, `Đã ghi nhận khách nhận chìa khóa kho ${h.unit}`);
-    if (r.ok) go("staff/done?kind=key");
+    if (r.ok) go("staff/keys");
   };
   return (
     <main className="container page page--narrow">

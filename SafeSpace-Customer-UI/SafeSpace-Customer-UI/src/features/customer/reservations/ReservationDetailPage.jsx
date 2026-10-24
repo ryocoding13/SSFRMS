@@ -1,5 +1,5 @@
 import React from "react";
-import { DetailList, Icon, LinkButton, Notice } from "../../../shared/components/UI.jsx";
+import { Button, DetailList, Icon, LinkButton, Notice } from "../../../shared/components/UI.jsx";
 import { bandLabel, typeLabel } from "../../../shared/utils/catalog.js";
 import { money, rangeLabel } from "../../../shared/utils/format.js";
 import { useNow, shortName } from "../../../shared/hooks/useBrowserEvents.js";
@@ -9,7 +9,7 @@ import { useApp } from "../../../app/state/AppProvider.jsx";
 import { NotFound } from "./components/ReservationNotFound.jsx";
 
 export function ReservationDetailPage({ id, mode = "confirmation" }) {
-  const { data } = useApp();
+  const { data, retry } = useApp();
   const now = useNow(1000);
   const r = data.reservations.find((x) => x.reservation_id === id);
   if (!r) return <NotFound />;
@@ -19,12 +19,18 @@ export function ReservationDetailPage({ id, mode = "confirmation" }) {
   const contract = data.contracts.find(c => c.reservation_id === r.reservation_id);
   const paid = ["CONFIRMED", "CHECKED_IN"].includes(r.status);
   const atStore = r.status === "PENDING_VERIFICATION";
+  // Figma C05-chờ ô (847:10686): đã nhận tiền nhưng hệ thống chưa cấp được ô / hợp đồng
+  const allocating = !isDetail && r.status === "CONFIRMED" && !contract;
   const statusText =
     r.status === "CANCELLED" && r.refund_status === "PENDING"
       ? "Đã huỷ · Đang hoàn tiền"
-      : !isDetail && r.status === "CONFIRMED"
-        ? "Đã thanh toán"
-        : RESERVATION_STATUS[r.status][0];
+      : r.status === "CANCELLED" && r.refund_status === "COMPLETED"
+        ? "Đã huỷ · Đã hoàn tiền"
+        : allocating
+          ? "Đang xử lý cấp ô"
+          : !isDetail && r.status === "CONFIRMED"
+            ? "Đã thanh toán"
+            : RESERVATION_STATUS[r.status][0];
   const titles = {
     PENDING_PAYMENT: "Đơn đang chờ thanh toán",
     PENDING_VERIFICATION: "Đã giữ chỗ cho bạn",
@@ -50,13 +56,20 @@ export function ReservationDetailPage({ id, mode = "confirmation" }) {
         <span className={`result__icon${r.status === "CANCELLED" ? " result__icon--fail" : ""}`}>
           <Icon name={r.status === "CANCELLED" ? "close" : "check"} size={24} />
         </span>
-        <h1>{isDetail ? titles[r.status] : atStore ? "Đã giữ chỗ cho bạn" : paid ? "Thanh toán thành công" : "Đã nhận thông tin đặt chỗ"}</h1>
+        <h1>{isDetail ? titles[r.status] : atStore ? "Đã giữ chỗ cho bạn" : allocating ? "Đã nhận tiền · Đang cấp hợp đồng" : paid ? "Thanh toán thành công" : "Đã nhận thông tin đặt chỗ"}</h1>
         <p className="result__code">Mã đặt chỗ #{r.reservation_id}</p>
         <DetailList items={rows} />
         {atStore && (
           <Notice>Vui lòng đến cơ sở và thanh toán bằng tiền mặt hoặc thẻ tại quầy trong thời gian giữ chỗ. Quá hạn, đơn đặt chỗ sẽ tự huỷ.</Notice>
         )}
-        {paid && <Notice tone={contract ? "success" : "info"}>{contract ? "Hợp đồng và QR/PIN đã được cấp. Mã chỉ mở được trong kỳ thuê; chìa khóa vật lý nhận tại quầy." : "Đã ghi nhận thanh toán. Cơ sở đang xử lý phân bổ ô kho; hợp đồng và mã ra vào sẽ hiển thị khi hoàn tất."}</Notice>}
+        {allocating ? (
+          <>
+            <p className="muted">Khoản thanh toán đã được ghi nhận. Hệ thống đang cấp ô phù hợp; nếu chưa có ô khả dụng, quản lý sẽ xử lý. Bạn không cần thanh toán lại.</p>
+            <Button block onClick={() => retry?.()}>Kiểm tra trạng thái</Button>
+          </>
+        ) : (
+          paid && <Notice tone={contract ? "success" : "info"}>{contract ? "Hợp đồng và QR/PIN đã được cấp. Mã chỉ mở được trong kỳ thuê; chìa khóa vật lý nhận tại quầy." : "Đã ghi nhận thanh toán. Cơ sở đang xử lý phân bổ ô kho; hợp đồng và mã ra vào sẽ hiển thị khi hoàn tất."}</Notice>
+        )}
         {contract && <LinkButton to={`units/${contract.contract_id}`} block>Xem hợp đồng & mã mở kho</LinkButton>}
         {waiting && <LinkButton to={`checkout/${r.reservation_id}`} block>Tiếp tục thanh toán</LinkButton>}
         {isDetail ? (
@@ -65,7 +78,7 @@ export function ReservationDetailPage({ id, mode = "confirmation" }) {
             <LinkButton to="reservations" variant={waiting || r.status === "CONFIRMED" ? "outline" : "primary"} block>Về đơn đặt chỗ</LinkButton>
           </>
         ) : (
-          <LinkButton to="overview" block>Về Dashboard</LinkButton>
+          !allocating && <LinkButton to="overview" block>Về Dashboard</LinkButton>
         )}
       </section>
     </main>

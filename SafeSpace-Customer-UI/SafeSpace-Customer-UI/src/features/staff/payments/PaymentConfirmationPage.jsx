@@ -38,7 +38,7 @@ export function PaymentConfirmationPage({ query }) {
     setBusy(true);
     const r = await run("CONFIRM_PAYMENT", { id: p.id }, `Đã thu tiền đơn ${p.id}`);
     setBusy(false);
-    if (r.ok) go("staff/done?kind=payment");
+    if (r.ok) go("staff/reconcile");
   };
   return (
     <main className="container page page--narrow">

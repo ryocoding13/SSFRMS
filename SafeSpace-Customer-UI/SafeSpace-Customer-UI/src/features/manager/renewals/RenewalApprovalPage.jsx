@@ -12,10 +12,16 @@ export function RenewalApprovalPage() {
   const [reason, setReason] = useState("");
   const [err, setErr] = useState("");
   const approve = (r) => run("DECIDE_RENEWAL", { id: r.id, approve: true }, `Đã duyệt gia hạn ${r.unit}`);
+  // M03b: nhập lý do trong hộp thoại riêng → M03d kết quả do provider hiện
   const doReject = async () => {
-    const out = await run("DECIDE_RENEWAL", { id: reject.id, approve: false, reason }, `Đã từ chối gia hạn ${reject.unit}`);
-    if (!out.ok) return setErr(out.error);
+    if (!reason.trim()) return setErr("Nhập lý do từ chối.");
+    const target = reject;
     setReject(null);
+    const out = await run("DECIDE_RENEWAL", { id: target.id, approve: false, reason: reason.trim() }, `Đã từ chối gia hạn ${target.unit}`);
+    if (!out.ok) {
+      if (!out.cancelled) setReject(target);
+      return setErr(out.shown ? "" : out.error);
+    }
     setReason("");
   };
   return (
@@ -54,14 +60,19 @@ export function RenewalApprovalPage() {
       )}
       <LinkButton to="manager" variant="outline">Về tổng quan</LinkButton>
       {reject && (
-        <Modal title={`Từ chối gia hạn kho #${reject.unit}`} onClose={() => setReject(null)}>
-          <p className="modal__text">Lý do sẽ được gửi đến {reject.customer}.</p>
-          <Field label="Lý do từ chối" error={err}>
-            <textarea rows={3} value={reason} placeholder="Ví dụ: kho đã có đơn đặt trước từ ngày …" onChange={(e) => { setReason(e.target.value); setErr(""); }} />
+        <Modal title={`Từ chối gia hạn kho ${reject.unit}?`} size="confirm" onClose={() => setReject(null)}>
+          <p className="modal__text">Nhập lý do để khách hiểu kết quả xử lý. Kỳ thuê hiện tại được giữ nguyên.</p>
+          <dl className="confirm-summary">
+            <div><dt>Khách hàng</dt><dd>{reject.customer}</dd></div>
+            <div><dt>Kỳ gia hạn đề nghị</dt><dd>{dateLabel(reject.from)}–{dateLabel(reject.to)}</dd></div>
+          </dl>
+          <Field label="Lý do từ chối · Bắt buộc" error={err}>
+            <textarea rows={2} maxLength={500} value={reason} placeholder="Ví dụ: Không đáp ứng điều kiện gia hạn theo chính sách hiện hành." onChange={(e) => { setReason(e.target.value); setErr(""); }} />
           </Field>
+          <p className="hint">Kiểm tra thông tin trước khi xác nhận.</p>
           <div className="modal__actions">
-            <Button variant="danger" onClick={doReject}>Từ chối yêu cầu</Button>
-            <Button variant="outline" onClick={() => setReject(null)}>Huỷ</Button>
+            <Button variant="outline" onClick={() => setReject(null)}>Quay lại</Button>
+            <Button onClick={doReject}>Xác nhận từ chối</Button>
           </div>
         </Modal>
       )}

@@ -186,6 +186,12 @@ const handlers = {
 
   // PayOS báo đã thanh toán (webhook ở backend; chế độ trình duyệt tự gọi để mô phỏng).
   // reservation_id → đơn đặt chỗ đã trả tiền thuê + cọc; ref → khoản gia hạn ở C11.
+  // C11fc → C11fcp: khách chọn trả phí phát sinh tại quầy; công nợ chỉ giảm khi nhân viên xác nhận đã thu (S09f)
+  CHOOSE_FEE_AT_COUNTER(state, { refs }) {
+    const rows = state.ledger.filter((l) => refs.includes(l.ref) && l.fee && ["UNPAID", "AT_COUNTER"].includes(l.status));
+    if (!rows.length) fail("Không còn khoản phí cần thanh toán.", "NOT_FOUND");
+    return { state: { ...state, ledger: state.ledger.map((l) => (rows.includes(l) ? { ...l, status: "AT_COUNTER" } : l)) }, result: { refs: rows.map((l) => l.ref) } };
+  },
   PAYOS_PAID(state, p, ctx) {
     if (p.ref) {
       const l = state.ledger.find((x) => x.ref === p.ref);
@@ -197,6 +203,10 @@ const handlers = {
         ledger: state.ledger.map((x) => (x.ref === l.ref ? { ...x, status: "RECONCILED", payable: false } : x)),
         contracts: state.contracts.map((x) => (c && x.contract_id === c.contract_id && l.period?.to ? { ...x, end_date: l.period.to, status: "ACTIVE" } : x)),
       };
+      if (l.fee) {
+        next = notify(next, "Đã thanh toán phí phát sinh", `${l.label} · ${l.amount.toLocaleString("vi-VN")} đ.`, "payments", ctx.now);
+        return { state: log(next, `Đã thanh toán ${l.label.toLowerCase()} qua QR`, "green", ctx.now), result: { ref: l.ref } };
+      }
       next = notify(next, "Đã thanh toán gia hạn", `Kho ${l.unit_number || c?.unit_number || ""} · gia hạn đến ${l.period?.to ? dateLabel(l.period.to) : "kỳ mới"}.`, "payments", ctx.now);
       next = log(next, `Đã thanh toán gia hạn ${l.unit_number || ""} qua QR`, "green", ctx.now);
       return { state: next, result: { ref: l.ref } };
