@@ -30,7 +30,8 @@ Nguồn: file Figma "SafeSpace - Modern UI" (section Khách hàng + Trang chủ 
 | C09 / C09b Trả kho | `#/units/:id/return` | `src/features/customer/contracts/RentedUnitListPage.jsx` | Ngày (lịch), khung giờ, ghi chú, đối chiếu cọc |
 | C10 Yêu cầu đã gửi | `#/sent?type=&contract=` | `src/features/customer/contracts/RentedUnitListPage.jsx` | |
 | C11 / C11b Thanh toán & lịch hẹn | `#/payments` | `src/features/customer/payments/PaymentListPage.jsx` | Thẻ lịch hẹn + bảng khoản thu; khoản gia hạn đã duyệt có nút "Thanh toán" → C11q (`src/shared/components/PayosModal.jsx`, `POST /api/payments/{id}/payos`); trả xong hiện thông báo C11b |
-| C12 Hỗ trợ | `#/support` | `src/features/customer/support/SupportPage.jsx` | Có ảnh đính kèm (tối đa 3, 5 MB); danh sách yêu cầu bên phải; khối "Phản hồi của nhân viên" từ `responses[]` của `GET /api/tickets/{id}` |
+| C12 Hỗ trợ | `#/support` | `src/features/customer/support/SupportPage.jsx` | Danh sách yêu cầu, trích đoạn phản hồi và Cập nhật yêu cầu; giữ 8 nhóm, tiêu đề Khác, cấp lại QR/PIN/chìa khóa. Ảnh chỉ giữ tên cục bộ, chưa upload máy chủ. |
+| C12b Tiến trình hỗ trợ | `#/support/:id` | `src/features/customer/support/SupportTicketDetailPage.jsx` | Nội dung, nhân viên, lịch sử responses, mốc thời gian từ API, báo lỗi và tải lại; không dựng dữ liệu còn thiếu |
 | C13, C13a–d, toast | `#/profile` | `src/features/customer/profile/CustomerProfilePage.jsx` | Chỉ sửa tên; email / SĐT chỉ đọc (SĐT che bớt); hộp thoại "Đã hiểu" |
 | C14 / C14a / C14b Đơn đặt chỗ | `#/reservations`, `#/reservations/:id` | `src/features/customer/reservations/ReservationListPage.jsx`, `src/features/customer/payments/CheckoutPage.jsx` | Nút "Huỷ đơn" (đơn chưa nhận kho) → hộp thoại C14a: đã trả, phí huỷ, số tiền hoàn (`cancel-preview`); huỷ xong "Đã huỷ · Đang hoàn tiền" |
 | Popup thông báo (public / customer, đã đọc) | (header) | `src/shared/components/Header.jsx` | |

@@ -27,3 +27,40 @@ Các kiểm tra bao phủ mật khẩu cũ bị từ chối sau đổi, tên đ�
 Người dùng đã báo kiểm thử thủ công C13 và S05/C12 đạt trên máy Windows trước khi tách nhánh. Bản tách riêng này vẫn cần nhóm chạy lại trên SQL Server của nhóm trước khi merge. Không đưa cấu hình riêng vào commit; không chạy reset database. Không cần cập nhật schema cho hai luồng này.
 
 Frontend, thư viện và luồng tiền được giữ ở phiên bản main. Những sửa giao diện đang nằm trong thư mục làm việc của người dùng tiếp tục được giữ riêng ở đó.
+
+
+## Bổ sung 23/10/2026 — nối đầy đủ C13 và kiểm HTTP/browser (F37)
+
+- C13 gửi `currentPassword`/`newPassword` từ `current`/`next` của biểu mẫu. Bản main trước sửa đọc nhầm `current_password`/`new_password` nên request không có mật khẩu.
+- Sai mật khẩu hiện tại trả HTTP 400 cùng `code: BAD_PASSWORD`; giao diện đặt lỗi tại ô mật khẩu hiện tại và giữ phiên.
+- Tải `GET /api/auth/profile` khi đăng nhập/khôi phục phiên. Tên và số điện thoại lấy từ máy chủ, bỏ overlay tên cũ. `UPDATE_NAME` dùng phiên hiện tại thay vì closure cũ, không gửi lại số điện thoại khi chỉ sửa tên.
+- Khóa thao tác trong khi lưu để tránh gửi trùng. Lỗi API giữ giá trị đang nhập; chỉ báo thành công sau phản hồi thành công.
+- C12 đọc chi tiết ticket có `responses`; bỏ fallback âm thầm thay chi tiết bằng dòng tóm tắt khi API chi tiết lỗi. Backend trả phản hồi từ activity_logs, frontend hiển thị phản hồi gần nhất và lịch sử.
+- `AuthSupportHttpTests.cs`: gọi HTTP thật qua Kestrel/JWT, dùng SQLite riêng; kiểm chủ ticket, cơ sở nhân viên, lưu tên, đổi mật khẩu và đăng nhập lại.
+- `tools/AuthSupportBrowserHost` chỉ là máy chủ kiểm thử dùng endpoint/service thật và SQLite tạm. GET reservations trả danh sách trống để khởi động FE; không dùng để kiểm nghiệp vụ đặt kho/thanh toán. Không đưa host này lên môi trường chạy chính.
+
+### Chạy kiểm thử trình duyệt riêng
+
+Cần Node >=22.12, .NET SDK 10 và Playwright/Chromium. Tại thư mục FE, có thể cài công cụ riêng cho máy bằng `npm install --no-save --package-lock=false playwright` và `npx playwright install chromium` (không thêm dependency sản phẩm).
+
+Terminal 1, tại gốc repo:
+
+```powershell
+dotnet run --project tools/AuthSupportBrowserHost
+```
+
+Lấy dòng `AUTH_SUPPORT_TEST_API=http://127.0.0.1:PORT` được in ra. Terminal 2, tại thư mục FE:
+
+```powershell
+$env:AUTH_SUPPORT_TEST_API = "http://127.0.0.1:PORT"
+node tests/auth-support.browser.mjs
+```
+
+Thay PORT bằng cổng thực tế. Script kiểm marker của host trước khi chạy để tránh đổi mật khẩu/tên trên database thật. Host tạo database mới mỗi lần chạy; Ctrl+C để dừng và xóa database tạm. Kịch bản kiểm thử đổi mật khẩu customer01 trong database này sang NewPass@123. Vite kiểm thử tự khởi động và đóng.
+
+SQL Server của nhóm vẫn cần xác nhận trên máy nhóm; SQLite và browser không chứng minh migration, kết nối hoặc dữ liệu SQL Server thật đã đạt.
+
+
+## Giao diện C12b và bản ghép mới
+
+Task Mai đã được ghép trên main theo `docs/mai-auth-support-integration.md`. C12b ở #/support/:id. Các mapping /api/ops và chức năng nhận chìa khóa/cấp lại mã hiện có được giữ. Khi chạy npm run test:auth-support, 14 test dùng API giả lập; tests/auth-support.browser.mjs vẫn dùng test host .NET/SQLite riêng.

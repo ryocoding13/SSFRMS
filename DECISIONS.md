@@ -198,6 +198,9 @@ Theo yêu cầu nhóm, dùng src/app, src/features/<role>/<feature>, src/shared,
 - Thay thế: quy định "phí hủy 10% tiền thuê" trong BACKEND-TODO (H1) và CANCEL_FEE_RATE (appReducer.js) không còn áp dụng; phải đổi theo D27. Chưa triển khai code.
 
 
+## D28 — Kiểm thử giao diện C12/C12b/C13 bằng Playwright
+
+Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu mẫu và giao diện tiến trình. Bộ kiểm thử giả lập DTO chỉ xác nhận FE; dùng thêm host Kestrel/JWT/SQLite cho HTTP và trình duyệt với backend thật. Giữ D26/D27 và endpoint vận hành chuẩn trên main. Không lưu browser binary hoặc test-results trong git. Các SVG của C12/C13 được tái sử dụng từ gói frontend Ngọc Mai đã cung cấp; phiên này không sửa Figma.
 ## PROCESS-2026-10-24 — Quy trình AI, Git và kiểm chứng — Áp dụng khi nhóm tích hợp bản vá
 
 - Theo yêu cầu cập nhật quy định của thành viên ngày 24/10/2026; không khẳng định cả nhóm đã biểu quyết. Việc merge bản vá ghi nhận nhóm chấp nhận áp dụng.
