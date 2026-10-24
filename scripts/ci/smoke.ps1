@@ -81,19 +81,24 @@ try {
     Write-Host "Frontend HTML: PASS (Contains root container)" -ForegroundColor Green
 
     # --- 5. Static Assets & MIME-Type Check -----------------------------------
-    Write-Host "`n[5/5] Checking Static Asset Delivery & Cache Headers..." -ForegroundColor Yellow
-    if ($htmlContent -match 'src="(\./assets/[^"]+\.js)"') {
-        $assetPath = $matches[1].TrimStart('.')
-        $assetUrl = "$BaseUrl$assetPath"
-        $assetResp = Test-HttpEndpoint -Url $assetUrl -Retries 3
-        Write-Host "Static JS Asset ($assetPath): PASS" -ForegroundColor Green
-    } else {
-        Write-Host "Asset check note: Bundled JS asset resolved via index.html structure" -ForegroundColor Gray
+    Write-Host "`n[5/5] Checking Static Asset Delivery & Clean Origin..." -ForegroundColor Yellow
+    if ($htmlContent -match 'localhost:5151') {
+        throw "Security/Deployment violation: Detected hardcoded 'localhost:5151' in index.html"
     }
 
-    # dam bao khong chua hardcode localhost:5151 trong bundle HTML
-    if ($htmlContent -match 'localhost:5151') {
-        throw "Security/Deployment violation: Detected hardcoded 'localhost:5151' in frontend bundle"
+    if ($htmlContent -match 'src="([^"]*assets/[^"]+\.js)"') {
+        $assetPath = $matches[1]
+        if (-not $assetPath.StartsWith("/")) {
+            $assetPath = "/" + $assetPath.TrimStart('.')
+        }
+        $assetUrl = "$BaseUrl$assetPath"
+        $assetResp = Test-HttpEndpoint -Url $assetUrl -Retries 3
+        if ($assetResp.Content -match 'localhost:5151') {
+            throw "Security/Deployment violation: Detected hardcoded 'localhost:5151' inside production JS bundle: $assetPath"
+        }
+        Write-Host "Static JS Asset ($assetPath): PASS (Verified clean of localhost:5151)" -ForegroundColor Green
+    } else {
+        Write-Host "Asset check note: Bundled JS asset resolved via index.html structure" -ForegroundColor Gray
     }
 
     Write-Host "`n====================================================" -ForegroundColor Green

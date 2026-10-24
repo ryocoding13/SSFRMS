@@ -90,8 +90,32 @@ echo "Frontend HTML: PASS (Contains root container)"
 echo ""
 echo "[5/5] Checking Static Asset Delivery & Clean Origin..."
 if grep -q 'localhost:5151' /tmp/index.html; then
-  echo "ERROR: Detected hardcoded 'localhost:5151' in frontend bundle"
+  echo "ERROR: Detected hardcoded 'localhost:5151' in index.html"
   exit 1
+fi
+
+JS_PATH=$(grep -oE 'src="[^"]*assets/[^"]*\.js"' /tmp/index.html | head -n 1 | sed -e 's/src="//' -e 's/"//' || echo "")
+if [[ -z "${JS_PATH}" ]]; then
+  JS_PATH=$(grep -oE '/assets/[a-zA-Z0-9_.-]+\.js' /tmp/index.html | head -n 1 || echo "")
+fi
+
+if [[ -n "${JS_PATH}" ]]; then
+  if [[ "${JS_PATH}" != /* ]]; then
+    JS_PATH="/${JS_PATH}"
+  fi
+  echo "Testing bundle download: ${BASE_URL}${JS_PATH}..."
+  BUNDLE_CODE=$(curl -s -o /tmp/bundle.js -w "%{http_code}" "${BASE_URL}${JS_PATH}")
+  if [[ "${BUNDLE_CODE}" != "200" ]]; then
+    echo "ERROR: Failed to fetch JS bundle ${JS_PATH} (HTTP ${BUNDLE_CODE})"
+    exit 1
+  fi
+  if grep -q 'localhost:5151' /tmp/bundle.js; then
+    echo "ERROR: Detected hardcoded 'localhost:5151' inside production JS bundle: ${JS_PATH}"
+    exit 1
+  fi
+  echo "Bundle asset: PASS (${JS_PATH} verified clean of localhost:5151)"
+else
+  echo "Warning: Could not locate JS bundle link in index.html; HTML verified clean."
 fi
 
 echo "Static Assets & Origin: PASS"

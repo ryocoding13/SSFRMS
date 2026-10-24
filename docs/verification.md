@@ -1,48 +1,74 @@
-# Kiểm chứng — thế nào là "xong"
+# Kiểm chứng và điều kiện merge
 
-"Xong" nghĩa là **có bằng chứng chạy được**, không phải AI nói "code trông ổn".
+Báo kết quả dựa trên lệnh đã chạy và kịch bản đã thử. Không lấy kết quả của phiên/nhánh khác làm bằng chứng cho bản hiện tại.
+Hướng dẫn cập nhật ngày 24/10/2026 theo cấu trúc `main`; số lượng test/route ghi ở bằng chứng từng lần chạy, không cố định tại đây.
 
-## Lệnh kiểm chứng
+## Lệnh kiểm tra hiện có
 
-| Phạm vi | Lệnh | Hiện trạng (Baseline CI01 - 2026-10-23) |
+Các lệnh FE chạy trong `SafeSpace-Customer-UI/SafeSpace-Customer-UI`; lệnh BE, CI/CD và init chạy ở gốc repo.
+
+| Phạm vi | Lệnh | Ý nghĩa và giới hạn |
 |---|---|---|
-| Toàn bộ | `./init.sh` hoặc `.\init.ps1` | Toàn bộ PASS (FE 4 suite + BE build/test) |
-| FE Cấu trúc | `npm run check:structure` | PASS (kiểm tra cấu trúc module và quy tắc đặt tên) |
-| FE Nghiệp vụ | `npm test` (trong thư mục frontend) | 76/76 test PASS |
-| FE Vận hành KD | `npm run test:business` (trong thư mục frontend) | 9/9 test PASS |
-| FE Render mọi route | `npm run test:render` | 92 route SSR PASS |
-| FE Build | `npm run build` | PASS (Vite production bundle) |
-| BE Build | `dotnet build StorageProject.slnx` | PASS (0 Error, .NET 10) |
-| BE Test (Unit) | `dotnet test StorageProject.Tests/StorageProject.Tests.csproj` | 57/57 test xUnit PASS |
-| BE Test (SQL Integration) | `.\scripts\ci\run-integration.ps1` hoặc `scripts/ci/run-integration.sh` | 9/9 test xUnit PASS (kết nối SQL Server thật) |
-| BE EF Tool | `dotnet tool restore` | PASS (dotnet-ef 10.0.12 từ .config/dotnet-tools.json) |
-| CI Local Runner | `.\scripts\ci\run-ci.ps1` hoặc `bash scripts/ci/run-ci.sh` | Chạy toàn bộ luồng CI Gate trên máy local |
-| Container Smoke | `.\scripts\ci\smoke.ps1` hoặc `bash scripts/ci/smoke.sh` | Smoke test kiểm tra 5 tiêu chí bản đóng gói |
-| Workflow YAML Lint | `npx --yes yaml-lint .github/workflows/*.yml` | 0 YAML syntax errors |
-| Deploy Staging | `.\scripts\deploy\deploy.ps1` hoặc `bash scripts/deploy/deploy.sh` | Triển khai 8 bước an toàn Staging |
-| Promote Production | `.\scripts\deploy\promote-production.ps1` hoặc `.sh` | Triển khai 9 bước kiểm soát Production (No Rebuild) |
-| Safe Rollback | `.\scripts\deploy\rollback.ps1` hoặc `bash scripts/deploy/rollback.sh` | Rollback an toàn (Forward-fix, no EF Down) |
-| Gọi thử API | `StorageProject.Api/StorageProject.Api.http` hoặc Swagger `/index.html` | Thủ công |
+| Cấu trúc FE | `npm run check:structure` | Kiểm thư mục/đặt tên; không xác nhận nghiệp vụ |
+| Test FE | `npm test` | Chạy các test được đăng ký trong package.json của nhánh |
+| Test vận hành KD | `npm run test:business` | Bộ kiểm tra riêng, không nằm trọn trong npm test |
+| Render route | `npm run test:render` | Kiểm render; không thay kiểm thao tác trên trình duyệt |
+| Build FE | `npm run build` | Kiểm đóng gói Vite; không chứng minh API thật hoạt động |
+| Build BE | `dotnet build StorageProject.slnx` | Solution dùng .NET 10 |
+| Test BE (Unit) | `dotnet test StorageProject.slnx` | Test in-memory SQLite (StorageProject.Tests); không thay thế SQL Server |
+| Test BE (SQL Integration) | `.\scripts\ci\run-integration.ps1` hoặc `bash scripts/ci/run-integration.sh` | Chạy test trên SQL Server thật (`REQUIRE_SQLSERVER=true`); không pass nếu thiếu SQL |
+| Model drift | `dotnet ef migrations has-pending-model-changes --project StorageProject.Infrastructure --startup-project StorageProject.Api` | Kiểm tra đồng bộ EF Model vs Snapshot |
+| Kiểm tra nền | `bash init.sh` hoặc `.\init.ps1` | Theo nội dung script hiện có ở nhánh đang làm |
+| Chỉ FE | `bash init.sh --fe-only` hoặc `.\init.ps1 -FeOnly` | Không xác nhận backend đạt |
+| CI Local Runner | `.\scripts\ci\run-ci.ps1` hoặc `bash scripts/ci/run-ci.sh` | Chạy tuần tự các bước CI Gate cục bộ |
+| Container Smoke | `.\scripts\ci\smoke.ps1` hoặc `bash scripts/ci/smoke.sh` | Smoke test kiểm tra 5 tiêu chí bản đóng gói khi container đang chạy |
+| Workflow YAML Lint | `npx --yes yaml-lint .github/workflows/*.yml` | Kiểm tra cú pháp YAML của workflows |
+| Deploy Staging | `.\scripts\deploy\deploy.ps1` hoặc `bash scripts/deploy/deploy.sh` | Kịch bản triển khai Staging; chỉ chạy khi có host cấu hình |
+| Promote Production | `.\scripts\deploy\promote-production.ps1` hoặc `.sh` | Kịch bản promotion Production (zero-rebuild); cần manifest và environment |
+| Safe Rollback | `.\scripts\deploy\rollback.ps1` hoặc `bash scripts/deploy/rollback.sh` | Rollback an toàn (Forward-fix, không EF Down tự động) |
+| API thủ công | Swagger hoặc `StorageProject.Api/StorageProject.Api.http` | Kiểm cả quyền, đầu vào đúng/sai và đọc lại dữ liệu |
 
-## Mức kiểm chứng theo loại thay đổi
+`init` trên nền main dùng cho bản vá này chạy npm test, render, build FE và build/test BE;
+chưa chạy check:structure/test:business. Chạy riêng hai lệnh đó trước merge code FE.
+Các nhánh CI/CD có thể bổ sung lệnh; khi được merge cần đọc script thực tế và cập nhật hướng dẫn.
+Nếu lockfile thay đổi, chạy lại `npm ci`; việc thư mục node_modules tồn tại không chứng minh dependencies đã đồng bộ.
 
-| Thay đổi | Tối thiểu phải chạy |
+## Mức kiểm tra theo thay đổi
+
+| Thay đổi | Kiểm tra trong quá trình làm |
 |---|---|
-| Chỉ giao diện | `npm test` + `npm run test:render` + `npm run build` + mở màn hình đó xem thật |
-| Nghiệp vụ trong `reducer.js` | Như trên + test mới trong `tests/reducer.test.js` |
-| Mapper / gọi API | Như trên + test trong `tests/api-mappers.test.js` + chạy với backend thật |
-| Backend | `dotnet build` + gọi thử endpoint (thành công và lỗi) + `dotnet test` khi đã có F28 |
-| Schema / migration | Như backend + `dotnet ef database update` trên database mới tạo |
+| Chỉ tài liệu/quy định | Đọc diff, kiểm đường dẫn/lệnh/tham chiếu và tính nhất quán; không bắt buộc npm/dotnet build |
+| Giao diện/CSS/route | Kiểm cấu trúc, render, build; xem màn bị đổi ở desktop/mobile và thử tương tác liên quan |
+| Nghiệp vụ FE | Như giao diện + test chức năng bị ảnh hưởng; thêm/sửa test khi có hành vi hoặc ca lỗi cần bảo vệ |
+| Mapper/gọi API | Test mapper/API liên quan; thử request/response, lỗi mạng, quyền và giữ dữ liệu khi lỗi với backend thật |
+| Backend | Build + test BE + endpoint thành công/lỗi, quyền sở hữu/phạm vi cơ sở và đọc lại dữ liệu |
+| Schema/migration | Như backend + thử nâng cấp DB thử nghiệm có dữ liệu và DB mới; kiểm model/snapshot, không reset DB dùng chung |
+| Cấu hình triển khai/container | Build/test liên quan + build container, chạy stack và smoke test; lint YAML không thay cho kiểm chạy |
 
-## Định nghĩa "xong" cho một tính năng
+Thiếu môi trường thì vẫn được bàn giao phần độc lập, nhưng ghi rõ chưa kiểm chứng.
+Lỗi nền không liên quan cần được ghi nhận; không sửa ngoài phạm vi hoặc che lỗi để báo mọi thứ pass.
+Trước merge thay đổi code, thành viên chạy đầy đủ bộ FE hoặc BE tương ứng, cùng kiểm tra tích hợp bị ảnh hưởng.
+Thay đổi dùng chung FE/BE cần cả hai bộ. `init` là trợ giúp, không thay các kiểm tra còn thiếu.
+Nếu thiếu kiểm tra bắt buộc hoặc có lỗi mới do PR gây ra, chưa coi PR đủ điều kiện merge.
 
-1. Lệnh `verification` của tính năng trong `feature_list.json` pass.
-2. `./init.sh` pass toàn bộ.
-3. Kịch bản chính và ít nhất một kịch bản lỗi đã thử (ví dụ: gia hạn khi đã có yêu cầu chờ → báo lỗi đúng).
-4. Đúng tiêu chí nghiệm thu trong SRS mục 13 và đặc tả UC ở mục 15.
-5. Đã ghi `evidence` (ngày, lệnh, kết quả, commit) vào `feature_list.json`.
+## Điều kiện xác nhận tính năng hoàn thành
 
-## Người làm ≠ người kiểm
+1. Đạt tiêu chí người dùng/nhóm đã chốt và quyết định nghiệp vụ hiện hành; nếu SRS/Figma mâu thuẫn phải chốt trước.
+2. Lệnh verification của tính năng và bộ kiểm tra cần thiết đạt trên bản đang bàn giao.
+3. Đã thử luồng chính và ca lỗi/quyền liên quan. Không báo toàn hệ thống đạt từ một vài ca riêng lẻ.
+4. Ghi ngày, nhánh hoặc SHA nền, lệnh, số pass/fail/skip, môi trường dữ liệu, kết quả và giới hạn trong progress/evidence.
+5. Thành viên phụ trách xác nhận trước khi chuyển passing. Một thành viên khác review trước merge.
 
-Sau khi AI báo xong, một người khác trong nhóm (hoặc một phiên AI mới chưa thấy code) kiểm lại theo mục trên
-trước khi merge PR. AI thường tự khen công việc của mình.
+## Phân biệt bằng chứng
+
+- Mock chỉ kiểm giao diện/hợp đồng dữ liệu giả; không xác nhận backend hay database thật.
+- Test SQLite không chứng minh migration, khóa đồng thời và hành vi SQL Server đã đạt.
+- PayOS giả lập không chứng minh chữ ký/webhook bằng khóa thật và URL public đã hoạt động.
+- Đóng gói Docker không chứng minh đã triển khai online; cần chạy stack và smoke test môi trường đích.
+- Hướng dẫn này không tuyên bố các bước trên đã chạy trong lần cập nhật tài liệu.
+
+## Trách nhiệm review và Git
+
+AI có thể hỗ trợ rà soát/test nhưng không thay người review trong nhóm. Thành viên tự đọc hiểu diff,
+commit/push/tạo PR/merge; AI không thực hiện các thao tác đó hoặc thay đổi danh tính Git.
+Không tạo tính năng sản phẩm hoặc đổi trạng thái passing chỉ để ghi nhận một task tài liệu.

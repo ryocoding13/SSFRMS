@@ -14,10 +14,11 @@ set -euo pipefail
 MANIFEST_FILE="${1:-artifacts/release-manifest.json}"
 ENV_FILE="${2:-deploy/.env.production}"
 COMPOSE_FILE="${3:-deploy/compose.production.yml}"
-LOCK_FILE="/tmp/safespace-prod-deploy.lock"
+LOCK_FILE="/tmp/safespace-production.lock"
 BACKUP_DIR="${PROD_BACKUP_PATH:-/var/backups/safespace/prod}"
 SQL_CONTAINER="${PROD_SQL_CONTAINER:-safespace-prod-sqlserver}"
 PROD_BASE_URL="${PRODUCTION_URL:-http://localhost:${PROD_PORT:-8080}}"
+PROJECT_NAME="${COMPOSE_PROJECT_NAME:-safespace-prod}"
 
 echo "===================================================="
 echo "  SafeSpace SSFRMS — Production Promotion Pipeline  "
@@ -27,17 +28,19 @@ echo "Env File: ${ENV_FILE}"
 echo "Compose:  ${COMPOSE_FILE}"
 echo "Target:   ${PROD_BASE_URL}"
 
-# ─── 1. Khóa Triển Khai Production (Lock Deployment) ─────────────────────────
+# ─── 1. Khóa Triển Khai Production (Atomic Concurrency Lock) ─────────────────
 echo ""
 echo "[Step 1/9] Acquiring Production deployment lock..."
-if [ -f "${LOCK_FILE}" ]; then
+if ! (set -C; echo "$$" > "${LOCK_FILE}") 2>/dev/null; then
   LOCK_PID=$(cat "${LOCK_FILE}" 2>/dev/null || echo "")
   if [ -n "${LOCK_PID}" ] && kill -0 "${LOCK_PID}" 2>/dev/null; then
-    echo "CRITICAL: Another deployment is active on Production (PID: ${LOCK_PID}). Aborting."
+    echo "CRITICAL: Another deployment or rollback is active on Production (PID: ${LOCK_PID}). Aborting."
     exit 1
+  else
+    echo "Notice: Stale lock detected, reclaiming lock..."
+    echo "$$" > "${LOCK_FILE}"
   fi
 fi
-echo "$$" > "${LOCK_FILE}"
 trap 'rm -f "${LOCK_FILE}"' EXIT
 
 # ─── 2. Xác Thực Manifest & Trích Xuất Image Digests ──────────────────────────
@@ -48,18 +51,36 @@ if [ ! -f "${MANIFEST_FILE}" ]; then
   exit 1
 fi
 
-# Trích xuất các trường cốt lõi
-COMMIT_SHA=$(grep -o '"commit": "[^"]*"' "${MANIFEST_FILE}" | head -n 1 | cut -d'"' -f4)
-MIGRATION_HEAD=$(grep -o '"migrationHead": "[^"]*"' "${MANIFEST_FILE}" | head -n 1 | cut -d'"' -f4)
+# Trích xuất và xác thực cấu trúc JSON bằng Node.js AST parser
+read_manifest_prop() {
+  local prop="$1"
+  node -e "
+    const fs = require('fs');
+    try {
+      const m = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+      const fn = new Function('m', 'return (m.' + process.argv[2] + ');');
+      const val = fn(m);
+      if (val !== undefined && val !== null) process.stdout.write(String(val));
+    } catch (e) {
+      process.exit(1);
+    }
+  " "${MANIFEST_FILE}" "${prop}"
+}
 
-GATE_FE=$(grep -A 5 '"gateResults":' "${MANIFEST_FILE}" | grep '"frontend":' | head -n 1 | cut -d'"' -f4)
-GATE_BE=$(grep -A 5 '"gateResults":' "${MANIFEST_FILE}" | grep '"backend":' | head -n 1 | cut -d'"' -f4)
-GATE_INT=$(grep -A 5 '"gateResults":' "${MANIFEST_FILE}" | grep '"integration":' | head -n 1 | cut -d'"' -f4)
-GATE_CONT=$(grep -A 5 '"gateResults":' "${MANIFEST_FILE}" | grep '"container":' | head -n 1 | cut -d'"' -f4)
+COMMIT_SHA=$(read_manifest_prop "commit")
+MIGRATION_HEAD=$(read_manifest_prop "migrationHead")
 
-API_IMAGE=$(grep -A 2 '"api":' "${MANIFEST_FILE}" | grep '"digest":' | head -n 1 | cut -d'"' -f4)
-WEB_IMAGE=$(grep -A 2 '"web":' "${MANIFEST_FILE}" | grep '"digest":' | head -n 1 | cut -d'"' -f4)
-MIGRATOR_IMAGE=$(grep -A 2 '"migrator":' "${MANIFEST_FILE}" | grep '"digest":' | head -n 1 | cut -d'"' -f4)
+GATE_FE=$(read_manifest_prop "gateResults.frontend")
+GATE_BE=$(read_manifest_prop "gateResults.backend")
+GATE_INT=$(read_manifest_prop "gateResults.integration")
+GATE_CONT=$(read_manifest_prop "gateResults.container")
+
+API_REPO=$(read_manifest_prop "images.api.image")
+API_DIGEST=$(read_manifest_prop "images.api.digest")
+WEB_REPO=$(read_manifest_prop "images.web.image")
+WEB_DIGEST=$(read_manifest_prop "images.web.digest")
+MIGRATOR_REPO=$(read_manifest_prop "images.migrator.image")
+MIGRATOR_DIGEST=$(read_manifest_prop "images.migrator.digest")
 
 if [[ ! "${COMMIT_SHA}" =~ ^[0-9a-fA-F]{40}$ ]]; then
   echo "ERROR: Manifest commit SHA is invalid (must be 40 hex characters): '${COMMIT_SHA}'"
@@ -73,34 +94,42 @@ if [ "${GATE_FE}" != "success" ] || [ "${GATE_BE}" != "success" ] || \
   exit 1
 fi
 
-if [[ ! "${API_IMAGE}" =~ ^sha256:[0-9a-f]{64}$ ]] || \
-   [[ ! "${WEB_IMAGE}" =~ ^sha256:[0-9a-f]{64}$ ]] || \
-   [[ ! "${MIGRATOR_IMAGE}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-  echo "ERROR: One or more image digests do not follow exact 'sha256:<64hex>' format."
-  echo "API:      ${API_IMAGE}"
-  echo "Web:      ${WEB_IMAGE}"
-  echo "Migrator: ${MIGRATOR_IMAGE}"
+if [[ ! "${API_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]] || [[ "${API_DIGEST}" =~ ^sha256:0{64}$ ]] || \
+   [[ ! "${WEB_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]] || [[ "${WEB_DIGEST}" =~ ^sha256:0{64}$ ]] || \
+   [[ ! "${MIGRATOR_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]] || [[ "${MIGRATOR_DIGEST}" =~ ^sha256:0{64}$ ]]; then
+  echo "ERROR: One or more image digests do not follow exact 'sha256:<64hex>' format or are all-zero."
+  echo "API:      ${API_DIGEST}"
+  echo "Web:      ${WEB_DIGEST}"
+  echo "Migrator: ${MIGRATOR_DIGEST}"
   exit 1
 fi
+
+# Tạo full reference: repository@sha256:<digest>
+API_FULL_REF="${API_REPO}@${API_DIGEST}"
+WEB_FULL_REF="${WEB_REPO}@${WEB_DIGEST}"
+MIGRATOR_FULL_REF="${MIGRATOR_REPO}@${MIGRATOR_DIGEST}"
 
 echo "Verified Promotion Manifest:"
 echo "- Commit SHA:     ${COMMIT_SHA}"
 echo "- Migration Head: ${MIGRATION_HEAD}"
-echo "- CI Gate:        ${CI_GATE}"
-echo "- API Digest:     ${API_IMAGE}"
-echo "- Web Digest:     ${WEB_IMAGE}"
-echo "- Migrator Dig:   ${MIGRATOR_IMAGE}"
+echo "- Gate Status:    FE=${GATE_FE}, BE=${GATE_BE}, INT=${GATE_INT}, CONT=${GATE_CONT}"
+echo "- API Ref:        ${API_FULL_REF}"
+echo "- Web Ref:        ${WEB_FULL_REF}"
+echo "- Migrator Ref:   ${MIGRATOR_FULL_REF}"
 
 # Export cho Docker Compose
-export API_DIGEST="${API_IMAGE}"
-export WEB_DIGEST="${WEB_IMAGE}"
-export MIGRATOR_DIGEST="${MIGRATOR_IMAGE}"
+export API_IMAGE="${API_FULL_REF}"
+export WEB_IMAGE="${WEB_FULL_REF}"
+export MIGRATOR_IMAGE="${MIGRATOR_FULL_REF}"
+export API_DIGEST="${API_FULL_REF}"
+export WEB_DIGEST="${WEB_FULL_REF}"
+export MIGRATOR_DIGEST="${MIGRATOR_FULL_REF}"
 
 # ─── 3. Kiểm Tra Cấu Hình An Toàn Môi Trường Production ───────────────────────
 echo ""
 echo "[Step 3/9] Checking Production environment safety configuration..."
 if [ -f "${ENV_FILE}" ]; then
-  if grep -qi "Database__SeedMode.*=.*\(Development\|Staging\)" "${ENV_FILE}"; then
+  if grep -qiE "Database__SeedMode.*=.*(Development|Staging)" "${ENV_FILE}"; then
     echo "CRITICAL SECURITY ERROR: Database__SeedMode in ${ENV_FILE} is set to Development/Staging! Production MUST NOT use sample seed."
     exit 1
   fi
@@ -109,34 +138,39 @@ fi
 # ─── 4. Pre-Pull Images Bằng Exact Digest ────────────────────────────────────
 echo ""
 echo "[Step 4/9] Pre-pulling container images by exact digest (No rebuild)..."
-# docker pull "${API_IMAGE}" || true
-# docker pull "${WEB_IMAGE}" || true
-# docker pull "${MIGRATOR_IMAGE}" || true
-echo "Pre-pull digests verified."
+if command -v docker &>/dev/null && docker info &>/dev/null; then
+  docker pull "${API_FULL_REF}"
+  docker pull "${WEB_FULL_REF}"
+  docker pull "${MIGRATOR_FULL_REF}"
+  echo "Pre-pull digests verified on registry."
+else
+  echo "Notice: Docker daemon unreachable or running in mock mode. Verified digest format."
+fi
 
-# ─── 5. Sao Lưu Cơ Sở Dữ Liệu Production Bắt Buộc ────────────────────────────
+# ─── 5. Sao Lưu Cơ Sở Dữ Liệu Production Bắt Buộc (Fail-Closed) ──────────────
 echo ""
 echo "[Step 5/9] Executing mandatory pre-deployment Production database backup..."
-if [ -f "scripts/deploy/backup.sh" ]; then
-  bash scripts/deploy/backup.sh "${BACKUP_DIR}" "SSFRMS" "${SQL_CONTAINER}" || {
-    echo "CRITICAL: Production pre-deployment database backup failed! Aborting promotion for data safety."
-    exit 1
-  }
-else
-  echo "WARNING: scripts/deploy/backup.sh not found. Proceeding with host-level backup policy."
+if [ ! -f "scripts/deploy/backup.sh" ]; then
+  echo "CRITICAL ERROR: scripts/deploy/backup.sh not found! Production deployment cannot proceed without backup capability."
+  exit 1
 fi
+
+bash scripts/deploy/backup.sh "${BACKUP_DIR}" "SSFRMS" "${SQL_CONTAINER}" || {
+  echo "CRITICAL: Production pre-deployment database backup failed! Aborting promotion for data safety."
+  exit 1
+}
 
 # ─── 6. Thực Thi EF Core Migration One-Shot ──────────────────────────────────
 echo ""
 echo "[Step 6/9] Running one-shot EF Core migrator container..."
 # Tạm dừng app cũ để tránh ghi dữ liệu đồng thời trong lúc nâng cấp schema
-if docker compose -f "${COMPOSE_FILE}" ps -q api 2>/dev/null | grep -q .; then
+if command -v docker &>/dev/null && docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -p "${PROJECT_NAME}" ps -q api 2>/dev/null | grep -q .; then
   echo "Stopping current API/Web services for maintenance..."
-  docker compose -f "${COMPOSE_FILE}" stop api web || true
+  docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -p "${PROJECT_NAME}" stop api web || true
 fi
 
 echo "Applying migrations up to head: ${MIGRATION_HEAD}..."
-docker compose -f "${COMPOSE_FILE}" run --rm migrator || {
+docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -p "${PROJECT_NAME}" run --rm migrator || {
   echo "CRITICAL ERROR: Database migration failed on Production!"
   echo "Aborting promotion. API container will NOT be switched to new release."
   echo "Database schema status must be verified according to docs/rollback.md."
@@ -147,7 +181,7 @@ echo "Database migration: SUCCESS"
 # ─── 7. Khởi Động API và Web Production ──────────────────────────────────────
 echo ""
 echo "[Step 7/9] Starting upgraded Production API and Web containers..."
-docker compose -f "${COMPOSE_FILE}" up -d api web
+docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -p "${PROJECT_NAME}" up -d --no-deps api web
 
 # ─── 8. Chờ Readiness Probe Sẵn Sàng ──────────────────────────────────────────
 echo ""
@@ -164,7 +198,7 @@ done
 if [ "${READY}" != "true" ]; then
   echo "CRITICAL: Production readiness probe failed after 60s timeout at ${PROD_BASE_URL}/health/ready."
   echo "Initiating health check failure diagnostic..."
-  docker compose -f "${COMPOSE_FILE}" logs --tail 50 api web || true
+  docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" -p "${PROJECT_NAME}" logs --tail 50 api web || true
   exit 1
 fi
 echo "Production service is Ready and healthy!"
@@ -174,10 +208,10 @@ echo ""
 echo "[Step 9/9] Executing Production smoke verification..."
 bash scripts/ci/smoke.sh "${PROD_BASE_URL}" 10 2
 
-mkdir -p deploy/releases
+mkdir -p deploy/releases/production
 cp -f "${MANIFEST_FILE}" deploy/release-production-current.json
 TIMESTAMP="$(date +"%Y%m%d_%H%M%S")"
-cp -f "${MANIFEST_FILE}" "deploy/releases/prod_${TIMESTAMP}_${COMMIT_SHA:0:7}.json"
+cp -f "${MANIFEST_FILE}" "deploy/releases/production/prod_${TIMESTAMP}_${COMMIT_SHA:0:7}.json"
 
 echo ""
 echo "======================================================================"

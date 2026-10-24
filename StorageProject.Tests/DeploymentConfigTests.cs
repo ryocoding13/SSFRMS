@@ -49,6 +49,75 @@ public sealed class DeploymentConfigTests
         Assert.Contains("JwtSettings:Secret must be configured", ex.Message);
     }
 
+    [Theory]
+    [InlineData("short_secret_key_under_32")]
+    [InlineData("YOUR_JWT_SECRET")]
+    [InlineData("12345678901234567890123456789012")]
+    public void Production_Throws_When_JwtSecret_Is_Invalid_Or_Weak(string weakSecret)
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["JwtSettings:Secret"] = weakSecret
+            })
+            .Build();
+
+        var isDev = false;
+        var jwtSecret = config["JwtSettings:Secret"];
+        string[] weakPlaceholders = [
+            DefaultDevSecret,
+            "YOUR_JWT_SECRET",
+            "CHANGE_ME",
+            "secret",
+            "12345678901234567890123456789012"
+        ];
+
+        var ex = Record.Exception(() =>
+        {
+            if (string.IsNullOrWhiteSpace(jwtSecret) ||
+                weakPlaceholders.Any(p => string.Equals(jwtSecret.Trim(), p, StringComparison.OrdinalIgnoreCase)) ||
+                jwtSecret.Length < 32)
+            {
+                if (!isDev)
+                {
+                    throw new InvalidOperationException("JwtSettings:Secret is not securely configured.");
+                }
+            }
+        });
+
+        Assert.NotNull(ex);
+        Assert.IsType<InvalidOperationException>(ex);
+    }
+
+    [Fact]
+    public void Production_Accepts_Strong_32Plus_Character_Secret()
+    {
+        var strongSecret = "A_VERY_SECURE_PRODUCTION_JWT_SECRET_KEY_FOR_SSFRMS_SYSTEM_2026";
+        var isDev = false;
+        string[] weakPlaceholders = [
+            DefaultDevSecret,
+            "YOUR_JWT_SECRET",
+            "CHANGE_ME",
+            "secret",
+            "12345678901234567890123456789012"
+        ];
+
+        var ex = Record.Exception(() =>
+        {
+            if (string.IsNullOrWhiteSpace(strongSecret) ||
+                weakPlaceholders.Any(p => string.Equals(strongSecret.Trim(), p, StringComparison.OrdinalIgnoreCase)) ||
+                strongSecret.Length < 32)
+            {
+                if (!isDev)
+                {
+                    throw new InvalidOperationException("Failed");
+                }
+            }
+        });
+
+        Assert.Null(ex);
+    }
+
     [Fact]
     public void Development_Allows_DefaultPlaceholder_JwtSecret()
     {

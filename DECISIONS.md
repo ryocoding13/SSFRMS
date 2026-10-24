@@ -218,3 +218,14 @@ Theo yêu cầu nhóm, dùng src/app, src/features/<role>/<feature>, src/shared,
   - **Không EF Down:** Tuyệt đối không tự động chạy `dotnet ef database update` về migration cũ để tránh xung đột khóa ngoại và mất mát dữ liệu khách hàng. Schema database luôn được giữ nguyên và sửa chữa bằng migration tiến lên (Forward-fix).
   - **Backup Bắt Buộc:** Mọi kịch bản deploy đều bắt buộc sao lưu database trước khi can thiệp schema; backup fail thì dừng triển khai ngay.
   - **Phục hồi Database có Runbook:** Chỉ phục hồi database từ file backup `.bak` khi có sự phê chuẩn và chỉ định rõ ràng file sao lưu, kèm chấp nhận downtime và mất mát dữ liệu sau thời điểm backup theo đúng runbook [docs/rollback.md](file:///d:/StorageProject/docs/rollback.md).
+
+## PROCESS-2026-10-24 — Quy trình AI, Git và kiểm chứng — Áp dụng khi nhóm tích hợp bản vá
+
+- Theo yêu cầu cập nhật quy định của thành viên ngày 24/10/2026; không khẳng định cả nhóm đã biểu quyết. Việc merge bản vá ghi nhận nhóm chấp nhận áp dụng.
+- Thay phần quy trình trong AGENTS/README: AI chỉ phân tích/sửa file/test; thành viên tự commit/push/PR/merge và chịu trách nhiệm đọc hiểu. Không đổi danh tính Git hoặc sửa lịch sử để thay tác giả. Việc dùng AI theo yêu cầu môn học.
+- Giữ luồng nhánh riêng → PR → người khác trong nhóm review → main của D08; cho phép tiền tố feature/fix/docs/chore. Một task có một mục tiêu, được sửa các phụ thuộc cần thiết.
+- Thay phần tuyệt đối của D01: Figma chuẩn về bố cục/tương tác; nghiệp vụ/quyền theo quyết định nhóm hiện hành. Có mâu thuẫn phải chốt rõ, không tự sửa backend để bỏ kiểm tra quyền hoặc đổi tính tiền theo ảnh.
+- Thay D07 và phần cấm nhãn mock của D15: bản chạy chính giữ giao diện sản phẩm; mock/offline phải được chọn rõ và nhận biết khi kiểm thử. API lỗi không được giả thành công. Không thay đổi hành vi sản phẩm trong bản vá tài liệu này.
+- Kiểm chứng theo phạm vi, cho phép làm phần độc lập khi môi trường thiếu; ghi rõ phần chưa kiểm chứng. Trước merge code chạy đủ bộ liên quan và kiểm thử tích hợp; chỉ tài liệu không bắt buộc build ứng dụng. AI review không thay review của thành viên khác.
+- Không commit bí mật; cấu hình mẫu/dùng chung không chứa bí mật được phép. Không sửa migration đã merge/áp dụng trên DB dùng chung; migration chưa chia sẻ được sửa trong nhánh riêng. Không tự xóa/reset DB.
+- Không thay D26/D27, tính tiền, phân quyền, schema, API hoặc trạng thái passing của bất kỳ tính năng sản phẩm nào.

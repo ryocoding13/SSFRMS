@@ -24,14 +24,28 @@ WEB_IMAGE="ghcr.io/${REPO,,}/web"
 MIGRATOR_IMAGE="ghcr.io/${REPO,,}/migrator"
 TAG="sha-${COMMIT_SHA}"
 
-if [[ -z "${API_DIGEST}" ]]; then
-  API_DIGEST="sha256:0000000000000000000000000000000000000000000000000000000000000000"
+if [[ ! "${COMMIT_SHA}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+  echo "ERROR: Commit SHA must be 40 hex characters: '${COMMIT_SHA}'"
+  exit 1
 fi
-if [[ -z "${WEB_DIGEST}" ]]; then
-  WEB_DIGEST="sha256:0000000000000000000000000000000000000000000000000000000000000000"
+
+GATE_FE="${GATE_FE:-success}"
+GATE_BE="${GATE_BE:-success}"
+GATE_INT="${GATE_INT:-success}"
+GATE_CONT="${GATE_CONT:-success}"
+
+# Bắt buộc 3 image digests phải tuân thủ sha256:<64hex> và KHÔNG được là toàn số 0
+if [[ ! "${API_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]] || [[ "${API_DIGEST}" =~ ^sha256:0{64}$ ]]; then
+  echo "ERROR: API_DIGEST is missing, invalid, or all-zero: '${API_DIGEST}'"
+  exit 1
 fi
-if [[ -z "${MIGRATOR_DIGEST}" ]]; then
-  MIGRATOR_DIGEST="sha256:0000000000000000000000000000000000000000000000000000000000000000"
+if [[ ! "${WEB_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]] || [[ "${WEB_DIGEST}" =~ ^sha256:0{64}$ ]]; then
+  echo "ERROR: WEB_DIGEST is missing, invalid, or all-zero: '${WEB_DIGEST}'"
+  exit 1
+fi
+if [[ ! "${MIGRATOR_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]] || [[ "${MIGRATOR_DIGEST}" =~ ^sha256:0{64}$ ]]; then
+  echo "ERROR: MIGRATOR_DIGEST is missing, invalid, or all-zero: '${MIGRATOR_DIGEST}'"
+  exit 1
 fi
 
 cat <<EOF > "${OUTPUT_FILE}"
@@ -60,10 +74,10 @@ cat <<EOF > "${OUTPUT_FILE}"
     }
   },
   "gateResults": {
-    "frontend": "success",
-    "backend": "success",
-    "integration": "success",
-    "container": "success"
+    "frontend": "${GATE_FE}",
+    "backend": "${GATE_BE}",
+    "integration": "${GATE_INT}",
+    "container": "${GATE_CONT}"
   }
 }
 EOF

@@ -33,27 +33,27 @@ Khi ứng dụng gặp lỗi logic nhưng database schema vẫn tương thích n
 ### 3.1. Rollback trên Môi trường Staging
 ```bash
 # Thực thi trên máy chủ Staging:
-bash scripts/deploy/rollback.sh staging deploy/releases/<bản_manifest_cũ>.json
+bash scripts/deploy/rollback.sh staging deploy/releases/staging/<bản_manifest_cũ>.json
 
 # Hoặc trên PowerShell:
-powershell -ExecutionPolicy Bypass -File .\scripts\deploy\rollback.ps1 -EnvTarget staging -PreviousManifest deploy/releases/<bản_manifest_cũ>.json
+powershell -ExecutionPolicy Bypass -File .\scripts\deploy\rollback.ps1 -EnvTarget staging -PreviousManifest deploy/releases/staging/<bản_manifest_cũ>.json
 ```
 
 ### 3.2. Rollback trên Môi trường Production
 ```bash
 # Thực thi trên máy chủ Production:
-bash scripts/deploy/rollback.sh production deploy/releases/<bản_manifest_cũ>.json
+bash scripts/deploy/rollback.sh production deploy/releases/production/<bản_manifest_cũ>.json
 
 # Hoặc trên PowerShell:
-powershell -ExecutionPolicy Bypass -File .\scripts\deploy\rollback.ps1 -EnvTarget production -PreviousManifest deploy/releases/<bản_manifest_cũ>.json
+powershell -ExecutionPolicy Bypass -File .\scripts\deploy\rollback.ps1 -EnvTarget production -PreviousManifest deploy/releases/production/<bản_manifest_cũ>.json
 ```
 
 **Các bước tự động của kịch bản:**
-1. Khóa môi trường để tránh xung đột thao tác (`/tmp/safespace-rollback.lock`).
-2. Trích xuất exact digests của API và Web từ bản manifest trước.
-3. Chuyển đổi và khởi động lại API + Web containers về exact digests đó.
-4. Chờ readiness probe `/health/ready` xác nhận hệ thống sẵn sàng.
-5. Chạy bộ smoke test kiểm tra xác thực và phục hồi `release-current.json`.
+1. Khóa môi trường atomic độc lập theo target (`/tmp/safespace-staging.lock` hoặc `/tmp/safespace-production.lock`), ngăn ngừa race condition giữa rollback và deploy song song.
+2. Trích xuất exact digests của API và Web từ bản manifest trước (thông qua parser Node.js / PowerShell ConvertFrom-Json chuẩn).
+3. Chuyển đổi và khởi động lại API + Web containers về exact digests đó bằng `--no-deps api web` (không tái chạy migrator hay thay đổi schema database).
+4. Chờ readiness probe `/health/ready` xác nhận hệ thống sẵn sàng (timeout 60s).
+5. Chạy bộ smoke test kiểm tra xác thực static assets/clean origin và ghi nhận release hiện hành.
 
 ---
 

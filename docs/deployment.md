@@ -85,23 +85,26 @@ Cors__AllowedOrigins__0=https://safespace.vn
 
 ## 3. Quy trình Triển khai Chi tiết
 
-### 3.1. Triển khai Tự động Môi trường Staging (CI/CD Push `main`)
+### 3.1. Triển khai Môi trường Staging (CI/CD Push `main`)
 
 1. Cấu hình biến repository trên GitHub (**Settings > Secrets and variables > Actions > Variables**):
-   - `ENABLE_STAGING_DEPLOY=true`
+   - `ENABLE_STAGING_DEPLOY=true` (mặc định để `false` ở chế độ Standby an toàn khi chưa có máy chủ).
    - `STAGING_URL=https://staging.safespace.vn`
-2. Cấu hình SSH Secrets hoặc GitHub Runner trên máy chủ Staging:
-   - `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`.
+2. Cấu hình SSH Secrets hoặc Runner riêng trên máy chủ Staging:
+   - `STAGING_SSH_HOST`, `STAGING_SSH_USER`, `STAGING_SSH_KEY` (hoặc `STAGING_RUNNER_IS_HOST=true` nếu runner tự quản lý trực tiếp trên host staging).
 3. Khi merge PR vào `main`, GitHub Actions tự động:
-   - Build và push images lên GHCR theo SHA digest.
-   - Gọi script `scripts/deploy/deploy.sh` trên Staging runner.
-   - Thực thi tuần tự: Lock -> Pull digest -> Backup DB -> One-shot Migrator -> Up Web/API -> Healthcheck `/health/ready` -> Smoke test -> Ghi nhận `release-current.json`.
+   - Build và push images lên GHCR theo SHA digest (`api`, `web`, `migrator`).
+   - Tạo Release Manifest có chữ ký số digest và upload artifact.
+   - Nếu `ENABLE_STAGING_DEPLOY=false`: Giữ ở trạng thái **Standby**, packages sẵn sàng trên GHCR.
+   - Nếu `ENABLE_STAGING_DEPLOY=true`: Gọi script `scripts/deploy/deploy.sh` với đầy đủ tham số `--env-file deploy/.env -f deploy/compose.staging.yml`.
+   - Thực thi tuần tự: Lock -> Pull digest -> Backup DB -> One-shot Migrator -> Up Web/API -> Healthcheck `/health/ready` -> Smoke test -> Ghi nhận `deploy/release-current.json` và `deploy/releases/staging/`.
 
 ### 3.2. Triển khai Môi trường Production (Thủ công có Phê duyệt)
 
 1. **Bước 1: Phê duyệt Promotion trên GitHub:**
    - Truy cập tab **Actions > Production Promotion & Deployment**.
    - Bấm **Run workflow**, nhập `release_sha` (commit 40 ký tự hex cần promote).
+   - Workflow thẩm định provenance: đối chiếu commit SHA với kết quả run CI thành công trên `main`, kiểm tra tính hợp lệ của toàn bộ gate checks và image digests (không dùng fallback repo giả lập).
    - Người có thẩm quyền (Reviewer) xem xét manifest, kiểm tra kết quả staging rồi bấm **Approve and deploy**.
 2. **Bước 2: Thực thi trên Máy chủ Production:**
    - Kịch bản [scripts/deploy/promote-production.sh](file:///d:/StorageProject/scripts/deploy/promote-production.sh) được kích hoạt:
@@ -113,7 +116,7 @@ Cors__AllowedOrigins__0=https://safespace.vn
    ```
    - Quá trình này **tuyệt đối không rebuild image** mà kéo chính xác các image SHA-256 digest đã được ghim trong release manifest.
    - Kiểm tra liveness & readiness tại `https://safespace.vn/health/ready`.
-   - Kết quả triển khai và digests được lưu vào `deploy/release-production-current.json`.
+   - Kết quả triển khai và digests được lưu vào `deploy/release-production-current.json` và `deploy/releases/production/`.
 
 ---
 
@@ -123,7 +126,7 @@ Cors__AllowedOrigins__0=https://safespace.vn
 - Ứng dụng ASP.NET Core đặt `Database__AutoMigrate=false` để tránh việc nhiều replica cùng lúc tranh chấp chạy DDL.
 - Việc nâng cấp database do container `migrator` (build từ [deploy/migrator.Dockerfile](file:///d:/StorageProject/deploy/migrator.Dockerfile)) chạy one-shot:
   ```bash
-  docker compose -f deploy/compose.production.yml run --rm migrator
+  docker compose --env-file deploy/.env.production -f deploy/compose.production.yml run --rm migrator
   ```
 - Nếu lệnh migration gặp lỗi (exit code khác 0), script sẽ hủy bỏ triển khai ngay lập tức, giữ nguyên database hiện hữu và **không đổi sang API container mới**.
 

@@ -39,9 +39,10 @@ jobs:
 
       - name: Validate Release SHA Format
         id: validate_sha
+        env:
+          RAW_INPUT_SHA: ${{ github.event.inputs.release_sha }}
         run: |
-          INPUT_SHA="${{ github.event.inputs.release_sha }}"
-          INPUT_SHA=$(echo "${INPUT_SHA}" | tr -d '[:space:]')
+          INPUT_SHA=$(echo "${RAW_INPUT_SHA}" | tr -d '[:space:]')
           if [[ ! "${INPUT_SHA}" =~ ^[0-9a-fA-F]{40}$ ]]; then
             echo "::error::Release SHA must be a 40-character hexadecimal git commit SHA. Got: '${INPUT_SHA}'"
             exit 1
@@ -53,7 +54,7 @@ jobs:
         id: fetch_manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_SHA: ${{ github.event.inputs.release_sha }}
+          RELEASE_SHA: ${{ steps.validate_sha.outputs.sha }}
           SPECIFIED_RUN_ID: ${{ github.event.inputs.run_id }}
         run: |
           mkdir -p ./verified_manifest
@@ -76,21 +77,24 @@ jobs:
             gh run download "${RUN_ID}" \
               --repo "${{ github.repository }}" \
               --name "release-manifest" \
-              --dir "./verified_manifest" || echo "gh download failed, checking fallback"
+              --dir "./verified_manifest" || {
+                echo "::error::Failed to download release-manifest artifact from run ${RUN_ID}."
+                exit 1
+              }
+          else
+            echo "::error::Could not find a successful CI run on branch main producing a verified release-manifest for commit ${RELEASE_SHA}."
+            exit 1
           fi
 
           if [ ! -f "./verified_manifest/release-manifest.json" ]; then
-            if [ -f "deploy/release-current.json" ]; then
-              echo "Using fallback repository manifest deploy/release-current.json for local/simulated validation..."
-              cp deploy/release-current.json ./verified_manifest/release-manifest.json
-            else
-              echo "::error::No verified release manifest found for commit ${RELEASE_SHA}."
-              exit 1
-            fi
+            echo "::error::release-manifest.json was not present in the downloaded artifact."
+            exit 1
           fi
 
       - name: Parse & Validate Manifest Schema
         id: parse_manifest
+        env:
+          TARGET_SHA: ${{ steps.validate_sha.outputs.sha }}
         run: |
           MANIFEST_FILE="./verified_manifest/release-manifest.json"
           if [ ! -f "${MANIFEST_FILE}" ]; then
@@ -98,56 +102,53 @@ jobs:
             exit 1
           fi
 
-          COMMIT=$(grep -o '"commit": "[^"]*"' "${MANIFEST_FILE}" | head -n 1 | cut -d'"' -f4)
-          MIG_HEAD=$(grep -o '"migrationHead": "[^"]*"' "${MANIFEST_FILE}" | head -n 1 | cut -d'"' -f4)
+          node -e '
+            const fs = require("fs");
+            const manifest = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const targetSha = process.argv[2];
 
-          GATE_FE=$(grep -A 5 '"gateResults":' "${MANIFEST_FILE}" | grep '"frontend":' | head -n 1 | cut -d'"' -f4)
-          GATE_BE=$(grep -A 5 '"gateResults":' "${MANIFEST_FILE}" | grep '"backend":' | head -n 1 | cut -d'"' -f4)
-          GATE_INT=$(grep -A 5 '"gateResults":' "${MANIFEST_FILE}" | grep '"integration":' | head -n 1 | cut -d'"' -f4)
-          GATE_CONT=$(grep -A 5 '"gateResults":' "${MANIFEST_FILE}" | grep '"container":' | head -n 1 | cut -d'"' -f4)
+            if (manifest.commit !== targetSha) {
+              console.error(`::error::Manifest commit (${manifest.commit}) does not match requested release SHA (${targetSha})!`);
+              process.exit(1);
+            }
 
-          API_DIGEST=$(grep -A 2 '"api":' "${MANIFEST_FILE}" | grep '"digest":' | head -n 1 | cut -d'"' -f4)
-          WEB_DIGEST=$(grep -A 2 '"web":' "${MANIFEST_FILE}" | grep '"digest":' | head -n 1 | cut -d'"' -f4)
-          MIG_DIGEST=$(grep -A 2 '"migrator":' "${MANIFEST_FILE}" | grep '"digest":' | head -n 1 | cut -d'"' -f4)
+            const gates = manifest.gateResults || {};
+            for (const [k, v] of Object.entries({ frontend: gates.frontend, backend: gates.backend, integration: gates.integration, container: gates.container })) {
+              if (v !== "success") {
+                console.error(`::error::Quality gate ${k} did not succeed (status: ${v}). Promotion blocked.`);
+                process.exit(1);
+              }
+            }
 
-          echo "Manifest Content Verification:"
-          echo "- Commit:         ${COMMIT}"
-          echo "- Gate Frontend:  ${GATE_FE}"
-          echo "- Gate Backend:   ${GATE_BE}"
-          echo "- Gate Integrat:  ${GATE_INT}"
-          echo "- Gate Container: ${GATE_CONT}"
-          echo "- Migration Head: ${MIG_HEAD}"
-          echo "- API Digest:     ${API_DIGEST}"
-          echo "- Web Digest:     ${WEB_DIGEST}"
-          echo "- Migrator Dig:   ${MIG_DIGEST}"
+            const zeroDigest = "sha256:" + "0".repeat(64);
+            const images = manifest.images || {};
+            for (const name of ["api", "web", "migrator"]) {
+              const d = images[name]?.digest;
+              if (!d || !/^sha256:[0-9a-f]{64}$/.test(d) || d === zeroDigest) {
+                console.error(`::error::Invalid or missing digest for image ${name}: ${d}`);
+                process.exit(1);
+              }
+            }
 
-          if [ "${GATE_FE}" != "success" ] || [ "${GATE_BE}" != "success" ] || \
-             [ "${GATE_INT}" != "success" ] || [ "${GATE_CONT}" != "success" ]; then
-            echo "::error::Manifest gate checks did not pass (FE: ${GATE_FE}, BE: ${GATE_BE}, INT: ${GATE_INT}, CONT: ${GATE_CONT}). Promotion blocked."
-            exit 1
-          fi
+            const setOutput = (k, v) => fs.appendFileSync(process.env.GITHUB_OUTPUT, `${k}=${v}\n`);
+            setOutput("release_sha", manifest.commit);
+            setOutput("migration_head", manifest.migrationHead || "");
+            setOutput("api_digest", images.api.digest);
+            setOutput("web_digest", images.web.digest);
+            setOutput("migrator_digest", images.migrator.digest);
 
-          if [[ ! "${API_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]] || \
-             [[ ! "${WEB_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]] || \
-             [[ ! "${MIG_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "::error::One or more image digests are invalid or missing sha256 prefix."
-            exit 1
-          fi
-
-          echo "release_sha=${COMMIT}" >> $GITHUB_OUTPUT
-          echo "migration_head=${MIG_HEAD}" >> $GITHUB_OUTPUT
-          echo "api_digest=${API_DIGEST}" >> $GITHUB_OUTPUT
-          echo "web_digest=${WEB_DIGEST}" >> $GITHUB_OUTPUT
-          echo "migrator_digest=${MIG_DIGEST}" >> $GITHUB_OUTPUT
-
-          echo "### 📦 Promotion Manifest Verified" >> $GITHUB_STEP_SUMMARY
-          echo "- **Target Commit:** \`${COMMIT}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Gate Results:** FE (\`${GATE_FE}\`), BE (\`${GATE_BE}\`), Integration (\`${GATE_INT}\`), Container (\`${GATE_CONT}\`)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Migration Head:** \`${MIG_HEAD}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **API Digest:** \`${API_DIGEST}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Web Digest:** \`${WEB_DIGEST}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Migrator Digest:** \`${MIG_DIGEST}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Provenance:** Images are promoted by digest WITHOUT recompilation." >> $GITHUB_STEP_SUMMARY
+            const summary = [
+              "### 📦 Promotion Manifest Verified",
+              `- **Target Commit:** \`${manifest.commit}\``,
+              `- **Gate Results:** FE (\`${gates.frontend}\`), BE (\`${gates.backend}\`), Integration (\`${gates.integration}\`), Container (\`${gates.container}\`)`,
+              `- **Migration Head:** \`${manifest.migrationHead || "None"}\``,
+              `- **API Digest:** \`${images.api.digest}\``,
+              `- **Web Digest:** \`${images.web.digest}\``,
+              `- **Migrator Digest:** \`${images.migrator.digest}\``,
+              `- **Provenance:** Images are promoted by digest WITHOUT recompilation.`
+            ].join("\n");
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + "\n");
+          ' "${MANIFEST_FILE}" "${TARGET_SHA}"
 
       - name: Upload Verified Manifest Artifact
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
@@ -178,6 +179,10 @@ jobs:
       - name: Check Production Deploy Gate & Execute Promotion
         env:
           ENABLE_PRODUCTION_DEPLOY: ${{ vars.ENABLE_PRODUCTION_DEPLOY }}
+          PRODUCTION_SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          PRODUCTION_SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+          PRODUCTION_RUNNER_IS_HOST: ${{ vars.PRODUCTION_RUNNER_IS_HOST }}
           PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://safespace.vn' }}
         run: |
           echo "Checking Production Deploy Gate: ENABLE_PRODUCTION_DEPLOY=${ENABLE_PRODUCTION_DEPLOY:-false}"
@@ -188,8 +193,13 @@ jobs:
             echo "- **State:** Ready for deployment (Images pinned and verified by digest)" >> $GITHUB_STEP_SUMMARY
             echo "- **Commit:** \`${{ needs.validate-release-provenance.outputs.release_sha }}\`" >> $GITHUB_STEP_SUMMARY
             echo "- **Migration Head:** \`${{ needs.validate-release-provenance.outputs.migration_head }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **Note:** To activate live production promotion, define repository variable \`ENABLE_PRODUCTION_DEPLOY=true\`." >> $GITHUB_STEP_SUMMARY
+            echo "- **Note:** To activate live production promotion, define repository variable \`ENABLE_PRODUCTION_DEPLOY=true\` and configure production host." >> $GITHUB_STEP_SUMMARY
             exit 0
+          fi
+
+          if [ -z "${PRODUCTION_SSH_HOST}" ] && [ "${PRODUCTION_RUNNER_IS_HOST:-false}" != "true" ]; then
+            echo "::error::ENABLE_PRODUCTION_DEPLOY is true but PRODUCTION_SSH_HOST secret is not configured. Ephemeral runner cannot serve as persistent production environment."
+            exit 1
           fi
 
           echo "Live Production deployment active. Executing promote-production.sh..."

@@ -24,18 +24,30 @@ if (-not $RunId) {
     $RunId = "manual-" + [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 }
 
+if ($CommitSha -notmatch "^[0-9a-fA-F]{40}$") {
+    throw "CommitSha must be 40 hexadecimal characters: '$CommitSha'"
+}
+
 $repoLower = $Repository.ToLowerInvariant()
 $tag = "sha-$CommitSha"
 
-if (-not $ApiDigest) {
-    $ApiDigest = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+$shaPattern = "^sha256:[0-9a-f]{64}$"
+$zeroPattern = "^sha256:0{64}$"
+
+if (-not $ApiDigest -or $ApiDigest -notmatch $shaPattern -or $ApiDigest -match $zeroPattern) {
+    throw "ApiDigest is missing, invalid or all-zero: '$ApiDigest'. Valid sha256 digest is required."
 }
-if (-not $WebDigest) {
-    $WebDigest = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+if (-not $WebDigest -or $WebDigest -notmatch $shaPattern -or $WebDigest -match $zeroPattern) {
+    throw "WebDigest is missing, invalid or all-zero: '$WebDigest'. Valid sha256 digest is required."
 }
-if (-not $MigratorDigest) {
-    $MigratorDigest = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+if (-not $MigratorDigest -or $MigratorDigest -notmatch $shaPattern -or $MigratorDigest -match $zeroPattern) {
+    throw "MigratorDigest is missing, invalid or all-zero: '$MigratorDigest'. Valid sha256 digest is required."
 }
+
+$gateFe = if ($env:GATE_FE) { $env:GATE_FE } else { "success" }
+$gateBe = if ($env:GATE_BE) { $env:GATE_BE } else { "success" }
+$gateInt = if ($env:GATE_INT) { $env:GATE_INT } else { "success" }
+$gateCont = if ($env:GATE_CONT) { $env:GATE_CONT } else { "success" }
 
 $manifest = [ordered]@{
     schemaVersion = "1.0.0"
@@ -62,10 +74,10 @@ $manifest = [ordered]@{
         }
     }
     gateResults = [ordered]@{
-        frontend = "success"
-        backend = "success"
-        integration = "success"
-        container = "success"
+        frontend = $gateFe
+        backend = $gateBe
+        integration = $gateInt
+        container = $gateCont
     }
 }
 

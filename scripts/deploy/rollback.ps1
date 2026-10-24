@@ -53,11 +53,14 @@ if (Test-Path $LockFile) {
 $PID | Set-Content $LockFile -Force
 
 try {
+    $releasesDir = if ($EnvTarget -eq "production") { "deploy/releases/production" } else { "deploy/releases/staging" }
+    $projectName = if ($EnvTarget -eq "production") { "safespace-prod" } else { "safespace-staging" }
+
     # 2. Xac dinh Previous Manifest
-    Write-Host "`n[Step 2/7] Resolving rollback target release manifest..." -ForegroundColor Yellow
+    Write-Host "`n[Step 2/7] Resolving rollback target release manifest for $EnvTarget..." -ForegroundColor Yellow
     if (-not $PreviousManifest) {
-        if (Test-Path "deploy/releases") {
-            $files = Get-ChildItem "deploy/releases/*.json" | Sort-Object LastWriteTime -Descending
+        if (Test-Path $releasesDir) {
+            $files = Get-ChildItem "$releasesDir/*.json" | Sort-Object LastWriteTime -Descending
             if ($files.Count -ge 2) {
                 $PreviousManifest = $files[1].FullName
                 Write-Host "Auto-detected previous release manifest: $PreviousManifest" -ForegroundColor Gray
@@ -72,23 +75,35 @@ try {
     }
 
     if (-not $PreviousManifest -or -not (Test-Path $PreviousManifest)) {
-        throw "ERROR: No previous release manifest found or specified. Please provide valid path to previous manifest."
+        throw "ERROR: No previous release manifest found or specified for $EnvTarget. Please provide valid path to previous manifest."
     }
 
     $manifest = Get-Content $PreviousManifest -Raw | ConvertFrom-Json
     $rollbackCommit = $manifest.commit
     $migrationHead = $manifest.migrationHead
+    $apiRepo = $manifest.images.api.image
     $apiDigest = $manifest.images.api.digest
+    $webRepo = $manifest.images.web.image
     $webDigest = $manifest.images.web.digest
+    $migratorRepo = $manifest.images.migrator.image
+    $migratorDigest = $manifest.images.migrator.digest
+
+    $apiFullRef = "${apiRepo}@${apiDigest}"
+    $webFullRef = "${webRepo}@${webDigest}"
+    $migratorFullRef = "${migratorRepo}@${migratorDigest}"
 
     Write-Host "Rollback Target Specification:" -ForegroundColor Green
     Write-Host "- Commit SHA:     $rollbackCommit"
     Write-Host "- Migration Head: $migrationHead"
-    Write-Host "- API Digest:     $apiDigest"
-    Write-Host "- Web Digest:     $webDigest"
+    Write-Host "- API Ref:        $apiFullRef"
+    Write-Host "- Web Ref:        $webFullRef"
 
-    $env:API_DIGEST = $apiDigest
-    $env:WEB_DIGEST = $webDigest
+    $env:API_IMAGE = $apiFullRef
+    $env:WEB_IMAGE = $webFullRef
+    $env:MIGRATOR_IMAGE = $migratorFullRef
+    $env:API_DIGEST = $apiFullRef
+    $env:WEB_DIGEST = $webFullRef
+    $env:MIGRATOR_DIGEST = $migratorFullRef
 
     # 3. Kiem tra chinh sach Schema
     Write-Host "`n[Step 3/7] Verifying database schema policy..." -ForegroundColor Yellow
@@ -105,15 +120,19 @@ try {
         }
 
         Write-Host "Stopping application services before database restore..." -ForegroundColor Yellow
-        docker compose -f $composeFile stop api web 2>$null
+        docker compose --env-file $envFile -f $composeFile -p $projectName stop api web 2>$null
 
         $saPass = if ($env:SA_PASSWORD) { $env:SA_PASSWORD } else { "SafeSpace!Dev2026_StrongPassword" }
         $backupName = Split-Path -Leaf $RestoreBackupFile
         docker cp $RestoreBackupFile "${sqlContainer}:/var/opt/mssql/data/$backupName"
 
-        docker exec $sqlContainer /opt/mssql-tools18/bin/sqlcmd `
+        docker exec $sqlContainer /opt/mssql-tools18/bin/sqlcmd -b `
             -S localhost -U sa -P $saPass -C `
             -Q "ALTER DATABASE [SSFRMS] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [SSFRMS] FROM DISK = N'/var/opt/mssql/data/$backupName' WITH REPLACE; ALTER DATABASE [SSFRMS] SET MULTI_USER;"
+        if ($LASTEXITCODE -ne 0) {
+            docker exec $sqlContainer rm -f "/var/opt/mssql/data/$backupName"
+            throw "CRITICAL: Database restore failed!"
+        }
         
         docker exec $sqlContainer rm -f "/var/opt/mssql/data/$backupName"
         Write-Host "Database restore completed successfully." -ForegroundColor Green
@@ -121,16 +140,10 @@ try {
         Write-Host "`n[Step 4/7] Database restore skipped (No backup file specified. Schema preserved)." -ForegroundColor Yellow
     }
 
-    # 5. Revert Container Services
+    # 5. Revert Container Services (App-only without rerun of migrator)
     Write-Host "`n[Step 5/7] Switching container images to previous release..." -ForegroundColor Yellow
-    if (-not $env:SA_PASSWORD) { $env:SA_PASSWORD = "SafeSpace!ProdPassword2026" }
-    if (-not $env:DATABASE_CONNECTION_STRING) { $env:DATABASE_CONNECTION_STRING = "Server=sqlserver;Database=SSFRMS;User Id=sa;Password=$env:SA_PASSWORD;TrustServerCertificate=True;" }
-    
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    docker compose -f $composeFile stop api web 2>$null
-    docker compose -f $composeFile up -d api web 2>$null
-    $ErrorActionPreference = $prevEap
+    docker compose --env-file $envFile -f $composeFile -p $projectName stop api web 2>$null
+    docker compose --env-file $envFile -f $composeFile -p $projectName up -d --no-deps api web
 
     # 6. Cho Readiness Probe
     Write-Host "`n[Step 6/7] Waiting for rolled-back services readiness (/health/ready)..." -ForegroundColor Yellow
@@ -147,18 +160,17 @@ try {
     }
 
     if (-not $ready) {
-        Write-Host "Readiness probe warning at $baseUrl/health/ready." -ForegroundColor Yellow
-    } else {
-        Write-Host "Rolled-back service is Ready and healthy!" -ForegroundColor Green
+        throw "CRITICAL: Service readiness probe failed after rollback at $baseUrl/health/ready."
     }
+    Write-Host "Rolled-back service is Ready and healthy!" -ForegroundColor Green
 
     # 7. Smoke Test & Cap Nhat Release Manifest
     Write-Host "`n[Step 7/7] Verifying rollback with smoke test..." -ForegroundColor Yellow
-    if (Test-Path "scripts/ci/smoke.ps1") {
-        try {
-            & powershell -ExecutionPolicy Bypass -File scripts/ci/smoke.ps1 -BaseUrl $baseUrl -MaxRetries 5
-        } catch {
-            Write-Host "Smoke test note: Target service at $baseUrl not active locally; validated via runner." -ForegroundColor Yellow
+    $smokeScript = "scripts/ci/smoke.ps1"
+    if (Test-Path $smokeScript) {
+        & powershell -ExecutionPolicy Bypass -File $smokeScript -BaseUrl $baseUrl -MaxRetries 5
+        if ($LASTEXITCODE -ne 0) {
+            throw "CRITICAL: Smoke verification failed after rollback!"
         }
     }
 
@@ -168,8 +180,8 @@ try {
     Write-Host "  ROLLBACK SUCCESSFUL                                                 " -ForegroundColor Green
     Write-Host "======================================================================" -ForegroundColor Green
     Write-Host "Active Commit:    $rollbackCommit"
-    Write-Host "API Digest:       $apiDigest"
-    Write-Host "Web Digest:       $webDigest"
+    Write-Host "API Ref:          $apiFullRef"
+    Write-Host "Web Ref:          $webFullRef"
     Write-Host "Active Manifest:  $defaultManifest"
     Write-Host "======================================================================" -ForegroundColor Green
 }

@@ -10,6 +10,12 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
+# Cấu hình biến môi trường build-time cho Vite bundle
+ARG VITE_API_URL="/"
+ARG VITE_USE_API="true"
+ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_USE_API=${VITE_USE_API}
+
 # Sao chép mã nguồn và build production bundle
 COPY . .
 RUN npm run build

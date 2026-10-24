@@ -16,6 +16,42 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên 2026-10-24 — Khắc Phục Toàn Diện Review CI/CD (R01–R13) Chuẩn Bị Merge Candidate
+
+- **Mục tiêu:** Xử lý và khắc phục toàn bộ 13 điểm phát hiện trong `SSFRMS-CICD-MERGE-REVIEW.md` (R01–R13) trên nhánh tích hợp `feature/cicd-candidate` để sẵn sàng merge vào `main`.
+- **Quy tắc bắt buộc tuân thủ:** Tuân thủ `AGENTS.md` và `PROCESS-2026-10-24`: **AI không chạy git commit, git push, tạo PR hay merge.** Toàn bộ thay đổi và kết quả kiểm chứng được giữ lại trên working tree để thành viên nhóm tự kiểm tra và commit/PR thủ công.
+- **Nền & Xử lý Conflict:**
+  - Nhánh làm việc: `feature/cicd-candidate` (nhánh tích hợp tạo từ `feature/cicd-ci08` đã gộp các thay đổi mới nhất từ `origin/main`).
+  - Giải quyết xung đột tay tại `DECISIONS.md` (giữ nguyên quy trình `PROCESS-2026-10-24` của main và quyết định `D28` của CI/CD).
+  - Giải quyết xung đột tay tại `docs/verification.md` (kết hợp các lệnh kiểm thử với ghi chú rõ ràng về phạm vi và giới hạn).
+- **Các điểm đã khắc phục chi tiết (R01–R13):**
+  - **R01 (Pin Action SHA chuẩn):** Sửa lỗi gõ nhầm commit SHA của `actions/setup-dotnet` trong `.github/workflows/ci.yml` từ `3951f0adf...` thành `3951f0dfe7a07e2313ec93c75700083e2005cbab` (v4.3.0). Kiểm tra và xác nhận toàn bộ các actions khác đều dùng full commit SHA tồn tại trên GitHub.
+  - **R02 (Web same-origin & clean bundle):** Cập nhật `SafeSpace-Customer-UI/src/app/config/api.js` đặt mặc định API URL là chuỗi rỗng `""` trong production build (tự động gọi relative same-origin reverse proxy `/api/...`), chỉ fallback `http://localhost:5151` ở môi trường dev (`env.DEV`). Bổ sung `ARG VITE_API_URL="/"` và `ARG VITE_USE_API="true"` vào `SafeSpace-Customer-UI/Dockerfile`. Chạy `npm run build` và grep xác nhận `dist/assets/index-*.js` chứa đúng 0 lần xuất hiện của `localhost:5151`.
+  - **R03 (Deployment Standby & Remote SSH Host):** Sửa `.github/workflows/ci.yml` (`deploy-staging`) và `.github/workflows/deploy-production.yml` (`deploy-production`): khi biến `ENABLE_*_DEPLOY` chưa bật (`false`), giữ job ở chế độ Standby an toàn; khi bật `true`, yêu cầu bắt buộc cấu hình `*_SSH_HOST` secret hoặc runner riêng (`*_RUNNER_IS_HOST=true`), fail-closed nếu không có cấu hình máy chủ, ngăn chặn chạy deploy giả lập trên runner tạm.
+  - **R04 (Compose variables & environment mapping):** Chuẩn hóa toàn bộ biến nội suy trong `deploy/compose.staging.yml` và `deploy/compose.production.yml` (`API_IMAGE`, `WEB_IMAGE`, `MIGRATOR_IMAGE`, `DATABASE_CONNECTION_STRING`, `SA_PASSWORD`, `JWT_SECRET`, `FRONTEND_URL`). Cập nhật `deploy/.env.example` cung cấp đầy đủ cả hai định dạng biến. Kịch bản deploy/rollback xuất full image references dạng `<image>@sha256:<digest>`, pre-pull image thật và luôn truyền `--env-file` + `-p`. `docker compose config` cả 3 file đều PASS không cần `|| true`.
+  - **R05 (JSON Parser chuẩn):** Thay thế toàn bộ logic parse JSON bằng `grep -A 2` / `cut` mong manh trong `promote-production.sh`, `promote-production.ps1`, `rollback.sh`, `rollback.ps1`, `deploy.sh`, `deploy.ps1` và `deploy-production.yml` bằng parser JSON gốc của Node.js / PowerShell `ConvertFrom-Json`. Xóa bỏ lỗi biến chưa khai báo `${CI_GATE}` trong `promote-production.sh`.
+  - **R06 (Manifest Provenance):** Cập nhật `scripts/deploy/generate-manifest.sh` (.ps1) từ chối nghiêm ngặt digest rỗng hoặc `sha256:0000...`, kiểm tra SHA 40-hex. Xóa bỏ fallback manifest `deploy/release-current.json` trong `deploy-production.yml`, bắt buộc manifest phải tải từ CI run đã xác thực trên nhánh `main`.
+  - **R07 (Ngăn ngừa Shell Injection):** Trong `deploy-production.yml`, bước `validate_sha` chuyển sang truyền tham số qua `env: RAW_INPUT_SHA: ${{ github.event.inputs.release_sha }}`, sau đó trích xuất và kiểm tra regex trong shell, loại bỏ hoàn toàn lỗ hổng inline command substitution.
+  - **R08 (Fail-Closed & xóa simulation):** `deploy.sh` và `deploy.ps1` loại bỏ toàn bộ code mô phỏng; nếu backup, migration hoặc smoke test thất bại, dừng triển khai ngay lập tức và không cập nhật `release-current.json`. Thêm cờ `-b` vào `sqlcmd` trong `backup.sh` và `rollback.sh` để bắt lỗi SQL.
+  - **R09 (ci-gate kiểm tra đóng gói & smoke bundle):** Cập nhật job `container-build` trong `ci.yml` kiểm tra cả `deploy/migrator.Dockerfile` và validate compose bằng `.env.example` (bỏ `|| true`). Bổ sung vào `scripts/ci/smoke.sh` (.ps1) bước 5: trích xuất đường dẫn script `/assets/index-*.js`, tải bundle qua HTTP và khẳng định không có `localhost:5151`.
+  - **R10 (Rollback atomic lock & lịch sử tách biệt):** `rollback.sh` và `rollback.ps1` sử dụng atomic lock theo environment (`/tmp/safespace-${ENV_TARGET}.lock` và `safespace-${EnvTarget}.lock`), phân tách lịch sử phát hành vào `deploy/releases/staging` và `deploy/releases/production`. Dùng `--no-deps api web` chỉ chuyển đổi container ứng dụng, không chạy lại migrator.
+  - **R11 (Runtime security & CORS):** Cập nhật `StorageProject.Api/Program.cs`: cấu hình `ForwardedHeadersOptions` với các dải mạng tin cậy RFC 1918 / Docker subnet bằng `System.Net.IPNetwork`; CORS ở non-dev từ chối arbitrary origins khi danh sách rỗng; JWT ở non-dev bắt buộc độ dài >= 32 và từ chối placeholder. Thêm test cases vào `StorageProject.Tests/DeploymentConfigTests.cs`.
+  - **R12 (Docker ignore context):** Tạo `SafeSpace-Customer-UI/.dockerignore` ngăn chặn copy `node_modules/`, `.env*`, `dist/` vào build stage. Cập nhật root `.dockerignore` loại trừ file env nhạy cảm và thư mục deploy runtime.
+  - **R13 (Minh bạch tài liệu và bằng chứng):** Cập nhật `docs/cicd.md`, `docs/deployment.md`, `docs/rollback.md`, `docs/verification.md`, `feature_list.json` và `progress.md`: ghi nhận trung thực kết quả kiểm chứng local và phân định rõ ràng các phần việc phụ thuộc vào hạ tầng bên ngoài chưa kích hoạt.
+- **Kiểm chứng thực tế:**
+  - `npm test`: 76/76 PASS.
+  - `npm run test:business`: 9/9 PASS.
+  - `npm run test:render`: 92/92 PASS.
+  - `npm run check:structure`: PASS.
+  - `npm run build`: PASS (Vite production bundle không có chuỗi `localhost:5151`).
+  - `dotnet build StorageProject.slnx -c Release -m:1`: PASS (0 errors, 0 warnings).
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release`: 61/61 PASS (toàn bộ unit tests và deployment config security tests).
+  - `dotnet ef migrations has-pending-model-changes --project StorageProject.Infrastructure --startup-project StorageProject.Api`: PASS (0 pending changes).
+  - `docker compose -f deploy/compose.yml config --quiet`: PASS.
+  - `docker compose --env-file deploy/.env.example -f deploy/compose.staging.yml config --quiet`: PASS.
+  - `docker compose --env-file deploy/.env.example -f deploy/compose.production.yml config --quiet`: PASS.
+- **Bàn giao:** Toàn bộ mã nguồn đã hoàn chỉnh trên nhánh `feature/cicd-candidate`, working tree sạch lỗi và sẵn sàng để người dùng xem xét, commit và tạo Pull Request vào `main`.
+
 ## Phiên CI08 — 2026-10-24 — Rollback An Toàn, Vận Hành và Bàn Giao Hoàn Tất Toàn Bộ CI/CD Pipeline
 
 - **Tính năng:** CI08 — Rollback, vận hành và bàn giao (`scripts/deploy/rollback.sh`, `scripts/deploy/rollback.ps1`, `docs/cicd.md`, `docs/deployment.md`, `docs/rollback.md`, `docs/verification.md`, `DECISIONS.md`, `feature_list.json`).
@@ -623,3 +659,14 @@
 - Giả định cần nhóm xác nhận: (1) dừng sớm thì khấu trừ cố định 30% đã bao gồm khoản vệ sinh 10%; (2) khoản CLEANING_FEE chờ thanh toán được coi là đã nằm trong khoản khấu trừ cố định; (3) quá hạn tính từ EndDate đến ngày biên bản trả kho; (4) khoản gia hạn (RENEWAL) không nằm trong phần hoàn tiền thuê.
 - Không push/PR/merge.
 - Bổ sung cùng F39 (cùng đợt, trước khi merge): (a) F12 ô kho RESERVED → OCCUPIED khi đến StartDate, qua UnitStartActivation chạy trong worker hiện có, có test ReservedUnitBecomesOccupiedOnStartDateOnly; (b) đường hoàn cọc cũ của quản lý gọi chung logic D27, bỏ ManagerService.ConfirmRefundAsync (lỗi: đặt trạng thái ENDED, không theo D27). Cả hai chưa biên dịch trong phiên viết code; cần dotnet build/test của nhóm. Còn lại: nút xác nhận hoàn đơn huỷ ở M07 trên giao diện.
+
+
+## 2026-10-24 — Cập nhật quy định AI/Git và tài liệu kiểm chứng
+
+- Theo yêu cầu thành viên: sửa quy định một lượt và bàn giao ZIP để thành viên tự push; không thao tác commit/push/PR/merge.
+- Phạm vi chỉ tài liệu: AGENTS gốc/FE, README, docs/conventions.md, docs/verification.md, DECISIONS.md và nhật ký này.
+- AI không tạo commit, không đổi danh tính Git. Giữ PR → main và review bởi thành viên khác; task có mục tiêu rõ, kiểm thử theo phạm vi, nêu giới hạn môi trường.
+- Figma chuẩn bố cục/tương tác, nghiệp vụ/quyền theo quyết định hiện hành; yêu cầu mock/offline nhận biết khi kiểm thử, không giả API thành công.
+- Sửa hướng dẫn .NET 10/Node >=22.12, bản đồ apiMappers.js và cấu trúc FE; bỏ số test cũ và khẳng định fallback/API badge đã lỗi thời.
+- Không sửa code/config/migration, không đổi trạng thái tính năng hoặc ghi đè nhật ký cũ. Ghi quy tắc thay thế tại PROCESS-2026-10-24, không sửa quyết định lịch sử.
+- Kiểm chứng gói tài liệu: đọc diff, kiểm đường dẫn/lệnh với nguồn, kiểm whitespace, áp dụng bản vá vào bản nguồn sạch và so byte đầu ra; kiểm tính toàn vẹn ZIP. Không chạy ứng dụng, npm/dotnet build/test hoặc SQL Server vì không đổi code; không nhận kết quả từ PR khác làm bằng chứng.

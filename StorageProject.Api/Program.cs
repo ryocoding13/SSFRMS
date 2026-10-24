@@ -30,13 +30,22 @@ var jwtIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "SSFRMSApi";
 var jwtAudience = builder.Configuration["JwtSettings:Audience"] ?? "SSFRMSClients";
 
 const string defaultDevSecret = "CHANGE_ME_TO_A_SECURE_256BIT_KEY_AT_LEAST_32_CHARS_LONG!!";
+string[] weakPlaceholders = [
+    defaultDevSecret,
+    "YOUR_JWT_SECRET",
+    "CHANGE_ME",
+    "secret",
+    "12345678901234567890123456789012"
+];
 
-if (string.IsNullOrWhiteSpace(jwtSecret) || jwtSecret == defaultDevSecret)
+if (string.IsNullOrWhiteSpace(jwtSecret) ||
+    weakPlaceholders.Any(p => string.Equals(jwtSecret.Trim(), p, StringComparison.OrdinalIgnoreCase)) ||
+    jwtSecret.Length < 32)
 {
     if (!builder.Environment.IsDevelopment())
     {
         throw new InvalidOperationException(
-            "JwtSettings:Secret is not securely configured. In Staging/Production environments, a strong secret key must be provided via environment variables or secret configuration.");
+            "JwtSettings:Secret is not securely configured. In Staging/Production environments, a strong secret key of at least 32 characters (256-bit) must be provided via environment variables or secret configuration, and cannot be a default placeholder.");
     }
     jwtSecret = defaultDevSecret;
 }
@@ -100,6 +109,13 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
+
+    // Trust loopback and private/container network ranges (RFC 1918)
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Loopback, 8));
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.IPv6Loopback, 128));
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Parse("10.0.0.0"), 8));
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Parse("172.16.0.0"), 12));
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Parse("192.168.0.0"), 16));
 });
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
@@ -110,18 +126,24 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("DefaultCorsPolicy", policy =>
     {
-        if (builder.Environment.IsDevelopment() || allowedOrigins.Length == 0)
+        if (builder.Environment.IsDevelopment())
         {
             policy.AllowAnyOrigin()
                   .AllowAnyHeader()
                   .AllowAnyMethod();
         }
-        else
+        else if (allowedOrigins.Length > 0)
         {
             policy.WithOrigins(allowedOrigins)
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
+        }
+        else
+        {
+            // Same-origin only: in Staging/Production without explicit cross-origins, do not allow arbitrary origins
+            policy.AllowAnyHeader()
+                  .AllowAnyMethod();
         }
     });
 });

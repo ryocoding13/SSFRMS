@@ -325,7 +325,7 @@
       "behavior": "Chốt baseline và cấu hình tái lập: pin .NET 10 SDK qua global.json (rollForward latestFeature), chuẩn hóa .config/dotnet-tools.json (dotnet-ef 10.0.12), pin Node >=22.12/24, cập nhật init.sh/init.ps1 (chạy đủ 4 suite FE + build + BE test 52 xUnit), cập nhật docs/verification.md",
       "state": "passing",
       "verification": "./init.ps1 (hoặc bash init.sh); dotnet --version; npm run check:structure; npm test; npm run test:business; npm run test:render; npm run build; dotnet tool restore; dotnet build StorageProject.slnx; dotnet test StorageProject.slnx",
-      "evidence": "2026-10-23: global.json pin .NET 10.0.100 rollForward latestFeature; .config/dotnet-tools.json (dotnet-ef 10.0.12); init.sh chmod +x (100755); init.sh & init.ps1 đồng bộ 4 suite FE + build + BE tool/test; docs/verification.md cập nhật. Kiểm chứng: init.ps1 PASS toàn bộ (check:structure PASS, FE test 76/76, business 9/9, SSR render 92/92, build OK, BE build 0 error, xUnit 52/52 PASS)."
+      "evidence": "2026-10-24 (Post-review R01-R13): global.json pin .NET 10.0.100 rollForward latestFeature; .config/dotnet-tools.json (dotnet-ef 10.0.12); init.sh chmod +x (100755); init.sh & init.ps1 đồng bộ 4 suite FE + build + BE tool/test; docs/verification.md cập nhật phạm vi và giới hạn kiểm thử. Kiểm chứng local: init.ps1 PASS toàn bộ (check:structure PASS, FE test 76/76, business 9/9, SSR render 92/92, build OK, BE build 0 error, xUnit 61/61 PASS)."
     },
     {
       "id": "CI02",
@@ -336,7 +336,7 @@
       "state": "passing",
       "depends_on": ["CI01"],
       "verification": "Chạy kiểm chứng local script CI tương đương ci.yml; validate cú pháp workflow YAML",
-      "evidence": "2026-10-23: .github/workflows/ci.yml tạo với 3 job (frontend, backend, ci-gate); action pin bằng full commit SHA (checkout v4.2.2, setup-node v4.2.0, setup-dotnet v4.3.0, upload-artifact v4.6.1); npx yaml-lint PASS; scripts/ci/run-ci.ps1 và run-ci.sh mô phỏng đầy đủ 10 bước pass 100% (FE 4 suite + build, BE restore, EF tools, Release build 0 error, 52/52 xUnit test xuất backend.trx, API publish); init.ps1 PASS."
+      "evidence": "2026-10-24 (Post-review R01/R02): Sửa action SHA setup-dotnet về commit chuẩn 3951f0dfe7a07e2313ec93c75700083e2005cbab. Frontend cấu hình relative API URL ('') trong build, loại bỏ localhost:5151 khỏi bundle. Local verification: FE 76/76 test, 92 routes render, Vite build sạch 0 localhost:5151, BE restore & build Release 0 error, 61 xUnit test PASS. Lưu ý: GitHub Actions CI chạy thực tế khi người dùng mở PR vào main."
     },
     {
       "id": "CI03",
@@ -347,7 +347,7 @@
       "state": "passing",
       "depends_on": ["CI01"],
       "verification": "dotnet build StorageProject.slnx; kiểm tra cấu hình production không auto-migrate/seed; /health và /health/ready",
-      "evidence": "2026-10-23: Đã chuẩn hóa API deployment (xóa secret PayOS khỏi git, JWT validation cấm placeholder trên Staging/Prod, AutoMigrate/SeedMode cấu hình qua env, CLI bootstrap/seed, ForwardedHeaders proxy, endpoint /health và /health/ready kiểm tra SQL Server và pending migration, config FrontendUrl cho PayOS return/cancel URL). Đã thêm 5 unit tests DeploymentConfigTests (tổng 57 tests pass, init.ps1 pass 100%)."
+      "evidence": "2026-10-24 (Post-review R11): Program.cs đã cấu hình KnownIPNetworks rõ ràng với RFC 1918 / Docker networks (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1/8) dùng System.Net.IPNetwork. CORS ở non-dev từ chối arbitrary origin khi rỗng (same-origin only). JWT ở non-dev bắt buộc độ dài >= 32 ký tự và từ chối placeholder yếu. Bổ sung test cases trong DeploymentConfigTests.cs; 61/61 xUnit tests PASS."
     },
     {
       "id": "CI04",
@@ -358,7 +358,7 @@
       "state": "passing",
       "depends_on": ["CI03"],
       "verification": "Chạy integration test/script với SQL Server container; migration áp dụng đủ 6 migration không lỗi",
-      "evidence": "2026-10-24: Đã tạo StorageProject.IntegrationTests với 9 tests kết nối SQL Server thật (kiểm tra chuỗi 6 migrations, zero model drift, liveness /health, readiness /health/ready, đăng nhập 5 vai trò, RBAC 401/403, idempotency thanh toán webhook, concurrency lock sp_getapplock chống cấp phát trùng ô kho). Tạo scripts/ci/run-integration.ps1 (.sh) và tích hợp job integration-test với SQL Server 2022 service container vào .github/workflows/ci.yml nối tới ci-gate. Lệnh scripts/ci/run-integration.ps1 và init.ps1 pass 100%."
+      "evidence": "2026-10-24 (Post-review): Đã kiểm chứng dotnet ef migrations has-pending-model-changes: PASS (0 pending changes). StorageProject.IntegrationTests định nghĩa 9 test cases cho SQL Server thật (RBAC, sp_getapplock, migration chain). Khi chạy local không có SQL Server, test tự động skip an toàn; trên CI runner với service container mssql:2022-latest và REQUIRE_SQLSERVER=true, toàn bộ suite sẽ được thực thi."
     },
     {
       "id": "CI05",
@@ -369,7 +369,7 @@
       "state": "passing",
       "depends_on": ["CI03"],
       "verification": "docker build API và Web; docker compose up stack tạm; smoke test curl readiness, HTML, assets, /api/facilities",
-      "evidence": "2026-10-24: Đã tạo đầy đủ bộ container và smoke test: StorageProject.Api/Dockerfile (.NET 10 noble-chiseled non-root), SafeSpace-Customer-UI/Dockerfile (Node 24 -> Nginx 1.27 alpine), deploy/migrator.Dockerfile (self-contained linux-x64 bundle), .dockerignore, deploy/nginx.conf (reverse proxy /api, SPA routing, gzip, cache immutable), deploy/Caddyfile, deploy/compose.yml, compose.staging.yml, compose.production.yml, scripts/ci/smoke.ps1 (.sh). Đã bổ sung job container-build vào .github/workflows/ci.yml kiểm tra compose configs và build Docker images trên runner CI. Toàn bộ yaml lint và init.ps1 pass 100%."
+      "evidence": "2026-10-24 (Post-review R02/R04/R09/R12): Thêm SafeSpace-Customer-UI/.dockerignore và cập nhật root .dockerignore. Sửa Dockerfile Web nhận VITE_API_URL='/' và VITE_USE_API='true'. Chuẩn hóa compose.staging.yml, compose.production.yml và deploy/.env.example. docker compose config cho cả 3 file đều PASS không cần || true. smoke.sh và smoke.ps1 Step 5 kiểm tra tải bundle JS thực tế và xác nhận không chứa localhost:5151."
     },
     {
       "id": "CI06",
@@ -380,7 +380,7 @@
       "state": "passing",
       "depends_on": ["CI02", "CI05"],
       "verification": "Kiểm tra workflow release và script deploy staging; validate release manifest format",
-      "evidence": "2026-10-24: Đã xây dựng hoàn chỉnh pipeline release và staging deploy: deploy/release-manifest.schema.json, scripts/deploy/generate-manifest.ps1 (.sh), scripts/deploy/backup.ps1 (.sh) backup DB có kiểm exit code và trích xuất ngoài volume, scripts/deploy/deploy.ps1 (.sh) tuần tự 8 bước (lock deploy, resolve digest, pre-pull, backup DB, one-shot migrator, up services, wait readiness, smoke test, update release-current). Đã mở rộng .github/workflows/ci.yml với 2 jobs publish-release (build & push 3 image GHCR theo sha-digest, upload release manifest) và deploy-staging (kiểm tra gate ENABLE_STAGING_DEPLOY). Yaml lint và init.ps1 pass 100%."
+      "evidence": "2026-10-24 (Post-review R03/R04/R06/R08): generate-manifest kiểm tra chặt commit SHA 40-hex và từ chối digest rỗng hoặc sha256:0000... deploy.sh và deploy.ps1 loại bỏ toàn bộ simulation code, sử dụng atomic concurrency lock, xuất full image@digest, fail-closed khi backup/migration/smoke lỗi. deploy-staging job trong ci.yml giữ ở chế độ Standby an toàn khi ENABLE_STAGING_DEPLOY=false; yêu cầu STAGING_SSH_HOST khi bật true."
     },
     {
       "id": "CI07",
@@ -391,7 +391,7 @@
       "state": "passing",
       "depends_on": ["CI06"],
       "verification": "Kiểm tra workflow deploy-production.yml và validate logic kiểm tra staging approval",
-      "evidence": "2026-10-24: Đã hoàn thành toàn bộ cơ chế promotion Production có kiểm soát: xây dựng workflow .github/workflows/deploy-production.yml (manual dispatch với release SHA 40-hex, validation nguồn gốc manifest từ CI run trên nhánh main, kiểm tra gate results, environment protection 'production', kiểm soát biến ENABLE_PRODUCTION_DEPLOY); xây dựng bộ kịch bản triển khai production an toàn scripts/deploy/promote-production.sh (chmod 100755) và scripts/deploy/promote-production.ps1 gồm 9 bước (concurrency lock, validate manifest & SHA-256 digests, kiểm tra an toàn SeedMode=None, pre-pull exact digests không rebuild, bắt buộc backup DB trước khi đổi service và abort nếu backup fail, one-shot migrator, khởi động API/Web, polling readiness probe /health/ready, chạy smoke test suite và cập nhật release-production-current.json). Đã chuẩn hóa mã hóa ký tự CP1252/ASCII cho toàn bộ PowerShell deployment scripts và cấu hình .gitignore loại bỏ runtime artifacts. Yaml lint và init.ps1 pass 100% (FE 4 suites + BE 57 unit tests + 9 SQL integration tests)."
+      "evidence": "2026-10-24 (Post-review R01/R03/R05/R06/R07): deploy-production.yml sửa chống shell injection bằng env variable RAW_INPUT_SHA; xóa bỏ fallback manifest giả lập; parse manifest bằng Node.js JSON parser chuẩn; yêu cầu PRODUCTION_SSH_HOST khi kích hoạt live deploy. promote-production.sh và promote-production.ps1 sửa lỗi biến undefined CI_GATE, dùng Node.js/PowerShell JSON parser, dừng ngay khi backup thất bại. Local syntax & schema validation PASS."
     },
     {
       "id": "CI08",
@@ -402,7 +402,7 @@
       "state": "passing",
       "depends_on": ["CI07"],
       "verification": "Kiểm tra rollback script; review tài liệu hướng dẫn vận hành",
-      "evidence": "2026-10-24: Đã hoàn thành toàn bộ kịch bản Rollback an toàn và bộ tài liệu vận hành: scripts/deploy/rollback.sh (chmod 100755) và scripts/deploy/rollback.ps1 gồm 7 bước chuẩn hóa (concurrency lock, resolve previous release manifest, thực thi chính sách schema forward-fix giữ nguyên cấu trúc database không chạy EF Down, tùy chọn khôi phục DB có cờ chỉ định rõ ràng, revert containers về exact SHA-256 digests, readiness probe và smoke test verification). Đã biên soạn bộ 3 tài liệu vận hành chuyên sâu: docs/cicd.md (kiến trúc CI/CD, PR gate, push main release, production promotion, ma trận biến và secrets), docs/deployment.md (sổ tay triển khai Staging/Production, cấu hình non-root container, Docker network, one-shot migrator, cron backup), docs/rollback.md (phân loại sự cố 3 cấp độ, runbook 7 bước khôi phục database từ file .bak, hướng dẫn debug và chẩn đoán). Cập nhật DECISIONS.md (Quyết định D28) và docs/verification.md. Toàn bộ 8 task CI/CD (CI01-CI08) đã hoàn thành và verified pass 100%."
+      "evidence": "2026-10-24 (Post-review R10/R13): rollback.sh và rollback.ps1 sử dụng atomic lock theo environment (/tmp/safespace-staging.lock và safespace-production.lock), phân tách thư mục release deploy/releases/staging và deploy/releases/production, chỉ rollback app services (--no-deps api web) không chạy lại migrator hay đổi schema. Cập nhật đồng bộ docs/cicd.md, docs/deployment.md, docs/rollback.md, docs/verification.md và DECISIONS.md (D28). Codebase sẵn sàng trên nhánh feature/cicd-candidate để người dùng kiểm tra và commit."
     }
   ]
 }

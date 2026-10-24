@@ -62,9 +62,12 @@ try {
     $gateInt = $manifestContent.gateResults.integration
     $gateCont = $manifestContent.gateResults.container
 
-    $apiImage = $manifestContent.images.api.digest
-    $webImage = $manifestContent.images.web.digest
-    $migratorImage = $manifestContent.images.migrator.digest
+    $apiRepo = $manifestContent.images.api.image
+    $apiDigest = $manifestContent.images.api.digest
+    $webRepo = $manifestContent.images.web.image
+    $webDigest = $manifestContent.images.web.digest
+    $migratorRepo = $manifestContent.images.migrator.image
+    $migratorDigest = $manifestContent.images.migrator.digest
 
     if ($commitSha -notmatch '^[0-9a-fA-F]{40}$') {
         throw "ERROR: Manifest commit SHA is invalid (must be 40 hex characters): '$commitSha'"
@@ -74,21 +77,33 @@ try {
         throw "ERROR: Release manifest gate checks did not pass (FE: $gateFe, BE: $gateBe, INT: $gateInt, CONT: $gateCont). Only fully passing releases can be promoted to Production."
     }
 
-    if (($apiImage -notmatch '^sha256:[0-9a-f]{64}$') -or ($webImage -notmatch '^sha256:[0-9a-f]{64}$') -or ($migratorImage -notmatch '^sha256:[0-9a-f]{64}$')) {
-        throw "ERROR: One or more image digests do not follow exact 'sha256:<64hex>' format."
+    $shaPattern = '^sha256:[0-9a-f]{64}$'
+    $zeroPattern = '^sha256:0{64}$'
+
+    if (($apiDigest -notmatch $shaPattern) -or ($apiDigest -match $zeroPattern) -or
+        ($webDigest -notmatch $shaPattern) -or ($webDigest -match $zeroPattern) -or
+        ($migratorDigest -notmatch $shaPattern) -or ($migratorDigest -match $zeroPattern)) {
+        throw "ERROR: One or more image digests do not follow exact 'sha256:<64hex>' format or are all-zero."
     }
+
+    $apiFullRef = "${apiRepo}@${apiDigest}"
+    $webFullRef = "${webRepo}@${webDigest}"
+    $migratorFullRef = "${migratorRepo}@${migratorDigest}"
 
     Write-Host "Verified Promotion Manifest:" -ForegroundColor Green
     Write-Host "- Commit SHA:     $commitSha"
     Write-Host "- Migration Head: $migrationHead"
     Write-Host "- Gate Results:   FE: $gateFe, BE: $gateBe, Integration: $gateInt, Container: $gateCont"
-    Write-Host "- API Digest:     $apiImage"
-    Write-Host "- Web Digest:     $webImage"
-    Write-Host "- Migrator Dig:   $migratorImage"
+    Write-Host "- API Ref:        $apiFullRef"
+    Write-Host "- Web Ref:        $webFullRef"
+    Write-Host "- Migrator Ref:   $migratorFullRef"
 
-    $env:API_DIGEST = $apiImage
-    $env:WEB_DIGEST = $webImage
-    $env:MIGRATOR_DIGEST = $migratorImage
+    $env:API_IMAGE = $apiFullRef
+    $env:WEB_IMAGE = $webFullRef
+    $env:MIGRATOR_IMAGE = $migratorFullRef
+    $env:API_DIGEST = $apiFullRef
+    $env:WEB_DIGEST = $webFullRef
+    $env:MIGRATOR_DIGEST = $migratorFullRef
 
     # --- 3. Kiem Tra Cau Hinh An Toan Moi Truong Production ----------------------
     Write-Host "`n[Step 3/9] Checking Production environment safety configuration..." -ForegroundColor Yellow
@@ -103,25 +118,25 @@ try {
     Write-Host "`n[Step 4/9] Pre-pulling container images by exact digest (No rebuild)..." -ForegroundColor Yellow
     Write-Host "Pre-pull digests verified: API, Web, Migrator."
 
-    # --- 5. Sao Luu Co So Du Lieu Production Bat Buoc ---------------------------
+    # --- 5. Sao Luu Co So Du Lieu Production Bat Buoc (Fail-Closed) --------------
     Write-Host "`n[Step 5/9] Executing mandatory pre-deployment Production database backup..." -ForegroundColor Yellow
     $backupScript = "scripts/deploy/backup.ps1"
-    if (Test-Path $backupScript) {
-        & powershell -ExecutionPolicy Bypass -File $backupScript -BackupDir $BackupDir -DbName "SSFRMS" -ContainerName $SqlContainer
-        if ($LASTEXITCODE -ne 0) {
-            throw "CRITICAL: Production pre-deployment database backup failed! Aborting promotion for data safety."
-        }
-    } else {
-        Write-Host "WARNING: scripts/deploy/backup.ps1 not found. Proceeding with host-level backup policy." -ForegroundColor Yellow
+    if (-not (Test-Path $backupScript)) {
+        throw "CRITICAL ERROR: scripts/deploy/backup.ps1 not found! Production promotion cannot proceed without backup capability."
+    }
+
+    & powershell -ExecutionPolicy Bypass -File $backupScript -BackupDir $BackupDir -DbName "SSFRMS" -ContainerName $SqlContainer
+    if ($LASTEXITCODE -ne 0) {
+        throw "CRITICAL: Production pre-deployment database backup failed! Aborting promotion for data safety."
     }
 
     # --- 6. Thuc Thi EF Core Migration One-Shot ---------------------------------
     Write-Host "`n[Step 6/9] Running one-shot EF Core migrator container..." -ForegroundColor Yellow
     Write-Host "Stopping existing API/Web services for maintenance..."
-    docker compose -f $ComposeFile stop api web 2>$null
+    docker compose --env-file $EnvFile -f $ComposeFile -p safespace-prod stop api web 2>$null
 
     Write-Host "Applying migrations up to head: $migrationHead..."
-    docker compose -f $ComposeFile run --rm migrator
+    docker compose --env-file $EnvFile -f $ComposeFile -p safespace-prod run --rm migrator
     if ($LASTEXITCODE -ne 0) {
         throw "CRITICAL ERROR: Database migration failed on Production! Aborting promotion. API container will NOT be switched."
     }
@@ -129,7 +144,7 @@ try {
 
     # --- 7. Khoi dong API va Web Production -------------------------------------
     Write-Host "`n[Step 7/9] Starting upgraded Production API and Web containers..." -ForegroundColor Yellow
-    docker compose -f $ComposeFile up -d api web
+    docker compose --env-file $EnvFile -f $ComposeFile -p safespace-prod up -d --no-deps api web
 
     # --- 8. Cho Readiness Probe San Sang -----------------------------------------
     Write-Host "`n[Step 8/9] Waiting for Production service readiness (/health/ready)..." -ForegroundColor Yellow
@@ -155,15 +170,19 @@ try {
     $smokeScript = "scripts/ci/smoke.ps1"
     if (Test-Path $smokeScript) {
         & powershell -ExecutionPolicy Bypass -File $smokeScript -BaseUrl $BaseUrl -MaxRetries 10 -IntervalSeconds 2
+        if ($LASTEXITCODE -ne 0) {
+            throw "CRITICAL: Production smoke verification failed!"
+        }
     }
 
-    if (-not (Test-Path "deploy/releases")) {
-        New-Item -ItemType Directory -Path "deploy/releases" -Force | Out-Null
+    $releasesDir = "deploy/releases/production"
+    if (-not (Test-Path $releasesDir)) {
+        New-Item -ItemType Directory -Path $releasesDir -Force | Out-Null
     }
     Copy-Item $ManifestFile -Destination "deploy/release-production-current.json" -Force
     $timestamp = (Get-Date).ToString("yyyyMMdd_HHmmss")
     $shortSha = $commitSha.Substring(0, 7)
-    Copy-Item $ManifestFile -Destination "deploy/releases/prod_${timestamp}_${shortSha}.json" -Force
+    Copy-Item $ManifestFile -Destination "$releasesDir/prod_${timestamp}_${shortSha}.json" -Force
 
     Write-Host "`n======================================================================" -ForegroundColor Green
     Write-Host "  PRODUCTION PROMOTION SUCCESSFUL                                     " -ForegroundColor Green

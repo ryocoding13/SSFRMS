@@ -25,7 +25,7 @@ services:
       retries: 10
 
   migrator:
-    image: "${MIGRATOR_IMAGE:?Migrator image must be specified by digest or tag}"
+    image: "${MIGRATOR_IMAGE:?MIGRATOR_IMAGE must be specified by full reference image@sha256:...}"
     container_name: safespace-staging-migrator
     environment:
       ConnectionStrings__DefaultConnection: "${DATABASE_CONNECTION_STRING:?Connection string is required}"
@@ -37,7 +37,7 @@ services:
     restart: "no"
 
   api:
-    image: "${API_IMAGE:?API image must be specified by digest or tag}"
+    image: "${API_IMAGE:?API_IMAGE must be specified by full reference image@sha256:...}"
     container_name: safespace-staging-api
     restart: unless-stopped
     environment:
@@ -62,7 +62,7 @@ services:
       - staging-net
 
   web:
-    image: "${WEB_IMAGE:?Web image must be specified by digest or tag}"
+    image: "${WEB_IMAGE:?WEB_IMAGE must be specified by full reference image@sha256:...}"
     container_name: safespace-staging-web
     restart: unless-stopped
     ports:

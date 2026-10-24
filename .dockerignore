@@ -31,7 +31,17 @@ yarn-error.log*
 **/.env
 **/.env.local
 **/.env.*.local
+**/.env.production
+**/.env.staging
 !**/.env.example
+**/appsettings.*.local.json
+**/appsettings.Local.json
+**/appsettings.Secrets*.json
+
+# Runtime Backups & Releases
+deploy/backups/
+deploy/releases/
+*.bak
 
 # Temporary files
 **/temp/

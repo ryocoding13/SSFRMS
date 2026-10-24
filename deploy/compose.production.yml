@@ -28,7 +28,7 @@ services:
       retries: 10
 
   migrator:
-    image: "${MIGRATOR_DIGEST:?MIGRATOR_DIGEST must be specified}"
+    image: "${MIGRATOR_IMAGE:?MIGRATOR_IMAGE must be specified by full reference image@sha256:...}"
     container_name: safespace-prod-migrator
     environment:
       ConnectionStrings__DefaultConnection: "${DATABASE_CONNECTION_STRING:?DATABASE_CONNECTION_STRING must be set}"
@@ -40,7 +40,7 @@ services:
     restart: "no"
 
   api:
-    image: "${API_DIGEST:?API_DIGEST must be specified}"
+    image: "${API_IMAGE:?API_IMAGE must be specified by full reference image@sha256:...}"
     container_name: safespace-prod-api
     restart: always
     environment:
@@ -64,7 +64,7 @@ services:
       - prod-net
 
   web:
-    image: "${WEB_DIGEST:?WEB_DIGEST must be specified}"
+    image: "${WEB_IMAGE:?WEB_IMAGE must be specified by full reference image@sha256:...}"
     container_name: safespace-prod-web
     restart: always
     ports:
