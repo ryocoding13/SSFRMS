@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Select } from "../../../shared/components/Pickers.jsx";
 import { Button, Empty, Field, LinkButton, Notice, Tag } from "../../../shared/components/UI.jsx";
 import { dateTimeLabel } from "../../../shared/utils/format.js";
@@ -24,6 +24,8 @@ export function StaffSupportPage({ query }) {
   const [reason, setReason] = useState("");
   const [credentialBusy, setCredentialBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
   if (!t)
     return (
       <main className="container page">
@@ -35,9 +37,26 @@ export function StaffSupportPage({ query }) {
   const assignee = ops.staff.find((s) => s.staff_id === t.assignee);
   const submit = async (e) => {
     e.preventDefault();
-    const r = await run("TICKET_RESPONSE", { id: t.id, note, next, staff: me.staff_id }, `Đã lưu phản hồi ${t.id}`);
-    if (!r.ok) return setErr(r.shown || r.cancelled ? "" : r.error);
-    go("staff/support");
+    if (pending.current) return;
+    if (!note.trim()) return setErr("Vui lòng nhập nội dung phản hồi.");
+
+    pending.current = true;
+    setBusy(true);
+    setErr("");
+
+    try {
+      const r = await run(
+        "TICKET_RESPONSE",
+        { id: t.id, note: note.trim(), next, staff: me.staff_id },
+        `Đã lưu phản hồi ${t.id}`
+      );
+
+      if (!r.ok) return setErr(r.shown || r.cancelled ? "" : r.error);
+      go("staff/support");
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
   };
   const reissue = async () => {
     if (!reason.trim()) return setErr("Nhập lý do cấp lại mã hoặc chìa khóa.");
@@ -77,7 +96,7 @@ export function StaffSupportPage({ query }) {
                 {NEXT_STATES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </Select>
             </Field>
-            <Button type="submit">Lưu phản hồi</Button>
+            <Button type="submit" disabled={busy}>{busy ? "Đang lưu…" : "Lưu phản hồi"}</Button>
             <section className="note-box" aria-label="Cấp lại mã và chìa khóa">
               <h2 className="h-sub">Cấp lại QR, PIN & chìa khóa</h2>
               <p className="hint">Kiểm tra danh tính khách trước khi cấp lại. QR/PIN cũ cùng loại sẽ bị vô hiệu hóa. Chìa khóa nhận tại quầy.</p>

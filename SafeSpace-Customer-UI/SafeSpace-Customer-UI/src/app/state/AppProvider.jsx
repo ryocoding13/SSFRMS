@@ -236,8 +236,8 @@ function LocalProvider({ children }) {
 
 // =====================================================================
 // Chế độ API (VITE_USE_API=true)
-// Luồng backend đã có → gọi API. Luồng backend chưa có (trả kho, lịch trả kho,
-// thông báo, đổi tên hiển thị) → lưu trong trình duyệt theo từng tài khoản ("overlay").
+// Hồ sơ, mật khẩu, hỗ trợ và trả kho gọi API thật.
+// Thông báo phía khách và dữ liệu phụ dùng overlay riêng theo từng tài khoản.
 // =====================================================================
 function readSession() {
   const s = readJson(SESSION_KEY);
@@ -304,13 +304,19 @@ function ApiProvider({ children }) {
   }, []);
 
   const loadCustomer = useCallback(async () => {
+    const activeSession = refs.current.session;
     const [reservations, contracts, tickets] = await Promise.all([api.reservations(), api.contracts(), api.tickets()]);
     const [reservationDetails, contractDetails, ticketDetails] = await Promise.all([
       Promise.all(reservations.filter((r) => r.status !== "CANCELLED").map((r) => api.reservation(r.reservationId).catch(() => null))),
       Promise.all(contracts.map((c) => api.contract(c.contractId).catch(() => ({ ...c, payments: [], renewals: [] })))),
-      Promise.all(tickets.map((t) => api.ticket(t.ticketId).catch(() => t))),
+      Promise.all(tickets.map((t) => api.ticket(t.ticketId).catch(e => {
+        if (e.status === 401) throw e;
+        const previous = refs.current.session?.token === activeSession?.token
+          ? refs.current.remote?.tickets.find(x => x.ticketId === t.ticketId) : null;
+        return { ...previous, ...t, responsesError: true };
+      }))),
     ]);
-    if (!refs.current.session) return;
+    if (!activeSession || refs.current.session?.token !== activeSession.token) return;
     const next = {
       reservations,
       reservationDetails: Object.fromEntries(reservationDetails.filter(Boolean).map((d) => [d.reservationId, d])),
@@ -352,11 +358,30 @@ function ApiProvider({ children }) {
     [endSession],
   );
 
+  const applyProfile = useCallback((profile, activeSession) => {
+    if (!activeSession || refs.current.session?.token !== activeSession.token) return false;
+    if (String(profile.userId) !== String(activeSession.user.userId)) return false;
+    const next = { ...refs.current.session, user: { ...refs.current.session.user, ...profile } };
+    refs.current.session = next;
+    setStorageError(!writeJson(SESSION_KEY, next));
+    setSession(next);
+    updateOverlay(o => ({ ...o, name: null }));
+    return true;
+  }, [updateOverlay]);
+
+  const loadProfile = useCallback(async () => {
+    const current = refs.current.session;
+    if (!current) return;
+    const profile = await api.getProfile();
+    applyProfile(profile, current);
+  }, [applyProfile]);
+
   const loadAll = useCallback(async () => {
     setLoadError(null);
     try {
       await loadCatalog();
       if (refs.current.session) {
+        await loadProfile();
         if (isAdminRoles(refs.current.session.roles) || isOpsRoles(refs.current.session.roles) || isBusinessRoles(refs.current.session.roles)) setRemote(EMPTY_REMOTE);
         else await loadCustomer();
       }
@@ -364,7 +389,7 @@ function ApiProvider({ children }) {
       if (e instanceof ApiError && e.status === 401) endSession("expired");
       else setLoadError(e?.message || "Không tải được dữ liệu.");
     }
-  }, [loadCatalog, loadCustomer, endSession]);
+  }, [loadCatalog, loadCustomer, loadProfile, endSession]);
 
   useEffect(() => {
     loadAll();
@@ -402,12 +427,13 @@ function ApiProvider({ children }) {
       refs.current.overlay = saved;
       setOverlay(saved);
       setSession(next);
+      await loadProfile();
       if (isAdminRoles(next.roles) || isOpsRoles(next.roles) || isBusinessRoles(next.roles)) {
         refs.current.remote = EMPTY_REMOTE;
         setRemote(EMPTY_REMOTE);
       } else await loadCustomer();
     },
-    [loadCustomer],
+    [loadCustomer, loadProfile],
   );
 
   const login = useCallback(
@@ -607,20 +633,19 @@ function ApiProvider({ children }) {
             return { ok: true };
           }
           case "CHANGE_PASSWORD": {
-            await api.changePassword({ currentPassword: p.current_password, newPassword: p.new_password });
-            notify("Đã đổi mật khẩu thành công.");
+            try {
+              await api.changePassword({ currentPassword: p.current, newPassword: p.next });
+            } catch (e) {
+              if (e instanceof ApiError && (e.data?.code === "BAD_PASSWORD" || (e.status === 400 && /mật khẩu hiện tại/i.test(e.message)))) return fail(e.message, "BAD_PASSWORD");
+              throw e;
+            }
             return { ok: true };
           }
           case "UPDATE_NAME": {
-            const profile = await api.updateProfile({ fullName: p.name, phone: session?.user?.phone || null });
-            if (session) {
-              const updatedUser = { ...session.user, fullName: profile.fullName };
-              const updatedSession = { ...session, user: updatedUser };
-              writeJson(SESSION_KEY, updatedSession);
-              refs.current.session = updatedSession;
-              setSession(updatedSession);
-            }
-            runLocal(type, p);
+            const current = refs.current.session;
+            if (!current) return fail("Vui lòng đăng nhập lại.");
+            const profile = await api.updateProfile({ fullName: String(p.name || "").trim() });
+            if (!applyProfile(profile, current)) return fail("Phiên đăng nhập đã thay đổi. Vui lòng thử lại.");
             return { ok: true, name: profile.fullName };
           }
           case "REQUEST_RETURN": {
@@ -651,7 +676,7 @@ function ApiProvider({ children }) {
         return handleError(e);
       }
     },
-    [loadCustomer, updateOverlay, remember, runLocal, handleError],
+    [loadCustomer, updateOverlay, remember, runLocal, handleError, applyProfile],
   );
 
   const checkAvailability = useCallback(async ({ facility_id, offer, start_date, months }) => {

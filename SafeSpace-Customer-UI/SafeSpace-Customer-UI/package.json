@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev:business": "node scripts/dev-business.mjs",
+    "test:auth-support": "playwright test",
     "test:business": "node --test tests/business-frontend.test.mjs",
     "dev": "vite --host 127.0.0.1",
     "build": "vite build --base=./",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test tests/reducer.test.js tests/api-mappers.test.js tests/admin.test.js tests/ops.test.js tests/units.test.js tests/ops-api.test.mjs tests/payment-access.test.js tests/payment-api.test.mjs tests/access.test.js tests/figma-workflow.test.js",
+    "test": "node --test tests/reducer.test.js tests/api-mappers.test.js tests/admin.test.js tests/ops.test.js tests/units.test.js tests/ops-api.test.mjs tests/payment-access.test.js tests/payment-api.test.mjs tests/access.test.js tests/figma-workflow.test.js tests/auth-support-integration.test.js",
     "test:render": "node tests/render.test.mjs",
     "dev:mock": "node scripts/dev-mock.mjs",
     "check:structure": "node scripts/check-structure.mjs"
@@ -22,6 +23,7 @@
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "vite": "^8.3.0"
   },
   "engines": {

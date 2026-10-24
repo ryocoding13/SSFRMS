@@ -5,6 +5,8 @@ import { useApp } from "../../app/state/AppProvider.jsx";
 import PendingBadge from "./PendingBadge.jsx";
 import StickyHeader from "./StickyHeader.jsx";
 import { Icon } from "./UI.jsx";
+import accountBrand from "../../assets/customer/auth-support/brand.svg";
+import accountNotification from "../../assets/customer/auth-support/notification.svg";
 
 const PUBLIC_LINKS = [
   ["home", "Trang chủ"],
@@ -102,6 +104,7 @@ export default function Header({ page }) {
   const anchor = useRef(null);
   const customer = authed && roles.includes("CUSTOMER");
   const unread = customer ? unreadCount(data) : 0;
+  const accountScreen = ["profile", "support"].includes(page);
 
   useEffect(() => setOpen(false), [page]);
 
@@ -110,7 +113,7 @@ export default function Header({ page }) {
       <header className="header">
         <div className="header__inner">
           <a className="brand" href={href("home")} aria-label="SafeSpace — Trang chủ">
-            <span className="brand__mark"><Icon name="box" size={22} /></span>
+            {accountScreen ? <img src={accountBrand} alt="" width="36" height="36" /> : <span className="brand__mark"><Icon name="box" size={22} /></span>}
             SafeSpace
           </a>
           <nav className="header__nav" aria-label="Điều hướng chính">
@@ -134,7 +137,7 @@ export default function Header({ page }) {
                 aria-label={`Thông báo${unread ? `, ${unread} chưa đọc` : ""}`}
                 aria-expanded={open}
               >
-                <Icon name="bell" size={22} />
+                {accountScreen ? <img src={accountNotification} alt="" width="44" height="44" /> : <Icon name="bell" size={22} />}
                 <PendingBadge count={unread} />
               </button>
               {open && <NotificationPopup onClose={() => setOpen(false)} anchorRef={anchor} />}

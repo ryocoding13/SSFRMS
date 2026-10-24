@@ -390,6 +390,28 @@
 - Chưa làm (ghi trong docs/figma-ui-sync-2026-10-23.md): C02-vị trí (trái quy tắc gợi ý theo khu vực), A01b/A01c (thiếu API mã email), C12* (nhánh Ngọc Mai), trang C11c riêng.
 - Kiểm chứng: check:structure PASS; npm test 78/78; test:business 9/9; test:render 95 route; build PASS; Chromium chạy C11 phí, S04 → M07a, S09f, M02b/c, B05b/c, M05. Không push/PR/merge.
 
+## 2026-10-23 — F37 hoàn thiện nối API C13 và kiểm C12/S05
+
+- Nền main 6d959ae. Người dùng yêu cầu hai task của Ngọc Mai; không sửa trả kho, thanh toán, cọc hay Figma.
+- Phát hiện và sửa CHANGE_PASSWORD đọc sai tên trường (UI gửi current/next, provider đọc current_password/new_password). Sai mật khẩu hiện tại trả BAD_PASSWORD và hiện đúng trường.
+- GET profile được dùng khi đăng nhập và khôi phục phiên; bỏ tên overlay cũ, đọc số điện thoại thật, cập nhật session từ response; bỏ closure session cũ trong UPDATE_NAME. Biểu mẫu khóa khi đang lưu và giữ dữ liệu nếu lỗi.
+- C12/S05 đã có backend lưu/đọc activity_logs, ánh xạ responses và giao diện lịch sử. Bỏ fallback âm thầm che lỗi GET chi tiết ticket.
+- Thêm 2 HTTP test Kestrel/JWT/SQLite file riêng và browser script với host .NET riêng. Host dùng endpoint/service thật; reservations trống chỉ để khởi động FE, không dùng chứng minh đặt kho/thanh toán.
+- Kiểm chứng: .NET 10.0.100; build PASS; 54/54 xUnit (52 trước sửa + 2 HTTP); FE 76/76; business 9/9; SSR 92 route; check:structure/build PASS; init.sh PASS qua wrapper dotnet thêm -m:1 vì môi trường giới hạn tiến trình. Không sửa init.sh.
+- Chromium Headless Shell 145: 10 nhóm browser PASS: profile API; tên sai/lưu/reload; mật khẩu xác nhận sai và mật khẩu hiện tại sai; JSON password chính xác + login lại; overlay cũ; lỗi mạng; gửi ticket; staff phản hồi; lịch sử + mobile; tài khoản khác và không pageerror.
+- Trong lúc xây browser test, chỉnh selector theo chủ đề UNIT đang hiển thị (LOCK là legacy bị ẩn), đợi login staff trước khi điều hướng và chọn li lịch sử chứa timestamp. Không đổi nghiệp vụ hay giảm assertion.
+- Cảnh báo dependency NU1902/NU1903, nullable Board.cs, font/chunk frontend có sẵn từ main. Chưa chạy SQL Server của nhóm. F37 giữ active; không nói hệ thống không có lỗi.
+- Chỉ bàn giao ZIP + patch. Không push/PR/merge.
+
+
+## 2026-10-23 — F37 ghép frontend Mai C12/C12b/C13 trên main mới
+
+- Nguồn task ZIP SSFRMS_Frontend_AuthSupport_Figma_2026-10-22, 29 file khớp e615dad. Nền main 6d959ae; chỉ lấy thay đổi C12/C12b/C13 và guard phản hồi S05, không merge lịch sử nhánh cũ.
+- Giữ StickyHeader/PendingBadge, polling/thông báo, OTHER subject, yêu cầu cấp lại QR/PIN/key, modal STAFF, /api/ops chuẩn và RECORD_KEY_RECEIPT. Thêm timeline, preview, retry, asset/CSS theo gói đã có, trạng thái thiếu thông tin C13. Không gọi hay sửa Figma trong phiên.
+- Provider kiểm token/userId khi applyProfile, đọc hồ sơ qua API, không ghi đè phone khi chỉ đổi tên; mật khẩu dùng đúng payload và BAD_PASSWORD/400 tương thích. Ticket detail lỗi có cờ lỗi/retry, giữ dữ liệu đã tải được; vẫn truyền 401. Normalize danh sách null của board mà không thay API.
+- Thêm D28 cho Playwright devDependency để tránh trùng D26. Giữ toàn bộ các test main; thêm 3 test ghép API/mapper/null board; SSR thêm 2 route. Test mock của Mai đổi sang /api/ops, bấm xác nhận staff và giữ phone khi request không chứa phone; không nới assertion. Thông báo tên trống đồng bộ câu chữ gói Mai; sai mật khẩu tương thích cả error code mới và message backend cũ.
+- Kiểm: FE 79/79, Business 9/9, SSR 94, Playwright mock 14/14; .NET 54/54, 10 nhóm Chromium gọi backend Kestrel/JWT/SQLite riêng. Build/structure/init PASS, init wrapper thêm -m:1. Đã xem C12b desktop/C13 mobile. Chưa chạy SQL Server của nhóm; F37 giữ active.
+- Không thay backend tài chính, schema/migration hoặc config. Chỉ ZIP/patch, không push/PR/merge. Xem docs/mai-auth-support-integration.md.
 ## 2026-10-24 — Cập nhật quy định AI/Git và tài liệu kiểm chứng
 
 - Theo yêu cầu thành viên: sửa quy định một lượt và bàn giao ZIP để thành viên tự push; không thao tác commit/push/PR/merge.
