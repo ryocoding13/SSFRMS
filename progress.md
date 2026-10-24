@@ -16,6 +16,24 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên 2026-10-24 (Đợt 5) — Khắc Phục Lỗi Globalization Invariant Mode với Chiseled-Extra Images
+
+- **Mục tiêu:** Khắc phục lỗi `PlatformNotSupportedException: Globalization Invariant Mode is not supported` do `Microsoft.Data.SqlClient` yêu cầu thư viện ICU/globalization khi container `migrator` và `api` kết nối với SQL Server.
+- **Nguyên nhân:** Base image `chiseled` tối giản mặc định thiếu ICU và bật chế độ globalization invariant. Thư viện `Microsoft.Data.SqlClient` không hỗ trợ chế độ này vì cần ICU để xử lý collation và encoding. Tag `chiseled-extra` của Microsoft cung cấp đầy đủ ICU và tzdata cần thiết.
+- **Khắc phục:**
+  - Cập nhật `deploy/migrator.Dockerfile`:
+    - Runtime base image chuyển sang `mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled-extra AS runtime`.
+    - Bổ sung biến môi trường: `ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`.
+    - Bảo toàn toàn vẹn bước `RUN dotnet restore StorageProject.Api/StorageProject.Api.csproj` đã sửa ở đợt trước.
+  - Cập nhật `StorageProject.Api/Dockerfile`:
+    - Runtime base image chuyển sang `mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra AS runtime`.
+    - Bổ sung biến môi trường: `ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`.
+- **Kiểm chứng:**
+  - Xác nhận hai tag `10.0-noble-chiseled-extra` tồn tại chính thức trên MCR và cung cấp đầy đủ ICU.
+  - Giữ nguyên cơ chế bảo mật non-root (`USER $APP_UID`) và kích thước tối giản của chiseled.
+  - Ghi nhận ranh giới kiểm thử: Do Docker daemon trên Windows cục bộ đang tắt, kịch bản stack compose và smoke test sẽ được xác thực tự động trên GitHub Actions runner trong job `container-build`.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit hay push. Thay đổi đã sẵn sàng trên working tree của nhánh `feature/cicd-candidate`.
+
 ## Phiên 2026-10-24 (Đợt 4) — Sửa Lỗi NETSDK1004 trong deploy/migrator.Dockerfile
 
 - **Mục tiêu:** Khắc phục lỗi `NETSDK1004: Assets file 'StorageProject.Api/obj/project.assets.json' not found` khi chạy lệnh `dotnet dotnet-ef migrations bundle` trong image `deploy/migrator.Dockerfile`.

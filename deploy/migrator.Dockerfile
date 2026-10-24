@@ -32,9 +32,11 @@ RUN dotnet dotnet-ef migrations bundle \
     -r linux-x64 \
     --verbose
 
-# ─── Stage 2: Runtime Image (Chiseled runtime-deps) ───────────────────────────
-FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled AS runtime
+# ─── Stage 2: Runtime Image (Chiseled runtime-deps with ICU extra) ────────────
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled-extra AS runtime
 WORKDIR /app
+
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 
 COPY --from=build /app/efbundle .
 

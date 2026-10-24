@@ -26,14 +26,15 @@ COPY StorageProject.Api/ StorageProject.Api/
 WORKDIR /src/StorageProject.Api
 RUN dotnet publish -c Release --no-restore -o /app/publish
 
-# ─── Stage 2: Runtime Minimal Image (Non-root, Chiseled) ──────────────────────
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled AS runtime
+# ─── Stage 2: Runtime Minimal Image (Non-root, Chiseled with ICU extra) ──────
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra AS runtime
 WORKDIR /app
 
 # Biến môi trường chuẩn ASP.NET Core trong container
 ENV ASPNETCORE_URLS=http://+:8080 \
     ASPNETCORE_ENVIRONMENT=Production \
-    DOTNET_EnableDiagnostics=0
+    DOTNET_EnableDiagnostics=0 \
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 
 COPY --from=build /app/publish .
 
