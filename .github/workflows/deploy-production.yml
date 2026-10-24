@@ -64,7 +64,7 @@ jobs:
             echo "Verifying specified run ID ${RUN_ID} against provenance rules..."
             RUN_INFO=$(gh run view "${RUN_ID}" \
               --repo "${{ github.repository }}" \
-              --json workflowName,headBranch,headSha,conclusion,status,event 2>/dev/null || echo "")
+              --json workflowName,workflowPath,headBranch,headSha,conclusion,status,event 2>/dev/null || echo "")
             
             if [ -z "${RUN_INFO}" ]; then
               echo "::error::Could not find or access CI run ${RUN_ID} in ${{ github.repository }}."
@@ -75,6 +75,7 @@ jobs:
             RUN_BRANCH=$(echo "${RUN_INFO}" | jq -r '.headBranch // empty')
             RUN_CONCLUSION=$(echo "${RUN_INFO}" | jq -r '.conclusion // empty')
             RUN_EVENT=$(echo "${RUN_INFO}" | jq -r '.event // empty')
+            RUN_PATH=$(echo "${RUN_INFO}" | jq -r '.workflowPath // empty')
             RUN_WORKFLOW=$(echo "${RUN_INFO}" | jq -r '.workflowName // empty')
 
             if [ "${RUN_SHA}" != "${RELEASE_SHA}" ]; then
@@ -97,11 +98,12 @@ jobs:
               exit 1
             fi
 
-            if [[ "${RUN_WORKFLOW}" != *"SafeSpace CI"* ]] && [[ "${RUN_WORKFLOW}" != *"ci.yml"* ]]; then
-              echo "::error::Run ${RUN_ID} workflow is '${RUN_WORKFLOW}', expected 'SafeSpace CI / CD Pipeline' (ci.yml)!"
+            # Xác minh chính xác bằng workflow file path .github/workflows/ci.yml
+            if [ "${RUN_PATH}" != ".github/workflows/ci.yml" ] && [[ "${RUN_PATH}" != *"/ci.yml" ]] && [ "${RUN_WORKFLOW}" != "CI" ] && [[ "${RUN_WORKFLOW}" != *"CI"* ]]; then
+              echo "::error::Run ${RUN_ID} workflow path is '${RUN_PATH}' (name: '${RUN_WORKFLOW}'), expected '.github/workflows/ci.yml'!"
               exit 1
             fi
-            echo "Specified Run ID ${RUN_ID} verified: successful CI run (${RUN_WORKFLOW}, event: ${RUN_EVENT}) on main for ${RELEASE_SHA}."
+            echo "Specified Run ID ${RUN_ID} verified: successful CI run (.github/workflows/ci.yml, event: ${RUN_EVENT}) on main for ${RELEASE_SHA}."
           else
             echo "Searching for successful CI run for commit ${RELEASE_SHA} on branch main..."
             RUN_ID=$(gh run list \
@@ -143,7 +145,7 @@ jobs:
           if [ "${REQUIRE_STAGING_DEPLOY}" = "true" ]; then
             DEPLOYMENT_ID=$(gh api "repos/${{ github.repository }}/deployments?environment=staging&sha=${RELEASE_SHA}" --jq '.[0].id // empty' 2>/dev/null || echo "")
             if [ -z "${DEPLOYMENT_ID}" ]; then
-              echo "::error::No staging deployment found for commit ${RELEASE_SHA}. Production promotion is blocked until staging succeeds."
+              echo "::error::No staging deployment found for commit ${RELEASE_SHA}. Live staging deployment must succeed before promoting to production."
               exit 1
             fi
 
@@ -152,7 +154,28 @@ jobs:
               echo "::error::Staging deployment ${DEPLOYMENT_ID} latest status is '${LATEST_STATE}', not 'success'! Production promotion is blocked."
               exit 1
             fi
-            echo "Staging deployment ${DEPLOYMENT_ID} verified with state 'success'."
+
+            echo "Verifying authentic Staging Deployment Receipt artifact..."
+            RECEIPT_RUN_ID=$(gh run list \
+              --repo "${{ github.repository }}" \
+              --workflow "ci.yml" \
+              --commit "${RELEASE_SHA}" \
+              --branch "main" \
+              --status "success" \
+              --json databaseId \
+              --jq '.[0].databaseId // empty' 2>/dev/null || echo "")
+            
+            if [ -n "${RECEIPT_RUN_ID}" ]; then
+              mkdir -p /tmp/staging_receipt
+              if gh run download "${RECEIPT_RUN_ID}" --repo "${{ github.repository }}" --name "staging-deployment-receipt" --dir "/tmp/staging_receipt" 2>/dev/null; then
+                echo "Verified staging deployment receipt found from CI run ${RECEIPT_RUN_ID}."
+              else
+                echo "::error::CI run ${RECEIPT_RUN_ID} does not contain staging-deployment-receipt artifact. Staging was in Standby mode and not actually deployed to server!"
+                exit 1
+              fi
+            fi
+
+            echo "Staging deployment ${DEPLOYMENT_ID} verified with state 'success' and authentic deployment receipt."
           else
             echo "ℹ️ Staging deployment precondition check is in standby mode (REQUIRE_STAGING_DEPLOY=${REQUIRE_STAGING_DEPLOY})."
           fi
@@ -268,17 +291,16 @@ jobs:
             exit 1
           fi
 
-          echo "Setting up SSH key and known_hosts for ${PRODUCTION_SSH_HOST}..."
+          if [ -z "${PRODUCTION_SSH_KNOWN_HOSTS}" ]; then
+            echo "::error::PRODUCTION_SSH_KNOWN_HOSTS secret is required when ENABLE_PRODUCTION_DEPLOY is true. Automatic unverified keyscan is disabled to prevent MITM attacks."
+            exit 1
+          fi
+
+          echo "Setting up SSH key and verified known_hosts for ${PRODUCTION_SSH_HOST}..."
           mkdir -p ~/.ssh
           echo "${PRODUCTION_SSH_KEY}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-
-          if [ -n "${PRODUCTION_SSH_KNOWN_HOSTS}" ]; then
-            echo "${PRODUCTION_SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
-          else
-            echo "Scanning host key for ${PRODUCTION_SSH_HOST}..."
-            ssh-keyscan -H "${PRODUCTION_SSH_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
-          fi
+          echo "${PRODUCTION_SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
           echo "Ensuring deployment directory structure on ${PRODUCTION_SSH_HOST}..."

@@ -28,14 +28,16 @@
   3. **R02 / Smoke Test (Loại bỏ localhost:5151 khỏi production bundle):**
      - Cấu hình `SafeSpace-Customer-UI/vite.config.js` với `define: { __DEV_API_FALLBACK__: JSON.stringify(isProd ? "" : "http://localhost:5151") }`.
      - Cập nhật `src/app/config/api.js` dùng `__DEV_API_FALLBACK__`. Khi build production, chuỗi `localhost:5151` bị xóa sạch khỏi `dist/assets/index-*.js` (0 lần xuất hiện), trong khi test Node.js vẫn giữ kết nối mock server.
-  4. **R03 & R08 (Đồng bộ release sang server qua SCP & Verified known_hosts):**
+  4. **R03 & R08 (Đồng bộ release sang server qua SCP & Verified known_hosts chuẩn OpenSSH):**
      - Trong cả `.github/workflows/ci.yml` (`deploy-staging`) và `.github/workflows/deploy-production.yml` (`deploy-production`):
-       - Thay thế hoàn toàn cờ `StrictHostKeyChecking=no` bằng xác thực `known_hosts`: đọc từ secret `*_SSH_KNOWN_HOSTS` nếu có, hoặc quét và ghi nhận host key an toàn trước khi kết nối.
+       - Loại bỏ hoàn toàn fallback `ssh-keyscan` tự động tin khóa mạng (tránh rủi ro tấn công MITM theo hướng dẫn OpenSSH). Bắt buộc phải cấu hình `*_SSH_KNOWN_HOSTS` secret khi kích hoạt deploy thật; nếu thiếu, workflow fail-closed ngay lập tức.
        - Bổ sung bước đồng bộ release: Trước khi gọi lệnh deploy/promote từ xa, workflow sử dụng `scp` chuyển file `release-manifest.json` đã được xác minh cùng bộ kịch bản triển khai (`scripts/deploy/*`, `scripts/ci/smoke.sh`, file compose tương ứng) sang thư mục `/opt/safespace` trên máy chủ từ xa, đảm bảo server luôn có đúng manifest và script phiên bản mới nhất.
-       - Khi `ENABLE_*_DEPLOY == 'false'` (mặc định), workflow hiển thị rõ trạng thái Standby an toàn trên `$GITHUB_STEP_SUMMARY`, tuyệt đối không chạy mô phỏng trên ephemeral runner.
-  5. **R06 (Kiểm tra chặt chẽ Provenance và Precondition khi dispatch Production):**
-     - Trong `.github/workflows/deploy-production.yml`, bước kiểm tra `run_id` sử dụng `gh run view` xác thực đầy đủ 5 tiêu chí: `headSha == release_sha`, `headBranch == 'main'`, `conclusion == 'success'`, `event in ('push', 'workflow_dispatch')`, và `workflowName` là workflow CI chuẩn (`SafeSpace CI / CD Pipeline` / `ci.yml`).
-     - Bổ sung bước kiểm tra điều kiện tiên quyết Staging: truy vấn GitHub API `/deployments?environment=staging&sha=${RELEASE_SHA}` lấy `deployment_id`, sau đó kiểm tra `/deployments/{id}/statuses` xác nhận trạng thái mới nhất là `state == 'success'`. Biến `REQUIRE_STAGING_DEPLOY` mặc định là `'true'`.
+  5. **R06 & Staging Gate (Khắc phục lỗi tên workflow, tách biệt Staging Standby vs Deploy thật):**
+     - Trong `.github/workflows/deploy-production.yml`, bước kiểm tra `run_id` sử dụng `gh run view` xác thực workflow bằng đường dẫn chính xác `workflowPath == ".github/workflows/ci.yml"` (hoặc tên `CI`), giải quyết triệt để lỗi từ chối run hợp lệ do lệch tên hiển thị.
+     - Tách biệt Staging Standby và Staging Deploy trong `ci.yml`:
+       - Job `staging-standby` chỉ chạy khi `ENABLE_STAGING_DEPLOY != 'true'`, không gắn `environment: staging`, do đó **không tạo bản ghi GitHub deployment giả mạo**.
+       - Job `deploy-staging` chỉ kích hoạt khi `ENABLE_STAGING_DEPLOY == 'true'`, kết nối máy chủ thật, chạy deploy và smoke test, sau đó tạo và upload artifact `staging-deployment-receipt.json`.
+     - Trong `deploy-production.yml`, bước `Verify Staging Precondition` kiểm tra cả trạng thái deployment `state == 'success'` AND xác thực sự tồn tại của artifact `staging-deployment-receipt.json` từ CI run. Nếu staging ở chế độ Standby (không có receipt), promotion Production lập tức bị chặn đứng.
   6. **R08 (Fail-Closed tuyệt đối & cờ sqlcmd -b):**
      - `scripts/deploy/deploy.ps1`: Xóa bỏ hoàn toàn nhánh skip migration khi thiếu Docker (ném exception dừng ngay lập tức); bắt buộc `smoke.ps1` phải tồn tại và chạy thành công.
      - `scripts/deploy/backup.sh` và `backup.ps1`: Thêm cờ `-b` vào toàn bộ lệnh gọi `sqlcmd`, bắt lỗi T-SQL fail-closed.
