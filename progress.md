@@ -16,6 +16,16 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên 2026-10-24 (Đợt 7) — Rà Soát Tính Độc Lập Pipeline Khi Thử Nghiệm Trên Repo Clone (SSFRMS-clone)
+
+- **Mục tiêu:** Rà soát toàn diện workflow, script và cấu hình đóng gói để đảm bảo kiểm thử an toàn, độc lập trên repo clone (`https://github.com/ryocoding13/SSFRMS-clone`) mà không bị hardcode repo gốc hay rò rỉ secrets.
+- **Kết quả rà soát:**
+  1. **Không hardcode tên repo:** Mọi vị trí trong `.github/workflows/ci.yml`, `deploy-production.yml` và script sinh manifest đều sử dụng biến động `${{ github.repository }}`. Image tags sẽ tự động phân giải thành `ghcr.io/ryocoding13/ssfrms-clone/{api,web,migrator}:sha-<commit>`.
+  2. **Bảo vệ môi trường CD:** Cả hai cờ `ENABLE_STAGING_DEPLOY` và `ENABLE_PRODUCTION_DEPLOY` đều mặc định vắng mặt trong repo mới $\rightarrow$ Staging tự động chạy ở chế độ Standby an toàn (job `staging-standby` chỉ log thông báo và exit 0; không có SSH secrets thì không bao giờ kết nối server).
+  3. **Linh hoạt kiểm soát xuất bản package:** Cập nhật điều kiện job `publish-release` trong `ci.yml`: bổ sung `(vars.ENABLE_RELEASE_PUBLISH != 'false')`. Người dùng có thể dễ dàng tắt việc publish lên GHCR trên repo test chỉ bằng cách khai báo biến `ENABLE_RELEASE_PUBLISH=false` trong repo settings.
+- **Kiểm chứng:** `npx --yes yaml-lint .github/workflows/*.yml` PASS 100%.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit hay push. Thay đổi đã sẵn sàng trên working tree.
+
 ## Phiên 2026-10-24 (Đợt 6) — Đồng Bộ Main PR #29 và Giải Quyết Xung Đột DECISIONS.md & feature_list.json
 
 - **Mục tiêu:** Đồng bộ các thay đổi mới nhất từ `origin/main` (commit `c5aa79a` - PR #29 của Nhi về đồng bộ Figma 23/10 đợt 2) và giải quyết triệt để xung đột merge.
