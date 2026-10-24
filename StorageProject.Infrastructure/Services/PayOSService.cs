@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using StorageProject.Core.DTOs.Payment;
 using StorageProject.Core.DTOs.Reservation;
 using StorageProject.Core.Entities;
@@ -9,7 +10,11 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
-public class PayOSService(AppDbContext dbContext, IPayOSGateway gateway, ILogger<PayOSService> logger) : IPayOSService
+public class PayOSService(
+    AppDbContext dbContext,
+    IPayOSGateway gateway,
+    ILogger<PayOSService> logger,
+    IConfiguration? configuration = null) : IPayOSService
 {
     public async Task<CreatePayOSQrResponse> CreatePaymentQrAsync(long customerId, CreatePayOSQrRequest request, CancellationToken ct = default)
     {
@@ -48,10 +53,17 @@ public class PayOSService(AppDbContext dbContext, IPayOSGateway gateway, ILogger
         }
         CheckoutLink link;
         try {
+            var frontendBaseUrl = configuration?["AppSettings:FrontendUrl"]?.TrimEnd('/')
+                ?? configuration?["Frontend:BaseUrl"]?.TrimEnd('/')
+                ?? "http://localhost:5173";
+            var defaultReturnUrl = $"{frontendBaseUrl}/#/reservations/{r.ReservationId}";
+            var returnUrl = !string.IsNullOrWhiteSpace(request.ReturnUrl) ? request.ReturnUrl : defaultReturnUrl;
+            var cancelUrl = !string.IsNullOrWhiteSpace(request.CancelUrl) ? request.CancelUrl : defaultReturnUrl;
+
             link = await gateway.CreateAsync(r.OrderCode.Value, (int)amount, r.ReservationId,
                 new DateTimeOffset(DateTime.SpecifyKind(expiry, DateTimeKind.Utc)).ToUnixTimeSeconds(),
-                request.ReturnUrl ?? $"http://localhost:5173/#/reservations/{r.ReservationId}",
-                request.CancelUrl ?? $"http://localhost:5173/#/reservations/{r.ReservationId}");
+                returnUrl,
+                cancelUrl);
         } catch (Exception ex) {
             throw new InvalidOperationException("Không tạo được link PayOS. Kiểm tra cấu hình hoặc chọn thanh toán tại cửa hàng.", ex);
         }

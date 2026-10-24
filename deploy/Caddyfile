@@ -1,0 +1,33 @@
+# ==============================================================================
+# SafeSpace SSFRMS — Caddy Edge TLS & Reverse Proxy Configuration
+# ==============================================================================
+# Sử dụng khi dùng Caddy làm TLS termination edge phía trước Nginx/API.
+# Đặt biến môi trường DOMAIN khi khởi chạy: ví dụ DOMAIN=staging.safespace.vn
+# ==============================================================================
+
+{$DOMAIN:localhost} {
+    encode gzip zstd
+
+    # Proxy các API và Health check sang backend API
+    handle /api/* {
+        reverse_proxy api:8080 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    handle /health {
+        reverse_proxy api:8080
+    }
+
+    handle /health/ready {
+        reverse_proxy api:8080
+    }
+
+    # Phục vụ Frontend Web
+    handle {
+        reverse_proxy web:80
+    }
+}

@@ -1,0 +1,90 @@
+# ==============================================================================
+# SafeSpace SSFRMS — Local & CI Docker Compose Stack (compose.yml)
+# ==============================================================================
+
+services:
+  # ─── 1. SQL Server 2022 Database ───────────────────────────────────────────
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: safespace-sqlserver
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${SA_PASSWORD:-SafeSpace!Dev2026_StrongPassword}"
+      MSSQL_PID: "Developer"
+    ports:
+      # Chỉ mở cổng ra localhost khi dev local, có thể tắt ở staging/prod
+      - "127.0.0.1:1433:1433"
+    volumes:
+      - sql_data:/var/opt/mssql
+    networks:
+      - safespace-net
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${SA_PASSWORD:-SafeSpace!Dev2026_StrongPassword}' -C -Q 'SELECT 1' || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P '${SA_PASSWORD:-SafeSpace!Dev2026_StrongPassword}' -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ─── 2. EF Core Migrator (One-shot task) ────────────────────────────────────
+  migrator:
+    build:
+      context: ..
+      dockerfile: deploy/migrator.Dockerfile
+    container_name: safespace-migrator
+    environment:
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=SSFRMS;User Id=sa;Password=${SA_PASSWORD:-SafeSpace!Dev2026_StrongPassword};TrustServerCertificate=True;MultipleActiveResultSets=true;"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - safespace-net
+    restart: "no"
+
+  # ─── 3. Backend API (.NET 10 Minimal API) ───────────────────────────────────
+  api:
+    build:
+      context: ..
+      dockerfile: StorageProject.Api/Dockerfile
+    container_name: safespace-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Production}"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=SSFRMS;User Id=sa;Password=${SA_PASSWORD:-SafeSpace!Dev2026_StrongPassword};TrustServerCertificate=True;MultipleActiveResultSets=true;"
+      Database__AutoMigrate: "false"
+      Database__SeedMode: "${SEED_MODE:-Reference}"
+      ADMIN_INITIAL_PASSWORD: "${ADMIN_INITIAL_PASSWORD:-Admin@123}"
+      JwtSettings__Secret: "${JWT_SECRET:-SafeSpaceSecureProductionKey_2026_AtLeast32Chars!!}"
+      JwtSettings__Issuer: "SSFRMSApi"
+      JwtSettings__Audience: "SSFRMSClients"
+      AppSettings__FrontendUrl: "${FRONTEND_URL:-http://localhost:8080}"
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - safespace-net
+    # Port 8080 nội bộ, Nginx gateway sẽ proxy_pass tới đây
+
+  # ─── 4. Frontend Web + Nginx Gateway ───────────────────────────────────────
+  web:
+    build:
+      context: ../SafeSpace-Customer-UI/SafeSpace-Customer-UI
+      dockerfile: Dockerfile
+    container_name: safespace-web
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:80"
+    depends_on:
+      - api
+    networks:
+      - safespace-net
+
+networks:
+  safespace-net:
+    driver: bridge
+
+volumes:
+  sql_data:
+    driver: local

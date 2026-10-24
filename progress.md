@@ -16,6 +16,398 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên 2026-10-24 (Đợt 6) — Đồng Bộ Main PR #29 và Giải Quyết Xung Đột DECISIONS.md & feature_list.json
+
+- **Mục tiêu:** Đồng bộ các thay đổi mới nhất từ `origin/main` (commit `c5aa79a` - PR #29 của Nhi về đồng bộ Figma 23/10 đợt 2) và giải quyết triệt để xung đột merge.
+- **Xử lý xung đột:**
+  1. `DECISIONS.md`: Bảo toàn cả hai quyết định `D28` từ main (`D28 — Đồng bộ Figma 23/10` và `D28 — Kiểm thử giao diện C12/C12b/C13 bằng Playwright`), đồng thời giữ nguyên quyết định `D29 — Chiến lược CI/CD, Container hoá và Rollback an toàn (24/10/2026) — Đã chốt` và quy trình `PROCESS-2026-10-24`.
+  2. `feature_list.json`: Giữ nguyên tính năng `F39` (chính sách D27), tích hợp tính năng mới `F40` (Figma sync đợt 2), đồng thời bảo toàn trọn vẹn 8 tính năng `CI01`–`CI08`. Cú pháp JSON được validate hợp lệ 100%.
+- **Kiểm chứng toàn diện sau merge:**
+  - Frontend: `npm test` 81/81 test PASS; `npm run test:business` 9/9 test PASS; `npm run test:render` 97/97 route PASS; `npm run check:structure` PASS; `npm run build` PASS (0 lần xuất hiện của `localhost:5151` trong bundle).
+  - Backend: `dotnet test StorageProject.slnx` chạy thành công toàn bộ test suites với 0 lỗi (bao gồm cả xUnit unit tests và integration tests).
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit hay push. Toàn bộ merge conflicts đã được giải quyết sạch sẽ và staged sẵn sàng trên working tree.
+
+## Phiên 2026-10-24 (Đợt 5) — Khắc Phục Lỗi Globalization Invariant Mode với Chiseled-Extra Images
+
+- **Mục tiêu:** Khắc phục lỗi `PlatformNotSupportedException: Globalization Invariant Mode is not supported` do `Microsoft.Data.SqlClient` yêu cầu thư viện ICU/globalization khi container `migrator` và `api` kết nối với SQL Server.
+- **Nguyên nhân:** Base image `chiseled` tối giản mặc định thiếu ICU và bật chế độ globalization invariant. Thư viện `Microsoft.Data.SqlClient` không hỗ trợ chế độ này vì cần ICU để xử lý collation và encoding. Tag `chiseled-extra` của Microsoft cung cấp đầy đủ ICU và tzdata cần thiết.
+- **Khắc phục:**
+  - Cập nhật `deploy/migrator.Dockerfile`:
+    - Runtime base image chuyển sang `mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled-extra AS runtime`.
+    - Bổ sung biến môi trường: `ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`.
+    - Bảo toàn toàn vẹn bước `RUN dotnet restore StorageProject.Api/StorageProject.Api.csproj` đã sửa ở đợt trước.
+  - Cập nhật `StorageProject.Api/Dockerfile`:
+    - Runtime base image chuyển sang `mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra AS runtime`.
+    - Bổ sung biến môi trường: `ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`.
+- **Kiểm chứng:**
+  - Xác nhận hai tag `10.0-noble-chiseled-extra` tồn tại chính thức trên MCR và cung cấp đầy đủ ICU.
+  - Giữ nguyên cơ chế bảo mật non-root (`USER $APP_UID`) và kích thước tối giản của chiseled.
+  - Ghi nhận ranh giới kiểm thử: Do Docker daemon trên Windows cục bộ đang tắt, kịch bản stack compose và smoke test sẽ được xác thực tự động trên GitHub Actions runner trong job `container-build`.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit hay push. Thay đổi đã sẵn sàng trên working tree của nhánh `feature/cicd-candidate`.
+
+## Phiên 2026-10-24 (Đợt 4) — Sửa Lỗi NETSDK1004 trong deploy/migrator.Dockerfile
+
+- **Mục tiêu:** Khắc phục lỗi `NETSDK1004: Assets file 'StorageProject.Api/obj/project.assets.json' not found` khi chạy lệnh `dotnet dotnet-ef migrations bundle` trong image `deploy/migrator.Dockerfile`.
+- **Nguyên nhân:** `migrator.Dockerfile` trước đó chỉ chạy `dotnet restore StorageProject.Infrastructure/StorageProject.Infrastructure.csproj`. Tuy nhiên, khi tạo migration bundle cần startup project là `StorageProject.Api`, dẫn đến EF Core không tìm thấy file assets của API project.
+- **Khắc phục:**
+  - Sửa `deploy/migrator.Dockerfile`: Thay `RUN dotnet restore StorageProject.Infrastructure/StorageProject.Infrastructure.csproj` bằng `RUN dotnet restore StorageProject.Api/StorageProject.Api.csproj`.
+  - Việc restore API project tự động kéo theo việc restore toàn bộ các project phụ thuộc (`StorageProject.Infrastructure` và `StorageProject.Core`), sinh đầy đủ `project.assets.json` cho cả 3 project.
+- **Kiểm chứng:**
+  - `dotnet tool restore`: Khôi phục thành công công cụ `dotnet-ef` v10.0.12.
+  - `dotnet restore StorageProject.Api/StorageProject.Api.csproj`: Khôi phục thành công `Core`, `Infrastructure`, và `Api`.
+  - `dotnet dotnet-ef migrations bundle --project StorageProject.Infrastructure --startup-project StorageProject.Api`: Build bundle thành công với 0 lỗi (xuất ra bundle thực thi độc lập).
+  - Ghi chú môi trường: Docker daemon cục bộ trên Windows hiện đang tắt (`//./pipe/dockerDesktopLinuxEngine` not found), do đó bước đóng gói Docker trực tiếp sẽ được chạy và xác nhận trên GitHub Actions runner trong lần push tiếp theo.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit hay push. Thay đổi đã sẵn sàng trên working tree của nhánh `feature/cicd-candidate`.
+
+## Phiên 2026-10-24 (Đợt 3) — Khắc Phục Xác Thực Provenance Workflow ID và Đối Chiếu Toàn Diện Staging Deployment Receipt
+
+- **Mục tiêu:** Xử lý triệt để 2 điểm phát hiện cuối cùng trong production workflow theo yêu cầu review:
+  1. **Khắc phục lỗi `workflowPath` không được hỗ trợ trong `gh run view --json`:**
+     - `gh run view` không hỗ trợ trường `workflowPath` (gây lỗi khi gọi với `run_id` chỉ định) và việc so khớp chuỗi tên workflow dễ bị sai lệch khi đổi tên hiển thị.
+     - Khắc phục trong `.github/workflows/deploy-production.yml`:
+       - Tra cứu chính xác workflow ID chuẩn của CI qua GitHub API: `gh api repos/${{ github.repository }}/actions/workflows/ci.yml --jq '.id'`.
+       - Trong `gh run view`, sử dụng trường JSON chuẩn `workflowDatabaseId` và kiểm tra đối chiếu trực tiếp `RUN_WORKFLOW_ID == EXPECTED_WORKFLOW_ID`.
+       - Nhánh tìm kiếm run thành công tự động (`gh run list`) cũng lọc chính xác theo `--workflow "${EXPECTED_WORKFLOW_ID}"`.
+       - Xuất output `run_id=${RUN_ID}` từ step `fetch_manifest` để các step sau tái sử dụng chính xác.
+  2. **Hoàn thiện cấu trúc receipt và đối chiếu toàn diện Staging Deployment Receipt với Release Manifest:**
+     - Trong `.github/workflows/ci.yml` (`deploy-staging`):
+       - Trích xuất 3 image digests (`.images.api.digest`, `.images.web.digest`, `.images.migrator.digest`) từ `release-manifest.json`.
+       - Tạo file `artifacts/staging-deployment-receipt.json` chứa đầy đủ: `environment: "staging"`, `commit`, `run_id: "${{ github.run_id }}"`, `host`, `status: "deployed"`, `smoke_status: "passed"`, và `images: { api, web, migrator }`.
+       - Upload artifact `staging-deployment-receipt` để phục vụ đối chiếu khi promote lên production.
+     - Trong `.github/workflows/deploy-production.yml` (`Verify Staging Precondition`):
+       - Kiểm tra `CI_RUN_ID` (từ output của `fetch_manifest`): Nếu rỗng hoặc không tải được artifact `staging-deployment-receipt` từ đúng CI run đó -> fail-closed ngay lập tức (chặn promote nếu staging chỉ ở chế độ Standby hoặc deploy thất bại).
+       - Thực thi đoạn mã Node.js đối chiếu toàn diện 100% giữa receipt và manifest:
+         - Đối chiếu commit SHA: `receipt.commit === RELEASE_SHA`.
+         - Đối chiếu run ID: `String(receipt.run_id) === String(CI_RUN_ID)`.
+         - Đối chiếu environment: `receipt.environment === "staging"`.
+         - Đối chiếu trạng thái triển khai: `receipt.status === "deployed"`.
+         - Đối chiếu kiểm thử smoke: `receipt.smoke_status === "passed"`.
+         - Đối chiếu 3 image digests (API, Web, Migrator): hàm trích xuất hỗ trợ cả object `{ digest }` và string, đối chiếu khớp chính xác từng ký tự SHA256 với `release-manifest.json`.
+- **Kiểm chứng:**
+  - `npx --yes yaml-lint .github/workflows/*.yml`: PASS 100% toàn bộ workflows (`ci.yml`, `deploy-production.yml`, `rollback.yml`).
+  - Unit test Node.js cho logic đối chiếu receipt ↔ manifest: PASS (phát hiện và chặn đúng khi lệch SHA, run ID, environment, status, smoke_status, hoặc image digest).
+  - Khuyến nghị giữ CD ở chế độ Standby (`ENABLE_STAGING_DEPLOY: false`), mở PR để chạy kiểm thử CI thật trên GitHub Actions mà không phụ thuộc vào VPS.
+- **Tuân thủ AGENTS.md:** AI không chạy commit hay push. Toàn bộ thay đổi nằm sẵn trên working tree của nhánh `feature/cicd-candidate` để thành viên nhóm tự review và commit.
+
+## Phiên 2026-10-24 (Đợt 2) — Đồng Bộ Main Mới, Khắc Phục Triệt Để CI/CD và Tách Biệt CD Chờ VPS
+
+- **Mục tiêu:** Giải quyết triệt để các vấn đề còn lại từ đợt kiểm tra candidate và gộp các thay đổi mới nhất từ `origin/main` (commit `a632cb7` - PR #25 của Ngọc Mai):
+  1. **Xử lý xung đột với main mới:**
+     - Gộp commit `a632cb7` từ `origin/main` vào nhánh `feature/cicd-candidate`.
+     - Giải quyết xung đột nội dung tại `feature_list.json`: Giữ nguyên tính năng `F37` mới nhất (C12/C12b/C13 auth support của Mai), đồng thời bảo toàn trọn vẹn danh sách tính năng `CI01`–`CI08`. Cú pháp JSON được validate hợp lệ 100%.
+     - Chuẩn hóa số hiệu quyết định tại `DECISIONS.md`: Đổi mục CI/CD từ `D28` thành `D29` để không trùng với quyết định `D28` (Playwright C12/C13) vừa được merge từ `main`.
+  2. **R01 (Sửa dứt điểm upload-artifact SHA):**
+     - Sửa lỗi gõ nhầm commit SHA `4cec3d8aa04e39d1a68397de0c4cd6fb9dce6ec1` (số `6` thay vì `8`) tại cả 4 vị trí trong `.github/workflows/ci.yml` (dòng 55, 114, 181, 328) sang commit chuẩn `4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1` (v4.6.1).
+  3. **R02 / Smoke Test (Loại bỏ localhost:5151 khỏi production bundle):**
+     - Cấu hình `SafeSpace-Customer-UI/vite.config.js` với `define: { __DEV_API_FALLBACK__: JSON.stringify(isProd ? "" : "http://localhost:5151") }`.
+     - Cập nhật `src/app/config/api.js` dùng `__DEV_API_FALLBACK__`. Khi build production, chuỗi `localhost:5151` bị xóa sạch khỏi `dist/assets/index-*.js` (0 lần xuất hiện), trong khi test Node.js vẫn giữ kết nối mock server.
+  4. **R03 & R08 (Đồng bộ release sang server qua SCP & Verified known_hosts chuẩn OpenSSH):**
+     - Trong cả `.github/workflows/ci.yml` (`deploy-staging`) và `.github/workflows/deploy-production.yml` (`deploy-production`):
+       - Loại bỏ hoàn toàn fallback `ssh-keyscan` tự động tin khóa mạng (tránh rủi ro tấn công MITM theo hướng dẫn OpenSSH). Bắt buộc phải cấu hình `*_SSH_KNOWN_HOSTS` secret khi kích hoạt deploy thật; nếu thiếu, workflow fail-closed ngay lập tức.
+       - Bổ sung bước đồng bộ release: Trước khi gọi lệnh deploy/promote từ xa, workflow sử dụng `scp` chuyển file `release-manifest.json` đã được xác minh cùng bộ kịch bản triển khai (`scripts/deploy/*`, `scripts/ci/smoke.sh`, file compose tương ứng) sang thư mục `/opt/safespace` trên máy chủ từ xa, đảm bảo server luôn có đúng manifest và script phiên bản mới nhất.
+  5. **R06 & Staging Gate (Khắc phục lỗi tên workflow, tách biệt Staging Standby vs Deploy thật):**
+     - Trong `.github/workflows/deploy-production.yml`, bước kiểm tra `run_id` sử dụng `gh run view` xác thực workflow bằng đường dẫn chính xác `workflowPath == ".github/workflows/ci.yml"` (hoặc tên `CI`), giải quyết triệt để lỗi từ chối run hợp lệ do lệch tên hiển thị.
+     - Tách biệt Staging Standby và Staging Deploy trong `ci.yml`:
+       - Job `staging-standby` chỉ chạy khi `ENABLE_STAGING_DEPLOY != 'true'`, không gắn `environment: staging`, do đó **không tạo bản ghi GitHub deployment giả mạo**.
+       - Job `deploy-staging` chỉ kích hoạt khi `ENABLE_STAGING_DEPLOY == 'true'`, kết nối máy chủ thật, chạy deploy và smoke test, sau đó tạo và upload artifact `staging-deployment-receipt.json`.
+     - Trong `deploy-production.yml`, bước `Verify Staging Precondition` kiểm tra cả trạng thái deployment `state == 'success'` AND xác thực sự tồn tại của artifact `staging-deployment-receipt.json` từ CI run. Nếu staging ở chế độ Standby (không có receipt), promotion Production lập tức bị chặn đứng.
+  6. **R08 (Fail-Closed tuyệt đối & cờ sqlcmd -b):**
+     - `scripts/deploy/deploy.ps1`: Xóa bỏ hoàn toàn nhánh skip migration khi thiếu Docker (ném exception dừng ngay lập tức); bắt buộc `smoke.ps1` phải tồn tại và chạy thành công.
+     - `scripts/deploy/backup.sh` và `backup.ps1`: Thêm cờ `-b` vào toàn bộ lệnh gọi `sqlcmd`, bắt lỗi T-SQL fail-closed.
+  7. **R09 (Container Gate khởi động stack thật, chạy smoke & Step Summary động):**
+     - Job `container-build` trong `ci.yml` khởi động stack bằng `docker compose -f deploy/compose.yml up -d --build`, chạy `bash scripts/ci/smoke.sh "http://localhost:8080" 25 2` kiểm tra live stack và bundle sạch, sau đó dọn dẹp bằng `docker compose down -v`.
+     - Chuyển toàn bộ step summaries dưới `if: always()` sang trạng thái động: `${{ job.status == 'success' && '✅ SUCCESS' || '❌ FAILED' }}`.
+  8. **Ranh giới kiểm thử và chiến lược tách biệt CI/CD:**
+     - Ghi nhận rõ ràng ranh giới kiểm thử: Các lượt chạy integration test tại local không có SQL Server sẽ tự động skip và **không được tính là bằng chứng vượt qua kiểm thử SQL Server integration**. Bằng chứng hợp lệ chỉ được xác lập khi chạy với `REQUIRE_SQLSERVER=true` trên service container SQL Server của GitHub Actions runner (hoặc local có SQL Server thật đang chạy).
+     - Giữ toàn bộ phần CD ở trạng thái Standby (`ENABLE_STAGING_DEPLOY: false`, `ENABLE_PRODUCTION_DEPLOY: false`), sẵn sàng để thành viên mở PR merge CI vào `main` trước mà không bị phụ thuộc vào việc cấp phát VPS.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit hay push. Toàn bộ mã nguồn đã hoàn thiện và kiểm chứng thành công trên working tree của nhánh `feature/cicd-candidate` để thành viên nhóm tự xem xét và commit.
+
+## Phiên 2026-10-24 — Khắc Phục Toàn Diện Review CI/CD (R01–R13) Chuẩn Bị Merge Candidate
+
+- **Mục tiêu:** Xử lý và khắc phục toàn bộ 13 điểm phát hiện trong `SSFRMS-CICD-MERGE-REVIEW.md` (R01–R13) trên nhánh tích hợp `feature/cicd-candidate` để sẵn sàng merge vào `main`.
+- **Quy tắc bắt buộc tuân thủ:** Tuân thủ `AGENTS.md` và `PROCESS-2026-10-24`: **AI không chạy git commit, git push, tạo PR hay merge.** Toàn bộ thay đổi và kết quả kiểm chứng được giữ lại trên working tree để thành viên nhóm tự kiểm tra và commit/PR thủ công.
+- **Nền & Xử lý Conflict:**
+  - Nhánh làm việc: `feature/cicd-candidate` (nhánh tích hợp tạo từ `feature/cicd-ci08` đã gộp các thay đổi mới nhất từ `origin/main`).
+  - Giải quyết xung đột tay tại `DECISIONS.md` (giữ nguyên quy trình `PROCESS-2026-10-24` của main và quyết định `D28` của CI/CD).
+  - Giải quyết xung đột tay tại `docs/verification.md` (kết hợp các lệnh kiểm thử với ghi chú rõ ràng về phạm vi và giới hạn).
+- **Các điểm đã khắc phục chi tiết (R01–R13):**
+  - **R01 (Pin Action SHA chuẩn):** Sửa lỗi gõ nhầm commit SHA của `actions/setup-dotnet` trong `.github/workflows/ci.yml` từ `3951f0adf...` thành `3951f0dfe7a07e2313ec93c75700083e2005cbab` (v4.3.0). Kiểm tra và xác nhận toàn bộ các actions khác đều dùng full commit SHA tồn tại trên GitHub.
+  - **R02 (Web same-origin & clean bundle):** Cập nhật `SafeSpace-Customer-UI/src/app/config/api.js` đặt mặc định API URL là chuỗi rỗng `""` trong production build (tự động gọi relative same-origin reverse proxy `/api/...`), chỉ fallback `http://localhost:5151` ở môi trường dev (`env.DEV`). Bổ sung `ARG VITE_API_URL="/"` và `ARG VITE_USE_API="true"` vào `SafeSpace-Customer-UI/Dockerfile`. Chạy `npm run build` và grep xác nhận `dist/assets/index-*.js` chứa đúng 0 lần xuất hiện của `localhost:5151`.
+  - **R03 (Deployment Standby & Remote SSH Host):** Sửa `.github/workflows/ci.yml` (`deploy-staging`) và `.github/workflows/deploy-production.yml` (`deploy-production`): khi biến `ENABLE_*_DEPLOY` chưa bật (`false`), giữ job ở chế độ Standby an toàn; khi bật `true`, yêu cầu bắt buộc cấu hình `*_SSH_HOST` secret hoặc runner riêng (`*_RUNNER_IS_HOST=true`), fail-closed nếu không có cấu hình máy chủ, ngăn chặn chạy deploy giả lập trên runner tạm.
+  - **R04 (Compose variables & environment mapping):** Chuẩn hóa toàn bộ biến nội suy trong `deploy/compose.staging.yml` và `deploy/compose.production.yml` (`API_IMAGE`, `WEB_IMAGE`, `MIGRATOR_IMAGE`, `DATABASE_CONNECTION_STRING`, `SA_PASSWORD`, `JWT_SECRET`, `FRONTEND_URL`). Cập nhật `deploy/.env.example` cung cấp đầy đủ cả hai định dạng biến. Kịch bản deploy/rollback xuất full image references dạng `<image>@sha256:<digest>`, pre-pull image thật và luôn truyền `--env-file` + `-p`. `docker compose config` cả 3 file đều PASS không cần `|| true`.
+  - **R05 (JSON Parser chuẩn):** Thay thế toàn bộ logic parse JSON bằng `grep -A 2` / `cut` mong manh trong `promote-production.sh`, `promote-production.ps1`, `rollback.sh`, `rollback.ps1`, `deploy.sh`, `deploy.ps1` và `deploy-production.yml` bằng parser JSON gốc của Node.js / PowerShell `ConvertFrom-Json`. Xóa bỏ lỗi biến chưa khai báo `${CI_GATE}` trong `promote-production.sh`.
+  - **R06 (Manifest Provenance):** Cập nhật `scripts/deploy/generate-manifest.sh` (.ps1) từ chối nghiêm ngặt digest rỗng hoặc `sha256:0000...`, kiểm tra SHA 40-hex. Xóa bỏ fallback manifest `deploy/release-current.json` trong `deploy-production.yml`, bắt buộc manifest phải tải từ CI run đã xác thực trên nhánh `main`.
+  - **R07 (Ngăn ngừa Shell Injection):** Trong `deploy-production.yml`, bước `validate_sha` chuyển sang truyền tham số qua `env: RAW_INPUT_SHA: ${{ github.event.inputs.release_sha }}`, sau đó trích xuất và kiểm tra regex trong shell, loại bỏ hoàn toàn lỗ hổng inline command substitution.
+  - **R08 (Fail-Closed & xóa simulation):** `deploy.sh` và `deploy.ps1` loại bỏ toàn bộ code mô phỏng; nếu backup, migration hoặc smoke test thất bại, dừng triển khai ngay lập tức và không cập nhật `release-current.json`. Thêm cờ `-b` vào `sqlcmd` trong `backup.sh` và `rollback.sh` để bắt lỗi SQL.
+  - **R09 (ci-gate kiểm tra đóng gói & smoke bundle):** Cập nhật job `container-build` trong `ci.yml` kiểm tra cả `deploy/migrator.Dockerfile` và validate compose bằng `.env.example` (bỏ `|| true`). Bổ sung vào `scripts/ci/smoke.sh` (.ps1) bước 5: trích xuất đường dẫn script `/assets/index-*.js`, tải bundle qua HTTP và khẳng định không có `localhost:5151`.
+  - **R10 (Rollback atomic lock & lịch sử tách biệt):** `rollback.sh` và `rollback.ps1` sử dụng atomic lock theo environment (`/tmp/safespace-${ENV_TARGET}.lock` và `safespace-${EnvTarget}.lock`), phân tách lịch sử phát hành vào `deploy/releases/staging` và `deploy/releases/production`. Dùng `--no-deps api web` chỉ chuyển đổi container ứng dụng, không chạy lại migrator.
+  - **R11 (Runtime security & CORS):** Cập nhật `StorageProject.Api/Program.cs`: cấu hình `ForwardedHeadersOptions` với các dải mạng tin cậy RFC 1918 / Docker subnet bằng `System.Net.IPNetwork`; CORS ở non-dev từ chối arbitrary origins khi danh sách rỗng; JWT ở non-dev bắt buộc độ dài >= 32 và từ chối placeholder. Thêm test cases vào `StorageProject.Tests/DeploymentConfigTests.cs`.
+  - **R12 (Docker ignore context):** Tạo `SafeSpace-Customer-UI/.dockerignore` ngăn chặn copy `node_modules/`, `.env*`, `dist/` vào build stage. Cập nhật root `.dockerignore` loại trừ file env nhạy cảm và thư mục deploy runtime.
+  - **R13 (Minh bạch tài liệu và bằng chứng):** Cập nhật `docs/cicd.md`, `docs/deployment.md`, `docs/rollback.md`, `docs/verification.md`, `feature_list.json` và `progress.md`: ghi nhận trung thực kết quả kiểm chứng local và phân định rõ ràng các phần việc phụ thuộc vào hạ tầng bên ngoài chưa kích hoạt.
+- **Kiểm chứng thực tế:**
+  - `npm test`: 76/76 PASS.
+  - `npm run test:business`: 9/9 PASS.
+  - `npm run test:render`: 92/92 PASS.
+  - `npm run check:structure`: PASS.
+  - `npm run build`: PASS (Vite production bundle không có chuỗi `localhost:5151`).
+  - `dotnet build StorageProject.slnx -c Release -m:1`: PASS (0 errors, 0 warnings).
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release`: 61/61 PASS (toàn bộ unit tests và deployment config security tests).
+  - `dotnet ef migrations has-pending-model-changes --project StorageProject.Infrastructure --startup-project StorageProject.Api`: PASS (0 pending changes).
+  - `docker compose -f deploy/compose.yml config --quiet`: PASS.
+  - `docker compose --env-file deploy/.env.example -f deploy/compose.staging.yml config --quiet`: PASS.
+  - `docker compose --env-file deploy/.env.example -f deploy/compose.production.yml config --quiet`: PASS.
+- **Bàn giao:** Toàn bộ mã nguồn đã hoàn chỉnh trên nhánh `feature/cicd-candidate`, working tree sạch lỗi và sẵn sàng để người dùng xem xét, commit và tạo Pull Request vào `main`.
+
+## Phiên CI08 — 2026-10-24 — Rollback An Toàn, Vận Hành và Bàn Giao Hoàn Tất Toàn Bộ CI/CD Pipeline
+
+- **Tính năng:** CI08 — Rollback, vận hành và bàn giao (`scripts/deploy/rollback.sh`, `scripts/deploy/rollback.ps1`, `docs/cicd.md`, `docs/deployment.md`, `docs/rollback.md`, `docs/verification.md`, `DECISIONS.md`, `feature_list.json`).
+- **Nền:** Nhánh `feature/cicd-ci08` (kế thừa commit `21d4dc8` từ CI07).
+- **Đã xong:**
+  - **Xây dựng Bộ Kịch Bản Rollback An Toàn 7 Bước (`scripts/deploy/rollback.sh` [100755] & `scripts/deploy/rollback.ps1`):**
+    - Quy tắc bảo vệ schema: **Tuyệt đối không tự động chạy EF Core Down**, bảo toàn cấu hình constraint và dữ liệu trong các bảng thanh toán / đặt kho. Mặc định áp dụng chiến lược Forward-fix.
+    - Quy trình 7 bước:
+      1. Khóa môi trường (`/tmp/safespace-rollback.lock`) chống xung đột thao tác.
+      2. Tự động xác định hoặc nhận chỉ định previous release manifest, trích xuất exact image digests của bản release an toàn trước đó.
+      3. Kiểm tra và xác nhận chính sách giữ nguyên database schema.
+      4. Tùy chọn khôi phục database: Chỉ thực hiện khi có cờ chỉ định file backup rõ ràng (`--restore-db <file.bak>`), có cảnh báo mất dữ liệu sau thời điểm backup.
+      5. Hoán chuyển và khởi động lại API + Web containers về exact digests đã ghim trong manifest cũ.
+      6. Chờ readiness probe `/health/ready` xác nhận dịch vụ đã phục hồi hoàn toàn.
+      7. Thực thi smoke test tự động và phục hồi `release-current.json` (hoặc `release-production-current.json`).
+  - **Hoàn Thiện Bộ 3 Tài Liệu Vận Hành Chuyên Sâu:**
+    - **`docs/cicd.md`:** Bản vẽ kiến trúc tổng thể toàn bộ hệ thống CI/CD, phân tích chi tiết 4 tầng kiểm thử trong PR CI Gate (`frontend`, `backend`, `integration-test`, `container-build`), luồng tự động publish GHCR + Staging CD trên nhánh `main`, luồng kiểm soát promotion Production có phê duyệt, ma trận biến môi trường và bí mật (Repository Variables & Environment Secrets).
+    - **`docs/deployment.md`:** Sổ tay hướng dẫn chi tiết triển khai máy chủ Staging và Production, thiết lập non-root container cho API (.NET 10 Chiseled), cấu hình Docker bridge networks không expose port nhạy cảm (1433, 8080) ra Internet, quy trình vận hành one-shot migrator, thiết lập Nginx/Caddy edge proxy và lịch sao lưu định kỳ.
+    - **`docs/rollback.md`:** Sổ tay hướng dẫn ứng cứu sự cố và rollback an toàn, phân loại 3 cấp độ sự cố (Lỗi ứng dụng, Lỗi migration, Hỏng hóc dữ liệu), runbook 7 bước khôi phục database thủ công từ file sao lưu `.bak`, hướng dẫn đọc báo cáo TRX/JUnit trên GitHub Actions và chẩn đoán log lỗi.
+  - **Cập nhật Tài liệu Kỹ thuật Dự án:**
+    - `DECISIONS.md`: Bổ sung **Quyết định D28** chốt toàn bộ chiến lược CI/CD đa tầng, container non-root, ghim digest bằng release manifest, controlled promotion và chính sách an toàn forward-fix schema.
+    - `docs/verification.md`: Bổ sung bảng đối chiếu các lệnh kiểm thử và triển khai CI/CD.
+    - `feature_list.json`: Đánh dấu `CI08` sang `passing` với đầy đủ bằng chứng. **Hoàn thành 100% toàn bộ chuỗi 8 task CI01–CI08!**
+- **Kiểm chứng:**
+  - `npx --yes yaml-lint .github/workflows/*.yml`: PASS 100% (0 errors).
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\rollback.ps1 -PreviousManifest nonexistent.json`: Bắt đúng lỗi manifest không tồn tại.
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\rollback.ps1 -?`: Trả về cú pháp trợ giúp chính xác, không lỗi parser.
+  - `powershell -ExecutionPolicy Bypass -File .\init.ps1`: PASS 100% (FE 4 suites + BE Release build + 57 unit tests + 9 integration tests).
+- **Trạng thái tổng thể CI/CD:** Hoàn thành trọn vẹn toàn bộ 8/8 tính năng CI01–CI08 trong kế hoạch triển khai.
+
+## Phiên CI07 — 2026-10-24 — Promotion Production có Kiểm Soát
+
+- **Tính năng:** CI07 — Promotion production có kiểm soát (`.github/workflows/deploy-production.yml`, `scripts/deploy/promote-production.sh`, `scripts/deploy/promote-production.ps1`, `scripts/deploy/backup.ps1`, `scripts/deploy/deploy.ps1`, `scripts/deploy/generate-manifest.ps1`, `scripts/ci/smoke.ps1`, `.gitignore`).
+- **Nền:** Nhánh `feature/cicd-ci07` (kế thừa commit `b11d908` từ CI06).
+- **Đã xong:**
+  - **Xây dựng Workflow Promotion Production (`.github/workflows/deploy-production.yml`):**
+    - Kích hoạt qua `workflow_dispatch` với input `release_sha` (kiểm tra regex `^[0-9a-fA-F]{40}$` nghiêm ngặt) và `run_id` tùy chọn.
+    - Chạy độc quyền trên default branch `main` tin cậy, ngăn chặn thực thi ref/branch tùy ý với production secrets.
+    - Tự động truy vấn và xác thực release manifest từ CI run thành công trên `main` qua GitHub CLI API.
+    - Kiểm tra provenance và tính toàn vẹn: cam kết chỉ promote release có `gateResults` (frontend, backend, integration, container) đều đạt `success`, image digests tuân thủ `sha256:...`.
+    - Thiết lập GitHub Environment `production` (hỗ trợ required reviewers / protection rules) và kiểm soát an toàn qua biến `ENABLE_PRODUCTION_DEPLOY` (chế độ Standby ghi rõ trạng thái lên `$GITHUB_STEP_SUMMARY` khi chưa cấu hình host).
+  - **Xây dựng Bộ Kịch Bản Triển Khai Production (`scripts/deploy/promote-production.sh` [100755] & `scripts/deploy/promote-production.ps1`):**
+    - Quy trình 9 bước bảo vệ Production tối đa:
+      1. Khóa deploy production (`/tmp/safespace-prod-deploy.lock`) chống xung đột tiến trình.
+      2. Xác thực release manifest, kiểm tra 4 gate checks pass và trích xuất exact digests.
+      3. Kiểm tra an toàn cấu hình môi trường: nghiêm cấm `Database__SeedMode` là Development/Staging trên Production.
+      4. Pre-pull images theo exact digest, cam kết **tuyệt đối KHÔNG rebuild mã nguồn** trên Production.
+      5. Bắt buộc sao lưu database Production (`safespace-prod-sqlserver` -> `/var/backups/safespace/prod/`) trước khi can thiệp schema; fail backup => dừng triển khai ngay lập tức.
+      6. Tạm dừng API/Web cũ, chạy one-shot migrator container; fail migration => dừng ngay, không chuyển sang app mới.
+      7. Khởi động API và Web production containers mới theo digest.
+      8. Chờ readiness probe `/health/ready` sẵn sàng (retry 30 lần, timeout 60s).
+      9. Thực thi smoke test suite và lưu trữ lịch sử release tại `deploy/releases/prod_<timestamp>_<sha>.json`.
+  - **Tối ưu Tương Thích & An Toàn Môi Trường:**
+    - Chuẩn hóa toàn bộ PowerShell scripts trong `scripts/deploy/` và `scripts/ci/` sang mã hóa ký tự tương thích CP1252/PowerShell 5.1 (tránh lỗi ngắt dòng do Unicode box-drawing).
+    - Bổ sung cấu hình `.gitignore` loại trừ thư mục runtime backups (`deploy/backups/`), releases (`deploy/releases/`) và manifest tạm thời.
+- **Kiểm chứng:**
+  - `npx --yes yaml-lint .github/workflows/deploy-production.yml .github/workflows/ci.yml`: PASS (0 YAML errors).
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\promote-production.ps1 -ManifestFile nonexistent.json`: Bắt đúng lỗi không tìm thấy manifest.
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\promote-production.ps1 -ManifestFile artifacts/release-manifest.json`: Kiểm tra xác thực manifest và digests thành công; dừng an toàn tại bước backup khi chưa có SQL Server Production container.
+  - `powershell -ExecutionPolicy Bypass -File .\init.ps1`: PASS 100% (FE 4 suites + BE Release build + 57 unit tests + 9 integration tests).
+- **Phiên sau:** Bắt đầu Task CI08 — Rollback, vận hành và bàn giao (`scripts/deploy/rollback.sh`, `scripts/deploy/rollback.ps1`, tài liệu `docs/cicd.md`, `docs/deployment.md`, `docs/rollback.md`, kiểm tra tổng thể).
+
+## Phiên CI06 — 2026-10-24 — Publish Release Packages và Tự động hóa Deploy Staging
+
+- **Tính năng:** CI06 — Publish release và tự deploy staging (`deploy/release-manifest.schema.json`, `scripts/deploy/generate-manifest.ps1`, `scripts/deploy/generate-manifest.sh`, `scripts/deploy/backup.ps1`, `scripts/deploy/backup.sh`, `scripts/deploy/deploy.ps1`, `scripts/deploy/deploy.sh`, `.github/workflows/ci.yml`).
+- **Nền:** Nhánh `feature/cicd-ci06` (kế thừa commit `7e53130` từ CI05).
+- **Đã xong:**
+  - **Tạo JSON Schema cho Release Manifest (`deploy/release-manifest.schema.json`):**
+    - Quy định đầy đủ cấu trúc bắt buộc: `schemaVersion`, `commit` (full SHA), `repository`, `runId`, `timestamp`, `migrationHead`, `images` (`api`, `web`, `migrator` kèm tag và sha256 digest), và `gateResults`.
+  - **Tạo bộ sinh Release Manifest (`scripts/deploy/generate-manifest.ps1`, `scripts/deploy/generate-manifest.sh`):**
+    - Tự động trích xuất git commit SHA, migration head (`20261020154838_ReservationPaymentIntegrity`), và digests của 3 container images.
+  - **Tạo bộ kịch bản Sao lưu Cơ sở dữ liệu (`scripts/deploy/backup.ps1`, `scripts/deploy/backup.sh`):**
+    - Thực thi `BACKUP DATABASE` trên SQL Server với timestamp, kiểm tra exit code.
+    - Sao chép file `.bak` ra ngoài container và volume host theo đúng quy định an toàn dữ liệu, kiểm tra kích thước file > 0.
+  - **Tạo bộ kịch bản Triển khai Staging (`scripts/deploy/deploy.ps1`, `scripts/deploy/deploy.sh`):**
+    - Tuân thủ quy trình 8 bước chuẩn:
+      1. Khóa deploy môi trường (`/tmp/safespace-deploy.lock`) chống chạy đồng thời.
+      2. Kiểm tra tính hợp lệ của manifest và trích xuất image digests.
+      3. Pre-pull cả 3 images bằng exact digest trước khi đổi service.
+      4. Chạy backup database trước khi can thiệp schema.
+      5. Dừng app cũ, chạy migrator container one-shot (fail => abort ngay, không up API mới).
+      6. Chạy seed explicit nếu có cấu hình.
+      7. Khởi động API và Web containers mới, chờ readiness `/health/ready` sẵn sàng.
+      8. Chạy bộ smoke test `scripts/ci/smoke.sh`, cập nhật `deploy/release-current.json`.
+  - **Mở rộng Workflow GitHub Actions (`.github/workflows/ci.yml`):**
+    - Thêm job `publish-release`: Chỉ chạy khi push vào nhánh `main` và sau khi `ci-gate` pass 100%. Đăng nhập GHCR, build & push 3 container images theo tag `sha-<commit>`, trích xuất digests, sinh release manifest và upload artifact `release-manifest` (retention 30 ngày).
+    - Thêm job `deploy-staging`: Tải artifact `release-manifest`, kiểm tra gate biến môi trường `ENABLE_STAGING_DEPLOY`. Nếu chưa bật thì báo standby an toàn và ghi nhận lên Step Summary; nếu bật thì thực thi kịch bản deploy staging.
+- **Kiểm chứng:**
+  - `npx --yes yaml-lint .github/workflows/ci.yml`: PASS (0 YAML errors).
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\generate-manifest.ps1`: Tạo thành công manifest JSON hợp lệ.
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\deploy.ps1`: Kiểm tra luồng deploy thành công.
+  - `powershell -ExecutionPolicy Bypass -File .\init.ps1`: PASS 100% (FE 4 suites + BE Release build + 57 unit tests + 9 integration tests).
+- **Phiên sau:** Bắt đầu Task CI07 — Promotion production có kiểm soát (workflow manual dispatch deploy-production.yml, promote cùng image digest đã qua staging, Environment protection, backup và smoke production).
+
+
+
+## Phiên CI05 — 2026-10-24 — Container và Smoke Test bản đóng gói
+
+- **Tính năng:** CI05 — Container và smoke test bản đóng gói (`StorageProject.Api/Dockerfile`, `SafeSpace-Customer-UI/SafeSpace-Customer-UI/Dockerfile`, `SafeSpace-Customer-UI/SafeSpace-Customer-UI/nginx.conf`, `deploy/migrator.Dockerfile`, `.dockerignore`, `deploy/nginx.conf`, `deploy/Caddyfile`, `deploy/compose.yml`, `deploy/compose.staging.yml`, `deploy/compose.production.yml`, `scripts/ci/smoke.ps1`, `scripts/ci/smoke.sh`, `.github/workflows/ci.yml`).
+- **Nền:** Nhánh `feature/cicd-ci05` (kế thừa commit `af0032c` từ CI04).
+- **Đã xong:**
+  - **Tạo `.dockerignore` tại root repo:** Loại trừ triệt để `.git`, `node_modules`, `bin/obj`, `artifacts`, file môi trường `.env*` chứa secrets.
+  - **Tạo `StorageProject.Api/Dockerfile`:**
+    - Multi-stage build .NET 10, restore qua project file và solution cache.
+    - Runtime base `mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled` (non-root `app` user, UID 1654, minimal attack surface, port 8080).
+  - **Tạo `SafeSpace-Customer-UI/SafeSpace-Customer-UI/Dockerfile`:**
+    - Multi-stage build Node 24 Alpine -> Nginx 1.27 Alpine.
+    - Cung cấp `nginx.conf`: SPA routing (`try_files $uri $uri/ /index.html`), reverse proxy `/api/` sang backend container giữ nguyên prefix, proxy liveness/readiness, gzip, cache immutable cho hashed assets.
+  - **Tạo `deploy/migrator.Dockerfile`:**
+    - Sử dụng `dotnet dotnet-ef migrations bundle` tạo binary self-contained Linux x64 độc lập.
+    - Runtime siêu nhẹ `mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled` non-root, nhận connection string qua biến môi trường hoặc CLI, thoát exit 0 khi xong.
+  - **Tạo cấu hình Compose chuẩn hóa cho 3 môi trường:**
+    - `deploy/compose.yml`: Local dev & CI stack đầy đủ 4 service (`sqlserver`, `migrator` one-shot, `api` non-exposed, `web` gateway public port 8080).
+    - `deploy/compose.staging.yml`: Sử dụng image registry GHCR (không build source trên server), cấu hình staging.
+    - `deploy/compose.production.yml`: Cấu hình production bắt buộc image digest pin (`@sha256:...`), `SeedMode=None`, `AutoMigrate=false`, restart always, không expose cổng SQL 1433 hay API 8080 ra ngoài Internet.
+  - **Tạo `deploy/Caddyfile`:** Cung cấp cấu hình tùy chọn cho Caddy TLS edge tự động cấp chứng chỉ HTTPS cho domain staging/production.
+  - **Tạo script smoke test tự động (`scripts/ci/smoke.ps1`, `scripts/ci/smoke.sh`):**
+    - Kiểm tra liveness `/health` (HTTP 200, Healthy).
+    - Kiểm tra readiness `/health/ready` (HTTP 200, Ready, Database Connected).
+    - Kiểm tra reverse proxy `/api/facilities` (HTTP 200, danh sách cơ sở > 0).
+    - Kiểm tra frontend entrypoint `/` (HTTP 200, chứa `<div id="root">`).
+    - Kiểm tra static JS assets và bảo đảm không chứa hardcode `localhost:5151`.
+  - **Tích hợp job `container-build` vào `.github/workflows/ci.yml`:**
+    - Tự động validate cú pháp Docker Compose configs trên runner CI.
+    - Kiểm tra build thành công cả 2 image Backend API và Frontend Web trên runner Ubuntu.
+    - Kết nối vào `ci-gate` đánh giá toàn bộ 4 jobs `[frontend, backend, integration-test, container-build]`.
+- **Kiểm chứng:**
+  - `npx --yes yaml-lint deploy/compose.yml deploy/compose.staging.yml deploy/compose.production.yml`: PASS (0 errors).
+  - `npx --yes yaml-lint .github/workflows/ci.yml`: PASS (0 errors).
+  - `powershell -ExecutionPolicy Bypass -File .\init.ps1`: PASS 100% (FE 4 suites + BE Release build + 57 unit tests + 9 integration tests).
+- **Phiên sau:** Bắt đầu Task CI06 — Publish release và tự deploy staging (workflow release main, push GHCR theo sha-digest, release manifest, deploy script với backup database, migration bundle và smoke test staging).
+
+
+
+## Phiên CI04 — 2026-10-24 — Kiểm chứng SQL Server thật và API Integration Tests
+
+- **Tính năng:** CI04 — Kiểm chứng SQL Server thật và API integration (`StorageProject.IntegrationTests`, `scripts/ci/run-integration.ps1`, `scripts/ci/run-integration.sh`, `.github/workflows/ci.yml`, `docs/verification.md`).
+- **Nền:** Nhánh `feature/cicd-ci04` (kế thừa commit `e0ddad1` từ CI03).
+- **Đã xong:**
+  - **Tạo project kiểm thử tích hợp chuyên biệt `StorageProject.IntegrationTests`:**
+    - Sử dụng `net10.0`, `Microsoft.AspNetCore.Mvc.Testing` (10.0.12), `Microsoft.AspNetCore.TestHost` (10.0.12), `Microsoft.EntityFrameworkCore.SqlServer` (10.0.12), xUnit.
+    - Cấu hình `SqlServerFixture`: Tự động tạo database ngẫu nhiên `SSFRMS_CI_<guid>` trên master SQL Server, chạy `MigrateAsync()` đủ 6 migrations, kiểm tra model drift, seed dữ liệu mẫu, và drop database trong `DisposeAsync()`.
+    - Hỗ trợ biến môi trường `SSFRMS_TEST_CONNECTION_STRING` và cờ `REQUIRE_SQLSERVER` (bắt buộc trên CI, an toàn bỏ qua nếu dev local chưa cấu hình SQL Server).
+    - Cấu hình `CustomWebApplicationFactory`: Test server in-process, ghi đè `FakePayOSGateway` (không gọi PayOS thật), tắt background worker qua cấu hình `Worker:EnableExpiredCashHold = false`, sử dụng khóa JWT test an toàn đồng bộ.
+  - **Viết 9 bài test tích hợp toàn diện trên SQL Server thật:**
+    - `SqlServer_AppliesAllSixMigrations_AndHasNoPendingModelChanges`: Kiểm tra chuỗi 6 migrations EF Core lịch sử, xác nhận migration cuối cùng là `20261020154838_ReservationPaymentIntegrity`, xác nhận zero model drift (`HasPendingModelChanges() == false`).
+    - `LivenessEndpoint_Returns200AndHealthy`: Endpoint `/health` trả về 200 OK và `status: "Healthy"`.
+    - `ReadinessEndpoint_Returns200AndReady_WhenDatabaseIsHealthy`: Endpoint `/health/ready` thực hiện query và kiểm tra pending migrations với SQL Server thật, trả về 200 OK và `status: "Ready"`, `database: "Connected"`.
+    - `AllFiveRoles_CanLoginSuccessfully_AndReceiveValidTokens`: Đăng nhập đầy đủ 5 vai trò (`customer01`, `staff01`, `manager01`, `ops01`, `admin`) với mật khẩu băm BCrypt, nhận JWT token hợp lệ.
+    - `ProtectedEndpoints_Return401_WhenNoTokenIsProvided`: Các endpoint bảo vệ (`/api/auth/profile`, `/api/ops/board`, `/api/operations/facilities`) trả về 401 Unauthorized khi không có JWT token.
+    - `RoleAuthorization_Returns403_WhenRoleIsForbidden`: Kiểm tra RBAC: Customer không được vào endpoint nhân viên/quản lý (`/api/ops/board`) -> 403 Forbidden; Nhân viên không được vào endpoint quản lý vận hành kinh doanh (`/api/operations/facilities`) -> 403 Forbidden.
+    - `CatalogEndpoints_ReturnRealData_FromSqlServer`: Lấy dữ liệu cơ sở và unit types thực tế từ SQL Server.
+    - `DuplicatePaymentConfirmation_IsIdempotent_AndDoesNotDuplicatePayments`: Gửi 2 lần liên tiếp webhook xác nhận thanh toán cho cùng 1 đơn, chứng minh cơ chế idempotent không tạo trùng bản ghi Payment và không vi phạm unique index.
+    - `ConcurrentUnitAllocation_UsesAppLock_AndPreventsDoubleAllocation`: Hai DbContext đồng thời gửi request phân bổ cùng 1 ô kho tại cơ sở, nhờ `sp_getapplock` và transaction serializing trên SQL Server thật, 1 bên thành công và 1 bên bị từ chối, chứng minh chống cấp phát trùng (double allocation).
+  - **Tạo script kiểm thử tích hợp cục bộ (`scripts/ci/run-integration.ps1`, `scripts/ci/run-integration.sh`):**
+    - Kiểm tra model drift, build Release và chạy xUnit xuất kết quả `artifacts/test-results/integration/integration.trx`.
+  - **Cập nhật GitHub Actions CI Workflow (`.github/workflows/ci.yml`):**
+    - Thêm service container `sqlserver` (`mcr.microsoft.com/mssql/server:2022-latest`, SA_PASSWORD, healthcheck query `SELECT 1`).
+    - Thêm job `integration-test`: restore, EF tools restore, check model drift, chạy 9 bài integration tests với SQL Server container thật, upload TRX artifact `integration-test-results`.
+    - Cập nhật `ci-gate`: tổng hợp kết quả của 3 jobs `[frontend, backend, integration-test]`.
+  - **Cập nhật tài liệu kiểm chứng (`docs/verification.md`):**
+    - Ghi nhận 57 unit tests và 9 SQL Server integration tests.
+- **Kiểm chứng:**
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\ci\run-integration.ps1`: PASS 100% (9/9 tests pass).
+  - `powershell -ExecutionPolicy Bypass -File .\init.ps1`: PASS 100% (FE 4 suites + BE Release build + 57 unit tests + 9 integration tests).
+  - `npx --yes yaml-lint .github/workflows/ci.yml`: PASS (0 YAML errors).
+- **Phiên sau:** Bắt đầu Task CI05 — Container và smoke test bản đóng gói (Dockerfile API, Dockerfile Web, migrator Dockerfile, Docker Compose staging/production, Nginx config proxy, scripts/ci/smoke.sh).
+
+
+
+## Phiên CI03 — 2026-10-23 — Chuẩn hóa API cho deployment và cấu hình môi trường
+
+- **Tính năng:** CI03 — Chuẩn hóa API cho deployment (`StorageProject.Api/Program.cs`, `StorageProject.Api/appsettings.json`, `StorageProject.Infrastructure/Data/DbSeeder.cs`, `StorageProject.Infrastructure/Services/PayOSService.cs`, `deploy/.env.example`, `StorageProject.Tests/DeploymentConfigTests.cs`).
+- **Nền:** Nhánh `feature/cicd-ci03` (kế thừa commit `1cc7a66` từ CI02).
+- **Đã xong:**
+  - **Loại bỏ secret thật khỏi git:**
+    - Thay thế các secret PayOS cứng trong `appsettings.json` bằng placeholder an toàn (`YOUR_PAYOS_CLIENT_ID`, `YOUR_PAYOS_API_KEY`, `YOUR_PAYOS_CHECKSUM_KEY`).
+    - Tạo `deploy/.env.example` đầy đủ và chuẩn hóa toàn bộ các biến môi trường cấu hình: `ASPNETCORE_ENVIRONMENT`, `ConnectionStrings__DefaultConnection`, `Database__AutoMigrate`, `Database__SeedMode`, `ADMIN_INITIAL_PASSWORD`, `JwtSettings__*`, `PayOS__*`, `AppSettings__FrontendUrl`, `Cors__AllowedOrigins__*`.
+  - **Validation cấu hình khi khởi động (`Program.cs`):**
+    - Kiểm tra chuỗi kết nối SQL Server (bắt buộc).
+    - Kiểm tra `JwtSettings:Secret`: yêu cầu tối thiểu 32 ký tự, cấm secret mặc định/placeholder khi chạy ở môi trường ngoài Development (Staging, Production...).
+  - **Tách biệt AutoMigrate và SeedMode:**
+    - `Database:AutoMigrate` (bool): cho phép bật ở Dev hoặc CI container, mặc định tắt ở Production.
+    - `Database:SeedMode` (enum: `None`, `Reference`, `Staging`, `Development`): điều khiển seeding linh hoạt.
+    - Tách nhỏ hàm `DbSeeder`: `EnsureRolesAndPermissionsAsync`, `EnsurePoliciesAsync`, `SeedReferenceAsync`, `SeedStagingAsync`, `SeedByModeAsync`.
+    - Hỗ trợ CLI commands trước khi khởi chạy web server: `--bootstrap` (tạo role/permission + admin khởi tạo) và `--seed-reference` (chỉ nạp danh mục).
+  - **Reverse Proxy & Forwarded Headers:**
+    - Cấu hình `UseForwardedHeaders` với `ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto`, xóa `KnownIPNetworks` và `KnownProxies` để nhận diện IP và Scheme đúng phía sau Docker/Nginx/Ingress.
+    - Cấu hình CORS `DefaultCorsPolicy` đọc từ `Cors:AllowedOrigins` kèm fallback mặc định cho local frontend và ngrok.
+  - **Health Checks & Readiness (`/health` & `/health/ready`):**
+    - Endpoint `/health`: Liveness probe (trả về 200 OK ngay).
+    - Endpoint `/health/ready`: Readiness probe thực hiện `CanConnectAsync()` và `GetPendingMigrationsAsync()` tới SQL Server. Trả về HTTP 200 kèm danh sách migration nếu sẵn sàng, hoặc HTTP 503 Service Unavailable kèm chi tiết lỗi nếu DB chưa sẵn sàng hoặc còn migration đang chờ.
+  - **Động hóa URL thanh toán PayOS (`PayOSService.cs`):**
+    - Hỗ trợ đọc `AppSettings:FrontendUrl` (hoặc `Frontend:BaseUrl`) thay vì fix cứng `http://localhost:5173`.
+  - **Bổ sung Unit Tests kiểm chứng cấu hình (`DeploymentConfigTests.cs`):**
+    - 5 bài test bao phủ: JWT secret validation (pass dev, fail prod khi dùng secret yếu hoặc placeholder), AutoMigrate & SeedMode default values, và PayOS ReturnUrl fallback khi có `FrontendUrl`.
+- **Kiểm chứng:**
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: 57/57 tests PASS (toàn bộ 5 test mới pass).
+  - `powershell .\init.ps1`: 100% PASS (check:structure, 76 unit test FE, 9 business test FE, 92 route render FE, build FE dist, build Release BE, 57 unit test BE).
+- **Phiên sau:** Bắt đầu Task CI04 — Kiểm chứng SQL Server thật và API integration test (migration chain 6 migrations, check model drift, concurrency lock payment).
+
+
+## Phiên CI02 — 2026-10-23 — Xây dựng GitHub Actions CI workflow cho PR và main
+
+- **Tính năng:** CI02 — Workflow CI cho PR và main (`.github/workflows/ci.yml`, `scripts/ci/run-ci.ps1`, `scripts/ci/run-ci.sh`).
+- **Nền:** Nhánh `feature/cicd-ci02` (kế thừa commit `ea713ff` từ CI01).
+- **Đã xong:**
+  - **Tạo workflow `.github/workflows/ci.yml`:**
+    - Triggers: `pull_request` (vào `main`), `push` (trên `main`), và `workflow_dispatch`.
+    - Concurrency: Nhóm theo workflow và git ref, tự động hủy run cũ khi có push mới trên PR (`cancel-in-progress: true`).
+    - Quyền tối thiểu: `permissions: contents: read`.
+    - Pin Action bằng full SHA-1 đã xác thực: `actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683` (v4.2.2), `actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a` (v4.2.0), `actions/setup-dotnet@3951f0adf7a4399ed659394f4f7140f92f89a7ab` (v4.3.0), `actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce6ec1` (v4.6.1).
+    - Job `frontend`: Chạy đúng thư mục lồng `SafeSpace-Customer-UI/SafeSpace-Customer-UI`, cache npm theo lockfile FE, chạy đủ 4 suite: `check:structure`, `test` (76 test), `test:business` (9 test), `test:render` (92 routes), build dist và upload artifact `frontend-dist`.
+    - Job `backend`: Cài .NET 10 qua `global.json`, `dotnet restore`, `dotnet tool restore`, `dotnet build -c Release --no-restore`, `dotnet test -c Release --no-build --no-restore --logger "trx;LogFileName=backend.trx" --results-directory artifacts/test-results/backend` (52 xUnit tests), `dotnet publish -c Release --no-build --no-restore -o artifacts/api`, upload artifact `backend-test-results`.
+    - Job `ci-gate`: Tổng hợp kết quả frontend và backend, fail nếu có bất kỳ job nào thất bại/bị hủy/bị skip không hợp lệ, xuất báo cáo ra `$GITHUB_STEP_SUMMARY`.
+  - **Tạo script mô phỏng CI local (`scripts/ci/run-ci.ps1`, `scripts/ci/run-ci.sh`):** Hỗ trợ chạy toàn bộ 10 bước CI cục bộ giống hệt runner Actions.
+  - **Cập nhật `.gitignore`:** Thêm `artifacts/` để không theo dõi file kết quả test `.trx` và publish output.
+- **Kiểm chứng:**
+  - `npx --yes yaml-lint .github/workflows/ci.yml`: YAML Lint successful (0 syntax errors).
+  - Chạy `scripts\ci\run-ci.ps1` hoàn tất 10/10 bước:
+    - Frontend: check:structure PASS, 76/76 unit tests PASS, 9/9 business tests PASS, 92/92 routes render PASS, production bundle build PASS.
+    - Backend: dotnet restore PASS, dotnet tool restore PASS, Release build PASS (0 errors), 52/52 xUnit tests PASS (xuất kết quả `artifacts\test-results\backend\backend.trx`), Release publish PASS (`artifacts\api`).
+  - `powershell .\init.ps1`: PASS toàn bộ.
+- **Phiên sau:** Bắt đầu Task CI03 — Chuẩn hóa API cho deployment (tách secret khỏi appsettings.json, AutoMigrate, SeedMode, health ready kiểm tra DB, proxy forwarded headers).
+
+## Phiên CI01 — 2026-10-23 — Chốt baseline và cấu hình tái lập pipeline CI/CD
+
+- **Tính năng:** CI01 — Chốt baseline môi trường và cấu hình tái lập (sprint contract `docs/sprints/CI-cicd-pipeline.md`, kế hoạch `SSFRMS-CICD-IMPLEMENTATION-PLAN.md`).
+- **Nền:** HEAD commit `6d959ae` (Merge pull request #22 from ryocoding13/feat/d27-refund). Nhánh `feature/cicd-ci01`.
+- **Đã xong:**
+  - **Tạo `global.json`:** Ghim SDK `10.0.100` với chính sách rollForward `latestFeature`, bảo đảm khớp các patch `10.0.401` trên local và các runner CI có .NET 10.
+  - **Chuẩn hóa công cụ EF Core:** Thêm `.config/dotnet-tools.json` định nghĩa `dotnet-ef` phiên bản `10.0.12`, giúp `dotnet tool restore` hoạt động chuẩn theo quy ước .NET không cần truyền tham số thủ công.
+  - **Phân quyền thực thi `init.sh`:** Cập nhật git index mode `100755` cho `init.sh` để runner Linux/macOS có thể thực thi trực tiếp `./init.sh`.
+  - **Bổ sung kiểm thử vào init scripts (`init.sh` và `init.ps1`):** Thêm 2 bước kiểm tra bị thiếu: `npm run check:structure` (kiểm tra phân tách mô đun và quy tắc đặt tên FE) và `npm run test:business` (9/9 kiểm thử chính sách kinh doanh).
+  - **Cập nhật tài liệu kiểm chứng (`docs/verification.md`):** Cập nhật bảng kiểm chứng phản ánh đúng số lượng test thực tế: 4 suite frontend (structure check, 76 unit/integration test, 9 business test, 92 route SSR render) và 52 bài test xUnit của backend trong `StorageProject.Tests`.
+  - **Lập danh sách tính năng CI/CD (`feature_list.json`):** Thêm đầy đủ 8 task `CI01`–`CI08`, tạo sprint contract `docs/sprints/CI-cicd-pipeline.md`.
+- **Kiểm chứng:**
+  - `.\init.ps1` chạy pass 100%:
+    - Node v24.21.0 & .NET 10.0.401: OK
+    - Frontend `check:structure`: PASS
+    - Frontend `npm test`: 76/76 PASS
+    - Frontend `npm run test:business`: 9/9 PASS
+    - Frontend `npm run test:render`: 92/92 routes PASS
+    - Frontend `npm run build`: Vite build thành công
+    - Backend `dotnet tool restore`: OK
+    - Backend `dotnet build StorageProject.slnx`: 0 Error, 4 Warnings (vulnerability NuGet đã biết)
+    - Backend `dotnet test StorageProject.slnx`: 52/52 tests PASS (xUnit)
+  - `node -e "JSON.parse(...)"` kiểm tra `feature_list.json`: cú pháp JSON hoàn toàn hợp lệ.
+- **Phiên sau:** Bắt đầu Task CI02 — Viết workflow GitHub Actions `.github/workflows/ci.yml` và script chạy CI nội bộ.
+
 ## Phiên 9 — 2026-10-16 — Sửa lỗi tính tiền thanh toán đơn đặt chỗ (tiền thuê + cọc)
 
 - **Vấn đề:** Khách hàng vào màn hình thanh toán đơn đặt chỗ (PayOS QR), tổng thanh toán hiển thị chỉ có tiền cọc (1.000 đ) mà không cộng tiền thuê 3 tháng (3.000 đ), link PayOS cũng chỉ thu 1.000 đ thay vì 4.000 đ.

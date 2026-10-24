@@ -1,0 +1,450 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  frontend:
+    name: Frontend (Build & Test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: SafeSpace-Customer-UI/SafeSpace-Customer-UI
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: SafeSpace-Customer-UI/SafeSpace-Customer-UI/package-lock.json
+
+      - name: Install dependencies (clean)
+        run: npm ci
+
+      - name: Check structure & naming conventions
+        run: npm run check:structure
+
+      - name: Run unit & integration tests
+        run: npm test
+
+      - name: Run business operations tests
+        run: npm run test:business
+
+      - name: Run SSR route render tests
+        run: npm run test:render
+
+      - name: Build frontend bundle
+        run: npm run build
+
+      - name: Upload frontend build artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        if: always()
+        with:
+          name: frontend-dist
+          path: SafeSpace-Customer-UI/SafeSpace-Customer-UI/dist
+          retention-days: 14
+
+      - name: Generate Frontend Step Summary
+        if: always()
+        run: |
+          echo "### 🎨 Frontend Quality Gate Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Node.js:** \`$(node -v 2>/dev/null || echo 'N/A')\` | **NPM:** \`$(npm -v 2>/dev/null || echo 'N/A')\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Job Status:** ${{ job.status == 'success' && '✅ SUCCESS' || '❌ FAILED' }}" >> $GITHUB_STEP_SUMMARY
+
+  backend:
+    name: Backend (Build & Test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup .NET SDK 10
+        uses: actions/setup-dotnet@3951f0dfe7a07e2313ec93c75700083e2005cbab # v4.3.0
+        with:
+          global-json-file: global.json
+
+      - name: Restore dependencies
+        run: dotnet restore StorageProject.slnx
+
+      - name: Restore EF tools
+        run: dotnet tool restore
+
+      - name: Build solution (Release)
+        run: dotnet build StorageProject.slnx -c Release --no-restore
+
+      - name: Run xUnit backend tests
+        run: >
+          dotnet test StorageProject.Tests/StorageProject.Tests.csproj
+          -c Release
+          --no-build
+          --no-restore
+          --logger "trx;LogFileName=backend.trx"
+          --results-directory artifacts/test-results/backend
+
+      - name: Publish API (Release)
+        run: >
+          dotnet publish StorageProject.Api/StorageProject.Api.csproj
+          -c Release
+          --no-build
+          --no-restore
+          -o artifacts/api
+
+      - name: Upload test results (TRX)
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        if: always()
+        with:
+          name: backend-test-results
+          path: artifacts/test-results/backend/backend.trx
+          retention-days: 14
+
+      - name: Generate Backend Step Summary
+        if: always()
+        run: |
+          echo "### ⚙️ Backend Quality Gate Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **.NET SDK:** \`$(dotnet --version 2>/dev/null || echo 'N/A')\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Job Status:** ${{ job.status == 'success' && '✅ SUCCESS' || '❌ FAILED' }}" >> $GITHUB_STEP_SUMMARY
+
+  integration-test:
+    name: SQL Server Integration (Migration & API)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "SafeSpace!CI2026_StrongPass"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'SafeSpace!CI2026_StrongPass' -C -Q 'SELECT 1' || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'SafeSpace!CI2026_StrongPass' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup .NET SDK 10
+        uses: actions/setup-dotnet@3951f0dfe7a07e2313ec93c75700083e2005cbab # v4.3.0
+        with:
+          global-json-file: global.json
+
+      - name: Restore dependencies
+        run: dotnet restore StorageProject.slnx
+
+      - name: Restore EF tools
+        run: dotnet tool restore
+
+      - name: Check model drift against migration snapshot
+        run: >
+          dotnet ef migrations has-pending-model-changes
+          --project StorageProject.Infrastructure
+          --startup-project StorageProject.Api
+
+      - name: Run SQL Server integration tests
+        env:
+          SSFRMS_TEST_CONNECTION_STRING: "Server=localhost,1433;Database=master;User Id=sa;Password=SafeSpace!CI2026_StrongPass;TrustServerCertificate=True;MultipleActiveResultSets=true;"
+          REQUIRE_SQLSERVER: "true"
+        run: >
+          dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj
+          -c Release
+          --logger "trx;LogFileName=integration.trx"
+          --results-directory artifacts/test-results/integration
+
+      - name: Upload integration test results (TRX)
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        if: always()
+        with:
+          name: integration-test-results
+          path: artifacts/test-results/integration/integration.trx
+          retention-days: 14
+
+      - name: Generate Integration Test Step Summary
+        if: always()
+        run: |
+          echo "### 🗄️ SQL Server Integration Gate Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **SQL Server Service:** \`mcr.microsoft.com/mssql/server:2022-latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Job Status:** ${{ job.status == 'success' && '✅ SUCCESS' || '❌ FAILED' }}" >> $GITHUB_STEP_SUMMARY
+
+  container-build:
+    name: Container Build & Config Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Validate Docker Compose Configurations
+        run: |
+          docker compose -f deploy/compose.yml config --quiet
+          docker compose --env-file deploy/.env.example -f deploy/compose.staging.yml config --quiet
+          docker compose --env-file deploy/.env.example -f deploy/compose.production.yml config --quiet
+
+      - name: Build Backend API Docker Image
+        run: docker build -f StorageProject.Api/Dockerfile -t ssfrms-api:test .
+
+      - name: Build Frontend Web Docker Image
+        run: docker build -f SafeSpace-Customer-UI/SafeSpace-Customer-UI/Dockerfile -t ssfrms-web:test SafeSpace-Customer-UI/SafeSpace-Customer-UI
+
+      - name: Build EF Core Migrator Docker Image
+        run: docker build -f deploy/migrator.Dockerfile -t ssfrms-migrator:test .
+
+      - name: Start Docker Stack and Run Smoke Tests
+        run: |
+          docker compose -f deploy/compose.yml up -d --build
+          bash scripts/ci/smoke.sh "http://localhost:8080" 25 2
+
+      - name: Teardown Docker Stack
+        if: always()
+        run: |
+          docker compose -f deploy/compose.yml logs --tail 50 || true
+          docker compose -f deploy/compose.yml down -v || true
+
+      - name: Generate Container Step Summary
+        if: always()
+        run: |
+          echo "### 🐳 Container Packaging Gate Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Job Status:** ${{ job.status == 'success' && '✅ SUCCESS' || '❌ FAILED' }}" >> $GITHUB_STEP_SUMMARY
+
+  ci-gate:
+    name: ci-gate
+    runs-on: ubuntu-latest
+    needs: [frontend, backend, integration-test, container-build]
+    if: always()
+    steps:
+      - name: Evaluate overall CI status
+        run: |
+          FE_STATUS="${{ needs.frontend.result }}"
+          BE_STATUS="${{ needs.backend.result }}"
+          INT_STATUS="${{ needs.integration-test.result }}"
+          CONTAINER_STATUS="${{ needs.container-build.result }}"
+          echo "Frontend job status:    $FE_STATUS"
+          echo "Backend job status:     $BE_STATUS"
+          echo "Integration job status: $INT_STATUS"
+          echo "Container job status:   $CONTAINER_STATUS"
+          
+          if [ "$FE_STATUS" = "success" ] && [ "$BE_STATUS" = "success" ] && [ "$INT_STATUS" = "success" ] && [ "$CONTAINER_STATUS" = "success" ]; then
+            echo "CI Gate Passed!"
+            exit 0
+          else
+            echo "::error::CI Gate Failed: Một hoặc nhiều jobs kiểm thử không đạt (Frontend: $FE_STATUS, Backend: $BE_STATUS, Integration: $INT_STATUS, Container: $CONTAINER_STATUS)"
+            exit 1
+          fi
+
+      - name: Record Gate Step Summary
+        if: always()
+        run: |
+          echo "## 🛡️ CI Quality Gate Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend (4 suites + build) | ${{ needs.frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend (Release build + 57 tests + publish) | ${{ needs.backend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| SQL Server Integration (6 migrations + RBAC + concurrency) | ${{ needs.integration-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Container Packaging (API + Web images + Compose config) | ${{ needs.container-build.result }} |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.frontend.result }}" = "success" ] && [ "${{ needs.backend.result }}" = "success" ] && [ "${{ needs.integration-test.result }}" = "success" ] && [ "${{ needs.container-build.result }}" = "success" ]; then
+            echo "**Result:** ✅ ALL CHECKS PASSED — Ready for review and merge" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Result:** ❌ FAILED — Inspect individual job logs above" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  publish-release:
+    name: Publish Release Packages to GHCR
+    runs-on: ubuntu-latest
+    needs: [ci-gate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.ci-gate.result == 'success'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push Container Images (API, Web, Migrator)
+        run: |
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          TAG="sha-${{ github.sha }}"
+
+          API_REF="ghcr.io/${REPO_LOWER}/api:${TAG}"
+          WEB_REF="ghcr.io/${REPO_LOWER}/web:${TAG}"
+          MIGRATOR_REF="ghcr.io/${REPO_LOWER}/migrator:${TAG}"
+
+          echo "Building and pushing API..."
+          docker build -f StorageProject.Api/Dockerfile -t "${API_REF}" .
+          docker push "${API_REF}"
+          API_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${API_REF}" | grep -o 'sha256:[0-9a-f]*' || echo "")
+
+          echo "Building and pushing Web Frontend..."
+          docker build -f SafeSpace-Customer-UI/SafeSpace-Customer-UI/Dockerfile -t "${WEB_REF}" SafeSpace-Customer-UI/SafeSpace-Customer-UI
+          docker push "${WEB_REF}"
+          WEB_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${WEB_REF}" | grep -o 'sha256:[0-9a-f]*' || echo "")
+
+          echo "Building and pushing Migrator..."
+          docker build -f deploy/migrator.Dockerfile -t "${MIGRATOR_REF}" .
+          docker push "${MIGRATOR_REF}"
+          MIGRATOR_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "${MIGRATOR_REF}" | grep -o 'sha256:[0-9a-f]*' || echo "")
+
+          echo "Generating Release Manifest..."
+          bash scripts/deploy/generate-manifest.sh \
+            artifacts/release-manifest.json \
+            "${{ github.sha }}" \
+            "${{ github.repository }}" \
+            "${{ github.run_id }}" \
+            "${API_DIGEST}" \
+            "${WEB_DIGEST}" \
+            "${MIGRATOR_DIGEST}"
+
+      - name: Upload Release Manifest Artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: release-manifest
+          path: artifacts/release-manifest.json
+          retention-days: 30
+
+      - name: Generate Release Step Summary
+        run: |
+          echo "### 🚀 Release Published to GHCR" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** \`sha-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Manifest:** Saved as artifact \`release-manifest\`" >> $GITHUB_STEP_SUMMARY
+
+  staging-standby:
+    name: Staging Deployment (Standby)
+    runs-on: ubuntu-latest
+    needs: [publish-release]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.publish-release.result == 'success' && (vars.ENABLE_STAGING_DEPLOY != 'true')
+    steps:
+      - name: Report Standby Mode
+        run: |
+          echo "ℹ️ Staging deployment is in STANDBY. Variable ENABLE_STAGING_DEPLOY is not 'true'."
+          echo "### ⏸️ Staging Deploy Status: Standby" >> $GITHUB_STEP_SUMMARY
+          echo "- **State:** Ready for deployment (Images published to GHCR)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Note:** To activate automatic deployment, define repository variable \`ENABLE_STAGING_DEPLOY=true\` and configure staging host." >> $GITHUB_STEP_SUMMARY
+
+  deploy-staging:
+    name: Deploy to Staging Environment
+    runs-on: ubuntu-latest
+    needs: [publish-release]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.publish-release.result == 'success' && vars.ENABLE_STAGING_DEPLOY == 'true'
+    environment:
+      name: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Download Release Manifest Artifact
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        with:
+          name: release-manifest
+          path: artifacts
+
+      - name: Execute Staging Deployment via SSH
+        env:
+          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_SSH_KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+        run: |
+          if [ -z "${STAGING_SSH_HOST}" ] || [ -z "${STAGING_SSH_USER}" ] || [ -z "${STAGING_SSH_KEY}" ]; then
+            echo "::error::ENABLE_STAGING_DEPLOY is true but required SSH secrets (STAGING_SSH_HOST, STAGING_SSH_USER, STAGING_SSH_KEY) are missing. Ephemeral runner cannot serve as persistent staging environment."
+            exit 1
+          fi
+
+          if [ -z "${STAGING_SSH_KNOWN_HOSTS}" ]; then
+            echo "::error::STAGING_SSH_KNOWN_HOSTS secret is required when ENABLE_STAGING_DEPLOY is true. Automatic unverified keyscan is disabled to prevent MITM attacks."
+            exit 1
+          fi
+
+          echo "Setting up SSH key and verified known_hosts for ${STAGING_SSH_HOST}..."
+          mkdir -p ~/.ssh
+          echo "${STAGING_SSH_KEY}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "${STAGING_SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+          echo "Ensuring deployment directory structure on ${STAGING_SSH_HOST}..."
+          ssh -o ConnectTimeout=15 "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
+            "mkdir -p /opt/safespace/artifacts /opt/safespace/scripts/deploy /opt/safespace/scripts/ci /opt/safespace/deploy"
+
+          echo "Transferring verified release manifest and deploy assets to ${STAGING_SSH_HOST}..."
+          scp -o ConnectTimeout=15 artifacts/release-manifest.json "${STAGING_SSH_USER}@${STAGING_SSH_HOST}:/opt/safespace/artifacts/release-manifest.json"
+          scp -o ConnectTimeout=15 scripts/deploy/* "${STAGING_SSH_USER}@${STAGING_SSH_HOST}:/opt/safespace/scripts/deploy/"
+          scp -o ConnectTimeout=15 scripts/ci/smoke.sh "${STAGING_SSH_USER}@${STAGING_SSH_HOST}:/opt/safespace/scripts/ci/smoke.sh"
+          scp -o ConnectTimeout=15 deploy/compose.staging.yml "${STAGING_SSH_USER}@${STAGING_SSH_HOST}:/opt/safespace/deploy/compose.staging.yml"
+
+          echo "Executing staging deployment on remote host..."
+          ssh -o ConnectTimeout=15 "${STAGING_SSH_USER}@${STAGING_SSH_HOST}" \
+            "cd /opt/safespace && bash scripts/deploy/deploy.sh artifacts/release-manifest.json deploy/.env deploy/compose.staging.yml"
+
+          echo "Extracting image digests from release manifest..."
+          API_DIGEST=$(jq -r '.images.api.digest // .images.api // empty' artifacts/release-manifest.json)
+          WEB_DIGEST=$(jq -r '.images.web.digest // .images.web // empty' artifacts/release-manifest.json)
+          MIGRATOR_DIGEST=$(jq -r '.images.migrator.digest // .images.migrator // empty' artifacts/release-manifest.json)
+
+          echo "Creating verified staging deployment receipt..."
+          mkdir -p artifacts
+          DEPLOYED_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          GITHUB_SHA="${{ github.sha }}" GITHUB_RUN_ID="${{ github.run_id }}" \
+          STAGING_SSH_HOST="${STAGING_SSH_HOST}" API_DIGEST="${API_DIGEST}" \
+          WEB_DIGEST="${WEB_DIGEST}" MIGRATOR_DIGEST="${MIGRATOR_DIGEST}" \
+          DEPLOYED_TIME="${DEPLOYED_TIME}" \
+          node -e '
+            const fs = require("fs");
+            const receipt = {
+              environment: "staging",
+              commit: process.env.GITHUB_SHA,
+              run_id: process.env.GITHUB_RUN_ID,
+              host: process.env.STAGING_SSH_HOST,
+              status: "deployed",
+              smoke_status: "passed",
+              images: {
+                api: process.env.API_DIGEST,
+                web: process.env.WEB_DIGEST,
+                migrator: process.env.MIGRATOR_DIGEST
+              },
+              deployed_at: process.env.DEPLOYED_TIME
+            };
+            fs.writeFileSync("artifacts/staging-deployment-receipt.json", JSON.stringify(receipt, null, 2));
+          '
+          
+          echo "### ✅ Staging Deployment Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target:** Staging Environment (${STAGING_SSH_HOST})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run ID:** \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Receipt:** \`staging-deployment-receipt.json\` generated with exact image digests" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Staging Deployment Receipt Artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: staging-deployment-receipt
+          path: artifacts/staging-deployment-receipt.json
+

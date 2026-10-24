@@ -1,0 +1,35 @@
+# ==============================================================================
+# SafeSpace SSFRMS — Frontend Web Docker Ignore (.dockerignore)
+# ==============================================================================
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build artifacts
+dist/
+build/
+coverage/
+
+# Environment files & Local overrides (NEVER bake into image)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+!.env.example
+
+# IDE & Editor files
+.git/
+.github/
+.vscode/
+.idea/
+*.swp
+*.bak
+
+# Temporary files
+temp/
+tmp/
+scratch/

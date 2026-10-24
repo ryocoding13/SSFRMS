@@ -29,23 +29,29 @@ cd "$FE"
 if [[ ! -d node_modules ]]; then npm ci; else echo "node_modules đã có"; fi
 [[ -f .env.local ]] || echo "(Gợi ý) chưa có .env.local — giao diện dùng mặc định trong .env.example"
 
-step "3. Frontend: test nghiệp vụ"
+step "3. Frontend: cấu trúc và quy tắc đặt tên"
+npm run check:structure
+
+step "4. Frontend: test nghiệp vụ"
 npm test
 
-step "4. Frontend: render toàn bộ route"
+step "5. Frontend: test vận hành KD"
+npm run test:business
+
+step "6. Frontend: render toàn bộ route"
 npm run test:render
 
-step "5. Frontend: build"
+step "7. Frontend: build"
 npm run build >/dev/null && echo "build OK"
 
 if ! $FE_ONLY; then
   cd "$ROOT"
-  step "6. Backend: khôi phục công cụ + build"
+  step "8. Backend: khôi phục công cụ + build"
   dotnet tool restore >/dev/null
   dotnet build StorageProject.slnx --nologo -v quiet
 
   if ls "$ROOT"/*Tests* >/dev/null 2>&1; then
-    step "7. Backend: test"
+    step "9. Backend: test"
     dotnet test StorageProject.slnx --nologo
   else
     echo "(Chưa có project test backend — xem F28 trong feature_list.json)"
