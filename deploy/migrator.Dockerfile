@@ -17,7 +17,7 @@ COPY StorageProject.Tests/StorageProject.Tests.csproj StorageProject.Tests/
 COPY StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj StorageProject.IntegrationTests/
 
 RUN dotnet tool restore
-RUN dotnet restore StorageProject.Infrastructure/StorageProject.Infrastructure.csproj
+RUN dotnet restore StorageProject.Api/StorageProject.Api.csproj
 
 COPY StorageProject.Core/ StorageProject.Core/
 COPY StorageProject.Infrastructure/ StorageProject.Infrastructure/

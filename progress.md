@@ -16,6 +16,20 @@
 > Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
 > Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
 
+## Phiên 2026-10-24 (Đợt 4) — Sửa Lỗi NETSDK1004 trong deploy/migrator.Dockerfile
+
+- **Mục tiêu:** Khắc phục lỗi `NETSDK1004: Assets file 'StorageProject.Api/obj/project.assets.json' not found` khi chạy lệnh `dotnet dotnet-ef migrations bundle` trong image `deploy/migrator.Dockerfile`.
+- **Nguyên nhân:** `migrator.Dockerfile` trước đó chỉ chạy `dotnet restore StorageProject.Infrastructure/StorageProject.Infrastructure.csproj`. Tuy nhiên, khi tạo migration bundle cần startup project là `StorageProject.Api`, dẫn đến EF Core không tìm thấy file assets của API project.
+- **Khắc phục:**
+  - Sửa `deploy/migrator.Dockerfile`: Thay `RUN dotnet restore StorageProject.Infrastructure/StorageProject.Infrastructure.csproj` bằng `RUN dotnet restore StorageProject.Api/StorageProject.Api.csproj`.
+  - Việc restore API project tự động kéo theo việc restore toàn bộ các project phụ thuộc (`StorageProject.Infrastructure` và `StorageProject.Core`), sinh đầy đủ `project.assets.json` cho cả 3 project.
+- **Kiểm chứng:**
+  - `dotnet tool restore`: Khôi phục thành công công cụ `dotnet-ef` v10.0.12.
+  - `dotnet restore StorageProject.Api/StorageProject.Api.csproj`: Khôi phục thành công `Core`, `Infrastructure`, và `Api`.
+  - `dotnet dotnet-ef migrations bundle --project StorageProject.Infrastructure --startup-project StorageProject.Api`: Build bundle thành công với 0 lỗi (xuất ra bundle thực thi độc lập).
+  - Ghi chú môi trường: Docker daemon cục bộ trên Windows hiện đang tắt (`//./pipe/dockerDesktopLinuxEngine` not found), do đó bước đóng gói Docker trực tiếp sẽ được chạy và xác nhận trên GitHub Actions runner trong lần push tiếp theo.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit hay push. Thay đổi đã sẵn sàng trên working tree của nhánh `feature/cicd-candidate`.
+
 ## Phiên 2026-10-24 (Đợt 3) — Khắc Phục Xác Thực Provenance Workflow ID và Đối Chiếu Toàn Diện Staging Deployment Receipt
 
 - **Mục tiêu:** Xử lý triệt để 2 điểm phát hiện cuối cùng trong production workflow theo yêu cầu review:
