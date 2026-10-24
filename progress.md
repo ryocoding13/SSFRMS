@@ -389,3 +389,13 @@
 - Test cập nhật có lý do: render S01 đếm 12 việc (thêm 2 khoản thu phí S09f trong dữ liệu mẫu), fixture "không có việc" thêm `fee_collections: []`, thêm route `staff/fees`. Thêm test reducer S09f. Dòng phí trong dữ liệu mẫu khách đặt cuối sổ thu để không đổi test PayOS gia hạn.
 - Chưa làm (ghi trong docs/figma-ui-sync-2026-10-23.md): C02-vị trí (trái quy tắc gợi ý theo khu vực), A01b/A01c (thiếu API mã email), C12* (nhánh Ngọc Mai), trang C11c riêng.
 - Kiểm chứng: check:structure PASS; npm test 78/78; test:business 9/9; test:render 95 route; build PASS; Chromium chạy C11 phí, S04 → M07a, S09f, M02b/c, B05b/c, M05. Không push/PR/merge.
+
+## 2026-10-24 — Cập nhật quy định AI/Git và tài liệu kiểm chứng
+
+- Theo yêu cầu thành viên: sửa quy định một lượt và bàn giao ZIP để thành viên tự push; không thao tác commit/push/PR/merge.
+- Phạm vi chỉ tài liệu: AGENTS gốc/FE, README, docs/conventions.md, docs/verification.md, DECISIONS.md và nhật ký này.
+- AI không tạo commit, không đổi danh tính Git. Giữ PR → main và review bởi thành viên khác; task có mục tiêu rõ, kiểm thử theo phạm vi, nêu giới hạn môi trường.
+- Figma chuẩn bố cục/tương tác, nghiệp vụ/quyền theo quyết định hiện hành; yêu cầu mock/offline nhận biết khi kiểm thử, không giả API thành công.
+- Sửa hướng dẫn .NET 10/Node >=22.12, bản đồ apiMappers.js và cấu trúc FE; bỏ số test cũ và khẳng định fallback/API badge đã lỗi thời.
+- Không sửa code/config/migration, không đổi trạng thái tính năng hoặc ghi đè nhật ký cũ. Ghi quy tắc thay thế tại PROCESS-2026-10-24, không sửa quyết định lịch sử.
+- Kiểm chứng gói tài liệu: đọc diff, kiểm đường dẫn/lệnh với nguồn, kiểm whitespace, áp dụng bản vá vào bản nguồn sạch và so byte đầu ra; kiểm tính toàn vẹn ZIP. Không chạy ứng dụng, npm/dotnet build/test hoặc SQL Server vì không đổi code; không nhận kết quả từ PR khác làm bằng chứng.

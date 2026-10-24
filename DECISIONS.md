@@ -203,3 +203,14 @@ Theo yêu cầu nhóm, dùng src/app, src/features/<role>/<feature>, src/shared,
 - C14 đặt nút "Xem đơn / Huỷ đơn" trên từng dòng; C14b/C14c hiện "Đã huỷ · Đang hoàn tiền" (`refundStatus` PENDING) và "Đã huỷ · Đã hoàn tiền" (COMPLETED).
 - Mọi thao tác ghi của nhân viên và các thao tác phân bổ, phân công, duyệt/từ chối gia hạn của quản lý đi qua: xác nhận → thành công (03a) hoặc thất bại (03b) theo Figma 779:*, 847:*, 885:*. Admin và Vận hành KD dùng chung `shared/components/ChangeFlowDialog.jsx`. Sau thành công, trang quay về danh sách đúng theo nút trên Figma thay vì trang kết quả `staff/done`.
 - M08 hoàn tiền đơn huỷ là trang riêng `#/manager/refunds` nằm dưới tab "Hợp đồng & quá hạn" (Figma đặt cùng tab). Chỉ hoàn bằng chuyển khoản vì khách đã trả qua PayOS; bắt buộc nhập mã giao dịch.
+
+## PROCESS-2026-10-24 — Quy trình AI, Git và kiểm chứng — Áp dụng khi nhóm tích hợp bản vá
+
+- Theo yêu cầu cập nhật quy định của thành viên ngày 24/10/2026; không khẳng định cả nhóm đã biểu quyết. Việc merge bản vá ghi nhận nhóm chấp nhận áp dụng.
+- Thay phần quy trình trong AGENTS/README: AI chỉ phân tích/sửa file/test; thành viên tự commit/push/PR/merge và chịu trách nhiệm đọc hiểu. Không đổi danh tính Git hoặc sửa lịch sử để thay tác giả. Việc dùng AI theo yêu cầu môn học.
+- Giữ luồng nhánh riêng → PR → người khác trong nhóm review → main của D08; cho phép tiền tố feature/fix/docs/chore. Một task có một mục tiêu, được sửa các phụ thuộc cần thiết.
+- Thay phần tuyệt đối của D01: Figma chuẩn về bố cục/tương tác; nghiệp vụ/quyền theo quyết định nhóm hiện hành. Có mâu thuẫn phải chốt rõ, không tự sửa backend để bỏ kiểm tra quyền hoặc đổi tính tiền theo ảnh.
+- Thay D07 và phần cấm nhãn mock của D15: bản chạy chính giữ giao diện sản phẩm; mock/offline phải được chọn rõ và nhận biết khi kiểm thử. API lỗi không được giả thành công. Không thay đổi hành vi sản phẩm trong bản vá tài liệu này.
+- Kiểm chứng theo phạm vi, cho phép làm phần độc lập khi môi trường thiếu; ghi rõ phần chưa kiểm chứng. Trước merge code chạy đủ bộ liên quan và kiểm thử tích hợp; chỉ tài liệu không bắt buộc build ứng dụng. AI review không thay review của thành viên khác.
+- Không commit bí mật; cấu hình mẫu/dùng chung không chứa bí mật được phép. Không sửa migration đã merge/áp dụng trên DB dùng chung; migration chưa chia sẻ được sửa trong nhánh riêng. Không tự xóa/reset DB.
+- Không thay D26/D27, tính tiền, phân quyền, schema, API hoặc trạng thái passing của bất kỳ tính năng sản phẩm nào.
