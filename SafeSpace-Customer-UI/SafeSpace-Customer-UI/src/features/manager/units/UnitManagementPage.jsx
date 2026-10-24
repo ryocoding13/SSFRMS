@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from "react";
-import { Pagination } from "../../../shared/components/Pickers.jsx";
+import { Pagination, Select } from "../../../shared/components/Pickers.jsx";
 import { Button, Field, Icon, Modal, Tag } from "../../../shared/components/UI.jsx";
-import { typeLabel } from "../../../shared/utils/catalog.js";
-import { dateLabel } from "../../../shared/utils/format.js";
+import { SIZE_BANDS, UNIT_TYPES, bandOfArea, typeLabel } from "../../../shared/utils/catalog.js";
+import { dateLabel, money } from "../../../shared/utils/format.js";
+import { useApp } from "../../../app/state/AppProvider.jsx";
 import { go, qs } from "../../../app/router.js";
 import { UNIT_STATE } from "../../facility-operations/data/facilityOperationsSeed.js";
 import { UNIT_TRANSITIONS } from "../../facility-operations/state/facilityOperationsReducer.js";
@@ -36,8 +37,8 @@ export function UnitStatusDialog({ unit, onClose }) {
     setBusy(true);
     const r = await run("UPDATE_UNIT_STATUS", { code: unit.code, status, reason }, `Đã đổi ô ${unit.code} sang ${UNIT_STATE[status][0].toLowerCase()}`);
     setBusy(false);
-    if (r.ok) onClose();
-    else setErr(r.error);
+    if (r.ok || r.shown) onClose();
+    else if (!r.cancelled) setErr(r.error);
   };
   return (
     <Modal title={`Đổi trạng thái kho #${unit.code}`} onClose={onClose}>
@@ -64,6 +65,67 @@ export function UnitStatusDialog({ unit, onClose }) {
   );
 }
 
+// M02b Thêm ô kho / M02c Sửa ô kho (Figma 634:8938, 634:8978). Giá thuê lấy theo bảng giá cơ sở, không nhập tay.
+export const floorLabel = (floor) => (/tầng|dãy/i.test(String(floor)) ? floor : `Tầng ${floor}`);
+function UnitFormDialog({ unit, onClose }) {
+  const { ops, run } = useOps();
+  const { data } = useApp();
+  const editing = Boolean(unit);
+  const [form, setForm] = useState({ code: unit?.code || "", location: unit && /dãy|tầng/i.test(unit.floor) ? unit.floor : "", type: unit?.type || "normal", band: unit ? bandOfArea(unit.area) : "M" });
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => { setForm({ ...form, [k]: e.target.value }); setErr(""); };
+  const facility = (data?.facilities || []).find((f) => f.facility_id === ops.facility?.facility_id);
+  const offer = facility?.offers?.find((o) => o.type === form.type && o.band === form.band);
+  const locked = Boolean(unit?.tenant);
+  const [label] = unit ? UNIT_STATE[unit.status] || [unit.status] : [];
+  const submit = async () => {
+    if (!form.code.trim()) return setErr("Nhập mã ô.");
+    const area = SIZE_BANDS.find((b) => b.id === form.band)?.area;
+    setBusy(true);
+    const payload = { code: form.code.trim().toUpperCase(), location: form.location.trim(), type: form.type, area };
+    const r = await run(editing ? "UPDATE_UNIT" : "CREATE_UNIT", editing ? { id: unit.code, ...payload } : payload, editing ? `Đã lưu ô kho ${payload.code}` : `Đã thêm ô kho ${payload.code}`);
+    setBusy(false);
+    if (r.ok || r.shown) onClose();
+    else if (!r.cancelled) setErr(r.error);
+  };
+  return (
+    <Modal title={editing ? `Sửa ô kho #${unit.code}` : "Thêm ô kho"} size="md" onClose={busy ? undefined : onClose}>
+      <p className="modal__text modal__text--sub">{editing ? `Hiện tại: ${label} · ${unit.area} m² · ${typeLabel(unit.type)}` : `${ops.facility.name} · ô mới ở trạng thái Trống`}</p>
+      <Field label="Mã ô" error={err}>
+        <input maxLength={20} value={form.code} placeholder="Ví dụ: K13" onChange={set("code")} />
+      </Field>
+      <Field label="Vị trí (dãy · tầng)">
+        <input maxLength={60} value={form.location} placeholder="Ví dụ: Dãy B · Tầng 1" onChange={set("location")} />
+      </Field>
+      <div className="form-pair">
+        <Field label="Loại kho">
+          <Select value={form.type} onChange={set("type")} disabled={locked}>
+            {UNIT_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </Select>
+        </Field>
+        <Field label="Cỡ">
+          <Select value={form.band} onChange={set("band")} disabled={locked}>
+            {SIZE_BANDS.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+          </Select>
+        </Field>
+      </div>
+      <Field label="Giá thuê mỗi tháng">
+        <input readOnly value={offer?.monthly_rate ? `${money(offer.monthly_rate)} · theo bảng giá cơ sở` : "Theo bảng giá cơ sở"} />
+      </Field>
+      <p className="hint">
+        {editing
+          ? "Ô đang có khách thuê thì không đổi được loại kho và cỡ. Đổi trạng thái (Trống / Bảo trì) dùng nút Đổi trạng thái."
+          : "Giá thuê tự lấy theo bảng giá của cơ sở cho loại kho và cỡ đã chọn (Vận hành KD đặt khung giá). Mã ô không trùng với ô đã có."}
+      </p>
+      <div className="modal__actions modal__actions--end">
+        <Button variant="outline" disabled={busy} onClick={onClose}>Huỷ</Button>
+        <Button disabled={busy} onClick={submit}>{busy ? "Đang lưu…" : editing ? "Lưu thay đổi" : "Thêm ô kho"}</Button>
+      </div>
+    </Modal>
+  );
+}
+
 export const PER_PAGE = 12;
 
 export function UnitManagementPage({ query }) {
@@ -71,6 +133,7 @@ export function UnitManagementPage({ query }) {
   const tab = query.get("tab") || "";
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(null); // { unit } khi sửa, {} khi thêm
   const page = Math.max(1, Number(query.get("page")) || 1);
   const list = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -83,6 +146,7 @@ export function UnitManagementPage({ query }) {
   return (
     <main className="container page">
       <header className="page-header page-header--tight"><div><h1>Danh sách kho — {ops.facility.name}</h1></div></header>
+      <Button variant="outline" className="btn--sm btn--fit" onClick={() => setForm({})}>+ Thêm ô kho</Button>
       <div className="admin-toolbar">
         <div className="chips" role="group" aria-label="Lọc theo trạng thái">
           {UNIT_TABS.map(([k, label]) => (
@@ -108,12 +172,15 @@ export function UnitManagementPage({ query }) {
                   <td className="cell-strong">#{u.code}</td>
                   <td>{u.tenant || "—"}</td>
                   <td>{typeLabel(u.type)}</td>
-                  <td>{u.area} m² · Tầng {u.floor}</td>
+                  <td>{u.area} m² · {floorLabel(u.floor)}</td>
                   <td><Tag tone={tone}>{label}</Tag></td>
                   <td>{u.end ? dateLabel(u.end) : "—"}</td>
                   <td>
                     {UNIT_TRANSITIONS[u.status] ? (
-                      <button type="button" className="link-btn" onClick={() => setEditing(u)}>Đổi trạng thái</button>
+                      <span className="row-actions">
+                        <button type="button" className="link-btn" onClick={() => setEditing(u)}>Đổi trạng thái</button>
+                        {u.status === "EMPTY" && <button type="button" className="link-btn" onClick={() => setForm({ unit: u })}>Sửa</button>}
+                      </span>
                     ) : (
                       <span className="muted">{u.tenant ? "Đang có khách thuê" : "—"}</span>
                     )}
@@ -126,6 +193,7 @@ export function UnitManagementPage({ query }) {
       </div>
       <Pagination page={cur} pages={pages} total={list.length} from={(cur - 1) * PER_PAGE + 1} to={(cur - 1) * PER_PAGE + shown.length} noun="kho" onPage={(n) => go(`manager/units${qs({ tab, page: n === 1 ? "" : n })}`, { replace: true })} />
       {editing && <UnitStatusDialog unit={editing} onClose={() => setEditing(null)} />}
+      {form && <UnitFormDialog unit={form.unit} onClose={() => setForm(null)} />}
     </main>
   );
 }

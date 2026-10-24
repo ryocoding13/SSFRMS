@@ -21,6 +21,7 @@ import { Button, Field, Modal, Notice } from "../../../shared/components/UI.jsx"
 import { isEmail, isPhone, today } from "../../../shared/utils/format.js";
 import { FACILITY_ROLES, roleLabel, sortRoles } from "../../../shared/utils/roles.js";
 import { go } from "../../../app/router.js";
+import { useChangeFlow } from "../../../shared/components/ChangeFlowDialog.jsx";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { tempPassword, useLoad, usernameFrom } from "../utils/adminUtils.js";
 
@@ -88,6 +89,7 @@ export default function CreateUserPage() {
   // null: chưa tạo thành công, chưa hiện Modal.
   // Có dữ liệu: hiện Modal thông tin đăng nhập.
   const [done, setDone] = useState(null);
+  const [flowEl, runChange] = useChangeFlow();
 
 
   /*
@@ -210,31 +212,27 @@ export default function CreateUserPage() {
     // Biến lưu thông tin tài khoản được backend tạo.
     let created;
 
+    // Figma 885:10555–10579: hỏi xác nhận trước khi tạo; lỗi hiện hộp thoại "Không tạo tài khoản được".
+    // Thành công vẫn dùng hộp thoại riêng bên dưới để hiện tên đăng nhập và mật khẩu tạm một lần.
+    const outcome = await runChange({
+      action: "Tạo tài khoản", scope: "Tài khoản mới", content: "Thông tin, vai trò và cơ sở đã chọn", showSuccess: false,
+      perform: async () => {
+        created = await adminApi.createUser({
+          username: form.username.trim(),
+          password: form.password,
+          fullName: form.fullName.trim(),
+          email: form.email.trim().toLowerCase(),
+          phone: form.phone.replace(/[\s.-]/g, "") || null,
+          initialRoleId: Number(form.roleId),
+          status: "ACTIVE",
+        });
+        return created;
+      },
+    });
+    if (outcome.cancelled) return setBusy(false);
+
     try {
-
-      /*
-       * GỌI API TẠO TÀI KHOẢN
-       *
-       * Dữ liệu gửi đi:
-       * - username: tên đăng nhập.
-       * - password: mật khẩu tạm thời.
-       * - fullName: họ tên.
-       * - email: chuyển chữ thường.
-       * - phone: loại bỏ khoảng trắng, dấu . và -.
-       * - initialRoleId: ID vai trò được chọn.
-       * - status: tài khoản được tạo ở trạng thái ACTIVE.
-       */
-
-      created = await adminApi.createUser({
-        username: form.username.trim(),
-        password: form.password,
-        fullName: form.fullName.trim(),
-        email: form.email.trim().toLowerCase(),
-        phone: form.phone.replace(/[\s.-]/g, "") || null,
-        initialRoleId: Number(form.roleId),
-        status: "ACTIVE",
-      });
-
+      if (outcome.error) throw outcome.error;
     } catch (err) {
 
       // Xử lý lỗi API, ví dụ phiên đăng nhập hết hạn.
@@ -471,6 +469,7 @@ export default function CreateUserPage() {
       {/* MODAL SAU KHI TẠO TÀI KHOẢN THÀNH CÔNG
           Chỉ xuất hiện khi done khác null.
           Khi đóng Modal sẽ chuyển sang trang chi tiết User. */}
+      {flowEl}
       {done && (
         <Modal title="Đã tạo tài khoản" onClose={() => go(`admin/users/${done.user.userId}`)}>
 

@@ -39,14 +39,20 @@ export function StaffSupportPage({ query }) {
     e.preventDefault();
     if (pending.current) return;
     if (!note.trim()) return setErr("Vui lòng nhập nội dung phản hồi.");
+
     pending.current = true;
     setBusy(true);
     setErr("");
+
     try {
-      const r = await run("TICKET_RESPONSE", { id: t.id, note: note.trim(), next, staff: me.staff_id }, `Đã lưu phản hồi ${t.id}`);
-      if (r.cancelled) return;
-      if (!r.ok) return setErr(r.error);
-      go("staff/done?kind=support");
+      const r = await run(
+        "TICKET_RESPONSE",
+        { id: t.id, note: note.trim(), next, staff: me.staff_id },
+        `Đã lưu phản hồi ${t.id}`
+      );
+
+      if (!r.ok) return setErr(r.shown || r.cancelled ? "" : r.error);
+      go("staff/support");
     } finally {
       pending.current = false;
       setBusy(false);
@@ -58,7 +64,7 @@ export function StaffSupportPage({ query }) {
     const result = await run("REISSUE_CREDENTIAL", { unit: t.unit, type: accessType, reason: reason.trim() }, accessType === "KEY" ? "Đã tạo lịch nhận chìa khóa thay thế tại quầy." : "Đã cấp lại mã. Mã cũ cùng loại đã bị vô hiệu hóa.");
     setCredentialBusy(false);
     if (result.ok) setReason("");
-    else if (!result.cancelled) setErr(result.error);
+    else if (!result.cancelled && !result.shown) setErr(result.error);
   };
   return (
     <main className="container page page--narrow">

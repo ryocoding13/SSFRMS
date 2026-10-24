@@ -75,3 +75,34 @@ test("phân công việc hỗ trợ cho nhân viên → yêu cầu chuyển sang
   s = run(s, "TICKET_RESPONSE", { id: "HT-0082", note: "Đã cấp lại thẻ", next: "DONE", staff: "NV-01" }).state;
   assert.equal(s.assignments.find((a) => a.id === "PC-03").status, "DONE");
 });
+
+test("M08 · xác nhận hoàn tiền đơn huỷ theo D27: cần mã giao dịch, chỉ một lần", () => {
+  let s = createOpsData(T);
+  const pending = s.refunds.filter((r) => r.status === "PENDING");
+  assert.equal(pending.length, 2);
+  for (const r of s.refunds) if (r.fee) {
+    assert.equal(r.fee, Math.round(r.deposit * 0.1), `${r.id}: phí huỷ = 10% cọc`);
+    assert.equal(r.amount, r.rent + r.deposit - r.fee, `${r.id}: hoàn 100% thuê + 90% cọc`);
+  }
+  const id = pending[0].id;
+  assert.match(run(s, "CONFIRM_RESERVATION_REFUND", { id, method: "BANK_TRANSFER", transaction_ref: " " }).error.message, /mã giao dịch/);
+  const out = run(s, "CONFIRM_RESERVATION_REFUND", { id, method: "BANK_TRANSFER", transaction_ref: "FT26258904512" });
+  assert.ok(!out.error);
+  s = out.state;
+  const done = s.refunds.find((r) => r.id === id);
+  assert.equal(done.status, "PAID");
+  assert.equal(done.transaction_ref, "FT26258904512");
+  assert.equal(out.result.refund, pending[0].amount);
+  assert.match(run(s, "CONFIRM_RESERVATION_REFUND", { id, transaction_ref: "X" }).error.message, /đã được xác nhận/);
+});
+
+test("S09f · thu phí phát sinh & công nợ tại quầy: một lần, cập nhật hợp đồng còn nợ", () => {
+  let s = createOpsData(T);
+  const f = s.fee_collections.find((x) => x.id === "PHI-0098");
+  assert.equal(f.amount, f.items.reduce((sum, [, v]) => sum + v, 0));
+  const out = run(s, "CONFIRM_FEE_COLLECTION", { id: f.id });
+  assert.ok(!out.error);
+  s = out.state;
+  assert.equal(s.fee_collections.find((x) => x.id === f.id).status, "PAID");
+  assert.match(run(s, "CONFIRM_FEE_COLLECTION", { id: f.id }).error.message, /đã được thu/);
+});

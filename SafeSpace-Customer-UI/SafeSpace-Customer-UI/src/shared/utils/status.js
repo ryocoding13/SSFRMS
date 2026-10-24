@@ -23,6 +23,7 @@ export const LEDGER_STATUS = {
   DEPOSIT_HELD: ["Đang giữ cọc", "blue"],
   RENEWAL_PENDING: ["Chờ duyệt yêu cầu", "amber"],
   UNPAID: ["Chờ thanh toán", "red"],
+  AT_COUNTER: ["Chờ thu tại quầy", "amber"], // C11fcp: khách chọn trả phí tại quầy, nhân viên chưa thu
   REFUNDED: ["Đã hoàn", "gray"],
 };
 

@@ -350,3 +350,33 @@ Trạng thái triển khai D27 (22/10/2026):
 - Giao diện: `cancelPreviewOf` (appReducer.js) tính 10% tiền cọc; C14a hiển thị phí và số hoàn theo đó. Còn thiếu: nút xác nhận hoàn cho đơn đã huỷ ở màn M07.
 - Đường cũ `POST /api/manager/contracts/{id}/refund` giờ gọi chung `FacilityOpsService.ConfirmRefundAsync` (D27); đã bỏ `ManagerService.ConfirmRefundAsync` (trước đây đặt trạng thái `ENDED` không hợp lệ). Id phải là mã hiển thị `HĐ-…` như `/api/ops`; tài khoản ADMIN không có cơ sở được phân công nên nhận 403.
 - F12 · RESERVED → OCCUPIED: `UnitStartActivation` (chạy cùng worker mỗi phút) chuyển ô đang giữ chỗ sang đang thuê khi hợp đồng ACTIVE/EXPIRING đến `StartDate` (giờ Việt Nam), ghi `unit_status_histories`. Nhận chìa khóa vẫn không đổi trạng thái ô (D26). Chuyển RESERVED/OCCUPIED bằng tay vẫn bị chặn ở `UnitStatusRules`.
+
+## M08 — Hoàn tiền đơn huỷ trên giao diện quản lý (F40, 23/10/2026)
+
+Giao diện `#/manager/refunds` (Figma M08 828:10212, M08a 828:10262) đọc danh sách từ `GET /api/ops/board` và gọi
+`POST /api/ops/reservations/{id}/refund` (đã có, D27). Backend cần bổ sung:
+
+- `GET /api/ops/board` trả thêm mảng `refunds` cho cơ sở của quản lý (đơn `CANCELLED` có khoản `REFUND`). Khi chưa có, trang hiện "Chưa có đơn huỷ cần hoàn tiền."
+- Body của `POST /api/ops/reservations/{id}/refund`: nhận và lưu `method` (`BANK_TRANSFER`) và `transactionRef` (mã giao dịch quản lý nhập). Hiện endpoint bỏ qua body.
+
+```jsonc
+// GET /api/ops/board → refunds[] (camelCase; giao diện tự đổi sang snake_case)
+{ "id": "SS-20260918-0151", "customer": "Nguyễn Hoàng Yến", "cancelledAt": "2026-10-22T08:40:00",
+  "rent": 3450000, "deposit": 1150000, "paid": 4600000, "fee": 115000, "amount": 4485000,
+  "status": "PENDING", "paidAt": null, "transactionRef": null }   // status: PENDING | PAID
+```
+
+## M02b / M02c — Thêm và sửa ô kho (F40)
+
+`POST /api/manager/units` và `PUT /api/manager/units/{id}` đã có nhưng `CreateUnitAsync` luôn lấy loại kho đầu tiên và bỏ qua loại/cỡ.
+Giao diện gửi `{ unitNumber, locationDescription, unitTypeCode: "normal" | "climate", area: 15 | 30 }`; backend cần chọn `UnitType`
+theo loại kho + diện tích (D17: cỡ M 15 m², cỡ L 30 m²) và từ chối đổi loại/cỡ khi ô đang có khách thuê.
+
+## Phí phát sinh khi trả kho và công nợ (F40: S04, S09f, C11f)
+
+Giao diện đã làm theo Figma; backend cần bổ sung:
+
+- `POST /api/ops/returns/{id}/inspection` (`OpsReturnInspectionRequest`): nhận thêm `damageFee`, `cleaningFee`, `overdueFee`, `feeReason`; ghi các khoản `DAMAGE_FEE` / `CLEANING_FEE` / `OVERDUE_FEE` trạng thái `PENDING` để M07 trừ cọc theo D27 và phần thiếu thành công nợ.
+- Khách trả phí qua PayOS: `POST /api/payments/{paymentId}/payos` cho khoản phí `PENDING` (cùng endpoint giao diện đang dùng cho gia hạn; hiện backend chưa có nên popup báo "tạm gián đoạn").
+- Khách chọn trả tại quầy (C11fc): API ghi nhận lựa chọn, ví dụ `POST /api/payments/{paymentId}/at-facility`. Giao diện tạm lưu trong trình duyệt (`overlay.feesAtCounter`).
+- Nhân viên thu tại quầy (S09f): `GET /api/ops/board` trả `feeCollections[]` `{ id, contract, customer, unit, items: [[nhãn, số tiền]], amount, due, status, requestedAt }` và `POST /api/ops/fees/{id}/confirm` chuyển các khoản sang `PAID`.

@@ -24,6 +24,7 @@ import React, { useMemo, useState } from "react";
 import { adminApi } from "../api/adminApi.js";
 import { Button, Modal, Notice } from "../../../shared/components/UI.jsx";
 import { ROLE_SCOPE, roleLabel, sortRoles } from "../../../shared/utils/roles.js";
+import { useChangeFlow } from "../../../shared/components/ChangeFlowDialog.jsx";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { useLoad } from "../utils/adminUtils.js";
 
@@ -51,6 +52,7 @@ export default function PermissionListPage() {
   const [changes, setChanges] = useState({});
   // Trạng thái hiển thị modal xác nhận lưu thay đổi
   const [confirm, setConfirm] = useState(false);
+  const [flowEl, runChange] = useChangeFlow();
   // Trạng thái đang gửi request lưu lên backend
   const [saving, setSaving] = useState(false);
   // Danh sách các lỗi nếu có request gán/thu hồi quyền thất bại
@@ -123,27 +125,33 @@ export default function PermissionListPage() {
    * 4. Thu thập các lỗi (nếu có) để hiển thị cho Admin.
    * 5. Tải lại dữ liệu mới từ backend và thông báo qua toast.
    */
+  // Figma 885:10589–10613: xác nhận (kèm danh sách thay đổi) → đã lưu / không lưu được
   const save = async () => {
     setConfirm(false);
     setSaving(true);
     const failed = [];
-
-    for (const [k, on] of pending) {
-      const [rid, pid] = k.split(":").map(Number);
-      try {
-        if (on) await adminApi.assignPermission(rid, pid);
-        else await adminApi.revokePermission(rid, pid);
-      } catch (e) {
-        onApiError(e);
-        failed.push(`${roleLabel(roleOf(rid)?.roleName)} · ${permOf(pid)?.permissionName}: ${e.message}`);
-      }
-    }
-
+    await runChange({
+      action: "Lưu cấu hình quyền", scope: "Các vai trò trong hệ thống", confirm: false,
+      perform: async () => {
+        for (const [k, on] of pending) {
+          const [rid, pid] = k.split(":").map(Number);
+          try {
+            if (on) await adminApi.assignPermission(rid, pid);
+            else await adminApi.revokePermission(rid, pid);
+          } catch (e) {
+            onApiError(e);
+            failed.push(`${roleLabel(roleOf(rid)?.roleName)} · ${permOf(pid)?.permissionName}: ${e.message}`);
+          }
+        }
+        if (failed.length === pending.length) throw new Error(failed[0]);
+        return true;
+      },
+    });
     setSaving(false);
     setErrors(failed);
     setChanges({});
     await res.reload();
-    notify(failed.length ? `Đã lưu, ${failed.length} thay đổi không thành công.` : "Đã lưu cấu hình quyền.", failed.length ? "error" : "success");
+    if (failed.length && failed.length < pending.length) notify(`Đã lưu, ${failed.length} thay đổi không thành công.`, "error");
   };
 
   return (
@@ -254,7 +262,8 @@ export default function PermissionListPage() {
 
       {/* MODAL XÁC NHẬN ÁP DỤNG THAY ĐỔI */}
       {confirm && (
-        <Modal title="Áp dụng thay đổi quyền?" onClose={() => setConfirm(false)} size="md">
+        <Modal title="Lưu cấu hình quyền?" onClose={() => setConfirm(false)} size="md">
+          <p className="modal__text">Kiểm tra thông tin trước khi xác nhận. Chọn Quay lại để giữ nguyên dữ liệu.</p>
           {/* Liệt kê từng thay đổi cụ thể */}
           <ul className="change-list">
             {pending.map(([k, on]) => {
@@ -273,12 +282,14 @@ export default function PermissionListPage() {
           )}
 
           {/* Các nút hành động trong Modal */}
+          <p className="hint">Chỉ lưu thay đổi sau khi bạn bấm Xác nhận.</p>
           <div className="modal__actions">
-            <Button onClick={save}>Áp dụng</Button>
-            <Button variant="outline" onClick={() => setConfirm(false)}>Xem lại</Button>
+            <Button variant="outline" onClick={() => setConfirm(false)}>Quay lại</Button>
+            <Button onClick={save}>Xác nhận</Button>
           </div>
         </Modal>
       )}
+      {flowEl}
     </main>
   );
 }

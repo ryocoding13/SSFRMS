@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Select } from "../../../shared/components/Pickers.jsx";
 import { Button, Field, Notice, Tag } from "../../../shared/components/UI.jsx";
-import { go } from "../../../app/router.js";
 import { ASSIGN_STATE } from "../../facility-operations/state/facilityOperationsReducer.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
 import { slotLabel } from "../../facility-operations/components/FacilityOperationsComponents.jsx";
@@ -16,8 +15,8 @@ export function StaffAssignmentPage() {
   const busyCount = (id) => ops.assignments.filter((a) => a.staff === id && a.status !== "DONE").length;
   const submit = async (e) => {
     e.preventDefault();
-    const r = await run("ASSIGN", { id: task, staff }, `Đã phân công ${staffName(staff)}`);
-    if (r.ok) go("manager/done?kind=assign");
+    // Figma 885:10419–10443: xác nhận → kết quả “Về màn hình trước”, ở lại trang phân công
+    await run("ASSIGN", { id: task, staff }, `Đã phân công ${staffName(staff)}`);
   };
   return (
     <main className="container page">

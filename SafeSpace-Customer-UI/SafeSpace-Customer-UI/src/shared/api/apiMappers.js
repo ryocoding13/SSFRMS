@@ -133,12 +133,16 @@ function offerOfType(unitTypes, id, name) {
   };
 }
 
+// Khoản phí phát sinh khi trả kho (Payment.PaymentType, ReservationContractConfigurations.cs)
+const FEE_KINDS = new Set(["EXTRA_FEE", "OVERDUE_FEE", "DAMAGE_FEE", "CLEANING_FEE", "LOST_KEY_FEE", "ACCESS_CARD_FEE"]);
+
 const EMPTY_OVERLAY = {
   holds: {}, // reservationId → thời điểm tạo trong trình duyệt này (ms), dùng cho đồng hồ giữ chỗ
   transfers: {}, // reservationId → thời điểm khách gửi đơn chờ thu tiền (bản cũ: "Tôi đã chuyển khoản")
   atFacility: {}, // reservationId → khách chọn "Thanh toán tại cửa hàng" (khi backend chưa trả paymentMethod)
   expired: {}, // reservationId → hết thời gian giữ chỗ, đang huỷ trên máy chủ
   attachments: {}, // ticketId → tên file ảnh đính kèm
+  feesAtCounter: {}, // paymentId → khách chọn trả phí phát sinh tại quầy (C11fcp; backend chưa có trường này)
   returns: [],
   appointments: [],
   notifications: [],
@@ -288,9 +292,17 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
               ? `Gia hạn ${c.unitNumber}${ren?.renewalPeriodMonths ? ` · ${ren.renewalPeriodMonths} tháng` : ""}`
               : kind === "REFUND"
                 ? `Hoàn cọc ${c.unitNumber}`
-                : `Khoản thu kho ${c.unitNumber}`;
+                : FEE_KINDS.has(kind)
+                  ? `Phí phát sinh trả kho ${c.unitNumber}`
+                  : `Khoản thu kho ${c.unitNumber}`;
+      const fee = FEE_KINDS.has(kind);
       const paid = p.status === "PAID";
-      const status = paid ? (kind === "DEPOSIT" ? "DEPOSIT_HELD" : "RECONCILED") : p.status === "REFUNDED" || kind === "REFUND" ? "REFUNDED" : "UNPAID";
+      const open = !paid && !["CANCELLED", "REFUNDED", "FAILED"].includes(p.status);
+      const status = paid
+        ? kind === "DEPOSIT" ? "DEPOSIT_HELD" : "RECONCILED"
+        : p.status === "REFUNDED" || kind === "REFUND"
+          ? "REFUNDED"
+          : fee && open && overlay.feesAtCounter?.[p.paymentId] ? "AT_COUNTER" : "UNPAID";
       ledger.push({
         ref: p.transactionReference || `TT-${pad(p.paymentId)}`,
         api_id: p.paymentId,
@@ -301,7 +313,9 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
         amount: Number(p.amount),
         status,
         // C11: khoản gia hạn đã duyệt nhưng chưa trả → nút "Thanh toán" (QR PayOS)
-        payable: !paid && kind === "RENEWAL" && !["CANCELLED", "REFUNDED", "FAILED"].includes(p.status),
+        // C11f: phí phát sinh trả kho (vệ sinh, hư hỏng, quá hạn…) chưa trả → "Thanh toán" (PayOS) hoặc trả tại quầy
+        payable: open && (kind === "RENEWAL" || fee),
+        fee,
         period: ren ? { from: dateOnly(ren.oldEndDate), to: dateOnly(ren.newEndDate), months: ren.renewalPeriodMonths } : null,
       });
     }

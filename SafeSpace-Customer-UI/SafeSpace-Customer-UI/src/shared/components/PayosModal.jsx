@@ -7,11 +7,21 @@ import { Button, Modal, Notice } from "./UI.jsx";
 const POLL_MS = 3000;
 
 // C11q — Popup thanh toán QR PayOS cho một khoản (gia hạn đã duyệt). Hỏi backend định kỳ, tự đóng khi đã trả.
-export default function PayosModal({ target, title, subtitle, onPaid, onClose }) {
+export default function PayosModal({ target, title, subtitle, onPaid, onClose, note }) {
   const { services } = useApp();
   const [checkout, setCheckout] = useState(null);
   const [state, setState] = useState("loading"); // loading | ready | unsupported | error | paid
   const [error, setError] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [unconfirmed, setUnconfirmed] = useState(false); // Figma C11-kiểm tra
+  // Figma C11d / C11fq: khách bấm kiểm tra khi đã chuyển mà chưa thấy cập nhật
+  const checkNow = async () => {
+    setChecking(true);
+    const res = await services.checkPaid(target);
+    setChecking(false);
+    if (res.ok && res.paid) setState("paid");
+    else setUnconfirmed(true);
+  };
 
   const load = useCallback(async () => {
     setState("loading");
@@ -74,10 +84,18 @@ export default function PayosModal({ target, title, subtitle, onPaid, onClose })
           <dd className={state === "paid" ? "ok" : "warn"} aria-live="polite">{state === "paid" ? "Đã thanh toán" : "Đang chờ thanh toán…"}</dd>
         </div>
       </dl>
-      <p className="hint">Hệ thống tự xác nhận khi nhận được tiền, bạn không cần bấm gì thêm. Đóng cửa sổ này thì khoản vẫn chờ thanh toán.</p>
+      <p className="hint">{note || "Hệ thống tự xác nhận khi nhận được tiền, bạn không cần bấm gì thêm. Đóng cửa sổ này thì khoản vẫn chờ thanh toán."}</p>
       <div className="modal__actions modal__actions--full">
         <Button variant="outline" block onClick={onClose}>Đóng</Button>
+        {state === "ready" && <Button variant="outline" block disabled={checking} onClick={checkNow}>{checking ? "Đang kiểm tra…" : "Kiểm tra khi chưa thấy thanh toán"}</Button>}
       </div>
+      {unconfirmed && (
+        <Modal title="Chưa xác nhận được thanh toán" size="confirm" onClose={() => setUnconfirmed(false)}>
+          <span className="modal__state modal__state--failure" aria-hidden="true" />
+          <p className="modal__text">Nếu đã chuyển tiền, kiểm tra trạng thái trước khi thanh toán lại. Khoản phí vẫn được giữ để đối chiếu; đóng QR không làm mất công nợ.</p>
+          <Button block onClick={() => setUnconfirmed(false)}>Quay lại thanh toán</Button>
+        </Modal>
+      )}
     </Modal>
   );
 }
