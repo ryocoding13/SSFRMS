@@ -1,3 +1,14 @@
+## 2026-10-25 — F09 bổ sung đăng nhập bằng email, giữ tên đăng nhập cũ
+
+- Nền `main` e43c1f3b190b883c7fbc5d73a34be8de6a4c17ca; yêu cầu bàn giao ZIP để thành viên tự kiểm tra và push trên nhánh riêng.
+- `AuthService.LoginAsync`: bỏ khoảng trắng ngoài định danh, tìm username hoặc email không phân biệt hoa/thường của email; nếu nhiều tài khoản cùng khớp thì trả lỗi chung, không chọn người đầu tiên. Giữ BCrypt, trạng thái ACTIVE, role JWT, lịch sử đăng nhập và HTTP hiện có; không cắt khoảng trắng của mật khẩu.
+- Thêm `StorageProject.Tests/EmailLoginTests.cs`: 25 ca về username/email, khoảng trắng, email hoa/thường, sai/rỗng thông tin, tài khoản khoá/ngừng hoạt động, định danh trùng, mật khẩu có khoảng trắng và HTTP/JWT đọc đúng hồ sơ của khách/staff. Dùng fixture SQLite riêng, không chạm dữ liệu nhóm.
+- Bổ sung D31; cập nhật đúng các dòng đăng nhập trong BE-CONTRACT.md/BACKEND-TODO.md. Giữ toàn bộ quy định AI/Git và ghi chép Figma; không đổi feature_list.json hoặc nâng trạng thái tính năng.
+- Kiểm chứng Linux, .NET SDK 10.0.100: `dotnet build StorageProject.slnx --no-restore -m:1` PASS, 0 error; `dotnet test StorageProject.Tests/StorageProject.Tests.csproj` (qua lệnh test solution, --no-build --no-restore -m:1) 88/88 PASS, gồm 25 ca mới. HTTP dùng Kestrel + endpoint/service/JWT thật với SQLite.
+- Lệnh test solution còn báo 9 test IntegrationTests đạt, nhưng fixture trả sớm khi không có SQL Server; không coi đó là đã kiểm SQL Server. Chưa chạy SQL Server của nhóm, trình duyệt gọi backend thật của nhóm hoặc kiểm PayOS; task không sửa các luồng tiền/QR.
+- Cảnh báo dependency NU1902/NU1903 và nullable Board.cs có trên các phần không đổi; không nâng package hay sửa ngoài phạm vi. Không sửa appsettings, schema/migration, endpoint hoặc FE source.
+- Bàn giao bản vá có kiểm tra trước khi áp dụng để giữ nội dung file hiện tại; thành viên tự review, kiểm SQL Server, commit/push/PR/merge. AI không thực hiện các thao tác Git xuất bản.
+
 ## 2026-10-25 — Gộp main vào nhánh FE và bổ sung ghi chép pre-flight
 
 - Gộp `main` 2f2f933 (PR #41 CI/CD, PR #43 pre-flight) vào nhánh `feature/figma-approved-fe-completion`.

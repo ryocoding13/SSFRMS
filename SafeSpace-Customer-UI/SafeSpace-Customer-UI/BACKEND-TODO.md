@@ -145,7 +145,7 @@ Luật nghiệp vụ chi tiết (điều kiện chặn, chuyển trạng thái) 
 | Đăng ký trả kho (C09) | `POST /api/contracts/{id}/move-out` `{ date, slot, note }` → tạo lịch trả kho (hiện ở S04 của nhân viên) | Lưu trong trình duyệt |
 | Thông báo (chuông) | `GET /api/notifications`, `POST /api/notifications/read` `{ ids? }` | Lưu trong trình duyệt |
 | Hồ sơ (C13) | `PUT /api/auth/profile` `{ fullName }`, `POST /api/auth/change-password`, `POST /api/auth/forgot-password` | Đổi tên lưu cục bộ; đổi / quên mật khẩu đang khoá |
-| Đăng nhập | Cho đăng nhập bằng **email hoặc username**; sai mật khẩu trả **400** (không phải 401) | Khách đăng ký mới được đặt username = email |
+| Đăng nhập | D31: đã bổ sung code nhận **email hoặc username** qua `{username, password}`; giữ HTTP 401 hiện có cho sai thông tin | FE login đã xử lý riêng 401; còn kiểm chứng SQL Server của nhóm |
 | Hỗ trợ (C12) | Cho gửi khi **chưa có hợp đồng** (`ContractId` không bắt buộc); nhận ảnh đính kèm (multipart, ≤3 ảnh, ≤5 MB) | Chưa có hợp đồng thì không gửi được; ảnh lưu cục bộ |
 
 ## C. Ưu tiên 3 — chỉnh nhỏ

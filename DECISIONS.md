@@ -257,3 +257,11 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Theo yêu cầu người dùng: đặt quy tắc pre-flight ở đầu AGENTS.md và CLAUDE.md (đã merge ở PR #43). Mỗi lượt implementation / bug fixing / business logic phải đọc DECISIONS.md, feature_list.json, progress.md và `SafeSpace-Customer-UI/SafeSpace-Customer-UI/BACKEND-TODO.md` nếu chạm API/BE, rồi in receipt có bằng chứng trước giải thích/code. Không lấy trí nhớ thay thao tác đọc.
 - Dùng ID thực tế trong feature_list.json (hiện có F01–F41 và CI01–CI08), không giới hạn F01–F38. Tài liệu quy trình không tự tạo feature hoặc đổi passing.
 - Giữ D26, các quy định Git và kiểm chứng hiện hành; test mock/SQLite không thay SQL Server và API thật. Không thay nghiệp vụ trong bản bổ sung quy trình này.
+
+## D31 — 2026-10-25: Đăng nhập bằng email hoặc tên đăng nhập
+
+- Theo yêu cầu hoàn thiện đăng nhập bằng email; thay phần "Backend chỉ đăng nhập bằng username" của D03. Giữ cách đăng ký `username = email` và tài khoản seed cũ.
+- `POST /api/auth/login` tiếp tục nhận `{ username, password }`; trường `username` nhận tên đăng nhập hoặc email. Bỏ khoảng trắng ngoài định danh, so email không phân biệt chữ hoa/thường; không sửa email đã lưu và không cắt khoảng trắng của mật khẩu.
+- Khi một định danh khớp nhiều tài khoản (email trùng username người khác hoặc email chỉ khác hoa/thường), từ chối bằng lỗi đăng nhập chung; không chọn tài khoản đầu tiên và không cấp token. Quản trị viên cần xử lý dữ liệu trùng trước khi dùng định danh đó.
+- Giữ kiểm tra BCrypt, trạng thái ACTIVE, vai trò trong JWT và lịch sử đăng nhập thành công. Giữ mã HTTP hiện có: sai định danh/mật khẩu trả 401, tài khoản không ACTIVE trả 400; FE hiện đã xử lý riêng lỗi 401 khi đăng nhập. Không đổi schema/migration hoặc quyền theo cơ sở.
+- Bằng chứng và giới hạn kiểm thử ghi trong `progress.md`; chưa xác nhận SQL Server của nhóm và không tự nâng trạng thái tính năng.

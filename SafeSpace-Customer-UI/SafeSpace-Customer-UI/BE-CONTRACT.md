@@ -15,8 +15,8 @@ báo đã chuyển khoản, đăng ký trả kho + lịch trả kho, thông báo
 Đổi / quên mật khẩu đang khoá trên giao diện.
 
 Cách giao diện xử lý các điểm lệch hiện tại của backend:
-- **Đăng nhập chỉ bằng Username** → khi khách đăng ký trên giao diện, `username` được đặt bằng email, nên khách
-  đăng nhập được bằng email như Figma. Tài khoản seed (`customer01`…) vẫn đăng nhập bằng username.
+- **Đăng nhập bằng username hoặc email (D31)** → `POST /api/auth/login` giữ JSON `{username, password}`;
+  `username` nhận cả email (không phân biệt hoa/thường). Giữ HTTP 401 cho sai thông tin; FE login đã xử lý riêng. Tài khoản seed vẫn dùng username.
 - **DateTime trả về không kèm múi giờ** (đọc từ DB) → giao diện coi là UTC. Nên cấu hình JSON trả kèm `Z`.
 - **Giữ chỗ 24 giờ** ở backend, Figma là 01:00 → đơn tạo trên giao diện đếm ngược theo `VITE_PAYMENT_TIMEOUT_SECONDS`,
   hết giờ thì gọi `POST /api/reservations/{id}/cancel`. Đơn tạo nơi khác theo `ExpiresAt` của backend.
@@ -70,7 +70,7 @@ Cách giao diện xử lý các điểm lệch hiện tại của backend:
 
 | Màn | Endpoint đề xuất | Ghi chú |
 |---|---|---|
-| A01 | `POST /api/auth/login` `{identifier, password}` | Sai mật khẩu nên trả **400/422**, không phải 401 (UI coi 401 là hết phiên) |
+| A01 | D31: `POST /api/auth/login` `{username, password}` | `username` nhận username/email; giữ **401** khi sai thông tin, **400** khi tài khoản không ACTIVE; FE login đã xử lý riêng |
 | A02 | `POST /api/auth/register` `{fullName, email, phone, password}` | Tự gán role Customer; trả token + user |
 | A01 | `POST /api/auth/forgot-password` `{email}` | Luôn trả 200 |
 | C13 | `GET/PUT /api/auth/profile` | PUT chỉ nhận `fullName` |
