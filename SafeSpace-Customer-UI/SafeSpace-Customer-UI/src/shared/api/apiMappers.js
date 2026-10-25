@@ -330,6 +330,8 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
         new_end: dateOnly(r.newEndDate),
         amount: Number(r.renewalAmount),
         status,
+        reason: r.rejectionReason || r.reason || null,
+        at_counter: Boolean(r.atCounter),
         requested_at: isoOf(r.requestedAt),
       });
       if (status === "PENDING" && !paidRenewals.has(r.renewalId)) {

@@ -80,7 +80,7 @@ export const OPS_ACTIONS = {
 
 export function callAction(type, payload) {
   const make = OPS_ACTIONS[type];
-  if (!make) return null;
+  if (!make) throw new Error("Máy chủ chưa hỗ trợ thao tác này; dữ liệu chưa được thay đổi.");
   const [method, path, body] = make(payload);
   return request(path, { method, body });
 }

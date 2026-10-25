@@ -13,7 +13,13 @@
     "test": "node --test tests/reducer.test.js tests/api-mappers.test.js tests/admin.test.js tests/ops.test.js tests/units.test.js tests/ops-api.test.mjs tests/payment-access.test.js tests/payment-api.test.mjs tests/access.test.js tests/figma-workflow.test.js tests/auth-support-integration.test.js",
     "test:render": "node tests/render.test.mjs",
     "dev:mock": "node scripts/dev-mock.mjs",
-    "check:structure": "node scripts/check-structure.mjs"
+    "check:structure": "node scripts/check-structure.mjs",
+    "dev:demo": "node scripts/dev-demo.mjs",
+    "test:workflows": "node --test tests/approved-workflows.test.js",
+    "test:approved-ui": "node scripts/check-approved-ui.mjs",
+    "test:workflow-actions": "node scripts/check-workflow-actions.mjs",
+    "test:api-pending": "node scripts/check-api-pending.mjs",
+    "test:password-reset": "node scripts/check-password-reset.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",

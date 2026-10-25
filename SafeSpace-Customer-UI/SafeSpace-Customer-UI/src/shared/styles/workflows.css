@@ -1,0 +1,36 @@
+.workflow-page { max-width: 1040px; margin-inline: auto; padding-inline: 32px; }
+.workflow-page .field :is(input,select,textarea) { width: 100%; min-height: 48px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); padding: 12px 14px; }
+.workflow-page > .panel, .workflow-page > form > .panel { margin-bottom: 20px; }
+.workflow-page > .notice { margin-bottom: 20px; }
+.workflow-page .form-card { max-width: none; width: 100%; }
+.workflow-page h2 { font-size: 21px; line-height: 1.5; }
+.workflow-tiles, .facts { display: grid; grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); gap: 16px; width: 100%; margin: 16px 0; }
+.workflow-tiles > div, .facts > div { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; background: var(--bg); padding: 12px 14px; border-radius: 8px; min-width: 0; border: 0; }
+.workflow-tiles dt, .facts dt { font-size: 14px; color: var(--muted); }
+.workflow-tiles dd, .facts dd { font-size: 18px; font-weight: 600; text-align: left; overflow-wrap: anywhere; }
+.record-card { display: flex; align-items: center; justify-content: space-between; gap: 32px; padding: 20px 24px; margin-block: 16px; }
+.record-card__body { flex: 1; min-width: 0; display: grid; gap: 6px; }
+.record-card__body h2 { font-size: 20px; }
+.record-card__body > .muted { font-size: 14px; }
+.record-card__actions { width: 199px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.record-card__actions > .btn { width: 100%; text-align: center; justify-content: center; padding-inline: 8px; font-size: 15px; }
+.record-card__actions > .tag { text-align: center; justify-content: center; }
+.record-card:has(form) { align-items: stretch; flex-direction: column; }
+.record-card:has(form) .record-card__actions { align-self: flex-end; }
+.refund-amount { font-size: 18px; }
+.workflow-links { display: flex; flex-wrap: wrap; gap: 12px; margin-block: 20px; }
+.workflow-links .btn { font-size: 14px; min-height: 40px; }
+.workflow-thread li { padding: 16px; margin-block: 12px; border-radius: 8px; background: var(--soft); }
+.demo-banner { background: var(--amber-bg); color: var(--amber); border-bottom: 1px solid var(--line); text-align: center; padding: 8px 16px; font-size: 14px; }
+.workflow-page .btn, .modal__actions .btn { justify-content: center; text-align: center; }
+.workflow-page textarea { resize: vertical; min-height: 80px; }
+@media(max-width: 700px) {
+  .workflow-page { padding-inline: 20px; }
+  .record-card { flex-direction: column; align-items: stretch; padding: 20px; gap: 20px; }
+  .record-card__actions { width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: flex-start; }
+  .record-card__actions > .btn { width: auto; flex: 1; min-width: 150px; }
+  .record-card__actions > .tag { flex-basis: 100%; }
+  .workflow-tiles, .facts { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .workflow-tiles dd, .facts dd { font-size: 16px; }
+}
+@media(max-width: 380px) { .workflow-tiles, .facts { grid-template-columns: 1fr; } }

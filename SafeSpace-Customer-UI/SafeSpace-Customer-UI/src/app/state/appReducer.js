@@ -186,6 +186,11 @@ const handlers = {
   // PayOS báo đã thanh toán (webhook ở backend; chế độ trình duyệt tự gọi để mô phỏng).
   // reservation_id → đơn đặt chỗ đã trả tiền thuê + cọc; ref → khoản gia hạn ở C11.
   // C11fc → C11fcp: khách chọn trả phí phát sinh tại quầy; công nợ chỉ giảm khi nhân viên xác nhận đã thu (S09f)
+  CHOOSE_RENEWAL_AT_COUNTER(state, { renewal_id }) {
+    const r = state.renewals.find(x => x.renewal_id === renewal_id);
+    if (!r || r.status !== "APPROVED") fail("Yêu cầu chưa được duyệt hoặc đã được thanh toán.");
+    return { state: { ...state, renewals: state.renewals.map(x => x === r ? { ...x, at_counter: true } : x) }, result: { renewal_id } };
+  },
   CHOOSE_FEE_AT_COUNTER(state, { refs }) {
     const rows = state.ledger.filter((l) => refs.includes(l.ref) && l.fee && ["UNPAID", "AT_COUNTER"].includes(l.status));
     if (!rows.length) fail("Không còn khoản phí cần thanh toán.", "NOT_FOUND");
@@ -337,7 +342,7 @@ const handlers = {
       status: "PENDING",
       note: "Dọn hết đồ, trả thẻ / chìa khóa và có mặt để kiểm tra cùng nhân viên.",
     };
-    let next = { ...state, returns: [ret, ...state.returns], appointments: [appointment, ...state.appointments] };
+    let next = { ...state, returns: [ret, ...state.returns], appointments: [appointment, ...state.appointments], contracts: state.contracts.map(x => x.contract_id === c.contract_id ? { ...x, access_issued: false } : x) };
     next = notify(next, "Đã gửi lịch trả kho", `Kho ${c.unit_number} · ${dateLabel(p.date)} · ${p.slot}. Chờ cơ sở xác nhận.`, "payments", ctx.now);
     next = log(next, `Yêu cầu trả kho ${c.unit_number} đã gửi — chờ xác nhận`, "amber", ctx.now);
     return { state: next, result: { return_id: ret.return_id } };

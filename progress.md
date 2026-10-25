@@ -1,3 +1,15 @@
+## 2026-10-25 — FE bổ sung theo các màn đã duyệt
+
+- Base main c5aa79a, nhánh local feature/figma-approved-fe-completion; không commit/push/PR.
+- Bổ sung auth, khách hàng, staff, manager và operations; thẻ hoàn tiền theo từng khách, chính sách chi tiết/chỉnh sửa, đối soát, quá hạn, hoàn cọc, lịch sử, hỗ trợ trước hợp đồng, giá cơ sở và CSV.
+- FE adapter tách demo opt-in khỏi API thật; endpoint thiếu báo lỗi. Không sửa backend/DB/migration. Chính sách5% cọc gốc và giới hạn BE ghi ở D29/API-GAPS.
+- init FE đạt, unit81, workflow10, business9; kiểm tra render/build, desktop/mobile và thao tác demo.
+- Rà soát và gộp lên main 54abba6 (PR #39): giải xung đột `CancellationRefundPage` (giữ bố cục thẻ, dùng chữ chính sách từ `policy.js`).
+  Sửa: gia hạn đã thanh toán vẫn hiện "Chờ thanh toán" (mapper gộp PAID → APPROVED, nay đối chiếu khoản thu RENEWAL);
+  lịch trừ cọc, hồ sơ quá hạn và mốc xử lý đồ dùng tỷ lệ chính sách đang lưu thay vì ghi cứng 5% / 20 ngày; hợp đồng đã kết thúc không tính tiếp khấu trừ;
+  bỏ chữ "npm run dev:demo" / "bản demo" khỏi thông báo lỗi chế độ API; CSV không biến số âm thành chữ; thẻ trạng thái "từ chối" màu đỏ, "Chờ…" màu vàng.
+  Kiểm chứng: structure PASS, test 81/81, business 9/9, workflows 11/11 (thêm 1), render 115 route, build PASS; approved-ui 25 route, workflow-actions 10 nhóm, api-pending, password-reset PASS. Báo cáo chi tiết trong APPROVED-FE-README.md. Chưa chứng minh BE thật/PayOS/thiết bị; cần owner review, không đổi passing.
+
 ## 2026-10-25 — Sửa lỗi FE các màn C11, C14a, S04, S09, M07 (kế hoạch 25–31/10, phần Thắng)
 
 - **Bản gốc:** `main` c5aa79a (đã gộp PR #29). Chỉ sửa frontend; không sửa backend, DB, migration.

@@ -63,7 +63,7 @@ export function RentedUnitDetailPage({ id }) {
           {issued && !ended ? (
             <>
               <div className="stack stack--col">
-                <Button onClick={() => setQrOpen(true)}>Xem QR & PIN 6 số</Button>
+                <Button disabled={Boolean(ret) || c.end_date <= today()} onClick={() => setQrOpen(true)}>{ret || c.end_date <= today() ? "QR đã hết hiệu lực" : "Xem QR & PIN 6 số"}</Button>
                 {busy ? (
                   <>
                     <Button variant="outline" disabled>Yêu cầu gia hạn</Button>
@@ -99,6 +99,7 @@ export function RentedUnitDetailPage({ id }) {
           )}
         </aside>
       </div>
+      <div className="workflow-links"><LinkButton to={`units/${encodeURIComponent(id)}/renewal-status`} variant="outline">Theo dõi gia hạn</LinkButton><LinkButton to={`units/${encodeURIComponent(id)}/deposit`} variant="outline">Lịch khấu trừ cọc</LinkButton><LinkButton to={`units/${encodeURIComponent(id)}/progress`} variant="outline">Tiến độ trả kho / hoàn cọc</LinkButton><LinkButton to="payments/history" variant="outline">Lịch sử thanh toán</LinkButton><LinkButton to="policies" variant="outline">Chính sách cho thuê</LinkButton></div>
       {qrOpen && <AccessQrModal c={c} facility={f} onClose={() => setQrOpen(false)} />}
     </main>
   );

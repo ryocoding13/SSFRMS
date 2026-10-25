@@ -178,6 +178,7 @@ function LocalProvider({ children }) {
         return { ok: true, paid: Boolean(r && ["CONFIRMED", "CHECKED_IN"].includes(r.status)), cancelled: r?.status === "CANCELLED" };
       },
       async accessQr(contract) {
+        if (ref.current.data.returns.some(r => r.contract_id === contract.contract_id && !["CANCELLED", "REJECTED"].includes(r.status))) return { ok: false, error: "QR đã hết hiệu lực do đã gửi trả kho." };
         if (contract.access_issued === false || ["DRAFT", "ENDED"].includes(contract.status)) return { ok: false, error: "QR mở cửa chỉ được cấp khi hợp đồng đã được xác nhận." };
         return { ok: true, access: localAccessCode(contract) };
       },
@@ -190,6 +191,7 @@ function LocalProvider({ children }) {
         });
         const now = new Date().toISOString();
         if (!c) return { ok: true, scan: { result: "DENIED", unit: null, customer: null, contract: null, at: now, reason: "Mã không đúng. Kiểm tra lại mã trên ứng dụng hoặc mã dự phòng." } };
+        if (d.returns.some(r => r.contract_id === c.contract_id && !["CANCELLED", "REJECTED"].includes(r.status))) return { ok: true, scan: { result: "DENIED", at: now, reason: "QR đã hết hiệu lực do đã gửi trả kho." } };
         if (c.status === "ENDED") return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Mã đã hết hiệu lực — hợp đồng đã trả kho." } };
         if (c.access_issued === false || c.start_date > localDate(new Date())) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Chưa đến ngày bắt đầu hợp đồng hoặc mã chưa được cấp." } };
         if (c.end_date <= localDate(new Date())) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Hợp đồng đã quá hạn. Vui lòng gia hạn hoặc liên hệ cơ sở." } };
@@ -654,6 +656,7 @@ function ApiProvider({ children }) {
             if (pendingRenewal(d, c.contract_id)) return fail("Hợp đồng đang có yêu cầu gia hạn.");
             if (p.date < localDate(new Date())) return fail("Ngày hẹn không được ở quá khứ.");
             await api.requestMoveOut(c.api_id, { date: p.date, slot: p.slot, note: p.notes });
+            updateOverlay(o => ({ ...o, returns: [{ return_id: `TK-${c.api_id}`, contract_id: c.contract_id, date: p.date, slot: p.slot, notes: p.notes, status: "PENDING" }, ...o.returns.filter(r => r.contract_id !== c.contract_id)] }));
             remember("Đã đặt lịch trả kho", `Kho ${c.unit_number} · ${p.date} (${p.slot || "giờ hành chính"})`, `units/${c.contract_id}`, `Lịch trả kho ${c.unit_number} đã được ghi nhận`);
             await loadCustomer();
             return { ok: true, return_id: `TK-${c.api_id}` };
@@ -663,6 +666,13 @@ function ApiProvider({ children }) {
             return out.error ? fail(out.error.message, out.error.code) : { ok: true, ...out.result };
           }
           // C11fc: backend chưa có API chọn trả phí tại quầy → ghi trong trình duyệt; nhân viên thu ở S09f
+          case "CHOOSE_RENEWAL_AT_COUNTER": {
+            const renewal = d.renewals.find(x => x.renewal_id === p.renewal_id);
+            if (!renewal || renewal.status !== "APPROVED") return fail("Yêu cầu chưa được duyệt hoặc đã thanh toán.");
+            await api.chooseRenewalCounter(renewal.api_id);
+            await loadCustomer();
+            return { ok: true };
+          }
           case "CHOOSE_FEE_AT_COUNTER": {
             const rows = d.ledger.filter((l) => p.refs.includes(l.ref) && l.fee && ["UNPAID", "AT_COUNTER"].includes(l.status));
             if (!rows.length) return fail("Không còn khoản phí cần thanh toán.", "NOT_FOUND");
@@ -735,6 +745,7 @@ function ApiProvider({ children }) {
         }),
       accessQr: (contract) =>
         guard(async () => {
+          if (refs.current.data.returns?.some(r => r.contract_id === contract.contract_id && !["CANCELLED", "REJECTED"].includes(r.status))) return { ok: false, error: "QR đã hết hiệu lực do đã gửi trả kho." };
           const access = normAccess(await api.accessQr(contract.api_id));
           return access ? { ok: true, access } : fail("Máy chủ chưa trả mã mở cửa.");
         }),

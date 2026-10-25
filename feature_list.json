@@ -325,6 +325,16 @@
       "state": "active",
       "verification": "npm run check:structure; npm test; npm run test:business; npm run test:render; npm run build; ./init.sh; kiểm tra trên trình duyệt theo docs/figma-ui-sync-2026-10-23.md; M08 cần backend trả refunds trong GET /api/ops/board (BACKEND-TODO.md mục M08)",
       "evidence": "2026-10-23: xem progress.md mục F40. Chưa chạy backend .NET/SQL Server thật."
+    },
+    {
+      "id": "F41",
+      "flow": 7,
+      "uc": [],
+      "actor": "Khách hàng / Nhân viên / Quản lý / Vận hành KD",
+      "behavior": "FE các màn bổ sung đã duyệt: chính sách, đối soát, quá hạn, hoàn cọc, hỗ trợ trước hợp đồng, lịch sử, đặt lại mật khẩu; demo opt-in khi thiếu BE",
+      "verification": "_fe; npm run check:structure; npm run test:workflows; npm run test:business; kiểm tra trình duyệt theo APPROVED-FE-README.md",
+      "state": "blocked",
+      "evidence": "2026-10-25: FE có kiểm chứng riêng trên main 54abba6; chờ API nghiệp vụ bổ sung và owner review. Xem APPROVED-FE-API-GAPS.md; không xác nhận tích hợp BE thật."
     }
   ]
 }

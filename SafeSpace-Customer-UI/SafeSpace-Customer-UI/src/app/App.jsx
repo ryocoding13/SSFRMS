@@ -10,10 +10,21 @@ import "@fontsource/inter/latin-800.css";
 import "@fontsource/inter/vietnamese-800.css";
 import "../shared/styles/ss.css";
 import "../shared/styles/auth-support.css";
+import "../shared/styles/workflows.css";
+import { WORKFLOW_DEMO } from "../features/facility-operations/workflows/useWorkflowData.js";
+import { RentalPolicyPage } from "../features/customer/policies/RentalPolicyPage.jsx";
+import { RefundTrackingPage } from "../features/customer/payments/RefundTrackingPage.jsx";
+import { PaymentHistoryPage } from "../features/customer/history/PaymentHistoryPage.jsx";
+import { DepositLedgerPage } from "../features/customer/contracts/DepositLedgerPage.jsx";
+import { RenewalStatusPage } from "../features/customer/contracts/RenewalStatusPage.jsx";
+import { ReturnProgressPage } from "../features/customer/contracts/ReturnProgressPage.jsx";
+import { InquiryListPage } from "../features/customer/support/InquiryListPage.jsx";
+import { InquiryDetailPage } from "../features/customer/support/InquiryDetailPage.jsx";
 import React, { useEffect } from "react";
 import Header from "../shared/components/Header.jsx";
 import { Button, Empty, Icon, LinkButton } from "../shared/components/UI.jsx";
 import { go, parseRoute, useRoute } from "./router.js";
+import { PasswordResetPage } from "../features/auth/PasswordResetPage.jsx";
 import { LoginPage } from "../features/auth/LoginPage.jsx";
 import { RegisterPage } from "../features/auth/RegisterPage.jsx";
 import { CheckoutPage } from "../features/customer/payments/CheckoutPage.jsx";
@@ -68,12 +79,16 @@ const TITLES = {
 };
 
 // Trang cần đăng nhập. Các trang công khai: home, login, register, pricing, guide, find (xem cơ sở).
-const PRIVATE = ["overview", "units", "reservations", "payments", "support", "profile", "checkout", "confirmation", "sent"];
+const PRIVATE = ["refunds", "inquiries","overview", "units", "reservations", "payments", "support", "profile", "checkout", "confirmation", "sent"];
 
 function renderPage({ page, parts, query }) {
   const [a, b] = parts;
   switch (page) {
     case "home": return <HomePage />;
+    case "refunds": return <RefundTrackingPage />;
+    case "policies": return <RentalPolicyPage />;
+    case "inquiries": return a ? <InquiryDetailPage id={a} /> : <InquiryListPage />;
+    case "reset-password": return <PasswordResetPage />;
     case "login": return <LoginPage query={query} />;
     case "register": return <RegisterPage query={query} />;
     case "pricing": return <PublicPricingPage />;
@@ -84,11 +99,14 @@ function renderPage({ page, parts, query }) {
     case "overview": return <CustomerDashboardPage />;
     case "reservations": return a ? <ReservationDetailPage id={a} mode="detail" /> : <ReservationListPage />;
     case "units":
+      if (a && b === "renewal-status") return <RenewalStatusPage id={a} />;
+      if (a && b === "deposit") return <DepositLedgerPage id={a} />;
+      if (a && b === "progress") return <ReturnProgressPage id={a} />;
       if (a && b === "renew") return <RenewalRequestPage id={a} />;
       if (a && b === "return") return <ReturnRequestPage id={a} />;
       return a ? <RentedUnitDetailPage id={a} /> : <RentedUnitListPage />;
     case "sent": return <RequestSentPage query={query} />;
-    case "payments": return <PaymentListPage />;
+    case "payments": return a === "history" ? <PaymentHistoryPage /> : <PaymentListPage />;
     case "support": return a ? <SupportTicketDetailPage id={a} /> : <SupportPage query={query} />;
     case "profile": return <CustomerProfilePage />;
     // C07r: máy quét ở cửa kho (mô phỏng), không cần đăng nhập như thiết bị gắn tại cơ sở
@@ -157,6 +175,7 @@ function Shell() {
     <div className={`app${!isAdminPage && !isOpsPage && !isBusinessPage ? " customer-app" : ""}${["profile", "support"].includes(route.page) ? " app--auth-support" : ""}`}>
       <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>Chuyển đến nội dung</a>
       {!(isAdminPage && !adminBody && authed) && !(isOpsPage && authed && opsAllowed) && !(isBusinessPage && !businessBody && authed) && <Header page={route.page} />}
+      {(WORKFLOW_DEMO || mode === "local") && <p className="demo-banner" role="status">MÔ PHỎNG FE · Dữ liệu thử nghiệm, không thanh toán / chuyển tiền thật.</p>}
       <div id="main" tabIndex={-1} key={route.raw.split("?")[0]}>
         {needsLogin ? null : loadError && !ready ? (
           <main className="container page">

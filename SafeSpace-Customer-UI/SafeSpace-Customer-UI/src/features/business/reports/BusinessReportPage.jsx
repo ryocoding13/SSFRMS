@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { businessApi } from "../api/businessApi.js";
-import { Button } from "../../../shared/components/UI.jsx";
+import { Button, LinkButton } from "../../../shared/components/UI.jsx";
 import { useLoad } from "../../admin/utils/adminUtils.js";
 import { go, qs } from "../../../app/router.js";
 import { today } from "../../../shared/utils/format.js";
@@ -218,7 +218,7 @@ export default function BusinessReportPage({ query }) {
           </>
         )}
       </LoadState>
-      <div className="ops-actions">
+      <div className="ops-actions"><LinkButton to="business/export" variant="outline">Xuất CSV theo phạm vi</LinkButton>
           <Button variant="outline" onClick={doExport} disabled={exporting || load.loading || !!load.error || !load.data || load.data.view !== view}>Xuất báo cáo (.xlsx)</Button>
       </div>
     </main>

@@ -8,6 +8,7 @@ import { accessError, validateAccess } from "../../../shared/utils/access.js";
 export function useAccessQr(id) {
   const { data } = useApp();
   const getCredential = useCallback(async () => {
+    if (data.returns.some(r => r.contract_id === id && !["CANCELLED", "REJECTED"].includes(r.status))) throw new Error("QR đã hết hiệu lực do đã gửi trả kho.");
     if (USE_API) {
       const contract = data.contracts.find(c => c.contract_id === id);
       const targetId = contract?.api_id || id;

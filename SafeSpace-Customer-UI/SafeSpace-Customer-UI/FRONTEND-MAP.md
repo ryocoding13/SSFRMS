@@ -179,3 +179,8 @@
 | `src/pages/Checkout.jsx` | `src/features/customer/reservations/components/ReservationNotFound.jsx`, `src/features/customer/payments/CheckoutPage.jsx`, `src/features/customer/payments/CheckoutFailedPage.jsx`, `src/features/customer/reservations/ReservationDetailPage.jsx` |
 | `src/pages/Auth.jsx` | `src/features/auth/utils/safeNext.js`, `src/features/auth/components/ForgotPasswordDialog.jsx`, `src/features/auth/LoginPage.jsx`, `src/features/auth/RegisterPage.jsx` |
 | `src/pages/Public.jsx` | `src/features/customer/pricing/PublicPricingPage.jsx`, `src/features/customer/help/HelpPage.jsx` |
+
+
+## FE bổ sung 25/10/2026
+
+Xem `SafeSpace-Customer-UI/SafeSpace-Customer-UI/APPROVED-FE-README.md` để có bảng route đầy đủ. Các API dự kiến, giới hạn demo và yêu cầu BE ở `APPROVED-FE-API-GAPS.md`. Feature dùng chung: `src/features/facility-operations/workflows`; style: `src/shared/styles/workflows.css`.

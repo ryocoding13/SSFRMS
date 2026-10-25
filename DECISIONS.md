@@ -217,3 +217,12 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Kiểm chứng theo phạm vi, cho phép làm phần độc lập khi môi trường thiếu; ghi rõ phần chưa kiểm chứng. Trước merge code chạy đủ bộ liên quan và kiểm thử tích hợp; chỉ tài liệu không bắt buộc build ứng dụng. AI review không thay review của thành viên khác.
 - Không commit bí mật; cấu hình mẫu/dùng chung không chứa bí mật được phép. Không sửa migration đã merge/áp dụng trên DB dùng chung; migration chưa chia sẻ được sửa trong nhánh riêng. Không tự xóa/reset DB.
 - Không thay D26/D27, tính tiền, phân quyền, schema, API hoặc trạng thái passing của bất kỳ tính năng sản phẩm nào.
+
+
+## D29 — 2026-10-25: FE các màn đã duyệt và chính sách người dùng mới chốt
+
+- Theo yêu cầu người dùng: hoàn thiện FE kể cả chưa có BE. Thêm demo opt-in `dev:demo`, có nhãn rõ. API thường không fallback thành công. Không sửa backend, migration hoặc số tiền settlement hiện hành.
+- Người dùng chốt chính sách mới cho bản cập nhật tiếp theo: mỗi ngày trễ trừ 5% cọc ban đầu, cap100%; ngày20 nhân viên đưa đồ ra ngoài, khách tự chịu trách nhiệm. Nội dung FE này thay hướng mô tả quá hạn theo giá thuê trong D27/D28; BE chưa được chuyển đổi trong task FE này. Ledger luôn là bản xem trước đến khi BE cung cấp quyết toán/phiên bản áp dụng.
+- Khách đọc chính sách chi tiết; OPERATIONS sửa và xem trước. Không làm trang thu hồi QR; FE chặn mở cửa ngay sau trả kho thành công/hết hạn. Server/thiết bị phải kiểm tra quyền thực tế. Không tạo trang thông báo riêng; dùng chuông trên header.
+- Mỗi khách/đơn một thẻ, tên/chi tiết nằm gần nhau, hành động ở bên phải và căn giữa; form gọn, tránh hai cột thông tin cách quá xa.
+- Giữ source trên nhánh local để chủ repo review; không commit/push/PR và không đánh dấu passing trước owner duyệt.
