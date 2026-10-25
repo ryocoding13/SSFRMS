@@ -27,6 +27,7 @@ function readOps() {
 
 const UNSUPPORTED = {
   UPDATE_UNIT_STATUS: "Máy chủ chưa hỗ trợ đổi trạng thái ô kho. Cập nhật backend có PUT /api/staff/units/{mã}/status rồi thử lại.",
+  CONFIRM_FEE_COLLECTION: "Máy chủ chưa hỗ trợ ghi nhận thu phí tại quầy (POST /api/ops/fees/{mã}/confirm). Chưa lưu khoản thu này; không thu thêm tiền của khách.",
 };
 
 // Nhật ký / thông báo trong ca chỉ giữ ở trình duyệt (backend chưa có API thông báo)
@@ -103,13 +104,14 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
     async (type, payload, message) => {
       if (source === "api" && type !== "MARK_READ") {
         try {
-          await callAction(type, payload);
+          const res = await callAction(type, payload);
           await reload();
           if (message) {
             commit(appendLog(ref.current, message, null));
             notify?.(message);
           }
-          return { ok: true };
+          // Giữ số liệu backend trả về (vd. số tiền hoàn cọc thực tế) để màn kết quả hiển thị đúng
+          return { ok: true, ...(res && typeof res === "object" && !Array.isArray(res) ? res : {}) };
         } catch (e) {
           onApiError?.(e);
           // Route chưa có trên backend: ASP.NET trả 404/405 không kèm nội dung → báo rõ thay vì "Không tìm thấy dữ liệu."
@@ -169,7 +171,8 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
         await showOutcome({ kind: "failure", ...failure, detail: result.error && result.error !== failure.text ? result.error : "" });
         return { ...result, shown: true };
       }
-      if (spec.success) await showOutcome({ kind: "success", ...spec.success });
+      const success = typeof spec.success === "function" ? spec.success(result) : spec.success;
+      if (success) await showOutcome({ kind: "success", ...success });
       return result;
     } finally {
       activeAction.current = false;

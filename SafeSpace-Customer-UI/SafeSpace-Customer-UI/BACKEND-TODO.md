@@ -376,7 +376,10 @@ theo loại kho + diện tích (D17: cỡ M 15 m², cỡ L 30 m²) và từ ch�
 
 Giao diện đã làm theo Figma; backend cần bổ sung:
 
-- `POST /api/ops/returns/{id}/inspection` (`OpsReturnInspectionRequest`): nhận thêm `damageFee`, `cleaningFee`, `overdueFee`, `feeReason`; ghi các khoản `DAMAGE_FEE` / `CLEANING_FEE` / `OVERDUE_FEE` trạng thái `PENDING` để M07 trừ cọc theo D27 và phần thiếu thành công nợ.
+- `POST /api/ops/returns/{id}/inspection` (`OpsReturnInspectionRequest`): nhận thêm `damageFee`, `cleaningFee`, `cleaningRequired`, `feeReason`; lưu vào `ReturnInspection.DamageFee` / `CleaningFee` / `CleaningRequired` (cột đã có, `ConfirmRefundAsync` đang đọc) và ghi khoản `DAMAGE_FEE` / `CLEANING_FEE` trạng thái `PENDING` để M07 trừ cọc theo D27, phần thiếu thành công nợ.
+  - Cập nhật 25/10: S04 **bỏ ô nhập phí quá hạn** vì `ConfirmRefundAsync` đã tự tính phí quá hạn theo số ngày trễ (chính sách `OVERDUE`); nhập tay sẽ tính trùng. Giao diện không gửi `overdueFee` nữa.
+  - `OpsReturnReportDto` trong `GET /api/ops/board` trả thêm `damageFee`, `cleaningFee`, `cleaningRequired`, `feeReason`. Khi chưa có, S04 hiện "Máy chủ chưa lưu phí phát sinh…" và M07 không có dòng phí.
+- `POST /api/ops/contracts/{id}/refund` (M07a): giao diện gửi body `{ note }` (ghi chú khi xác nhận trả kho); endpoint hiện bỏ qua body — cần lưu vào activity log. Phản hồi `{ refund }` đang được dùng để hiện số hoàn cọc thực tế.
 - Khách trả phí qua PayOS: `POST /api/payments/{paymentId}/payos` cho khoản phí `PENDING` (cùng endpoint giao diện đang dùng cho gia hạn; hiện backend chưa có nên popup báo "tạm gián đoạn").
 - Khách chọn trả tại quầy (C11fc): API ghi nhận lựa chọn, ví dụ `POST /api/payments/{paymentId}/at-facility`. Giao diện tạm lưu trong trình duyệt (`overlay.feesAtCounter`).
 - Nhân viên thu tại quầy (S09f): `GET /api/ops/board` trả `feeCollections[]` `{ id, contract, customer, unit, items: [[nhãn, số tiền]], amount, due, status, requestedAt }` và `POST /api/ops/fees/{id}/confirm` chuyển các khoản sang `PAID`.

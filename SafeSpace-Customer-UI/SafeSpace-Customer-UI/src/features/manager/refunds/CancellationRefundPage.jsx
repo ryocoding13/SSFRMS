@@ -3,13 +3,14 @@ import { Button, Field, LinkButton, Modal, Notice } from "../../../shared/compon
 import { dateLabel, dateTimeLabel, money } from "../../../shared/utils/format.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
 import { PageHeaderBlock } from "../components/PageHeaderBlock.jsx";
+import { CANCEL_FEE_LABEL, CANCEL_REFUND_SHORT } from "../../../shared/utils/policy.js";
 
 // Figma M08 / M08a / M08a2 / M08-kết thúc / M07e: hoàn tiền đơn khách huỷ trước ngày bắt đầu thuê (D27).
 // Quản lý chuyển khoản thủ công ngoài hệ thống rồi xác nhận ở đây; thao tác không tự chuyển tiền.
 // Khách trả qua PayOS nên chỉ hoàn bằng chuyển khoản (Figma M08a ẩn lựa chọn tiền mặt)
 const METHODS = [["BANK_TRANSFER", "Chuyển khoản thủ công về tài khoản khách đã thanh toán"]];
 const shortId = (id) => id.replace(/^SS-\d{8}-/, "SS-");
-const amountLabel = (r) => (r.fee ? `${money(r.amount)} (100% tiền thuê + 90% cọc)` : money(r.amount));
+const amountLabel = (r) => (r.fee ? `${money(r.amount)} (${CANCEL_REFUND_SHORT})` : money(r.amount));
 
 function RefundDialog({ refund, onClose, onDone }) {
   const { run } = useOps();
@@ -32,7 +33,7 @@ function RefundDialog({ refund, onClose, onDone }) {
       <div className="refund-box">
         <dl className="pay-rows">
           <div><dt>Đã thanh toán qua PayOS</dt><dd>{money(refund.paid)}</dd></div>
-          <div><dt>Phí huỷ (10% tiền cọc)</dt><dd className="tone-red">{refund.fee ? `− ${money(refund.fee)}` : money(0)}</dd></div>
+          <div><dt>{CANCEL_FEE_LABEL}</dt><dd className="tone-red">{refund.fee ? `− ${money(refund.fee)}` : money(0)}</dd></div>
           <div className="pay-rows__total"><dt>Số tiền hoàn</dt><dd className="pay-rows__amount tone-green">{money(refund.amount)}</dd></div>
         </dl>
       </div>
@@ -104,7 +105,7 @@ export function CancellationRefundPage() {
               <div><dt>Đã thanh toán (tiền thuê + cọc)</dt><dd>{money(next.paid)}</dd></div>
               <div><dt>Tiền thuê</dt><dd>{money(next.rent)}</dd></div>
               <div><dt>Tiền cọc</dt><dd>{money(next.deposit)}</dd></div>
-              <div><dt>Phí huỷ (10% tiền cọc)</dt><dd>{money(next.fee)}</dd></div>
+              <div><dt>{CANCEL_FEE_LABEL}</dt><dd>{money(next.fee)}</dd></div>
               <div><dt>Hoàn cho khách</dt><dd>{money(next.amount)}</dd></div>
             </dl>
           )}

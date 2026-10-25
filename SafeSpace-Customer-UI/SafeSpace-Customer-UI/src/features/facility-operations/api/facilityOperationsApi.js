@@ -67,7 +67,8 @@ export const OPS_ACTIONS = {
   ALLOCATE: ({ id, unit }) => ["POST", `/api/ops/allocations/${enc(id)}`, { unitCode: unit }],
   ASSIGN: ({ id, staff }) => ["PUT", `/api/ops/assignments/${enc(id)}`, { staffId: staff }],
   REMIND: ({ id, note }) => ["POST", `/api/ops/contracts/${enc(id)}/reminders`, { note: note || "" }],
-  CONFIRM_REFUND: ({ id }) => ["POST", `/api/ops/contracts/${enc(id)}/refund`],
+  // M07a · Ghi chú gửi kèm; backend hiện chưa đọc body (BACKEND-TODO: lưu ghi chú xác nhận trả kho)
+  CONFIRM_REFUND: ({ id, note }) => ["POST", `/api/ops/contracts/${enc(id)}/refund`, { note: String(note || "").trim() || null }],
   // M08 · D27: xác nhận đã chuyển khoản hoàn cho đơn khách huỷ (backend chưa nhận phương thức / mã giao dịch → gửi kèm để lưu sau)
   CONFIRM_RESERVATION_REFUND: ({ id, method, transaction_ref }) => ["POST", `/api/ops/reservations/${enc(id)}/refund`, { method: method || "BANK_TRANSFER", transactionRef: String(transaction_ref || "").trim() || null }],
   // M02b / M02c · CreateStorageUnitRequest / UpdateStorageUnitRequest (OpsDtos.cs). Backend chưa nhận loại kho + cỡ theo tên:

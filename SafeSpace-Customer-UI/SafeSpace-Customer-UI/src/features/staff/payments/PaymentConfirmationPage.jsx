@@ -6,14 +6,15 @@ import { PAYMENT_STATE } from "../../facility-operations/state/facilityOperation
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
 import { Facts } from "../../facility-operations/components/FacilityOperationsComponents.jsx";
 
+// Backend (OpsPaymentDto) chưa trả tách tiền thuê / cọc → ước tính theo D-cọc = 1 tháng thuê, đánh dấu estimated
 export function paymentParts(p) {
-  if (p.rent != null && p.deposit != null) return { months: p.months || null, rent: Number(p.rent), deposit: Number(p.deposit) };
+  if (p.rent != null && p.deposit != null) return { months: p.months || null, rent: Number(p.rent), deposit: Number(p.deposit), estimated: false };
   const [y1, m1, d1] = String(p.start || "").split("-").map(Number);
   const [y2, m2, d2] = String(p.end || "").split("-").map(Number);
   const months = y1 && y2 ? Math.max(1, (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0)) : null;
-  if (!months) return { months: null, rent: null, deposit: null };
+  if (!months) return { months: null, rent: null, deposit: null, estimated: true };
   const monthly = Math.round(p.amount / (months + 1));
-  return { months, rent: p.amount - monthly, deposit: monthly };
+  return { months, rent: p.amount - monthly, deposit: monthly, estimated: true };
 }
 
 export const HOLD_HOURS = 24;
@@ -52,12 +53,12 @@ export function PaymentConfirmationPage({ query }) {
             ["Số tiền cần thu", <span className="price" key="a">{money(p.amount)}</span>],
             ["Hình thức thu", "Tiền mặt / chuyển khoản tại quầy"],
             ["Giữ chỗ đến", holdUntil ? dateTimeLabel(holdUntil) : "—"],
-            ["Gồm", parts.months ? `Thuê ${parts.months} tháng ${money(parts.rent)} + cọc ${money(parts.deposit)}` : p.offer],
+            ["Gồm", parts.months ? `Thuê ${parts.months} tháng ${money(parts.rent)} + cọc ${money(parts.deposit)}${parts.estimated ? " (ước tính, cọc bằng 1 tháng thuê)" : ""}` : p.offer],
           ]}
         />
         {done ? (
           <Notice tone={p.status === "CONFIRMED" ? "success" : "error"}>
-            {PAYMENT_STATE[p.status][0]}{p.note ? `: ${p.note}` : ""}.
+            {(PAYMENT_STATE[p.status] || [`Trạng thái ${p.status}`])[0]}{p.note ? `: ${p.note}` : ""}.
           </Notice>
         ) : (
           <>

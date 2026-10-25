@@ -1,3 +1,22 @@
+## 2026-10-25 — Sửa lỗi FE các màn C11, C14a, S04, S09, M07 (kế hoạch 25–31/10, phần Thắng)
+
+- **Bản gốc:** `main` c5aa79a (đã gộp PR #29). Chỉ sửa frontend; không sửa backend, DB, migration.
+- **C14a:** `canCancel` khớp `ReservationService.CancelReservationAsync` (PENDING_PAYMENT / PENDING_AT_FACILITY / CONFIRMED, bỏ PAID);
+  đơn đã thanh toán không huỷ được từ ngày bắt đầu thuê; lỗi `cancel-preview` hiện lý do và khoá nút huỷ; huỷ một đơn không còn ẩn nút huỷ đơn khác.
+- **Chính sách huỷ/hoàn:** gom chữ và tỷ lệ về `src/shared/utils/policy.js` (C14a, M08, reducer) — chốt chính sách mới chỉ sửa một file.
+- **C11:** nút "Thanh toán phí tại quầy" tách theo từng hợp đồng (trước gộp phí nhiều hợp đồng vào HĐ đầu tiên);
+  chế độ API báo rõ lựa chọn chỉ lưu trên thiết bị (backend chưa có API); phí đã chọn "tại quầy" vẫn trả được qua QR.
+- **S04:** bỏ ô phí quá hạn (BE tự tính khi xác nhận, tránh tính trùng); thêm "Kho cần vệ sinh" (`cleaningRequired`);
+  hiện tiền cọc và dự kiến hoàn/công nợ; biên bản đã gửi chỉ hiện phí máy chủ trả về, báo lỗi nếu máy chủ chưa lưu phí.
+- **S09:** trạng thái lạ không làm crash; S09f không crash khi thiếu `items`; "Gồm" ghi rõ là ước tính; thông báo cụ thể khi BE chưa có `/api/ops/fees/{id}/confirm`.
+- **M07:** hộp thoại xác nhận trả kho hiện tiền cọc, trừ cọc, hoàn/còn nợ dự kiến; gửi kèm ghi chú; giữ hộp thoại khi lưu lỗi;
+  màn kết quả dùng số `refund` backend trả về thay vì số ước tính phía giao diện; chặn crash khi thiếu `reminders`.
+- **Seed:** đơn/hợp đồng A-102 (SS-0142) bắt đầu từ ngày mai để vẫn có đơn huỷ được theo quy tắc mới (test render C14 cần nút "Huỷ đơn").
+- **Kiểm chứng (local, không backend):** `check:structure` PASS; `npm test` 81/81; `test:business` 9/9; `test:render` 97 route PASS; `build` PASS;
+  Chromium chạy tay C11, C14a, S09, luồng S04 có phí → M07a xác nhận (còn nợ 510.000 đ khớp hai bên).
+- **Chưa kiểm chứng:** chưa chạy .NET/SQL Server/PayOS thật. Phần còn chờ backend ghi ở `BACKEND-TODO.md` mục "Phí phát sinh khi trả kho và công nợ" và "M08":
+  lưu phí S04, `POST /api/payments/{id}/payos`, API chọn trả tại quầy, `feeCollections` + `/api/ops/fees/{id}/confirm`, `refunds` trên board, lưu ghi chú M07a.
+
 ## 2026-10-15 — F31: Frontend vận hành KD, không sửa backend/database
 
 - Bản gốc: SSFRMS(1).zip mới; API: operations-api(3).md; thiết kế B01–B05 section 436:13803.

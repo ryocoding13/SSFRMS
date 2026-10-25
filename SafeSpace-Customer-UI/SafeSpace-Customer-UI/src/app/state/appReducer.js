@@ -9,6 +9,7 @@ import {
   timeoutLabel,
 } from "../../shared/utils/format.js";
 import { TICKET_TOPICS, ticketTitle } from "../../shared/utils/status.js";
+import { CANCEL_DEPOSIT_FEE_RATE, CANCEL_POLICY_NAME } from "../../shared/utils/policy.js";
 
 export class DomainError extends Error {
   constructor(message, code = "INVALID") {
@@ -70,13 +71,11 @@ const hasPending = (state, contract_id) => ({
 });
 
 // C14a · Ước tính hoàn tiền khi huỷ đơn đã thanh toán trước ngày bắt đầu thuê (chế độ trình duyệt).
-// Chính sách D27: phí huỷ cố định 10% tiền cọc; hoàn 100% tiền thuê + 90% tiền cọc.
-// Chế độ API lấy từ GET /api/reservations/{id}/cancel-preview.
-export const CANCEL_DEPOSIT_FEE_RATE = 0.1;
+// Chính sách D27 (shared/utils/policy.js). Chế độ API lấy từ GET /api/reservations/{id}/cancel-preview.
 export function cancelPreviewOf(r) {
   const paid = r.initial_total || 0;
   const fee = Math.round((r.deposit || 0) * CANCEL_DEPOSIT_FEE_RATE);
-  return { paid, fee, refund: Math.max(0, paid - fee), policy: "Huỷ trước ngày bắt đầu: phí 10% tiền cọc" };
+  return { paid, fee, refund: Math.max(0, paid - fee), policy: CANCEL_POLICY_NAME };
 }
 
 const handlers = {
