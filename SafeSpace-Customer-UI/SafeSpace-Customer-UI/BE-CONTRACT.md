@@ -120,3 +120,29 @@ Hình dạng dữ liệu giao diện đang dùng nằm ở `src/features/facilit
 - POST /api/ops/keys/{id}/receipt ghi nhận nhận chìa khóa, không kích hoạt hợp đồng.
 - AccessQrDto có validFrom, backupCode là PIN6; POST /api/access/scan nhận thêm unitNumber (bắt buộc khi dùng PIN). ContractDetailDto có accessUpdatedAt để tạo thông báo cấp lại mã.
 - PayOS thành công tự phân bổ/cấp hợp đồng, không còn yêu cầu bàn giao. Xem đầy đủ tại docs/figma-ui-sync-2026-10-22.md.
+
+## Đồng bộ 26/10 — D31
+
+Nguồn `DECISIONS.md` D31; danh sách việc và người làm ở `BACKEND-TODO.md` mục "D31". Những điểm hợp đồng API thay đổi:
+
+| Màn | Endpoint | Thay đổi theo D31 |
+|---|---|---|
+| A01 | `POST /api/auth/login` | Nhận email **hoặc** username trong cùng ô (`identifier` hoặc `username`) |
+| C03b, C04 | `GET /api/rental-policy`, `GET /api/rental-policy/versions/{version}` | Bản chính sách hiện hành (công khai) và bản theo phiên bản; đơn lưu `policyVersion`, `acceptedAt`, `channel` khi khách đồng ý |
+| S09 → khách | `POST /api/reservations/{id}/policy-consent` | Khách tự đồng ý khi thu tại quầy; nhân viên không tích thay |
+| C14a | `POST /api/reservations/{id}/cancel` | Giữ phí 10% cọc (D27); thêm `bankName`, `accountNumber` (6–19 chữ số), `accountHolder` để hoàn vào tài khoản chính chủ |
+| C08 | `POST /api/contracts/{id}/renewals` | Chỉ nhận trước EndDate; phải kèm đồng ý chính sách hiện hành |
+| M03 | `POST /api/ops/renewals/{id}/approve` | Chốt giá, tạo `RENEWAL` `PENDING` hạn 24 giờ; **không đổi EndDate** |
+| C11q | `POST /api/payments/{id}/payos` | Thu khoản `RENEWAL`; thu đủ đúng một lần mới đổi EndDate |
+| C09 | `POST /api/contracts/{id}/move-out` | Bắt buộc ảnh kho trống và tài khoản nhận hoàn chính chủ; QR/PIN hết hiệu lực và phí quá hạn dừng ngay khi thành công |
+| S04 | `POST /api/ops/returns/{id}/inspection` | Thêm `damageFee`, `cleaningRequired`, `feeReason`, `photos[]`; vệ sinh = 10% cọc cố định |
+| M07 | `POST /api/ops/contracts/{id}/refund` | Chỉ chốt số; tổng khấu trừ ≤ cọc; tạo `REFUND` `PENDING`; ô cần vệ sinh giữ `MAINTENANCE` |
+| Hoàn cọc | `GET /api/ops/deposit-refunds`, `POST /api/ops/deposit-refunds/actions` | Quản lý nhập `transactionRef` → `REFUND` `PAID` ("Đã hoàn") |
+| Quá hạn | Chính sách `OVERDUE` | `CalculationType` `DEPOSIT_PERCENT_PER_DAY` (mặc định 5), tối đa 100% cọc; job hằng ngày tạo `OverdueCase` |
+| Sự cố | `POST /api/ops/incidents`, `POST /api/contracts/{id}/incident-choice`, `POST /api/ops/incidents/{id}/complete-transfer` | Đổi ô tương đương không phụ phí, hoặc kết thúc với hoàn tháng đang thuê + tháng chưa dùng + 100% cọc |
+| C12-0 | `GET/POST /api/support/inquiries` | Hỗ trợ khi chưa có hợp đồng: `facilityId`, `topic`, `description` |
+| Cửa kho | `POST /api/access/scan` | 10 lượt/phút; quá giới hạn trả `DENIED` kèm lý do tạm dừng |
+
+Bỏ khỏi hợp đồng: thu hồi QR/PIN thủ công (`POST /api/staff/credentials/{id}/revoke`), công nợ sau trả kho và các API trả phí phát sinh sau trả kho. Phân quyền chỉ theo vai trò và cơ sở phụ trách, không kiểm PermissionCode.
+
+Các dòng cũ trong mục 0 ("Yêu cầu hỗ trợ bắt buộc ContractId", "Đăng nhập chỉ bằng Username") là hiện trạng backend tại thời điểm viết; hướng xử lý hiện hành theo bảng trên.

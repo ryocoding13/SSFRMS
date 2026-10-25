@@ -265,3 +265,48 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Khi một định danh khớp nhiều tài khoản (email trùng username người khác hoặc email chỉ khác hoa/thường), từ chối bằng lỗi đăng nhập chung; không chọn tài khoản đầu tiên và không cấp token. Quản trị viên cần xử lý dữ liệu trùng trước khi dùng định danh đó.
 - Giữ kiểm tra BCrypt, trạng thái ACTIVE, vai trò trong JWT và lịch sử đăng nhập thành công. Giữ mã HTTP hiện có: sai định danh/mật khẩu trả 401, tài khoản không ACTIVE trả 400; FE hiện đã xử lý riêng lỗi 401 khi đăng nhập. Không đổi schema/migration hoặc quyền theo cơ sở.
 - Bằng chứng và giới hạn kiểm thử ghi trong `progress.md`; chưa xác nhận SQL Server của nhóm và không tự nâng trạng thái tính năng.
+
+## D32 — 2026-10-26: Khấu trừ tối đa bằng cọc, quá hạn theo cọc, sự cố cơ sở, không thu hồi mã — Đã chốt
+
+> Người dùng chốt ngày 26/10/2026 (kế hoạch hoàn thiện 26–31/10). Áp dụng cho **mọi hợp đồng**, kể cả hợp đồng đang chạy.
+> Chưa triển khai code; việc BE/FE ghi ở `SafeSpace-Customer-UI/SafeSpace-Customer-UI/BACKEND-TODO.md` mục "D31".
+
+**Tiền khi trả kho và quá hạn**
+- Tổng khấu trừ khi trả kho (vệ sinh 10% cọc cố định, hư hỏng, quá hạn) tối đa bằng 100% cọc. Vượt cọc thì hoàn 0 đ và dừng ở đó; **không phát sinh công nợ ngoài cọc**, không tạo khoản phải thu khách sau trả kho.
+  Thay dòng "Nếu tổng phí vượt cọc: tiền hoàn bằng 0 đ, phần thiếu ghi công nợ khách" của D27 và phần "phần thiếu giữ trạng thái chưa thanh toán (công nợ)" trong mô tả `ConfirmRefundAsync`.
+- Phí quá hạn: mỗi ngày lịch trễ (giờ Việt Nam, tính từ 00:00 ngày sau EndDate) trừ **5% cọc ban đầu**, tối đa 100% cọc. Ngày 10–14 nhắc khách; ngày 20 nhân viên lập biên bản, chụp ảnh, đưa đồ ra ngoài, khách tự chịu trách nhiệm. Gửi yêu cầu trả kho thành công thì dừng tính phí.
+  Thay dòng quá hạn của D27 ("5% giá thuê tháng hoặc 150% giá thuê ngày") và mô tả B02 trong D28; hoàn thiện ý quá hạn của D30 (D30 chỉ đổi FE). Tỷ lệ 5% và mốc ngày lưu trong chính sách `OVERDUE` (B02), không ghi cứng trong code.
+- Giữ nguyên từ D27: cọc = 1 tháng tiền thuê; trả sạch, đúng hạn hoàn 100% cọc; vi phạm vệ sinh cơ bản trừ 10% cọc; dừng sau StartDate hoàn 70% cọc và các tháng nguyên vẹn chưa bắt đầu.
+
+**Huỷ đơn**
+- Giữ D27: huỷ trước StartDate giữ phí cố định 10% tiền cọc, hoàn 100% tiền thuê + 90% cọc. Từ StartDate đi theo luồng trả kho. Không áp dụng hướng "bỏ phí huỷ 10%" trong tài liệu tổng hợp DOCX.
+
+**Hoàn tiền**
+- Mọi khoản hoàn chuyển vào **tài khoản ngân hàng chính chủ** khách khai báo (ngân hàng, số tài khoản 6–19 chữ số, tên chủ tài khoản trùng tên trên hợp đồng), kể cả khi khách đã trả tiền mặt. Thời hạn 3–5 ngày làm việc.
+- Hoàn cọc sau trả kho có hai bước: M07 chốt số tiền → khoản `REFUND` `PENDING` ("Chờ hoàn"); quản lý ghi mã giao dịch ở màn hoàn cọc → `PAID` ("Đã hoàn"). Thay dòng "Hệ thống ghi trạng thái hoàn khi Quản lý xác nhận ở M07" của D27.
+
+**Trả kho**
+- Ảnh kho trống bắt buộc khi gửi yêu cầu trả kho. Gửi thành công thì QR/PIN hết hiệu lực ngay, phí quá hạn dừng, khách không huỷ được yêu cầu.
+- Ô cần vệ sinh hoặc sửa sau kiểm tra giữ `MAINTENANCE`, không tự về `AVAILABLE` khi hoàn cọc.
+- Khách phản hồi hư hỏng: cơ sở đồng ý (tạm giữ khấu trừ, đặt hạn khắc phục) hoặc từ chối có lý do; khắc phục đạt thì bỏ khoản khấu trừ đó.
+
+**Sự cố do cơ sở**
+- Khách đồng ý thì chuyển sang ô tương đương, không phụ phí, giữ nguyên kỳ thuê và giá; mã ra vào ô cũ hết hiệu lực khi quản lý xác nhận hoàn tất chuyển, hệ thống cấp mã cho ô mới.
+- Khách không đồng ý thì kết thúc hợp đồng: hoàn **100% tiền tháng đang thuê + 100% các tháng chưa dùng + 100% cọc**, không phạt dừng sớm. Thay cách tính "theo số ngày chưa dùng" từng ghi trên Figma bản chờ duyệt.
+
+**Gia hạn**
+- Chỉ gửi trước ngày hết hạn. Quản lý duyệt thì chốt giá tại lúc duyệt và tạo khoản `RENEWAL` `PENDING`, **chưa đổi EndDate**. Khách thanh toán trong 24 giờ sau khi duyệt và trước khi hết hạn; thu đủ đúng một lần mới kéo dài hợp đồng. Quá hạn thanh toán thì yêu cầu hết hiệu lực.
+  Thay mô tả M03 trong `BACKEND-TODO.md` mục A3 ("cập nhật EndDate hợp đồng") và phần webhook gia hạn tương ứng.
+
+**Phiên bản chính sách**
+- Khách đồng ý chính sách trước khi thanh toán (kể cả thu tại quầy: khách tự xác nhận trên tài khoản, nhân viên không tích thay). Lưu phiên bản và thời điểm đồng ý theo đơn/hợp đồng; gia hạn mới phải đồng ý bản hiện hành. Khách xem lại đúng bản đã đồng ý ở mục Chính sách.
+
+**QR/PIN**
+- **Không làm thu hồi QR/PIN thủ công** (không màn, không API). Mã tự hết hiệu lực khi hết hạn hợp đồng hoặc gửi trả kho thành công; cấp lại QR hay PIN thì mã cũ cùng loại hết hiệu lực, loại còn lại giữ nguyên (D26). Máy quét giới hạn 10 lượt/phút. Thay phần "thu hồi credential" của F13 và việc "thu hồi mã" trong kế hoạch 7 ngày.
+
+**Phạm vi và quyền**
+- Giữ **hỗ trợ khi chưa có hợp đồng** (màn C12-0): khách chọn cơ sở và chủ đề; BE làm API riêng, nhân viên đúng cơ sở trả lời.
+- Phân quyền **chỉ theo vai trò** (CUSTOMER, STAFF, MANAGER, OPERATIONS, ADMIN) và cơ sở phụ trách; không kiểm từng PermissionCode trong nghiệp vụ. Màn ma trận quyền của admin chỉ để xem.
+
+**Giao diện**
+- Mục "Chính sách" riêng trên menu khách; một mẫu popup chuẩn (560 px, 6 loại: xác nhận, xác nhận nguy hiểm, thành công, thất bại, cảnh báo, thông tin); thông báo dùng chuông, không trang riêng. Màn không ghi mã nội bộ "D30/D31"; phiên bản hiển thị dạng "11/2026".

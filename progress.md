@@ -8,6 +8,13 @@
 - Lệnh test solution còn báo 9 test IntegrationTests đạt, nhưng fixture trả sớm khi không có SQL Server; không coi đó là đã kiểm SQL Server. Chưa chạy SQL Server của nhóm, trình duyệt gọi backend thật của nhóm hoặc kiểm PayOS; task không sửa các luồng tiền/QR.
 - Cảnh báo dependency NU1902/NU1903 và nullable Board.cs có trên các phần không đổi; không nâng package hay sửa ngoài phạm vi. Không sửa appsettings, schema/migration, endpoint hoặc FE source.
 - Bàn giao bản vá có kiểm tra trước khi áp dụng để giữ nội dung file hiện tại; thành viên tự review, kiểm SQL Server, commit/push/PR/merge. AI không thực hiện các thao tác Git xuất bản.
+## 2026-10-26 — Ghi D32 và cập nhật tài liệu BE theo chính sách mới (T01, Thắng)
+
+- Task chỉ tài liệu; không sửa code, DB, migration và không đổi trạng thái feature.
+- `DECISIONS.md`: thêm D32 (người dùng chốt 26/10): khấu trừ tối đa bằng cọc, không công nợ ngoài cọc; quá hạn 5% cọc ban đầu/ngày, tối đa 100%, ngày 20 xử lý đồ; giữ phí huỷ 10% cọc (D27); hoàn vào tài khoản chính chủ, hai trạng thái Chờ hoàn / Đã hoàn; sự cố cơ sở đổi ô hoặc hoàn tháng đang thuê + tháng chưa dùng + 100% cọc; gia hạn chỉ đổi EndDate khi thu đủ; phiên bản chính sách và bằng chứng đồng ý; không thu hồi QR/PIN thủ công; giữ hỗ trợ khi chưa có hợp đồng; phân quyền chỉ theo vai trò. Áp dụng cho mọi hợp đồng. Ghi rõ dòng nào của D27/D28/D30 bị thay; không xoá lịch sử.
+- `BACKEND-TODO.md`: thêm mục "D32" (T02–T20, người làm, mức ưu tiên, endpoint); đánh dấu các dòng cũ bị D31 thay (M03, M07, QR, D27, phí phát sinh và công nợ).
+- `BE-CONTRACT.md`: thêm mục "Đồng bộ 26/10 — D31" liệt kê thay đổi hợp đồng API.
+- Kiểm chứng: đọc lại diff, kiểm bảng Markdown không vỡ cột. Không cần build ứng dụng (task tài liệu).
 
 ## 2026-10-25 — Gộp main vào nhánh FE và bổ sung ghi chép pre-flight
 
