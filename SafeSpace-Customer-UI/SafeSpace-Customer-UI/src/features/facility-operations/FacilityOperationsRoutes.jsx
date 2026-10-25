@@ -1,4 +1,13 @@
 import React from "react";
+import { PaymentDiscrepancyPage } from "../staff/payments/PaymentDiscrepancyPage.jsx";
+import { RenewalCollectionPage } from "../staff/payments/RenewalCollectionPage.jsx";
+import { OverdueRemovalPage } from "../staff/overdue/OverdueRemovalPage.jsx";
+import { StaffInquiryPage } from "../staff/support/StaffInquiryPage.jsx";
+import { DiscrepancyListPage } from "../manager/discrepancies/DiscrepancyListPage.jsx";
+import { DiscrepancyDetailPage } from "../manager/discrepancies/DiscrepancyDetailPage.jsx";
+import { OverdueCasePage } from "../manager/overdue/OverdueCasePage.jsx";
+import { DepositRefundPage } from "../manager/refunds/DepositRefundPage.jsx";
+
 import { Empty, LinkButton } from "../../shared/components/UI.jsx";
 import { UnitAllocationPage } from "../manager/allocations/UnitAllocationPage.jsx";
 import { StaffAssignmentPage } from "../manager/assignments/StaffAssignmentPage.jsx";
@@ -30,6 +39,10 @@ function StaffTab({ kind, Detail, query }) {
 
 // #/staff/...  (Figma S01–S09)      #/manager/...  (Figma M01–M08)
 const STAFF = {
+  mismatch: [PaymentDiscrepancyPage, "staff/reconcile"],
+  "renewal-payments": [RenewalCollectionPage, "staff/reconcile"],
+  overdue: [OverdueRemovalPage, "staff"],
+  inquiries: [StaffInquiryPage, "staff/support"],
   "": [StaffDashboardPage, "staff"],
   reconcile: [PaymentConfirmationPage, "staff/reconcile"],
   fees: [FeeCollectionPage, "staff/reconcile"],
@@ -41,6 +54,10 @@ const STAFF = {
   done: [StaffResultPage, "staff"],
 };
 const MANAGER = {
+  discrepancies: [DiscrepancyListPage, "manager/contracts"],
+  "discrepancy-detail": [DiscrepancyDetailPage, "manager/contracts"],
+  overdue: [OverdueCasePage, "manager/contracts"],
+  "deposit-refunds": [DepositRefundPage, "manager/contracts"],
   "": [ManagerDashboardPage, "manager"],
   units: [UnitManagementPage, "manager/units"],
   allocate: [UnitAllocationPage, "manager/allocate"],

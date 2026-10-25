@@ -222,8 +222,9 @@ test("S05 → C12: nhân viên gửi phản hồi, khách đọc lại trên cù
   await page.goto("/#/staff/support?id=HT-0005");
   await page.getByLabel("Ghi nhận xử lý").fill("Đã thay thẻ mới cho khách");
   await page.getByRole("button", { name: "Lưu phản hồi" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Lưu phản hồi", exact: true }).click();
-  await expect(page).toHaveURL(/staff\/done/);
+  await page.getByRole("dialog").getByRole("button", { name: "Xác nhận lưu phản hồi", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Về danh sách hỗ trợ", exact: true }).click();
+  await expect(page).toHaveURL(/staff\/support$/);
   expect(state.replies[0].message).toBe("Đã thay thẻ mới cho khách");
   // Đăng xuất qua giao diện nhân viên rồi đăng nhập khách, không thay phiên bằng mã thử nghiệm.
   await page.locator(".usermenu__btn").click();

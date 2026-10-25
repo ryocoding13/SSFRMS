@@ -1,3 +1,4 @@
+import { InfoTiles, RecordCard } from "../../facility-operations/workflows/WorkflowComponents.jsx";
 import React, { useState } from "react";
 import { Button, Field, LinkButton, Modal, Notice } from "../../../shared/components/UI.jsx";
 import { dateLabel, dateTimeLabel, money } from "../../../shared/utils/format.js";
@@ -9,8 +10,6 @@ import { CANCEL_FEE_LABEL, CANCEL_REFUND_SHORT } from "../../../shared/utils/pol
 // Quản lý chuyển khoản thủ công ngoài hệ thống rồi xác nhận ở đây; thao tác không tự chuyển tiền.
 // Khách trả qua PayOS nên chỉ hoàn bằng chuyển khoản (Figma M08a ẩn lựa chọn tiền mặt)
 const METHODS = [["BANK_TRANSFER", "Chuyển khoản thủ công về tài khoản khách đã thanh toán"]];
-const shortId = (id) => id.replace(/^SS-\d{8}-/, "SS-");
-const amountLabel = (r) => (r.fee ? `${money(r.amount)} (${CANCEL_REFUND_SHORT})` : money(r.amount));
 
 function RefundDialog({ refund, onClose, onDone }) {
   const { run } = useOps();
@@ -64,74 +63,17 @@ function RefundDialog({ refund, onClose, onDone }) {
 export function CancellationRefundPage() {
   const { ops } = useOps();
   const refunds = ops.refunds || [];
-  const pending = refunds.filter((r) => r.status === "PENDING");
-  const [open, setOpen] = useState(null);
-  const [showBreakdown, setShowBreakdown] = useState(false);
-  const [confirmed, setConfirmed] = useState([]);
-  const next = pending[0];
-  const last = confirmed[confirmed.length - 1];
-  return (
-    <main className="container page">
-      <PageHeaderBlock title="Hoàn tiền đơn huỷ" text="Các đơn khách huỷ trước ngày bắt đầu thuê. Chuyển tiền về tài khoản khách đã thanh toán rồi xác nhận để cập nhật đơn." />
-      <div className="panel table-wrap">
-        <table className="table">
-          <thead><tr><th>Đơn / khách</th><th>Ngày huỷ</th><th>Số tiền hoàn</th><th>Trạng thái</th></tr></thead>
-          <tbody>
-            {refunds.length === 0 ? (
-              <tr><td colSpan={4} className="table__empty">Chưa có đơn huỷ cần hoàn tiền.</td></tr>
-            ) : refunds.map((r) => (
-              <tr key={r.id} className={next?.id === r.id ? "is-picked" : ""}>
-                <td className="cell-strong">{r.id} · {r.customer}</td>
-                <td>{dateTimeLabel(r.cancelled_at)}</td>
-                <td>{amountLabel(r)}</td>
-                <td>{r.status === "PENDING" ? <span className="tone-amber">Chờ hoàn</span> : <span className="tone-green">Đã hoàn{r.paid_at ? ` · ${dateLabel(r.paid_at)}` : ""}</span>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {next ? (
-        <section className="panel form-card">
-          <h2>{next.id} · Hoàn tiền huỷ đơn</h2>
-          <p className="muted">
-            {last
-              ? `Đã xác nhận hoàn ${money(last.amount)} cho đơn ${last.id}${last.ref ? ` (mã giao dịch ${last.ref})` : ""}. Tiếp theo: chuyển ${money(next.amount)} cho đơn ${next.id}.`
-              : `Chuyển ${money(next.amount)} về tài khoản khách đã dùng để thanh toán qua PayOS, sau đó bấm xác nhận và nhập mã giao dịch hoàn.`}
-          </p>
-          <Button onClick={() => setOpen(next)}>Xác nhận đã hoàn</Button>
-          <Button variant="outline" onClick={() => setShowBreakdown(!showBreakdown)} aria-expanded={showBreakdown}>Xem yêu cầu hoàn tiền</Button>
-          {showBreakdown && (
-            <dl className="facts">
-              <div><dt>Đã thanh toán (tiền thuê + cọc)</dt><dd>{money(next.paid)}</dd></div>
-              <div><dt>Tiền thuê</dt><dd>{money(next.rent)}</dd></div>
-              <div><dt>Tiền cọc</dt><dd>{money(next.deposit)}</dd></div>
-              <div><dt>{CANCEL_FEE_LABEL}</dt><dd>{money(next.fee)}</dd></div>
-              <div><dt>Hoàn cho khách</dt><dd>{money(next.amount)}</dd></div>
-            </dl>
-          )}
-        </section>
-      ) : (
-        <section className="panel form-card">
-          <h2>Các khoản hoàn đã được ghi nhận</h2>
-          <p className="muted">
-            {confirmed.length
-              ? `Đã ghi nhận hoàn ${confirmed.map((c) => `${money(c.amount)} cho ${shortId(c.id)}`).join(" và ")}. Không còn yêu cầu chờ hoàn trong danh sách này.`
-              : "Không còn yêu cầu chờ hoàn trong danh sách này."}
-          </p>
-          <LinkButton to="manager/contracts" variant="outline">Về hợp đồng & quá hạn</LinkButton>
-        </section>
-      )}
-      {open && (
-        <RefundDialog
-          refund={open}
-          onClose={() => setOpen(null)}
-          onDone={(done) => {
-            setOpen(null);
-            setConfirmed((list) => [...list, done]);
-            setShowBreakdown(false);
-          }}
-        />
-      )}
-    </main>
-  );
+  const [open, setOpen] = useState(null), [detail, setDetail] = useState(null), [confirmed, setConfirmed] = useState(null);
+  return <main className="container page workflow-page">
+    <PageHeaderBlock title="Hoàn tiền đơn huỷ" text="Các đơn huỷ trước ngày bắt đầu thuê. Chỉ xác nhận sau khi đã chuyển tiền cho đúng khách." />
+    {confirmed && <Notice tone="success">Đã ghi nhận hoàn {money(confirmed.amount)} · {confirmed.id}.</Notice>}
+    {refunds.map(r => <RecordCard key={r.id} title={r.customer} subtitle={`${r.id} · Huỷ: ${dateTimeLabel(r.cancelled_at)}`} status={r.status === "PENDING" ? "Chờ hoàn" : `Đã hoàn${r.paid_at ? ` · ${dateLabel(r.paid_at)}` : ""}`} actions={<>
+      {r.status === "PENDING" && <Button onClick={() => setOpen(r)}>Xác nhận đã hoàn</Button>}
+      <Button variant="outline" onClick={() => setDetail(r)}>Xem yêu cầu hoàn tiền</Button>
+    </>}><strong className="refund-amount">Số tiền hoàn: {money(r.amount)}</strong>{r.fee > 0 && <p className="muted">{CANCEL_REFUND_SHORT}</p>}</RecordCard>)}
+    {!refunds.length && <Notice>Chưa có đơn huỷ cần hoàn tiền.</Notice>}
+    <LinkButton to="manager/contracts" variant="outline">Về hợp đồng & quá hạn</LinkButton>
+    {detail && <Modal title={`${detail.customer} · ${detail.id}`} size="md" onClose={() => setDetail(null)}><InfoTiles items={[["Đã thanh toán", money(detail.paid)], ["Tiền thuê", money(detail.rent)], ["Tiền cọc", money(detail.deposit)], [CANCEL_FEE_LABEL, money(detail.fee)], ["Số tiền hoàn", money(detail.amount)]]} /><p>{detail.status === "PENDING" ? "Khoản hoàn đang chờ thực hiện; kiểm tra giao dịch trước khi xác nhận." : `Đã ghi nhận hoàn tiền${detail.transaction_ref ? ` · ${detail.transaction_ref}` : ""}.`}</p><Button onClick={() => setDetail(null)}>Đóng chi tiết</Button></Modal>}
+    {open && <RefundDialog refund={open} onClose={() => setOpen(null)} onDone={result => { setOpen(null); setConfirmed(result); }} />}
+  </main>;
 }

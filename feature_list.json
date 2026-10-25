@@ -412,6 +412,16 @@
       "depends_on": ["CI07"],
       "verification": "Kiểm tra rollback script; review tài liệu hướng dẫn vận hành",
       "evidence": "2026-10-24 (Post-review R10/R13): rollback.sh và rollback.ps1 sử dụng atomic lock theo environment (/tmp/safespace-staging.lock và safespace-production.lock), phân tách thư mục release deploy/releases/staging và deploy/releases/production, chỉ rollback app services (--no-deps api web) không chạy lại migrator hay đổi schema. Cập nhật đồng bộ docs/cicd.md, docs/deployment.md, docs/rollback.md, docs/verification.md và DECISIONS.md (D28). Codebase sẵn sàng trên nhánh feature/cicd-candidate để người dùng kiểm tra và commit."
+    },
+    {
+      "id": "F41",
+      "flow": 7,
+      "uc": [],
+      "actor": "Khách hàng / Nhân viên / Quản lý / Vận hành KD",
+      "behavior": "FE các màn bổ sung đã duyệt: chính sách, đối soát, quá hạn, hoàn cọc, hỗ trợ trước hợp đồng, lịch sử, đặt lại mật khẩu; demo opt-in khi thiếu BE",
+      "verification": "_fe; npm run check:structure; npm run test:workflows; npm run test:business; kiểm tra trình duyệt theo APPROVED-FE-README.md",
+      "state": "blocked",
+      "evidence": "2026-10-25: FE có kiểm chứng riêng trên main 54abba6; chờ API nghiệp vụ bổ sung và owner review. Xem APPROVED-FE-API-GAPS.md; không xác nhận tích hợp BE thật."
     }
   ]
 }

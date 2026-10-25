@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Select } from "../../../shared/components/Pickers.jsx";
-import { Button, Dialog, Field, Icon, Modal, Notice, PageHeader, StatusTag } from "../../../shared/components/UI.jsx";
+import { Button, LinkButton, Dialog, Field, Icon, Modal, Notice, PageHeader, StatusTag } from "../../../shared/components/UI.jsx";
 import { dateTimeLabel } from "../../../shared/utils/format.js";
 import { ACCESS_REQUESTS, TICKET_STATUS, TICKET_TOPICS } from "../../../shared/utils/status.js";
 import { href } from "../../../app/router.js";
@@ -103,6 +103,7 @@ export default function SupportPage({ query }) {
 
   return (
     <main className="container page">
+      <div className="workflow-links"><LinkButton to="inquiries" variant="outline">Hỗ trợ khi chưa có hợp đồng</LinkButton></div>
       <PageHeader title="Bạn cần hỗ trợ điều gì?" description="Gửi yêu cầu đến đúng cơ sở. Theo dõi phản hồi ngay trong tài khoản.">
         {mode === "api" && <Button variant="outline" disabled={refreshing} onClick={async () => {
           setRefreshing(true);

@@ -1,6 +1,6 @@
 import StickyHeader from "../../shared/components/StickyHeader.jsx";
 import React, { useEffect, useRef, useState } from "react";
-import { Icon } from "../../shared/components/UI.jsx";
+import { LinkButton, Icon } from "../../shared/components/UI.jsx";
 import { go, href } from "../../app/router.js";
 import { useApp } from "../../app/state/AppProvider.jsx";
 import PendingBadge from "../../shared/components/PendingBadge.jsx";
@@ -112,6 +112,9 @@ export default function FacilityOperationsLayout({ role, active, children }) {
           Chưa kết nối được dữ liệu vận hành của cơ sở. Thao tác trên màn hình này đang được lưu tạm trên trình duyệt.
         </p>
       )}
+      <div className="container workflow-links" aria-label="Luồng liên quan">
+        {staff ? <><LinkButton to="staff/renewal-payments" variant="outline">Thu gia hạn tại quầy</LinkButton><LinkButton to="staff/mismatch" variant="outline">Báo sai lệch</LinkButton><LinkButton to="staff/overdue" variant="outline">Đồ quá hạn</LinkButton><LinkButton to="staff/inquiries" variant="outline">Tư vấn chưa thuê kho</LinkButton></> : <><LinkButton to="manager/discrepancies" variant="outline">Đối soát sai lệch</LinkButton><LinkButton to="manager/overdue" variant="outline">Xử lý quá hạn</LinkButton><LinkButton to="manager/deposit-refunds" variant="outline">Hoàn cọc trả kho</LinkButton><LinkButton to="manager/refunds" variant="outline">Hoàn tiền đơn huỷ</LinkButton></>}
+      </div>
       {children}
     </>
   );

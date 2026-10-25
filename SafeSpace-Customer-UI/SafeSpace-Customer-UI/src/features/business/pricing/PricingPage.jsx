@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { businessApi } from "../api/businessApi.js";
-import { Button, Tag } from "../../../shared/components/UI.jsx";
+import { Button, LinkButton, Tag } from "../../../shared/components/UI.jsx";
 import { useLoad } from "../../admin/utils/adminUtils.js";
 import { money, today } from "../../../shared/utils/format.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
@@ -84,6 +84,7 @@ export default function PricingPage() {
   return (
     <main className="container page business-pricing">
       <header className="page-header page-header--tight"><div><h1>Quản lý giá &amp; phí</h1></div></header>
+      <div className="workflow-links"><LinkButton to="business/rates">Giá thuê theo cơ sở</LinkButton></div>
       <LoadState load={load}>
         {(data) => {
           const { policies, facilities, unitTypes } = data;

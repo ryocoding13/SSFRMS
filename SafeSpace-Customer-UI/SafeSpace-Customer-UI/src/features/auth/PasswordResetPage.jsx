@@ -1,0 +1,15 @@
+import React, { useState } from "react";
+import { Button, Field, LinkButton, Notice, PageHeader } from "../../shared/components/UI.jsx";
+import { isEmail } from "../../shared/utils/format.js";
+import { passwordResetApi } from "./api/passwordResetApi.js";
+
+export function PasswordResetPage() {
+  const [email, setEmail] = useState(""), [code, setCode] = useState(""), [password, setPassword] = useState(""), [confirm, setConfirm] = useState("");
+  const [step, setStep] = useState("email"), [busy, setBusy] = useState(false), [error, setError] = useState(""), [demoCode, setDemoCode] = useState("");
+  const sendCode = async () => { if (!isEmail(email)) return setError("Nhập email hợp lệ."); setBusy(true); setError(""); try { const res = await passwordResetApi.request(email.trim()); setDemoCode(res.demoCode || ""); setStep("code"); } catch (e) { setError(e.message); } finally { setBusy(false); } };
+  const reset = async e => { e.preventDefault(); if (!/^\d{6}$/.test(code) || password.length < 8 || password !== confirm) return setError("Nhập mã 6 số, mật khẩu tối thiểu 8 ký tự và xác nhận khớp nhau."); setBusy(true); setError(""); try { await passwordResetApi.confirm({ email: email.trim(), code, newPassword: password }); setStep("done"); } catch (e) { setError(e.message); } finally { setBusy(false); } };
+  return <main className="container page workflow-page"><PageHeader title={step === "done" ? "Đã đặt lại mật khẩu" : "Đặt lại mật khẩu"} description="Xác nhận bằng mã được gửi tới email đăng ký." /><section className="panel form-card">
+    {step === "email" ? <form onSubmit={e => { e.preventDefault(); sendCode(); }}><Field label="Email đã đăng ký"><input type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} /></Field><Button type="submit" disabled={busy}>Gửi mã xác nhận</Button></form> : step === "code" ? <form onSubmit={reset}><p>Nếu email đã đăng ký, mã xác nhận đã được gửi tới {email}.</p>{demoCode && <Notice>Chỉ trong API mô phỏng · Không gửi email thật. Mã thử nghiệm: {demoCode}</Notice>}<Field label="Mã xác nhận"><input inputMode="numeric" maxLength={6} autoComplete="one-time-code" value={code} onChange={e => setCode(e.target.value)} /></Field><Field label="Mật khẩu mới"><input type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} /></Field><Field label="Nhập lại mật khẩu mới"><input type="password" autoComplete="new-password" value={confirm} onChange={e => setConfirm(e.target.value)} /></Field><div className="stack"><Button type="submit" disabled={busy}>Đặt lại mật khẩu</Button><Button variant="outline" disabled={busy} onClick={sendCode}>Gửi lại mã</Button><Button variant="outline" disabled={busy} onClick={() => setStep("email")}>Nhập sai email?</Button></div></form> : <Notice tone="success">Mật khẩu đã được cập nhật. Hãy đăng nhập bằng mật khẩu mới.</Notice>}
+    {error && <Notice tone="error">{error}</Notice>}<LinkButton to="login" variant="outline">Về đăng nhập</LinkButton>
+  </section></main>;
+}

@@ -2,6 +2,7 @@
 import { request } from "./httpClient.js";
 
 export const api = {
+  chooseRenewalCounter: (id) => request(`/api/renewals/${encodeURIComponent(id)}/counter-payment`, { method: "POST" }),
   // Auth
   login: (username, password) => request("/api/auth/login", { method: "POST", body: { username, password }, auth: false }),
   register: (body) => request("/api/auth/register", { method: "POST", body, auth: false }),

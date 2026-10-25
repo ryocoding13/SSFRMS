@@ -75,6 +75,7 @@ export default function PaymentListPage() {
     <main className="container page">
       <PageHeader title="Thanh toán & lịch hẹn" description="Các khoản phí, trạng thái thanh toán và lịch nhận kho của bạn." />
 
+      <div className="workflow-links"><LinkButton to="refunds" variant="outline">Theo dõi hoàn cọc</LinkButton><LinkButton to="payments/history" variant="outline">Lịch sử thanh toán</LinkButton><LinkButton to="policies" variant="outline">Chính sách cho thuê</LinkButton></div>
       {appointments.length === 0 ? (
         <Empty title="Chưa có lịch hẹn" text="Lịch nhận hoặc trả kho sẽ xuất hiện tại đây sau khi cơ sở xác nhận." />
       ) : (

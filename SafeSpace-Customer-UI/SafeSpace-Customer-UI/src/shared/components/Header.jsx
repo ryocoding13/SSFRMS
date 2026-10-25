@@ -25,8 +25,8 @@ const CUSTOMER_LINKS = [
 ];
 
 // Trang nào thì tab nào sáng (Figma: C04/C05 sáng "Đặt chỗ", C03b sáng "Tìm & đặt kho")
-export const CUSTOMER_PAGES = ["overview", "find", "checkout", "confirmation", "units", "sent", "reservations", "payments", "support", "profile"];
-const navActive = (page) => (["checkout", "confirmation"].includes(page) ? "reservations" : page === "sent" ? "units" : page);
+export const CUSTOMER_PAGES = ["overview", "find", "checkout", "confirmation", "units", "sent", "reservations", "payments", "support", "profile", "inquiries", "policies", "refunds"];
+const navActive = (page) => (["checkout", "confirmation"].includes(page) ? "reservations" : page === "sent" ? "units" : page === "inquiries" ? "support" : page === "refunds" ? "payments" : page);
 
 const PUBLIC_NOTICES = [
   { id: "p1", title: "Tìm không gian phù hợp", detail: "Chọn diện tích và kỳ thuê để xem cơ sở.", to: "find" },
@@ -35,7 +35,8 @@ const PUBLIC_NOTICES = [
 ];
 
 function NotificationPopup({ onClose, anchorRef }) {
-  const { authed, data, dispatch } = useApp();
+  const { authed, data, dispatch, retry } = useApp();
+  const [error, setError] = useState("");
   const [publicRead, setPublicRead] = useState([]);
   const ref = useRef(null);
   const items = authed
@@ -61,7 +62,7 @@ function NotificationPopup({ onClose, anchorRef }) {
     };
   }, [onClose, anchorRef]);
 
-  const markAll = () => (authed ? dispatch("MARK_READ", {}) : setPublicRead(PUBLIC_NOTICES.map((n) => n.id)));
+  const markAll = async () => { if (!authed) return setPublicRead(PUBLIC_NOTICES.map(n => n.id)); const result = await dispatch("MARK_READ", {}); if (!result.ok) setError(result.error || "Chưa cập nhật được trạng thái thông báo."); };
   const open = (n) => {
     if (authed) dispatch("MARK_READ", { ids: [n.id] });
     else setPublicRead((r) => [...r, n.id]);
@@ -75,6 +76,7 @@ function NotificationPopup({ onClose, anchorRef }) {
         <h2>{authed ? "Thông báo của bạn" : "Thông tin SafeSpace"}</h2>
         <button type="button" className="popup__close" onClick={onClose} aria-label="Đóng thông báo">×</button>
       </div>
+      {(data.notifications_error || error) && <div className="popup__empty" role="alert"><strong>Chưa tải được thông báo</strong><p>{error || "Kiểm tra kết nối rồi thử lại."}</p><button type="button" className="btn btn--outline" onClick={() => { setError(""); retry(); }}>Thử tải lại</button></div>}
       <p className="popup__count">{unread ? `${unread} thông báo mới` : "Đã đọc tất cả"}</p>
       <ul className="popup__list">
         {items.map((n) => (

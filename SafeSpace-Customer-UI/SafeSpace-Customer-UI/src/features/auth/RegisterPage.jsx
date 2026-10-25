@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 
 // Các thành phần giao diện dùng chung:
 // Button: nút bấm; Field: nhãn, ô nhập và thông báo lỗi; Icon: biểu tượng.
-import { Button, Field, Icon } from "../../shared/components/UI.jsx";
+import { Button, Field, Icon, Modal, Notice } from "../../shared/components/UI.jsx";
 
 // go(): chuyển trang bằng code.
 // href(): tạo đường dẫn dạng #/... để dùng trong thẻ <a>.
@@ -51,14 +51,15 @@ export function RegisterPage({ query }) {
   // busy = true khi đang chờ kết quả đăng ký.
   // Giao diện dùng giá trị này để khóa nút và đổi nội dung nút.
   const [busy, setBusy] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   // Nếu người dùng đã đăng nhập thì chuyển khỏi trang đăng ký.
   // Effect chạy sau lần render đầu và khi authed hoặc next thay đổi.
   // replace: true thay thế mục hiện tại trong lịch sử trình duyệt,
   // giúp nút Back không quay lại đúng mục trang đăng ký vừa bị thay thế.
   useEffect(() => {
-    if (authed) go(next, { replace: true });
-  }, [authed, next]);
+    if (authed && !busy && !success) go(next, { replace: true });
+  }, [authed, next, busy, success]);
 
   /*
    * Cập nhật một ô nhập.
@@ -100,7 +101,7 @@ export function RegisterPage({ query }) {
     if (!res.ok) return setErrors(res.errors);
 
     // Chỉ chuyển trang tại đây khi kết quả có ok = true.
-    go(next);
+    setSuccess(true);
   };
 
   return (
@@ -171,6 +172,7 @@ export function RegisterPage({ query }) {
           Đã có tài khoản? <a href={href("login")}>Đăng nhập</a>
         </p>
       </form>
+      {success && <Modal title="Đăng ký thành công" onClose={() => go(next)}><Notice tone="success">Tài khoản khách hàng đã được tạo. Bạn đã được đăng nhập.</Notice><Button onClick={() => go(next)}>Tiếp tục</Button></Modal>}
     </main>
   );
 }

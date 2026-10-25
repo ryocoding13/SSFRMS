@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { businessApi } from "../api/businessApi.js";
-import { Button, Field } from "../../../shared/components/UI.jsx";
+import { Button, Field, LinkButton } from "../../../shared/components/UI.jsx";
 import { useLoad } from "../../admin/utils/adminUtils.js";
 import { today } from "../../../shared/utils/format.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
@@ -42,6 +42,7 @@ export default function PolicySettingsPage() {
   };
   return <main className="container page business-policies">
     <header className="page-header page-header--tight"><div><h1>Chính sách cho thuê chung</h1><p>Áp dụng cho toàn bộ cơ sở trong hệ thống, trừ khi có quy định riêng cho từng cơ sở.</p></div></header>
+    <div className="workflow-links"><LinkButton to="business/policy-content">Chính sách chi tiết khách đọc</LinkButton><LinkButton to="business/policy-status" variant="outline">Trạng thái chính sách</LinkButton></div>
     <LoadState load={load}>{policies => <>
       {POLICY_SECTIONS.map(section => <section className="panel biz-section" key={section.title}>
         <h2>{section.title}</h2><div className="biz-policies">{section.fields.map(field => {

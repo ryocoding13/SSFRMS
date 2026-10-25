@@ -120,8 +120,10 @@ const camel = (k) => k.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
 const snake = (k) => k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 const mapKeys = (v, fn) =>
   Array.isArray(v) ? v.map((x) => mapKeys(x, fn)) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [fn(k), mapKeys(x, fn)])) : v;
-const STAFF_PARTS = ["facility", "staff", "units", "payments", "verifications", "handovers", "returns", "tickets"];
+const STAFF_PARTS = ["facility", "staff", "units", "payments", "verifications", "handovers", "returns", "tickets", "fee_collections"];
 const OPS_ROUTES = [
+  ["POST", /^\/api\/(?:ops|manager)\/reservations\/([^/]+)\/refund$/, "MANAGER", "CONFIRM_RESERVATION_REFUND", (b, id) => ({ id, method: b?.method, transaction_ref: b?.transactionRef })],
+  ["POST", /^\/api\/(?:ops|staff)\/fees\/([^/]+)\/confirm$/, "STAFF", "CONFIRM_FEE_COLLECTION", (b, id) => ({ id })],
   // [method, regex, role, action, payload(body, id)]
   ["POST", /^\/api\/(?:ops|staff)\/payments\/([^/]+)\/confirm$/, "STAFF", "CONFIRM_PAYMENT", (b, id) => ({ id })],
   ["POST", /^\/api\/(?:ops|staff)\/payments\/([^/]+)\/mismatch$/, "STAFF", "REPORT_MISMATCH", (b, id) => ({ id, note: b?.note })],
@@ -283,6 +285,18 @@ export function startMockApi(
     let m;
 
     // ---- Auth
+    if (req.method === "POST" && path === "/api/auth/password-reset/request") {
+      const user = S.users.find(u => u.email.toLowerCase() === String(body.email || "").trim().toLowerCase());
+      if (user) user.demoReset = { code: "123456", expiresAt: Date.now() + 300000 };
+      return send(200, { message: "Nếu email đã đăng ký, mã đã được gửi.", demoCode: "123456" });
+    }
+    if (req.method === "POST" && path === "/api/auth/password-reset/confirm") {
+      const user = S.users.find(u => u.email.toLowerCase() === String(body.email || "").trim().toLowerCase());
+      if (!user?.demoReset || user.demoReset.code !== body.code || user.demoReset.expiresAt < Date.now()) return bad("Mã xác nhận không hợp lệ hoặc đã hết hạn.");
+      if (String(body.newPassword || "").length < 8) return bad("Mật khẩu mới phải có ít nhất 8 ký tự.");
+      user.password = body.newPassword; delete user.demoReset;
+      return send(200, { message: "Đã đặt lại mật khẩu." });
+    }
     if (req.method === "POST" && path === "/api/auth/register") {
       if (S.users.some((u) => u.username === body.username || u.email === body.email)) return bad("Tên đăng nhập hoặc email đã tồn tại trong hệ thống.");
       const user = { userId: S.users.length + 1, username: body.username, email: body.email, password: body.password, fullName: body.fullName, phone: body.phone, status: "ACTIVE", createdAt: new Date(), updatedAt: new Date() };
@@ -654,6 +668,12 @@ export function startMockApi(
       if (!c) return send(404, { error: "Không tìm thấy hợp đồng." });
       const h = S.handovers.find((x) => x.contractId === c.contractId);
       return send(200, { ...contractSummary(c), terminationReason: null, createdAt: dbTime(c.createdAt), completedAt: null, handover: h ? { handoverId: h.handoverId, status: h.status, scheduledAt: dbTime(h.scheduledAt), handoverAt: dbTime(h.handoverAt), customerConfirmed: h.customerConfirmed, staffConfirmed: h.staffConfirmed } : null, payments: S.payments.filter((p) => p.contractId === c.contractId).map(payDto), renewals: S.renewals.filter((r) => r.contractId === c.contractId).map(renDto) });
+    }
+    if (req.method === "POST" && (m = path.match(/^\/api\/renewals\/(\d+)\/counter-payment$/))) {
+      const renewal = S.renewals.find(x => x.renewalId === Number(m[1]) && S.contracts.some(c => c.contractId === x.contractId && c.customerId === me));
+      if (!renewal || renewal.status !== "APPROVED") return bad("Yêu cầu chưa được duyệt hoặc đã thanh toán.");
+      renewal.atCounter = true;
+      return send(200, { ok: true });
     }
     if (req.method === "POST" && (m = path.match(/^\/api\/contracts\/(\d+)\/renewals$/))) {
       if (!(body.renewalPeriodMonths > 0)) return bad("Thời gian gia hạn phải lớn hơn 0 tháng.");

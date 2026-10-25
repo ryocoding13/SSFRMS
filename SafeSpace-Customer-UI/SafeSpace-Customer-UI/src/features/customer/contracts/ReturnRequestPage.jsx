@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { DatePicker, Select } from "../../../shared/components/Pickers.jsx";
-import { Button, Field, LinkButton, Notice, PageHeader } from "../../../shared/components/UI.jsx";
+import { Button, Field, LinkButton, Modal, Notice, PageHeader } from "../../../shared/components/UI.jsx";
 import { addDays, money, today } from "../../../shared/utils/format.js";
 import { go } from "../../../app/router.js";
 import { contractOf } from "../../../app/state/appSelectors.js";
@@ -16,10 +16,17 @@ export function ReturnRequestPage({ id }) {
   const [slot, setSlot] = useState(RETURN_SLOTS[0]);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+  const [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false);
   if (!c) return <NotFound />;
   const submit = async (e) => {
     e.preventDefault();
+    setConfirm(true);
+  };
+  const send = async () => {
+    if (busy) return;
+    setBusy(true);
     const res = await dispatch("REQUEST_RETURN", { contract_id: id, date, slot, notes });
+    setBusy(false);
     if (!res.ok) return setError(res.error);
     go(`sent?type=return&contract=${encodeURIComponent(id)}`);
   };
@@ -52,6 +59,7 @@ export function ReturnRequestPage({ id }) {
           <LinkButton to={`units/${id}`} variant="outline">Quay lại hợp đồng</LinkButton>
         </div>
       </form>
+      {confirm && <Modal title="Xác nhận gửi trả kho?" size="confirm" onClose={busy ? undefined : () => setConfirm(false)}><Notice>QR mở cửa hết hiệu lực ngay khi yêu cầu được ghi nhận thành công. Hãy chuyển hết đồ trước khi xác nhận.</Notice><p>Kho {c.unit_number} · {date} · {slot}</p>{error && <Notice tone="error">{error}</Notice>}<div className="modal__actions"><Button variant="outline" disabled={busy} onClick={() => setConfirm(false)}>Quay lại</Button><Button disabled={busy} onClick={send}>{busy ? "Đang gửi…" : "Xác nhận trả kho"}</Button></div></Modal>}
     </main>
   );
 }
