@@ -5,7 +5,7 @@ Hướng dẫn cập nhật ngày 24/10/2026 theo cấu trúc `main`; số lư�
 
 ## Lệnh kiểm tra hiện có
 
-Các lệnh FE chạy trong `SafeSpace-Customer-UI/SafeSpace-Customer-UI`; lệnh BE/init chạy ở gốc repo.
+Các lệnh FE chạy trong `SafeSpace-Customer-UI/SafeSpace-Customer-UI`; lệnh BE, CI/CD và init chạy ở gốc repo.
 
 | Phạm vi | Lệnh | Ý nghĩa và giới hạn |
 |---|---|---|
@@ -13,11 +13,19 @@ Các lệnh FE chạy trong `SafeSpace-Customer-UI/SafeSpace-Customer-UI`; lện
 | Test FE | `npm test` | Chạy các test được đăng ký trong package.json của nhánh |
 | Test vận hành KD | `npm run test:business` | Bộ kiểm tra riêng, không nằm trọn trong npm test |
 | Render route | `npm run test:render` | Kiểm render; không thay kiểm thao tác trên trình duyệt |
-| Build FE | `npm run build` | Kiểm đóng gói; không chứng minh API thật hoạt động |
+| Build FE | `npm run build` | Kiểm đóng gói Vite; không chứng minh API thật hoạt động |
 | Build BE | `dotnet build StorageProject.slnx` | Solution dùng .NET 10 |
-| Test BE | `dotnet test StorageProject.slnx` | Đã có StorageProject.Tests; ghi rõ provider/database thực tế |
+| Test BE (Unit) | `dotnet test StorageProject.slnx` | Test in-memory SQLite (StorageProject.Tests); không thay thế SQL Server |
+| Test BE (SQL Integration) | `.\scripts\ci\run-integration.ps1` hoặc `bash scripts/ci/run-integration.sh` | Chạy test trên SQL Server thật (`REQUIRE_SQLSERVER=true`); không pass nếu thiếu SQL |
+| Model drift | `dotnet ef migrations has-pending-model-changes --project StorageProject.Infrastructure --startup-project StorageProject.Api` | Kiểm tra đồng bộ EF Model vs Snapshot |
 | Kiểm tra nền | `bash init.sh` hoặc `.\init.ps1` | Theo nội dung script hiện có ở nhánh đang làm |
 | Chỉ FE | `bash init.sh --fe-only` hoặc `.\init.ps1 -FeOnly` | Không xác nhận backend đạt |
+| CI Local Runner | `.\scripts\ci\run-ci.ps1` hoặc `bash scripts/ci/run-ci.sh` | Chạy tuần tự các bước CI Gate cục bộ |
+| Container Smoke | `.\scripts\ci\smoke.ps1` hoặc `bash scripts/ci/smoke.sh` | Smoke test kiểm tra 5 tiêu chí bản đóng gói khi container đang chạy |
+| Workflow YAML Lint | `npx --yes yaml-lint .github/workflows/*.yml` | Kiểm tra cú pháp YAML của workflows |
+| Deploy Staging | `.\scripts\deploy\deploy.ps1` hoặc `bash scripts/deploy/deploy.sh` | Kịch bản triển khai Staging; chỉ chạy khi có host cấu hình |
+| Promote Production | `.\scripts\deploy\promote-production.ps1` hoặc `.sh` | Kịch bản promotion Production (zero-rebuild); cần manifest và environment |
+| Safe Rollback | `.\scripts\deploy\rollback.ps1` hoặc `bash scripts/deploy/rollback.sh` | Rollback an toàn (Forward-fix, không EF Down tự động) |
 | API thủ công | Swagger hoặc `StorageProject.Api/StorageProject.Api.http` | Kiểm cả quyền, đầu vào đúng/sai và đọc lại dữ liệu |
 
 `init` trên nền main dùng cho bản vá này chạy npm test, render, build FE và build/test BE;

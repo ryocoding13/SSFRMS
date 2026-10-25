@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Text;
+using Microsoft.AspNetCore.HttpOverrides;
 using StorageProject.Api.Workers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -14,15 +15,40 @@ using StorageProject.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Database Context
+// 1. Database Context & Validation
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
+}
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-// 2. JWT Authentication & Authorization
-var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "CHANGE_ME_TO_A_SECURE_256BIT_KEY_AT_LEAST_32_CHARS_LONG!!";
+// 2. JWT Authentication & Authorization with Environment Validation
+var jwtSecret = builder.Configuration["JwtSettings:Secret"];
 var jwtIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "SSFRMSApi";
 var jwtAudience = builder.Configuration["JwtSettings:Audience"] ?? "SSFRMSClients";
+
+const string defaultDevSecret = "CHANGE_ME_TO_A_SECURE_256BIT_KEY_AT_LEAST_32_CHARS_LONG!!";
+string[] weakPlaceholders = [
+    defaultDevSecret,
+    "YOUR_JWT_SECRET",
+    "CHANGE_ME",
+    "secret",
+    "12345678901234567890123456789012"
+];
+
+if (string.IsNullOrWhiteSpace(jwtSecret) ||
+    weakPlaceholders.Any(p => string.Equals(jwtSecret.Trim(), p, StringComparison.OrdinalIgnoreCase)) ||
+    jwtSecret.Length < 32)
+{
+    if (!builder.Environment.IsDevelopment())
+    {
+        throw new InvalidOperationException(
+            "JwtSettings:Secret is not securely configured. In Staging/Production environments, a strong secret key of at least 32 characters (256-bit) must be provided via environment variables or secret configuration, and cannot be a default placeholder.");
+    }
+    jwtSecret = defaultDevSecret;
+}
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -77,14 +103,48 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// 4. CORS Policy
+// 4. Reverse Proxy Forwarded Headers & CORS Configuration
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+
+    // Trust loopback and private/container network ranges (RFC 1918)
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Loopback, 8));
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.IPv6Loopback, 128));
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Parse("10.0.0.0"), 8));
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Parse("172.16.0.0"), 12));
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Parse("192.168.0.0"), 16));
+});
+
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()
+    ?? [];
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("DefaultCorsPolicy", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        if (builder.Environment.IsDevelopment())
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
+        else if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        }
+        else
+        {
+            // Same-origin only: in Staging/Production without explicit cross-origins, do not allow arbitrary origins
+            policy.AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
     });
 });
 
@@ -102,7 +162,10 @@ builder.Services.AddScoped<IOperationsService, OperationsService>();
 builder.Services.AddScoped<IOperationsReportService, OperationsReportService>();
 builder.Services.AddScoped<IFacilityOpsService, FacilityOpsService>();
 builder.Services.AddScoped<IPayOSGateway, SdkPayOSGateway>();
-builder.Services.AddHostedService<ExpiredCashHoldWorker>();
+if (builder.Configuration.GetValue<bool>("Worker:EnableExpiredCashHold", true))
+{
+    builder.Services.AddHostedService<ExpiredCashHoldWorker>();
+}
 builder.Services.AddScoped<IPayOSService, PayOSService>();
 builder.Services.AddSingleton(new AccessQrOptions(
     builder.Configuration["AccessQr:Secret"] ?? jwtSecret,
@@ -113,9 +176,28 @@ builder.Services.AddScoped<IManagerService, ManagerService>();
 
 var app = builder.Build();
 
+// Handle explicit command line bootstrap before starting web server & background workers
+if (args.Contains("--seed-reference") || args.Contains("--seed-staging") || args.Contains("--bootstrap"))
+{
+    using var scope = app.Services.CreateScope();
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var adminPass = builder.Configuration["ADMIN_INITIAL_PASSWORD"] ?? builder.Configuration["AdminPassword"];
+
+    if (args.Contains("--seed-reference") || args.Contains("--bootstrap"))
+    {
+        await DbSeeder.SeedReferenceAsync(context, adminPass);
+    }
+    else if (args.Contains("--seed-staging"))
+    {
+        await DbSeeder.SeedStagingAsync(context);
+    }
+    return;
+}
+
 // 6. Middleware Pipeline
+app.UseForwardedHeaders();
 app.UseHttpsRedirection();
-app.UseCors("AllowAll");
+app.UseCors("DefaultCorsPolicy");
 
 if (app.Environment.IsDevelopment())
 {
@@ -146,7 +228,8 @@ app.MapStaffEndpoints();
 app.MapManagerEndpoints();
 app.MapAccessEndpoints();
 
-// Root status check
+// 8. Health & Readiness Endpoints
+// Liveness endpoint (lightweight check, no external DB dependencies)
 app.MapGet("/health", () => Results.Ok(new
 {
     System = "SSFRMS API (Self-Storage Facility Rental Management System)",
@@ -154,14 +237,76 @@ app.MapGet("/health", () => Results.Ok(new
     Timestamp = DateTime.UtcNow
 }));
 
-// 8. Auto-Migrate and Auto-Seed Initial Database Data
-using (var scope = app.Services.CreateScope())
+// Readiness endpoint (verifies SQL Server connectivity and applied migrations)
+app.MapGet("/health/ready", async (AppDbContext db, CancellationToken ct) =>
 {
+    try
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(3));
+
+        var canConnect = await db.Database.CanConnectAsync(cts.Token);
+        if (!canConnect)
+        {
+            return Results.Json(new
+            {
+                Status = "Unhealthy",
+                Reason = "Database connection unavailable",
+                Timestamp = DateTime.UtcNow
+            }, statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var pending = await db.Database.GetPendingMigrationsAsync(cts.Token);
+        if (pending.Any())
+        {
+            return Results.Json(new
+            {
+                Status = "Unhealthy",
+                Reason = "Database has pending migrations",
+                Timestamp = DateTime.UtcNow
+            }, statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        return Results.Ok(new
+        {
+            Status = "Ready",
+            Database = "Connected",
+            Timestamp = DateTime.UtcNow
+        });
+    }
+    catch (Exception)
+    {
+        return Results.Json(new
+        {
+            Status = "Unhealthy",
+            Reason = "Database readiness check failed",
+            Timestamp = DateTime.UtcNow
+        }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+});
+
+// 9. Database Auto-Migration and Seeding based on Environment & Configuration
+var autoMigrate = builder.Configuration.GetValue<bool>("Database:AutoMigrate", app.Environment.IsDevelopment());
+var seedMode = builder.Configuration.GetValue<string>("Database:SeedMode")
+    ?? (app.Environment.IsDevelopment() ? "Development" : "None");
+
+if (autoMigrate || !string.Equals(seedMode, "None", StringComparison.OrdinalIgnoreCase))
+{
+    using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await context.Database.MigrateAsync();
-    await DbSeeder.SeedAsync(context);
-    await FacilityCoordinateSeeder.SeedAsync(context);
+
+    if (autoMigrate)
+    {
+        await context.Database.MigrateAsync();
+    }
+
+    if (!string.Equals(seedMode, "None", StringComparison.OrdinalIgnoreCase))
+    {
+        var adminPass = builder.Configuration["ADMIN_INITIAL_PASSWORD"] ?? builder.Configuration["AdminPassword"];
+        await DbSeeder.SeedByModeAsync(context, seedMode, adminPass);
+    }
 }
 
-
 app.Run();
+
+public partial class Program { }

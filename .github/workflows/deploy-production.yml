@@ -1,0 +1,416 @@
+name: Production Promotion & Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: 'Commit SHA to promote to Production (40 hex characters)'
+        required: true
+        type: string
+      run_id:
+        description: 'Optional GitHub Actions Run ID that produced the release manifest'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  packages: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  validate-release-provenance:
+    name: Validate Release Provenance & Artifacts
+    runs-on: ubuntu-latest
+    outputs:
+      release_sha: ${{ steps.parse_manifest.outputs.release_sha }}
+      migration_head: ${{ steps.parse_manifest.outputs.migration_head }}
+      api_digest: ${{ steps.parse_manifest.outputs.api_digest }}
+      web_digest: ${{ steps.parse_manifest.outputs.web_digest }}
+      migrator_digest: ${{ steps.parse_manifest.outputs.migrator_digest }}
+    steps:
+      - name: Checkout trusted default branch (main)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+
+      - name: Validate Release SHA Format
+        id: validate_sha
+        env:
+          RAW_INPUT_SHA: ${{ github.event.inputs.release_sha }}
+        run: |
+          INPUT_SHA=$(echo "${RAW_INPUT_SHA}" | tr -d '[:space:]')
+          if [[ ! "${INPUT_SHA}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::Release SHA must be a 40-character hexadecimal git commit SHA. Got: '${INPUT_SHA}'"
+            exit 1
+          fi
+          echo "Validated Release SHA: ${INPUT_SHA}"
+          echo "sha=${INPUT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Fetch and Verify Release Manifest
+        id: fetch_manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_SHA: ${{ steps.validate_sha.outputs.sha }}
+          SPECIFIED_RUN_ID: ${{ github.event.inputs.run_id }}
+        run: |
+          mkdir -p ./verified_manifest
+
+          # 1. Tra cứu chính xác workflow ID của ci.yml qua GitHub API
+          EXPECTED_WORKFLOW_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml" --jq '.id // empty' 2>/dev/null || echo "")
+          if [ -z "${EXPECTED_WORKFLOW_ID}" ]; then
+            EXPECTED_WORKFLOW_ID=$(gh api "repos/${{ github.repository }}/actions/workflows" --jq '.workflows[] | select(.path == ".github/workflows/ci.yml") | .id' 2>/dev/null || echo "")
+          fi
+
+          if [ -z "${EXPECTED_WORKFLOW_ID}" ]; then
+            echo "::error::Could not resolve workflow ID for .github/workflows/ci.yml via GitHub API."
+            exit 1
+          fi
+          echo "Resolved expected CI workflow ID: ${EXPECTED_WORKFLOW_ID}"
+
+          RUN_ID="${SPECIFIED_RUN_ID}"
+
+          if [ -n "${RUN_ID}" ]; then
+            echo "Verifying specified run ID ${RUN_ID} against provenance rules..."
+            RUN_INFO=$(gh run view "${RUN_ID}" \
+              --repo "${{ github.repository }}" \
+              --json workflowDatabaseId,workflowName,headBranch,headSha,conclusion,status,event 2>/dev/null || echo "")
+            
+            if [ -z "${RUN_INFO}" ]; then
+              echo "::error::Could not find or access CI run ${RUN_ID} in ${{ github.repository }}."
+              exit 1
+            fi
+
+            RUN_SHA=$(echo "${RUN_INFO}" | jq -r '.headSha // empty')
+            RUN_BRANCH=$(echo "${RUN_INFO}" | jq -r '.headBranch // empty')
+            RUN_CONCLUSION=$(echo "${RUN_INFO}" | jq -r '.conclusion // empty')
+            RUN_EVENT=$(echo "${RUN_INFO}" | jq -r '.event // empty')
+            RUN_WORKFLOW_ID=$(echo "${RUN_INFO}" | jq -r '.workflowDatabaseId // empty')
+            RUN_WORKFLOW_NAME=$(echo "${RUN_INFO}" | jq -r '.workflowName // empty')
+
+            # Đối chiếu workflow ID chuẩn qua API
+            if [ "${RUN_WORKFLOW_ID}" != "${EXPECTED_WORKFLOW_ID}" ]; then
+              echo "::error::Run ${RUN_ID} belongs to workflow ID ${RUN_WORKFLOW_ID} ('${RUN_WORKFLOW_NAME}'), expected ci.yml (workflow ID ${EXPECTED_WORKFLOW_ID})!"
+              exit 1
+            fi
+
+            if [ "${RUN_SHA}" != "${RELEASE_SHA}" ]; then
+              echo "::error::Run ${RUN_ID} commit (${RUN_SHA}) does not match requested release SHA (${RELEASE_SHA})!"
+              exit 1
+            fi
+
+            if [ "${RUN_BRANCH}" != "main" ]; then
+              echo "::error::Run ${RUN_ID} branch is '${RUN_BRANCH}', not trusted default branch 'main'!"
+              exit 1
+            fi
+
+            if [ "${RUN_CONCLUSION}" != "success" ]; then
+              echo "::error::Run ${RUN_ID} conclusion is '${RUN_CONCLUSION}', not 'success'!"
+              exit 1
+            fi
+
+            if [ "${RUN_EVENT}" != "push" ] && [ "${RUN_EVENT}" != "workflow_dispatch" ]; then
+              echo "::error::Run ${RUN_ID} event is '${RUN_EVENT}', expected 'push' or 'workflow_dispatch' on main!"
+              exit 1
+            fi
+
+            echo "Specified Run ID ${RUN_ID} verified: successful CI run (workflow ID: ${RUN_WORKFLOW_ID}, event: ${RUN_EVENT}) on main for ${RELEASE_SHA}."
+          else
+            echo "Searching for successful CI run for commit ${RELEASE_SHA} on branch main using workflow ID ${EXPECTED_WORKFLOW_ID}..."
+            RUN_ID=$(gh run list \
+              --repo "${{ github.repository }}" \
+              --workflow "${EXPECTED_WORKFLOW_ID}" \
+              --commit "${RELEASE_SHA}" \
+              --branch "main" \
+              --status "success" \
+              --json databaseId \
+              --jq '.[0].databaseId // empty' 2>/dev/null || echo "")
+          fi
+
+          if [ -n "${RUN_ID}" ]; then
+            echo "Found verified CI Run ID: ${RUN_ID}. Downloading release-manifest artifact..."
+            gh run download "${RUN_ID}" \
+              --repo "${{ github.repository }}" \
+              --name "release-manifest" \
+              --dir "./verified_manifest" || {
+                echo "::error::Failed to download release-manifest artifact from run ${RUN_ID}."
+                exit 1
+              }
+          else
+            echo "::error::Could not find a successful CI run on branch main producing a verified release-manifest for commit ${RELEASE_SHA}."
+            exit 1
+          fi
+
+          if [ ! -f "./verified_manifest/release-manifest.json" ]; then
+            echo "::error::release-manifest.json was not present in the downloaded artifact from run ${RUN_ID}."
+            exit 1
+          fi
+
+          echo "run_id=${RUN_ID}" >> $GITHUB_OUTPUT
+
+      - name: Verify Staging Precondition
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_SHA: ${{ steps.validate_sha.outputs.sha }}
+          CI_RUN_ID: ${{ steps.fetch_manifest.outputs.run_id }}
+          REQUIRE_STAGING_DEPLOY: ${{ vars.REQUIRE_STAGING_DEPLOY || 'true' }}
+        run: |
+          echo "Checking Staging deployment precondition for commit ${RELEASE_SHA}..."
+          if [ "${REQUIRE_STAGING_DEPLOY}" = "true" ]; then
+            # 1. Kiểm tra bản ghi GitHub Deployment thành công
+            DEPLOYMENT_ID=$(gh api "repos/${{ github.repository }}/deployments?environment=staging&sha=${RELEASE_SHA}" --jq '.[0].id // empty' 2>/dev/null || echo "")
+            if [ -z "${DEPLOYMENT_ID}" ]; then
+              echo "::error::No staging deployment found for commit ${RELEASE_SHA}. Live staging deployment must succeed before promoting to production."
+              exit 1
+            fi
+
+            LATEST_STATE=$(gh api "repos/${{ github.repository }}/deployments/${DEPLOYMENT_ID}/statuses" --jq '.[0].state // empty' 2>/dev/null || echo "")
+            if [ "${LATEST_STATE}" != "success" ]; then
+              echo "::error::Staging deployment ${DEPLOYMENT_ID} latest status is '${LATEST_STATE}', not 'success'! Production promotion is blocked."
+              exit 1
+            fi
+
+            # 2. Kiểm tra CI_RUN_ID và tải staging-deployment-receipt từ đúng CI run đã sinh manifest
+            if [ -z "${CI_RUN_ID}" ]; then
+              echo "::error::Verified CI Run ID is empty. Cannot retrieve staging deployment receipt. Promotion to Production is blocked!"
+              exit 1
+            fi
+
+            echo "Downloading staging-deployment-receipt artifact from verified CI run ${CI_RUN_ID}..."
+            mkdir -p ./verified_receipt
+            if ! gh run download "${CI_RUN_ID}" --repo "${{ github.repository }}" --name "staging-deployment-receipt" --dir "./verified_receipt" 2>/dev/null; then
+              echo "::error::Artifact 'staging-deployment-receipt' was not found in CI run ${CI_RUN_ID}. Staging was either in Standby mode or deployment failed. Promotion to Production is blocked!"
+              exit 1
+            fi
+
+            RECEIPT_FILE="./verified_receipt/staging-deployment-receipt.json"
+            if [ ! -f "${RECEIPT_FILE}" ]; then
+              echo "::error::staging-deployment-receipt.json was not found in downloaded artifact from run ${CI_RUN_ID}."
+              exit 1
+            fi
+
+            # 3. Đối chiếu toàn diện receipt với release manifest bằng Node.js
+            echo "Validating staging deployment receipt against release manifest..."
+            node -e '
+              const fs = require("fs");
+              const manifestPath = "./verified_manifest/release-manifest.json";
+              const receiptPath = "./verified_receipt/staging-deployment-receipt.json";
+
+              const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+              const receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
+              const releaseSha = process.env.RELEASE_SHA;
+              const expectedRunId = process.env.CI_RUN_ID;
+
+              // Đối chiếu SHA
+              if (receipt.commit !== releaseSha) {
+                console.error(`::error::Receipt commit (${receipt.commit}) does not match release SHA (${releaseSha})!`);
+                process.exit(1);
+              }
+
+              // Đối chiếu run ID
+              if (String(receipt.run_id) !== String(expectedRunId)) {
+                console.error(`::error::Receipt run_id (${receipt.run_id}) does not match verified CI run ID (${expectedRunId})!`);
+                process.exit(1);
+              }
+
+              // Đối chiếu environment
+              if (receipt.environment !== "staging") {
+                console.error(`::error::Receipt environment (${receipt.environment}) is not "staging"!`);
+                process.exit(1);
+              }
+
+              // Đối chiếu trạng thái deploy và smoke
+              if (receipt.status !== "deployed") {
+                console.error(`::error::Receipt status (${receipt.status}) is not "deployed"!`);
+                process.exit(1);
+              }
+              if (receipt.smoke_status !== "passed") {
+                console.error(`::error::Receipt smoke_status (${receipt.smoke_status}) is not "passed"!`);
+                process.exit(1);
+              }
+
+              // Đối chiếu exact image digests
+              if (!receipt.images || !manifest.images) {
+                console.error(`::error::Missing images section in receipt or manifest!`);
+                process.exit(1);
+              }
+
+              const getDigest = (img) => {
+                if (!img) return "";
+                if (typeof img === "string") return img;
+                return img.digest || "";
+              };
+
+              const manifestApi = getDigest(manifest.images.api);
+              const manifestWeb = getDigest(manifest.images.web);
+              const manifestMigrator = getDigest(manifest.images.migrator);
+
+              const receiptApi = getDigest(receipt.images.api);
+              const receiptWeb = getDigest(receipt.images.web);
+              const receiptMigrator = getDigest(receipt.images.migrator);
+
+              if (!receiptApi || receiptApi !== manifestApi) {
+                console.error(`::error::Receipt API image digest (${receiptApi}) does not match release manifest (${manifestApi})!`);
+                process.exit(1);
+              }
+              if (!receiptWeb || receiptWeb !== manifestWeb) {
+                console.error(`::error::Receipt Web image digest (${receiptWeb}) does not match release manifest (${manifestWeb})!`);
+                process.exit(1);
+              }
+              if (!receiptMigrator || receiptMigrator !== manifestMigrator) {
+                console.error(`::error::Receipt Migrator image digest (${receiptMigrator}) does not match release manifest (${manifestMigrator})!`);
+                process.exit(1);
+              }
+
+              console.log("✅ Staging deployment receipt verified 100%: SHA, Run ID, Environment, Smoke status, and 3 Image Digests match release manifest exactly.");
+            '
+
+            echo "Staging deployment ${DEPLOYMENT_ID} verified with state 'success' and authentic verified receipt."
+          else
+            echo "ℹ️ Staging deployment precondition check is in standby mode (REQUIRE_STAGING_DEPLOY=${REQUIRE_STAGING_DEPLOY})."
+          fi
+
+      - name: Parse & Validate Manifest Schema
+        id: parse_manifest
+        env:
+          TARGET_SHA: ${{ steps.validate_sha.outputs.sha }}
+        run: |
+          MANIFEST_FILE="./verified_manifest/release-manifest.json"
+          if [ ! -f "${MANIFEST_FILE}" ]; then
+            echo "::error::Release manifest not found at ${MANIFEST_FILE}"
+            exit 1
+          fi
+
+          node -e '
+            const fs = require("fs");
+            const manifest = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const targetSha = process.argv[2];
+
+            if (manifest.commit !== targetSha) {
+              console.error(`::error::Manifest commit (${manifest.commit}) does not match requested release SHA (${targetSha})!`);
+              process.exit(1);
+            }
+
+            const gates = manifest.gateResults || {};
+            for (const [k, v] of Object.entries({ frontend: gates.frontend, backend: gates.backend, integration: gates.integration, container: gates.container })) {
+              if (v !== "success") {
+                console.error(`::error::Quality gate ${k} did not succeed (status: ${v}). Promotion blocked.`);
+                process.exit(1);
+              }
+            }
+
+            const zeroDigest = "sha256:" + "0".repeat(64);
+            const images = manifest.images || {};
+            for (const name of ["api", "web", "migrator"]) {
+              const d = images[name]?.digest;
+              if (!d || !/^sha256:[0-9a-f]{64}$/.test(d) || d === zeroDigest) {
+                console.error(`::error::Invalid or missing digest for image ${name}: ${d}`);
+                process.exit(1);
+              }
+            }
+
+            const setOutput = (k, v) => fs.appendFileSync(process.env.GITHUB_OUTPUT, `${k}=${v}\n`);
+            setOutput("release_sha", manifest.commit);
+            setOutput("migration_head", manifest.migrationHead || "");
+            setOutput("api_digest", images.api.digest);
+            setOutput("web_digest", images.web.digest);
+            setOutput("migrator_digest", images.migrator.digest);
+
+            const summary = [
+              "### 📦 Promotion Manifest Verified",
+              `- **Target Commit:** \`${manifest.commit}\``,
+              `- **Gate Results:** FE (\`${gates.frontend}\`), BE (\`${gates.backend}\`), Integration (\`${gates.integration}\`), Container (\`${gates.container}\`)`,
+              `- **Migration Head:** \`${manifest.migrationHead || "None"}\``,
+              `- **API Digest:** \`${images.api.digest}\``,
+              `- **Web Digest:** \`${images.web.digest}\``,
+              `- **Migrator Digest:** \`${images.migrator.digest}\``,
+              `- **Provenance:** Images are promoted by digest WITHOUT recompilation.`
+            ].join("\n");
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + "\n");
+          ' "${MANIFEST_FILE}" "${TARGET_SHA}"
+
+      - name: Upload Verified Manifest Artifact
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
+        with:
+          name: verified-production-manifest
+          path: ./verified_manifest/release-manifest.json
+          retention-days: 30
+
+  deploy-production:
+    name: Deploy to Production Environment
+    runs-on: ubuntu-latest
+    needs: [validate-release-provenance]
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL || 'https://safespace.vn' }}
+    steps:
+      - name: Checkout trusted default branch (main)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+
+      - name: Download Verified Production Manifest
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        with:
+          name: verified-production-manifest
+          path: artifacts
+
+      - name: Check Production Deploy Gate & Execute Promotion
+        env:
+          ENABLE_PRODUCTION_DEPLOY: ${{ vars.ENABLE_PRODUCTION_DEPLOY }}
+          PRODUCTION_SSH_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          PRODUCTION_SSH_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          PRODUCTION_SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+          PRODUCTION_SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://safespace.vn' }}
+        run: |
+          echo "Checking Production Deploy Gate: ENABLE_PRODUCTION_DEPLOY=${ENABLE_PRODUCTION_DEPLOY:-false}"
+
+          if [ "${ENABLE_PRODUCTION_DEPLOY:-false}" != "true" ]; then
+            echo "ℹ️ Production deployment is in STANDBY. Variable ENABLE_PRODUCTION_DEPLOY is not 'true'."
+            echo "### ⏸️ Production Deploy Status: Standby" >> $GITHUB_STEP_SUMMARY
+            echo "- **State:** Ready for deployment (Images pinned and verified by digest)" >> $GITHUB_STEP_SUMMARY
+            echo "- **Commit:** \`${{ needs.validate-release-provenance.outputs.release_sha }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Migration Head:** \`${{ needs.validate-release-provenance.outputs.migration_head }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Note:** To activate live production promotion, define repository variable \`ENABLE_PRODUCTION_DEPLOY=true\` and configure production host." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          if [ -z "${PRODUCTION_SSH_HOST}" ] || [ -z "${PRODUCTION_SSH_USER}" ] || [ -z "${PRODUCTION_SSH_KEY}" ]; then
+            echo "::error::ENABLE_PRODUCTION_DEPLOY is true but required SSH secrets (PRODUCTION_SSH_HOST, PRODUCTION_SSH_USER, PRODUCTION_SSH_KEY) are missing. Ephemeral runner cannot serve as persistent production environment."
+            exit 1
+          fi
+
+          if [ -z "${PRODUCTION_SSH_KNOWN_HOSTS}" ]; then
+            echo "::error::PRODUCTION_SSH_KNOWN_HOSTS secret is required when ENABLE_PRODUCTION_DEPLOY is true. Automatic unverified keyscan is disabled to prevent MITM attacks."
+            exit 1
+          fi
+
+          echo "Setting up SSH key and verified known_hosts for ${PRODUCTION_SSH_HOST}..."
+          mkdir -p ~/.ssh
+          echo "${PRODUCTION_SSH_KEY}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          echo "${PRODUCTION_SSH_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+          echo "Ensuring deployment directory structure on ${PRODUCTION_SSH_HOST}..."
+          ssh -o ConnectTimeout=15 "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}" \
+            "mkdir -p /opt/safespace/artifacts /opt/safespace/scripts/deploy /opt/safespace/scripts/ci /opt/safespace/deploy"
+
+          echo "Transferring verified production manifest and deploy assets to ${PRODUCTION_SSH_HOST}..."
+          scp -o ConnectTimeout=15 artifacts/release-manifest.json "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}:/opt/safespace/artifacts/release-manifest.json"
+          scp -o ConnectTimeout=15 scripts/deploy/* "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}:/opt/safespace/scripts/deploy/"
+          scp -o ConnectTimeout=15 scripts/ci/smoke.sh "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}:/opt/safespace/scripts/ci/smoke.sh"
+          scp -o ConnectTimeout=15 deploy/compose.production.yml "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}:/opt/safespace/deploy/compose.production.yml"
+
+          echo "Executing promote-production.sh on remote production host..."
+          ssh -o ConnectTimeout=15 "${PRODUCTION_SSH_USER}@${PRODUCTION_SSH_HOST}" \
+            "cd /opt/safespace && bash scripts/deploy/promote-production.sh artifacts/release-manifest.json deploy/.env.production deploy/compose.production.yml"
+
+          echo "### 🚀 Production Deployment Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target:** Production Environment (${PRODUCTION_URL})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ needs.validate-release-provenance.outputs.release_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Migration Head:** \`${{ needs.validate-release-provenance.outputs.migration_head }}\`" >> $GITHUB_STEP_SUMMARY
