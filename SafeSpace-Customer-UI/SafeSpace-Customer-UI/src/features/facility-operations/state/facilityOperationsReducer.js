@@ -184,7 +184,7 @@ const ACTIONS = {
       contracts: patch(state.contracts, id, () => ({ state: "CLOSED", due: debt ? `Đã trả kho · Còn nợ ${money(debt)}` : `Hoàn cọc ${money(refund)} sau khi trừ khoản còn nợ` })),
       units: r ? patchUnit(state.units, r.unit, () => ({ status: "EMPTY", tenant: null, end: null })) : state.units,
     };
-    return { state: addLog(next, now, `Đã xác nhận hoàn cọc ${money(refund)} · ${id}`, "manager/contracts", "MANAGER"), result: { id, refund } };
+    return { state: addLog(next, now, `Đã xác nhận hoàn cọc ${money(refund)} · ${id}`, "manager/contracts", "MANAGER"), result: { id, refund, debt } };
   },
 
   // S09f · Nhân viên xác nhận đã thu phí phát sinh / công nợ tại quầy

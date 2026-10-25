@@ -1,18 +1,24 @@
 import React, { useEffect, useState } from "react";
 import { EmptyInline } from "../../../shared/components/Inline.jsx";
 import { Button, Field, LinkButton, Modal, Notice, PageHeader } from "../../../shared/components/UI.jsx";
-import { dateLabel, money, shortCode } from "../../../shared/utils/format.js";
+import { dateLabel, money, shortCode, today } from "../../../shared/utils/format.js";
+import { CANCEL_FEE_LABEL, CANCEL_POLICY_HINT, CANCEL_REFUND_NOTE } from "../../../shared/utils/policy.js";
 import { shortName } from "../../../shared/hooks/useBrowserEvents.js";
 import { RESERVATION_STATUS } from "../../../shared/utils/status.js";
 import { facilityOf, sortedReservations } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 
-// Đơn khách tự huỷ được: chờ thanh toán, hoặc đã thanh toán nhưng chưa nhận kho (cùng quy tắc backend:
-// ReservationService.CancelReservationAsync nhận PENDING_PAYMENT / CONFIRMED)
-export function canCancel(data, r) {
-  if (r.api_status) return ["PENDING_PAYMENT", "CONFIRMED", "PAID"].includes(r.api_status) && r.status !== "CANCELLED";
+// Đơn khách tự huỷ được — cùng quy tắc backend ReservationService.CancelReservationAsync:
+// PENDING_PAYMENT / PENDING_AT_FACILITY (chưa thu tiền) huỷ lúc nào cũng được;
+// CONFIRMED (đã thanh toán) chỉ huỷ trước ngày bắt đầu thuê, từ ngày bắt đầu dùng quy trình trả kho.
+const CANCELLABLE_API = ["PENDING_PAYMENT", "PENDING_AT_FACILITY", "CONFIRMED"];
+const beforeStart = (r) => !r.start_date || today() < r.start_date;
+export function canCancel(data, r, now = today()) {
+  if (r.status === "CANCELLED") return false;
+  const started = r.start_date && now >= r.start_date;
+  if (r.api_status) return CANCELLABLE_API.includes(r.api_status) && !(r.api_status === "CONFIRMED" && started);
   if (r.status === "PENDING_PAYMENT") return true;
-  if (r.status !== "CONFIRMED") return false;
+  if (r.status !== "CONFIRMED" || started) return false;
   return !data.contracts.some((c) => c.reservation_id === r.reservation_id && c.handed_over);
 }
 
@@ -24,7 +30,6 @@ function statusCell(r) {
   if (isRefunded(r)) return <span className="tone-green">Đã huỷ · Đã hoàn tiền</span>;
   return RESERVATION_STATUS[r.status][0];
 }
-export const CANCEL_POLICY_HINT = "Huỷ trước ngày bắt đầu thuê: phí huỷ 10% tiền cọc, hoàn 100% tiền thuê và 90% cọc. Từ ngày bắt đầu thuê, sử dụng quy trình trả kho.";
 
 // C14a — Hộp thoại huỷ đơn & hoàn tiền
 function CancelDialog({ r, onDone, onClose }) {
@@ -33,12 +38,24 @@ function CancelDialog({ r, onDone, onClose }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // Backend từ chối xem trước (vd. đã đến ngày bắt đầu thuê) → hiện lý do, không cho bấm huỷ
+  const [blocked, setBlocked] = useState("");
   const paid = r.status === "CONFIRMED";
   const f = facilityOf(data, r.facility_id, r.facility_name);
 
   useEffect(() => {
     let alive = true;
-    if (paid) services?.cancelPreview(r).then((res) => alive && setPreview(res.ok ? res.preview : false));
+    if (paid && !beforeStart(r)) setBlocked("Đã đến ngày bắt đầu thuê nên không huỷ đặt chỗ được. Vui lòng đăng ký trả kho để được xử lý hoàn cọc theo chính sách.");
+    else if (paid)
+      services?.cancelPreview(r).then((res) => {
+        if (!alive) return;
+        if (res.ok) setPreview(res.preview);
+        else if (res.unsupported) setPreview(false);
+        else {
+          setPreview(false);
+          setBlocked(res.error || "Không tính được số tiền hoàn. Vui lòng thử lại sau.");
+        }
+      });
     return () => {
       alive = false;
     };
@@ -63,7 +80,7 @@ function CancelDialog({ r, onDone, onClose }) {
           <dl className="pay-rows">
             <div><dt>Đã thanh toán (tiền thuê {r.months} tháng + cọc)</dt><dd>{money(preview?.paid ?? r.initial_total)}</dd></div>
             <div>
-              <dt>Phí huỷ (10% tiền cọc)</dt>
+              <dt>{CANCEL_FEE_LABEL}</dt>
               <dd className={preview ? "tone-red" : undefined}>{preview ? `− ${money(preview.fee)}` : preview === false ? "Theo chính sách hiện hành" : "Đang tính…"}</dd>
             </div>
             <div className="pay-rows__total">
@@ -78,11 +95,12 @@ function CancelDialog({ r, onDone, onClose }) {
       <Field label="Lý do huỷ (không bắt buộc)">
         <input maxLength={255} value={reason} placeholder="Ví dụ: Đổi kế hoạch chuyển nhà" onChange={(e) => setReason(e.target.value)} />
       </Field>
-      {paid && <p className="hint">Bạn được hoàn 100% tiền thuê và 90% tiền cọc trong 3–5 ngày làm việc. Quản lý cơ sở chuyển khoản thủ công và cập nhật trạng thái hoàn tiền.</p>}
+      {paid && !blocked && <p className="hint">{CANCEL_REFUND_NOTE}</p>}
+      {blocked && <Notice tone="error">{blocked}</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
       <div className="modal__actions modal__actions--end">
         <Button variant="outline" onClick={onClose}>Giữ đơn</Button>
-        <Button variant="danger" onClick={submit} disabled={busy}>{busy ? "Đang huỷ…" : "Huỷ đơn"}</Button>
+        <Button variant="danger" onClick={submit} disabled={busy || Boolean(blocked) || (paid && preview === null)}>{busy ? "Đang huỷ…" : "Huỷ đơn"}</Button>
       </div>
     </Modal>
   );
@@ -125,7 +143,7 @@ export default function ReservationListPage() {
                     <td className="table__actions">
                       <div className="row-actions">
                         <LinkButton to={`reservations/${r.reservation_id}`} className="btn--sm">Xem đơn</LinkButton>
-                        {!done && canCancel(data, r) && (
+                        {canCancel(data, r) && (
                           <Button variant="outline" className="btn--sm btn--danger-outline" onClick={() => setCancelling(r)} aria-label={`Huỷ đơn ${shortCode(r.reservation_id)}`}>Huỷ đơn</Button>
                         )}
                       </div>

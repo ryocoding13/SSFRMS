@@ -42,7 +42,9 @@ const at = (iso, time) => `${iso}T${time}:00`;
 export function createSeedData(t = today()) {
   const b015End = addDays(t, 5);
   const b015Start = addMonths(b015End, -3);
-  const a102End = addMonths(t, 3);
+  // Đơn/hợp đồng A-102 bắt đầu từ ngày mai: đơn đã thanh toán chỉ huỷ được trước ngày bắt đầu thuê (C14a)
+  const a102Start = addDays(t, 1);
+  const a102End = addMonths(a102Start, 3);
   return {
     user: {
       user_id: 101,
@@ -61,7 +63,7 @@ export function createSeedData(t = today()) {
         offer_key: "normal-M",
         size_label: "Cỡ M · 15 m²",
         months: 3,
-        start_date: t,
+        start_date: a102Start,
         end_date: a102End,
         monthly_rate: 1150000,
         deposit: 1150000,
@@ -99,7 +101,7 @@ export function createSeedData(t = today()) {
         size_m2: 15,
         location: "Tầng 1 · Dãy A",
         months: 3,
-        start_date: t,
+        start_date: a102Start,
         end_date: a102End,
         monthly_rate: 1150000,
         deposit: 1150000,

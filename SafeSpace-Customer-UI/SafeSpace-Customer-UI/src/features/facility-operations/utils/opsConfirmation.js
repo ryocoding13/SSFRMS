@@ -12,7 +12,8 @@ export function settleReturn(ret, contract) {
   return { refund: Math.max(0, deposit - owed), debt: Math.max(0, owed - deposit), owed };
 }
 const GENERIC_FAIL = "Chưa ghi nhận thay đổi. Giữ nội dung đã nhập để kiểm tra và thử lại.";
-const FEE_KEYS = [["damage_fee", "Hư hỏng"], ["cleaning_fee", "Vệ sinh"], ["overdue_fee", "Quá hạn"]];
+// Phí quá hạn do backend tự tính khi xác nhận trả kho, không có trong biên bản S04
+const FEE_KEYS = [["damage_fee", "Hư hỏng"], ["cleaning_fee", "Vệ sinh"]];
 
 export function opsConfirmation(type, payload, ops) {
   const find = key => (ops[key] || []).find(x => x.id === payload.id);
@@ -149,10 +150,21 @@ export function opsConfirmation(type, payload, ops) {
     case "CONFIRM_REFUND": {
       const c = find("contracts");
       const ret = (ops.returns || []).find((x) => x.contract === payload.id);
-      const { refund, debt } = settleReturn(ret, c);
+      const estimate = settleReturn(ret, c);
       return {
         confirm: false,
-        success: { title: `Đã xác nhận trả kho${debt ? ` · Còn nợ ${money(debt)}` : ""}`, text: `Hợp đồng ${payload.id} đã hoàn tất trả kho.${refund ? ` Hoàn cọc ${money(refund)} sau khi trừ các khoản phải thu (D27).` : ""}`, action: "Đã hiểu" },
+        // Ưu tiên số hoàn cọc backend tính (RefundPolicy: trả sớm, phí quá hạn tự tính…); không có thì dùng ước tính phía giao diện
+        success: (result = {}) => {
+          const fromServer = typeof result.refund === "number";
+          const refund = fromServer ? result.refund : estimate.refund;
+          const knownDebt = typeof result.debt === "number";
+          const debt = knownDebt ? result.debt : fromServer ? 0 : estimate.debt;
+          return {
+            title: `Đã xác nhận trả kho${debt ? ` · Còn nợ ${money(debt)}` : ""}`,
+            text: `Hợp đồng ${payload.id} đã hoàn tất trả kho.${refund ? ` Hoàn cọc ${money(refund)} sau khi trừ các khoản phải thu (D27).` : " Không có tiền cọc được hoàn."}${fromServer && !knownDebt ? " Khoản còn nợ (nếu có) tiếp tục được theo dõi tại danh sách hợp đồng." : ""}`,
+            action: "Đã hiểu",
+          };
+        },
         failure: { title: "Không xác nhận trả kho được", text: GENERIC_FAIL },
       };
     }

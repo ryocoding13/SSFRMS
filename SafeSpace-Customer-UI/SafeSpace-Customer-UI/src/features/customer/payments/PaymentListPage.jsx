@@ -7,7 +7,8 @@ import { facilityOf } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 
 // C11fc · Chọn trả phí phát sinh tại quầy → C11fcp. Không làm giảm công nợ cho tới khi nhân viên xác nhận đã thu (S09f).
-function CounterDialog({ rows, contract, facilityName, onClose }) {
+// Backend chưa có API lưu lựa chọn này (BACKEND-TODO S09f) → chỉ ghi trên thiết bị, thông báo nói rõ điều đó.
+function CounterDialog({ rows, contract, facilityName, savedOnServer, onClose }) {
   const { dispatch } = useApp();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -25,7 +26,10 @@ function CounterDialog({ rows, contract, facilityName, onClose }) {
     return (
       <Modal title="Đã chọn thanh toán tại quầy" size="confirm" onClose={onClose}>
         <span className="modal__state modal__state--success" aria-hidden="true" />
-        <p className="modal__text">{contractLabel} còn phải thu {money(total)}. Nhân viên sẽ cập nhật khi nhận đủ tiền; chọn phương thức chưa làm giảm công nợ.</p>
+        <p className="modal__text">
+          {contractLabel} còn phải thu {money(total)}. Đến quầy {facilityName || "cơ sở"} để thanh toán; nhân viên cập nhật khi nhận đủ tiền. Chọn phương thức chưa làm giảm công nợ.
+          {!savedOnServer && " Lựa chọn này chỉ lưu trên thiết bị của bạn; bạn vẫn có thể thanh toán qua mã QR."}
+        </p>
         <Button block onClick={onClose}>Về khoản phải thanh toán</Button>
       </Modal>
     );
@@ -50,13 +54,17 @@ function CounterDialog({ rows, contract, facilityName, onClose }) {
 // C11 — Thanh toán & lịch hẹn. Khoản gia hạn đã duyệt có nút "Thanh toán" mở QR PayOS (C11q), trả xong → C11b.
 // C11f / C11fb / C11fq: phí phát sinh trả kho trả qua PayOS hoặc tại quầy (C11fc → C11fcp).
 export default function PaymentListPage() {
-  const { data } = useApp();
+  const { data, mode } = useApp();
   const [paying, setPaying] = useState(null);
   const [paid, setPaid] = useState(null);
-  const [counter, setCounter] = useState(false);
+  const [counter, setCounter] = useState(null); // contract_id đang chọn trả phí tại quầy
   const fees = data.ledger.filter((l) => l.fee && ["UNPAID", "AT_COUNTER"].includes(l.status));
   const appointments = [...data.appointments].sort((a, b) => a.date.localeCompare(b.date));
-  const payable = data.ledger.filter((l) => l.payable && l.status === "UNPAID");
+  // Phí đã chọn "tại quầy" vẫn trả được qua QR nếu khách đổi ý (khoản chưa thu trên hệ thống)
+  const canPay = (l) => l.payable && (l.status === "UNPAID" || (l.fee && l.status === "AT_COUNTER"));
+  const payable = data.ledger.filter(canPay);
+  // Phí chưa thu theo từng hợp đồng: mỗi hợp đồng một nút "tại quầy", không gộp phí của nhiều hợp đồng
+  const unpaidFeeContracts = [...new Set(fees.filter((l) => l.status === "UNPAID").map((l) => l.contract_id))];
   const contractOfRow = (l) => data.contracts.find((c) => c.contract_id === l.contract_id);
   const subtitle = (l) => {
     const c = contractOfRow(l);
@@ -109,7 +117,7 @@ export default function PaymentListPage() {
                 <td className={l.fee && l.status === "UNPAID" ? "tone-amber" : undefined}>{(LEDGER_STATUS[l.status] || [l.status])[0]}</td>
                 {payable.length > 0 && (
                   <td className="cell-action">
-                    {l.payable && l.status === "UNPAID" && <Button className="btn--sm" onClick={() => setPaying(l)}>Thanh toán</Button>}
+                    {canPay(l) && <Button className="btn--sm" onClick={() => setPaying(l)}>Thanh toán</Button>}
                   </td>
                 )}
               </tr>
@@ -131,7 +139,11 @@ export default function PaymentListPage() {
       ) : fees.length > 0 ? (
         <>
           <p className="hint">{[...new Set(fees.map((l) => l.detail).filter(Boolean))].join(" ")} Thanh toán qua PayOS hoặc tại quầy; khoản còn nợ vẫn được theo dõi sau khi trả kho.</p>
-          {fees.some((l) => l.status === "UNPAID") && <Button variant="outline" className="btn--fit" onClick={() => setCounter(true)}>Thanh toán phí tại quầy</Button>}
+          {unpaidFeeContracts.map((id) => (
+            <Button key={id} variant="outline" className="btn--fit" onClick={() => setCounter(id)}>
+              Thanh toán phí tại quầy{unpaidFeeContracts.length > 1 ? ` · ${String(id).replace(/^HĐ-\d{4}-/, "HĐ-")}` : ""}
+            </Button>
+          ))}
         </>
       ) : (
         payable.length > 0 && (
@@ -151,14 +163,19 @@ export default function PaymentListPage() {
           onClose={() => setPaying(null)}
         />
       )}
-      {counter && (
-        <CounterDialog
-          rows={fees.filter((l) => l.status === "UNPAID")}
-          contract={contractOfRow(fees[0]) ? { ...contractOfRow(fees[0]), customer: data.user?.full_name } : { contract_id: fees[0]?.contract_id, customer: data.user?.full_name }}
-          facilityName={(() => { const c = contractOfRow(fees[0]); return c ? facilityOf(data, c.facility_id, c.facility_name)?.name : null; })()}
-          onClose={() => setCounter(false)}
-        />
-      )}
+      {counter && (() => {
+        const rows = fees.filter((l) => l.status === "UNPAID" && l.contract_id === counter);
+        const c = contractOfRow({ contract_id: counter });
+        return (
+          <CounterDialog
+            rows={rows}
+            contract={{ ...(c || { contract_id: counter }), customer: data.user?.full_name }}
+            facilityName={c ? facilityOf(data, c.facility_id, c.facility_name)?.name : null}
+            savedOnServer={mode !== "api"}
+            onClose={() => setCounter(null)}
+          />
+        );
+      })()}
     </main>
   );
 }

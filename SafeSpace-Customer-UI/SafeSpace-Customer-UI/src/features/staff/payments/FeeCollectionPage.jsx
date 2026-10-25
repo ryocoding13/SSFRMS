@@ -19,6 +19,7 @@ export function FeeCollectionPage({ query }) {
       </main>
     );
   const paid = f.status !== "PENDING";
+  const items = Array.isArray(f.items) ? f.items : [];
   const submit = async () => {
     const r = await run("CONFIRM_FEE_COLLECTION", { id: f.id }, `Đã thu ${money(f.amount)} · ${f.contract}`);
     if (r.ok) go("staff/reconcile");
@@ -34,7 +35,7 @@ export function FeeCollectionPage({ query }) {
       </header>
       <section className="panel form-card">
         <h2>{f.contract} · {f.customer} · Kho {f.unit}</h2>
-        <p className="muted">{f.items.map(([label, amount]) => `${label}: ${money(amount)}`).join(" · ")}. Tổng cần thu: {money(f.amount)}.</p>
+        <p className="muted">{items.map(([label, amount]) => `${label}: ${money(amount)}`).join(" · ")}{items.length ? ". " : ""}Tổng cần thu: {money(f.amount)}.</p>
         <p className="muted">Phương thức: Tiền mặt tại quầy. Khoản thu này thanh toán công nợ hiện có; trạng thái hợp đồng đã kết thúc được giữ nguyên.{f.due ? ` Hạn thanh toán: ${dateLabel(f.due)}.` : ""}</p>
         {paid ? <p className="hint tone-green">Đã thu đủ {money(f.amount)}.</p> : <Button className="btn--fit" onClick={submit}>Xác nhận đã thu tiền</Button>}
       </section>
