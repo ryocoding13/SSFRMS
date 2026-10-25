@@ -38,25 +38,31 @@ Step "2. Frontend: npm ci check"
 Push-Location $Fe
 if (-not (Test-Path node_modules)) { Run "npm ci" } else { Write-Host "node_modules exists" }
 
-Step "3. Frontend: npm test"
+Step "3. Frontend: check:structure"
+Run "npm run check:structure"
+
+Step "4. Frontend: npm test"
 Run "npm test"
 
-Step "4. Frontend: npm run test:render"
+Step "5. Frontend: npm run test:business"
+Run "npm run test:business"
+
+Step "6. Frontend: npm run test:render"
 Run "npm run test:render"
 
-Step "5. Frontend: npm run build"
+Step "7. Frontend: npm run build"
 Run "npm run build"
 
 Pop-Location
 
 if (-not $FeOnly) {
-  Step "6. Backend: dotnet tool restore & build"
+  Step "8. Backend: dotnet tool restore & build"
   Push-Location $Root
   Run "dotnet tool restore"
   Run "dotnet build StorageProject.slnx --nologo -v quiet"
   $testDirs = Get-ChildItem -Directory -Filter "*Tests*" -ErrorAction SilentlyContinue
   if ($testDirs) {
-    Step "7. Backend: test"
+    Step "9. Backend: test"
     Run "dotnet test StorageProject.slnx --nologo"
   } else {
     Write-Host "(No backend test project yet - see F28 in feature_list.json)"

@@ -1,0 +1,84 @@
+# ==============================================================================
+# SafeSpace SSFRMS — Production Docker Compose Stack (compose.production.yml)
+# ==============================================================================
+# QUY TẮC BẮT BUỘC TRÊN PRODUCTION:
+# 1. Image PHẢI được chỉ định bằng SHA-256 digest đã qua kiểm thử tại Staging.
+# 2. KHÔNG rebuild mã nguồn trên máy chủ Production.
+# 3. SeedMode=None, AutoMigrate=false (migration do one-shot migrator container chạy).
+# 4. Không mở cổng 1433 hay 8080 ra ngoài Internet; chỉ mở qua edge proxy / ingress.
+# ==============================================================================
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: safespace-prod-sqlserver
+    restart: always
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${SA_PASSWORD:?Production SA Password must be set}"
+      MSSQL_PID: "Standard"
+    volumes:
+      - prod_sql_data:/var/opt/mssql
+    networks:
+      - prod-net
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${SA_PASSWORD}' -C -Q 'SELECT 1' || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P '${SA_PASSWORD}' -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrator:
+    image: "${MIGRATOR_IMAGE:?MIGRATOR_IMAGE must be specified by full reference image@sha256:...}"
+    container_name: safespace-prod-migrator
+    environment:
+      ConnectionStrings__DefaultConnection: "${DATABASE_CONNECTION_STRING:?DATABASE_CONNECTION_STRING must be set}"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - prod-net
+    restart: "no"
+
+  api:
+    image: "${API_IMAGE:?API_IMAGE must be specified by full reference image@sha256:...}"
+    container_name: safespace-prod-api
+    restart: always
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      ConnectionStrings__DefaultConnection: "${DATABASE_CONNECTION_STRING:?DATABASE_CONNECTION_STRING must be set}"
+      Database__AutoMigrate: "false"
+      Database__SeedMode: "None"
+      JwtSettings__Secret: "${JWT_SECRET:?JWT_SECRET must be set}"
+      JwtSettings__Issuer: "SSFRMSApi"
+      JwtSettings__Audience: "SSFRMSClients"
+      AppSettings__FrontendUrl: "${FRONTEND_URL:?FRONTEND_URL must be set}"
+      PayOS__ClientId: "${PAYOS_CLIENT_ID:?PAYOS_CLIENT_ID must be set}"
+      PayOS__ApiKey: "${PAYOS_API_KEY:?PAYOS_API_KEY must be set}"
+      PayOS__ChecksumKey: "${PAYOS_CHECKSUM_KEY:?PAYOS_CHECKSUM_KEY must be set}"
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - prod-net
+
+  web:
+    image: "${WEB_IMAGE:?WEB_IMAGE must be specified by full reference image@sha256:...}"
+    container_name: safespace-prod-web
+    restart: always
+    ports:
+      # Lắng nghe trên loopback nếu phía trước có Caddy/Nginx host, hoặc theo cổng quy định
+      - "${PROD_PORT:-127.0.0.1:8080}:80"
+    depends_on:
+      - api
+    networks:
+      - prod-net
+
+networks:
+  prod-net:
+    driver: bridge
+
+volumes:
+  prod_sql_data:
+    driver: local

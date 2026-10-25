@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SafeSpaceSSFRMSReleaseManifest",
+  "description": "Schema cho release manifest của SafeSpace SSFRMS phục vụ triển khai staging và production promotion.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "commit",
+    "repository",
+    "runId",
+    "timestamp",
+    "migrationHead",
+    "images",
+    "gateResults"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "repository": {
+      "type": "string"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "migrationHead": {
+      "type": "string"
+    },
+    "images": {
+      "type": "object",
+      "required": ["api", "web", "migrator"],
+      "properties": {
+        "api": {
+          "type": "object",
+          "required": ["image", "tag", "digest"],
+          "properties": {
+            "image": { "type": "string" },
+            "tag": { "type": "string" },
+            "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          }
+        },
+        "web": {
+          "type": "object",
+          "required": ["image", "tag", "digest"],
+          "properties": {
+            "image": { "type": "string" },
+            "tag": { "type": "string" },
+            "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          }
+        },
+        "migrator": {
+          "type": "object",
+          "required": ["image", "tag", "digest"],
+          "properties": {
+            "image": { "type": "string" },
+            "tag": { "type": "string" },
+            "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+          }
+        }
+      }
+    },
+    "gateResults": {
+      "type": "object",
+      "required": ["frontend", "backend", "integration", "container"],
+      "properties": {
+        "frontend": { "type": "string", "enum": ["success", "passed"] },
+        "backend": { "type": "string", "enum": ["success", "passed"] },
+        "integration": { "type": "string", "enum": ["success", "passed"] },
+        "container": { "type": "string", "enum": ["success", "passed"] }
+      }
+    }
+  },
+  "additionalProperties": false
+}

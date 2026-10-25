@@ -207,6 +207,28 @@ Theo yêu cầu nhóm, dùng src/app, src/features/<role>/<feature>, src/shared,
 ## D28 — Kiểm thử giao diện C12/C12b/C13 bằng Playwright
 
 Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu mẫu và giao diện tiến trình. Bộ kiểm thử giả lập DTO chỉ xác nhận FE; dùng thêm host Kestrel/JWT/SQLite cho HTTP và trình duyệt với backend thật. Giữ D26/D27 và endpoint vận hành chuẩn trên main. Không lưu browser binary hoặc test-results trong git. Các SVG của C12/C13 được tái sử dụng từ gói frontend Ngọc Mai đã cung cấp; phiên này không sửa Figma.
+
+## D29 — Chiến lược CI/CD, Container hoá và Rollback an toàn (24/10/2026) — Đã chốt
+
+- **Chuẩn hoá Pipeline 8 bước (CI01–CI08):** Toàn bộ quy trình từ kiểm tra môi trường cục bộ (`init.sh`, `init.ps1`), CI gate (`.github/workflows/ci.yml`), xuất bản gói phát hành GHCR, tự động hóa deploy Staging, đến kiểm soát Promotion Production (`.github/workflows/deploy-production.yml`) và kịch bản Rollback an toàn (`scripts/deploy/rollback.sh`, `.ps1`).
+- **Kiểm thử Đa tầng:**
+  - Frontend: 4 suites bắt buộc (`npm test`, `npm run test:render`, `npm run check:structure`, `npm run build`).
+  - Backend Unit: 57 unit tests in-memory SQLite (`StorageProject.Tests`), thời gian chạy nhanh 3–5s phục vụ phản hồi tức thời.
+  - Backend Integration: 9 integration tests chạy trên SQL Server 2022 thật (`StorageProject.IntegrationTests`), thẩm định toàn bộ 6 migrations EF Core, zero model drift, xác thực đăng nhập 5 roles, RBAC 401/403, idempotency payment và concurrency locking với `sp_getapplock`.
+- **Đóng gói & Digest Pinning:**
+  - API build Release, chạy trên .NET 10 noble-chiseled với người dùng `app` (non-root), cổng 8080 nội bộ.
+  - Web chạy Nginx alpine, phục vụ static SPA bundle, proxy `/api` giữ nguyên prefix, chuyển tiếp headers đầy đủ.
+  - Migrator container độc lập dạng self-contained bundle, chỉ chạy one-shot khi nâng cấp schema.
+  - Tuyệt đối không dùng tag `latest`. Mọi môi trường đều chạy bằng exact SHA-256 digest (`@sha256:...`) được ghim trong `release-manifest.json` theo đúng schema [deploy/release-manifest.schema.json](file:///d:/StorageProject/deploy/release-manifest.schema.json).
+- **Promotion Production có Kiểm Soát (Zero Rebuild):**
+  - Promotion qua manual dispatch `deploy-production.yml` với commit SHA 40-hex.
+  - Thẩm định nguồn gốc: Chỉ chấp nhận manifest từ bản CI run thành công trên `main` của chính repo với 4 gate checks đều là `success`.
+  - Tuyệt đối không build lại mã nguồn khi chuyển từ Staging lên Production; tái sử dụng đúng exact digests.
+  - Quản lý bảo vệ bằng GitHub Environment `production` và kiểm soát cổng bật triển khai qua `ENABLE_PRODUCTION_DEPLOY`.
+- **Nguyên tắc Rollback & An toàn Dữ liệu:**
+  - **Không EF Down:** Tuyệt đối không tự động chạy `dotnet ef database update` về migration cũ để tránh xung đột khóa ngoại và mất mát dữ liệu khách hàng. Schema database luôn được giữ nguyên và sửa chữa bằng migration tiến lên (Forward-fix).
+  - **Backup Bắt Buộc:** Mọi kịch bản deploy đều bắt buộc sao lưu database trước khi can thiệp schema; backup fail thì dừng triển khai ngay.
+  - **Phục hồi Database có Runbook:** Chỉ phục hồi database từ file backup `.bak` khi có sự phê chuẩn và chỉ định rõ ràng file sao lưu, kèm chấp nhận downtime và mất mát dữ liệu sau thời điểm backup theo đúng runbook [docs/rollback.md](file:///d:/StorageProject/docs/rollback.md).
 ## PROCESS-2026-10-24 — Quy trình AI, Git và kiểm chứng — Áp dụng khi nhóm tích hợp bản vá
 
 - Theo yêu cầu cập nhật quy định của thành viên ngày 24/10/2026; không khẳng định cả nhóm đã biểu quyết. Việc merge bản vá ghi nhận nhóm chấp nhận áp dụng.
@@ -219,10 +241,19 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Không thay D26/D27, tính tiền, phân quyền, schema, API hoặc trạng thái passing của bất kỳ tính năng sản phẩm nào.
 
 
-## D29 — 2026-10-25: FE các màn đã duyệt và chính sách người dùng mới chốt
+## D30 — 2026-10-25: FE các màn đã duyệt và chính sách người dùng mới chốt
+
+> Đánh số lại từ D29 khi gộp với `main`: D29 đã dùng cho Chiến lược CI/CD (24/10/2026).
 
 - Theo yêu cầu người dùng: hoàn thiện FE kể cả chưa có BE. Thêm demo opt-in `dev:demo`, có nhãn rõ. API thường không fallback thành công. Không sửa backend, migration hoặc số tiền settlement hiện hành.
 - Người dùng chốt chính sách mới cho bản cập nhật tiếp theo: mỗi ngày trễ trừ 5% cọc ban đầu, cap100%; ngày20 nhân viên đưa đồ ra ngoài, khách tự chịu trách nhiệm. Nội dung FE này thay hướng mô tả quá hạn theo giá thuê trong D27/D28; BE chưa được chuyển đổi trong task FE này. Ledger luôn là bản xem trước đến khi BE cung cấp quyết toán/phiên bản áp dụng.
 - Khách đọc chính sách chi tiết; OPERATIONS sửa và xem trước. Không làm trang thu hồi QR; FE chặn mở cửa ngay sau trả kho thành công/hết hạn. Server/thiết bị phải kiểm tra quyền thực tế. Không tạo trang thông báo riêng; dùng chuông trên header.
 - Mỗi khách/đơn một thẻ, tên/chi tiết nằm gần nhau, hành động ở bên phải và căn giữa; form gọn, tránh hai cột thông tin cách quá xa.
 - Giữ source trên nhánh local để chủ repo review; không commit/push/PR và không đánh dấu passing trước owner duyệt.
+
+
+## PROCESS-2026-10-25 — Pre-flight bắt buộc bằng công cụ đọc file
+
+- Theo yêu cầu người dùng: đặt quy tắc pre-flight ở đầu AGENTS.md và CLAUDE.md (đã merge ở PR #43). Mỗi lượt implementation / bug fixing / business logic phải đọc DECISIONS.md, feature_list.json, progress.md và `SafeSpace-Customer-UI/SafeSpace-Customer-UI/BACKEND-TODO.md` nếu chạm API/BE, rồi in receipt có bằng chứng trước giải thích/code. Không lấy trí nhớ thay thao tác đọc.
+- Dùng ID thực tế trong feature_list.json (hiện có F01–F41 và CI01–CI08), không giới hạn F01–F38. Tài liệu quy trình không tự tạo feature hoặc đổi passing.
+- Giữ D26, các quy định Git và kiểm chứng hiện hành; test mock/SQLite không thay SQL Server và API thật. Không thay nghiệp vụ trong bản bổ sung quy trình này.

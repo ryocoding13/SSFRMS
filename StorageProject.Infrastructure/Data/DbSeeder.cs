@@ -11,9 +11,64 @@ namespace StorageProject.Infrastructure.Data;
 /// </summary>
 public static partial class DbSeeder
 {
-    public static async Task SeedAsync(AppDbContext context)
+    public static async Task SeedByModeAsync(AppDbContext context, string mode, string? adminPassword = null)
     {
-        // 1. Roles
+        switch (mode?.Trim().ToLowerInvariant())
+        {
+            case "reference":
+                await SeedReferenceAsync(context, adminPassword);
+                break;
+            case "staging":
+                await SeedStagingAsync(context);
+                break;
+            case "development":
+                await SeedAsync(context);
+                await FacilityCoordinateSeeder.SeedAsync(context);
+                break;
+            case "none":
+            default:
+                break;
+        }
+    }
+
+    public static async Task SeedReferenceAsync(AppDbContext context, string? adminPassword = null)
+    {
+        await EnsureRolesAndPermissionsAsync(context);
+        var adminRole = await context.Roles.FirstAsync(r => r.RoleName == "ADMIN");
+        var admin = await context.Users.FirstOrDefaultAsync(u => u.Username == "admin");
+        if (admin == null && !string.IsNullOrWhiteSpace(adminPassword))
+        {
+            admin = new User
+            {
+                Username = "admin",
+                Email = "admin@storage.vn",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword),
+                FullName = "Hệ Thống Admin",
+                Phone = "0900000001",
+                Status = "ACTIVE",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            context.Users.Add(admin);
+            await context.SaveChangesAsync();
+            context.UserRoles.Add(new UserRole { UserId = admin.UserId, RoleId = adminRole.RoleId, AssignedAt = DateTime.UtcNow });
+            await context.SaveChangesAsync();
+        }
+
+        var creatorId = admin?.UserId ?? 1;
+        await EnsureCatalogAsync(context, creatorId);
+        await EnsurePoliciesAsync(context, creatorId);
+        await FacilityCoordinateSeeder.SeedAsync(context);
+    }
+
+    public static async Task SeedStagingAsync(AppDbContext context)
+    {
+        await SeedAsync(context);
+        await FacilityCoordinateSeeder.SeedAsync(context);
+    }
+
+    public static async Task EnsureRolesAndPermissionsAsync(AppDbContext context)
+    {
         var requiredRoles = new List<(string Name, string Description)>
         {
             ("ADMIN", "Quản trị viên toàn quyền hệ thống"),
@@ -33,14 +88,12 @@ public static partial class DbSeeder
         }
         await context.SaveChangesAsync();
 
-        var customerRole = await context.Roles.FirstAsync(r => r.RoleName == "CUSTOMER");
         var adminRole = await context.Roles.FirstAsync(r => r.RoleName == "ADMIN");
         var staffRole = await context.Roles.FirstAsync(r => r.RoleName == "STAFF");
         var managerRole = await context.Roles.FirstAsync(r => r.RoleName == "MANAGER");
         var businessOpRole = await context.Roles.FirstAsync(r => r.RoleName == "BUSINESS_OPERATOR");
         var opsRole = await context.Roles.FirstAsync(r => r.RoleName == "OPERATIONS");
 
-        // 1.1 Permissions & RolePermissions
         if (!await context.Permissions.AnyAsync())
         {
             var permissions = new List<Permission>
@@ -65,7 +118,6 @@ public static partial class DbSeeder
             context.Permissions.AddRange(permissions);
             await context.SaveChangesAsync();
 
-            // Assign all permissions to ADMIN role
             var allPerms = await context.Permissions.ToListAsync();
             foreach (var perm in allPerms)
             {
@@ -78,7 +130,6 @@ public static partial class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        // Ensure STAFF, MANAGER, OPERATIONS & BUSINESS_OPERATOR permissions
         var allPermsList = await context.Permissions.ToListAsync();
         var staffPermCodes = new[] { "HANDOVER_MANAGE", "RETURN_MANAGE", "TICKET_MANAGE", "PAYMENT_CONFIRM" };
         var managerPermCodes = new[] { "HANDOVER_MANAGE", "RETURN_MANAGE", "TICKET_MANAGE", "PAYMENT_CONFIRM", "UNIT_MANAGE", "ASSIGNMENT_MANAGE", "RENEWAL_MANAGE", "REPORT_VIEW" };
@@ -116,6 +167,15 @@ public static partial class DbSeeder
             }
         }
         await context.SaveChangesAsync();
+    }
+
+    public static async Task SeedAsync(AppDbContext context)
+    {
+        await EnsureRolesAndPermissionsAsync(context);
+
+        var customerRole = await context.Roles.FirstAsync(r => r.RoleName == "CUSTOMER");
+        var adminRole = await context.Roles.FirstAsync(r => r.RoleName == "ADMIN");
+        var staffRole = await context.Roles.FirstAsync(r => r.RoleName == "STAFF");
 
         // 2. Users (Ensure essential admin, staff, manager, operator, and customer users)
         async Task<User> EnsureUserAsync(string username, string email, string fullName, string phone, string plainPassword, Role role)
@@ -161,68 +221,7 @@ public static partial class DbSeeder
         var catalog = await EnsureCatalogAsync(context, admin.UserId);
 
         // 4. Policies
-        if (!await context.Policies.AnyAsync())
-        {
-            var policies = new List<Policy>
-            {
-                new()
-                {
-                    PolicyName = "Tiền đặt cọc tiêu chuẩn",
-                    PolicyType = "DEPOSIT",
-                    CalculationType = "PERCENTAGE",
-                    Value = 100.0m, // 100% của 1 tháng tiền thuê
-                    RuleDescription = "Khách hàng phải thanh toán tiền cọc tương đương 1 tháng tiền thuê khi ký hợp đồng",
-                    EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
-                    Status = "ACTIVE",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                },
-                new()
-                {
-                    PolicyName = "Phí hủy đặt chỗ",
-                    PolicyType = "CANCELLATION",
-                    CalculationType = "PERCENTAGE",
-                    Value = 0.0m, // Miễn phí hủy trước khi check-in
-                    RuleDescription = "Miễn phí hủy đơn đặt chỗ trước thời điểm bắt đầu thuê",
-                    EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
-                    Status = "ACTIVE",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                },
-                new()
-                {
-                    PolicyName = "Phí phạt quá hạn thanh toán",
-                    PolicyType = "OVERDUE",
-                    CalculationType = "PERCENTAGE",
-                    Value = 5.0m, // 5% tiền thuê tháng mỗi ngày trả kho trễ (D27)
-                    RuleDescription = "Phí quá hạn: 5% tiền thuê tháng cho mỗi ngày trả kho trễ, trừ vào tiền cọc",
-                    EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
-                    Status = "ACTIVE",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                },
-                new()
-                {
-                    PolicyName = "Thời gian giữ chỗ đặt trước",
-                    PolicyType = "RENEWAL",
-                    CalculationType = "FIXED",
-                    Value = 24.0m, // 24 giờ
-                    RuleDescription = "Đơn đặt chỗ chưa thanh toán sẽ tự động hết hạn sau 24 giờ kể từ lúc tạo",
-                    EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
-                    Status = "ACTIVE",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                }
-            };
-
-            foreach (var policy in policies)
-            {
-                policy.CreatedBy = admin.UserId;
-            }
-
-            context.Policies.AddRange(policies);
-            await context.SaveChangesAsync();
-        }
+        await EnsurePoliciesAsync(context, admin.UserId);
 
         // 5. Phân công cơ sở (SRS A06: mỗi nhân viên / quản lý 1 cơ sở)
         await EnsureFacilityAssignmentsAsync(context, catalog.Home.FacilityId, admin.UserId);
@@ -329,6 +328,72 @@ public static partial class DbSeeder
         if (!await context.UserRoles.AnyAsync(ur => ur.UserId == opsUser.UserId && ur.RoleId == opsRole.RoleId))
         {
             context.UserRoles.Add(new UserRole { UserId = opsUser.UserId, RoleId = opsRole.RoleId, AssignedAt = DateTime.UtcNow });
+            await context.SaveChangesAsync();
+        }
+    }
+
+    public static async Task EnsurePoliciesAsync(AppDbContext context, long adminUserId)
+    {
+        if (!await context.Policies.AnyAsync())
+        {
+            var policies = new List<Policy>
+            {
+                new()
+                {
+                    PolicyName = "Tiền đặt cọc tiêu chuẩn",
+                    PolicyType = "DEPOSIT",
+                    CalculationType = "PERCENTAGE",
+                    Value = 100.0m, // 100% của 1 tháng tiền thuê
+                    RuleDescription = "Khách hàng phải thanh toán tiền cọc tương đương 1 tháng tiền thuê khi ký hợp đồng",
+                    EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new()
+                {
+                    PolicyName = "Phí hủy đặt chỗ",
+                    PolicyType = "CANCELLATION",
+                    CalculationType = "PERCENTAGE",
+                    Value = 0.0m, // Miễn phí hủy trước khi check-in
+                    RuleDescription = "Miễn phí hủy đơn đặt chỗ trước thời điểm bắt đầu thuê",
+                    EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new()
+                {
+                    PolicyName = "Phí phạt quá hạn thanh toán",
+                    PolicyType = "OVERDUE",
+                    CalculationType = "PERCENTAGE",
+                    Value = 5.0m, // 5% tiền thuê tháng mỗi ngày trả kho trễ (D27)
+                    RuleDescription = "Phí quá hạn: 5% tiền thuê tháng cho mỗi ngày trả kho trễ, trừ vào tiền cọc",
+                    EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                new()
+                {
+                    PolicyName = "Thời gian giữ chỗ đặt trước",
+                    PolicyType = "RENEWAL",
+                    CalculationType = "FIXED",
+                    Value = 24.0m, // 24 giờ
+                    RuleDescription = "Đơn đặt chỗ chưa thanh toán sẽ tự động hết hạn sau 24 giờ kể từ lúc tạo",
+                    EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
+                    Status = "ACTIVE",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                }
+            };
+
+            foreach (var policy in policies)
+            {
+                policy.CreatedBy = adminUserId;
+            }
+
+            context.Policies.AddRange(policies);
             await context.SaveChangesAsync();
         }
     }
