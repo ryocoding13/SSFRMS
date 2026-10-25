@@ -1,11 +1,39 @@
 # BACKEND-TODO — việc backend (StorageProject.Api) còn thiếu cho giao diện SafeSpace
 
-Cập nhật 01/10/2026, đối chiếu với `main` (commit `5177812`). Giao diện đã gọi hết các endpoint backend đang có.
+Cập nhật 01/10/2026, đối chiếu với `main` (commit `5177812`). Bổ sung 26/10/2026: mục "D31" ngay dưới đây là danh sách việc hiện hành. Giao diện đã gọi hết các endpoint backend đang có.
 Phần nào backend chưa có thì giao diện **tạm lưu trong trình duyệt** (mất khi đổi máy / xoá dữ liệu) và sẽ tự dùng
 API ngay khi backend có — không cần sửa giao diện nếu làm đúng hợp đồng dưới đây.
 
 Chạy thử hợp đồng không cần .NET: `MOCK_OPS=1 npm run dev:mock` (máy chủ giả lập `mock/mock-api.mjs` đã làm đủ các
 endpoint mục A–B; `tests/ops-api.test.mjs` kiểm tra từng endpoint). Backend làm đúng như mock là giao diện chạy.
+
+## D31 — Việc BE/FE theo chính sách chốt 26/10/2026 (ưu tiên cao nhất)
+
+Nguồn: `DECISIONS.md` D31. Áp dụng cho mọi hợp đồng. Mục nào dưới đây mâu thuẫn với phần cũ của tài liệu này thì theo D31.
+Mã việc khớp kế hoạch "SafeSpace — Kế hoạch hoàn thiện cập nhật 26–31/10/2026".
+
+| Mã | Việc | Endpoint / chỗ sửa | Người | Mức |
+|---|---|---|---|---|
+| T02 | Duyệt gia hạn chỉ tạo khoản `RENEWAL` `PENDING`, hạn thanh toán = min(duyệt + 24 giờ, EndDate); **không đổi EndDate** khi duyệt. Hết hạn thanh toán → renewal `EXPIRED` | `FacilityOpsService.ApproveRenewalAsync`, `ManagerService` (route cũ) | Đạt | P0 |
+| T03 | PayOS cho khoản thu: tạo link theo `paymentId`; webhook ghi `RENEWAL` `PAID`, renewal `PAID`, rồi mới đặt `EndDate = NewEndDate` (đúng một lần) | `POST /api/payments/{id}/payos` → `PayosCheckoutDto` (mục P3 bên dưới) | Đạt | P0 |
+| T04 | Khách chọn trả gia hạn tại quầy; nhân viên xác nhận thu | `POST /api/renewals/{id}/counter-payment`; board `counterRenewals[]` + `POST /api/ops/counter-renewals/actions` `{action:"COLLECT_RENEWAL"}` (xem `APPROVED-FE-API-GAPS.md`) | Đạt | P1 |
+| T05 | Biên bản trả kho lưu phí và ảnh | `POST /api/ops/returns/{id}/inspection` nhận thêm `damageFee`, `cleaningRequired`, `feeReason`, `photos[]` (ảnh kho trống bắt buộc); lưu `ReturnInspection.DamageFee/CleaningFee/CleaningRequired`. Vệ sinh = 10% cọc cố định, không nhập tay | Ngọc Mai | P0 |
+| T06 | Quyết toán trả kho: tổng khấu trừ ≤ `DepositAmount`; bỏ `Debt`; không để khoản `DAMAGE_FEE`/`OVERDUE_FEE` nào ở trạng thái chờ thu sau quyết toán | `RefundPolicy.Calculate`, `ConfirmRefundAsync`, `RefundPolicyTests` | Ngọc Mai | P0 |
+| T07 | Hoàn cọc hai bước: M07 chốt → `REFUND` `PENDING`; màn hoàn cọc ghi `transactionRef` → `PAID`. Ô cần vệ sinh giữ `MAINTENANCE` | `POST /api/ops/contracts/{id}/refund` (chỉ chốt số), `GET /api/ops/deposit-refunds`, `POST /api/ops/deposit-refunds/actions` `{action:"CONFIRM_DEPOSIT_REFUND", id, transactionRef}` | Ngọc Mai | P0 |
+| T08 | Tài khoản nhận hoàn chính chủ khi huỷ đơn và khi gửi trả kho: `bankName`, `accountNumber` (6–19 chữ số), `accountHolder` (trùng tên hợp đồng) | `POST /api/reservations/{id}/cancel`, `POST /api/contracts/{id}/move-out` | Ngọc Mai | P1 |
+| T09 | Phí quá hạn = `DepositAmount × rate × số ngày trễ`, tối đa `DepositAmount`; dừng khi gửi trả kho. Thêm `CalculationType` `DEPOSIT_PERCENT_PER_DAY` cho chính sách `OVERDUE` (mặc định 5) | `RefundPolicy.OverdueFeeFor`, seed/B02, test | Tiến | P0 |
+| T11 | Job quá hạn mỗi ngày: EXPIRING/OVERDUE, tạo `OverdueCase`, cộng phí theo ngày không trùng, mốc nhắc ngày 10–14, việc xử lý đồ ngày 20 | Worker mới (giống `ExpiredCashHoldWorker`) | Tiến | P1 |
+| T12 | Hồ sơ quá hạn ngày 20 | `GET /api/ops/overdue-cases`, `POST /api/ops/overdue-cases/actions` `{action:"ASSIGN_REMOVAL" hoặc "RECORD_REMOVAL"}` | Tiến | P1 |
+| T13 | Sự cố cơ sở: quản lý ghi nhận và đề xuất ô thay thế; khách chọn đổi ô hoặc kết thúc; quản lý xác nhận hoàn tất chuyển (cấp mã ô mới, ô cũ `MAINTENANCE`) hoặc tạo khoản hoàn = tháng đang thuê + tháng chưa dùng + 100% cọc | Đề xuất: `POST /api/ops/incidents`, `POST /api/contracts/{id}/incident-choice` `{choice:"TRANSFER" hoặc "TERMINATE"}`, `POST /api/ops/incidents/{id}/complete-transfer` `{unitCode, movedAt}` | Tiến | P1 |
+| T15 | Gỡ thu hồi mã | Bỏ `POST /api/staff/credentials/{id}/revoke` và `StaffService.RevokeCredentialAsync`; FE bỏ `REVOKE_CREDENTIAL` | Tiến, Thắng | P0 |
+| T16 | Giới hạn quét 10 lượt/phút ở `POST /api/access/scan`; trả `result:"DENIED"`, `reason` kiểu "Tạm dừng quét, thử lại sau 60 giây" (màn C07r3) | `AccessService` | Tiến | P1 |
+| T17 | Route cũ phải lọc cơ sở hoặc bị chặn, bắt đầu từ `StaffService.SubmitReturnInspectionAsync`. Phân quyền chỉ theo vai trò + cơ sở, không kiểm PermissionCode | `StaffEndpoints`, `ManagerEndpoints` | Tiến | P0 |
+| T18 | Đăng nhập bằng email hoặc username | `AuthService.LoginAsync` | Ngọc Mai | P1 |
+| T19 | Hỗ trợ khi chưa có hợp đồng (C12-0): khách chọn cơ sở + chủ đề; nhân viên đúng cơ sở trả lời | `GET/POST /api/support/inquiries`, `POST /api/support/inquiries/actions` `{action:"REPLY_INQUIRY"}` | Ngọc Mai | P1 |
+| T20 | Phiên bản chính sách và bằng chứng đồng ý | `GET /api/rental-policy` (công khai, bản hiện hành), `GET /api/rental-policy/versions/{version}`, `POST /api/rental-policy/actions` (OPERATIONS); lưu `policyVersion`, `acceptedAt`, `channel` theo đơn/hợp đồng/gia hạn; `POST /api/reservations/{id}/policy-consent` cho khách tự xác nhận khi thu tại quầy | Đạt (BE), Thắng (FE) | P0 |
+| T10 | FE đồng bộ: phí quá hạn và số hoàn lấy từ BE; bỏ chữ "5% giá thuê tháng"; ẩn luồng trả phí/công nợ sau trả kho (C11d, C11fq, C11fc, C11e, S09f…); hiện "Chờ hoàn"/"Đã hoàn" | FE | Thắng | P0 |
+
+Không làm: thu hồi QR/PIN thủ công; công nợ sau trả kho; thanh toán phí phát sinh sau trả kho qua PayOS hoặc tại quầy (`POST /api/payments/{id}/at-facility`, `feeCollections`, `POST /api/ops/fees/{id}/confirm`).
 
 ## Mới 16/10/2026 — API cho các màn đồng bộ Figma (PayOS, thanh toán tại kho, QR mở cửa, F12)
 
@@ -57,7 +85,7 @@ tên route + tên trường JSON là giao diện chạy ngay, không phải sử
   "scannedAt": "2026-10-16T03:32:00Z", "reason": null }
 { "result": "DENIED", "reason": "Mã đã hết hiệu lực — hợp đồng đã trả kho.", "unitNumber": "B-015", ... }
 ```
-`code` chỉ là mã tham chiếu (không chứa bí mật). Hết hiệu lực khi biên bản trả kho được lập (S04) hoặc hợp đồng kết thúc.
+`code` chỉ là mã tham chiếu (không chứa bí mật). Hết hiệu lực khi biên bản trả kho được lập (S04) hoặc hợp đồng kết thúc. (D31: hết hiệu lực ngay khi khách gửi yêu cầu trả kho thành công; không có thu hồi thủ công.)
 Hợp đồng quá hạn có khoá QR hay không: nhóm chốt (giao diện chỉ hiện `reason` backend trả về).
 
 ### R · Phản hồi hỗ trợ (Ngọc Mai)
@@ -121,10 +149,10 @@ Bảng trong DB đã có sẵn (`HandoverRecord`, `ReturnInspection`, `UnitAssig
 |---|---|---|---|
 | M05 | `POST /api/ops/allocations/{id}` | `{ unitCode }` | Kho phải trống, đúng loại + diện tích → tạo `UnitAssignment`, `RentalContract`, lịch xác minh + `HandoverRecord`; kho → `RESERVED` |
 | M06 | `PUT /api/ops/assignments/{id}` | `{ staffId }` | Giao việc (bàn giao / trả kho / hỗ trợ) cho nhân viên cùng cơ sở |
-| M03 | `POST /api/ops/renewals/{id}/approve` | — | `ContractRenewal` → APPROVED, cập nhật `EndDate` hợp đồng |
+| M03 | `POST /api/ops/renewals/{id}/approve` | — | `ContractRenewal` → APPROVED, cập nhật `EndDate` hợp đồng (**D31 thay: chưa đổi EndDate khi duyệt, xem T02**) |
 | M03 | `POST /api/ops/renewals/{id}/reject` | `{ reason }` | `reason` rỗng → 400; gửi lý do cho khách |
 | M07 | `POST /api/ops/contracts/{id}/reminders` | `{ note }` | Ghi lịch sử nhắc khách (`OverdueCase`) |
-| M07 | `POST /api/ops/contracts/{id}/refund` | — | Chỉ sau biên bản trả kho. Hoàn cọc = cọc − khoản còn nợ; kho → `AVAILABLE`; hợp đồng đóng |
+| M07 | `POST /api/ops/contracts/{id}/refund` | — | Chỉ sau biên bản trả kho. Hoàn cọc = cọc − khoản còn nợ; kho → `AVAILABLE`; hợp đồng đóng (**D31 thay: khấu trừ tối đa bằng cọc, REFUND `PENDING`, ô cần vệ sinh giữ `MAINTENANCE`, xem T06–T07**) |
 | M01/M02/M04 | (trong `GET /api/ops/board`) | — | `units` (12 ô của cơ sở, D17), `revenue` 6 tháng + cơ cấu theo loại kho, tỷ lệ lấp đầy tính từ `units` |
 
 Luật nghiệp vụ chi tiết (điều kiện chặn, chuyển trạng thái) xem `src/features/facility-operations/state/facilityOperationsReducer.js` — có test `tests/ops.test.js`.
@@ -146,7 +174,7 @@ Luật nghiệp vụ chi tiết (điều kiện chặn, chuyển trạng thái) 
 | Thông báo (chuông) | `GET /api/notifications`, `POST /api/notifications/read` `{ ids? }` | Lưu trong trình duyệt |
 | Hồ sơ (C13) | `PUT /api/auth/profile` `{ fullName }`, `POST /api/auth/change-password`, `POST /api/auth/forgot-password` | Đổi tên lưu cục bộ; đổi / quên mật khẩu đang khoá |
 | Đăng nhập | Cho đăng nhập bằng **email hoặc username**; sai mật khẩu trả **400** (không phải 401) | Khách đăng ký mới được đặt username = email |
-| Hỗ trợ (C12) | Cho gửi khi **chưa có hợp đồng** (`ContractId` không bắt buộc); nhận ảnh đính kèm (multipart, ≤3 ảnh, ≤5 MB) | Chưa có hợp đồng thì không gửi được; ảnh lưu cục bộ |
+| Hỗ trợ (C12) | Cho gửi khi **chưa có hợp đồng** (`ContractId` không bắt buộc); nhận ảnh đính kèm (multipart, ≤3 ảnh, ≤5 MB). D31 giữ, xem T19 | Chưa có hợp đồng thì không gửi được; ảnh lưu cục bộ |
 
 ## C. Ưu tiên 3 — chỉnh nhỏ
 - [ ] JSON `DateTime` trả kèm `Z` (UTC); hiện đọc từ DB không có múi giờ, giao diện phải tự coi là UTC.
@@ -336,8 +364,8 @@ Nguồn: DECISIONS.md D27. Các việc backend cần làm:
 - Hủy trước StartDate: `cancellationFee` = 10% `requiredDeposit` (không phải 10% tiền thuê như H1 cũ). `refundAmount` = tiền thuê đã thu + 90% cọc.
 - Dừng sau StartDate (Move-out): hoàn 70% cọc, giữ 30%. Tiền thuê hoàn theo phương án B: tháng đang dùng tính đủ; các tháng nguyên vẹn chưa bắt đầu được hoàn.
 - Trả kho sạch, đúng hạn: hoàn 100% cọc. Vi phạm vệ sinh cơ bản: trừ 10% cọc cố định.
-- Hư hỏng vật lý hoặc quá hạn: trừ `DamageFee` và `OverdueFee` vào phần cọc còn lại; vượt cọc thì hoàn 0 đ và ghi công nợ.
-- Quá hạn: đọc tham số `OVERDUE` từ cấu hình B02, không hard-code.
+- Hư hỏng vật lý hoặc quá hạn: trừ `DamageFee` và `OverdueFee` vào phần cọc còn lại; vượt cọc thì hoàn 0 đ và ghi công nợ. (**D31 thay: không ghi công nợ, tổng khấu trừ tối đa bằng cọc.**)
+- Quá hạn: đọc tham số `OVERDUE` từ cấu hình B02, không hard-code. (D31: 5% cọc ban đầu mỗi ngày, tối đa 100% cọc, xem T09.)
 - Ghi trạng thái hoàn khi Quản lý xác nhận ở M07; chuyển khoản thủ công.
 - Đồng bộ FE: appReducer.js `CANCEL_FEE_RATE` và màn C14a phải theo công thức trên.
 
@@ -373,6 +401,8 @@ Giao diện gửi `{ unitNumber, locationDescription, unitTypeCode: "normal" | "
 theo loại kho + diện tích (D17: cỡ M 15 m², cỡ L 30 m²) và từ chối đổi loại/cỡ khi ô đang có khách thuê.
 
 ## Phí phát sinh khi trả kho và công nợ (F40: S04, S09f, C11f)
+
+> **D31 (26/10/2026):** không còn công nợ sau trả kho. Chỉ giữ việc lưu phí ở biên bản (T05) và trừ trong phạm vi cọc (T06). Các mục thanh toán phí qua PayOS, trả tại quầy và `feeCollections` bên dưới **không làm**.
 
 Giao diện đã làm theo Figma; backend cần bổ sung:
 
