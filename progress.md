@@ -1,3 +1,11 @@
+## 2026-10-26 — Ghi D31 và cập nhật tài liệu BE theo chính sách mới (T01, Thắng)
+
+- Task chỉ tài liệu; không sửa code, DB, migration và không đổi trạng thái feature.
+- `DECISIONS.md`: thêm D31 (người dùng chốt 26/10): khấu trừ tối đa bằng cọc, không công nợ ngoài cọc; quá hạn 5% cọc ban đầu/ngày, tối đa 100%, ngày 20 xử lý đồ; giữ phí huỷ 10% cọc (D27); hoàn vào tài khoản chính chủ, hai trạng thái Chờ hoàn / Đã hoàn; sự cố cơ sở đổi ô hoặc hoàn tháng đang thuê + tháng chưa dùng + 100% cọc; gia hạn chỉ đổi EndDate khi thu đủ; phiên bản chính sách và bằng chứng đồng ý; không thu hồi QR/PIN thủ công; giữ hỗ trợ khi chưa có hợp đồng; phân quyền chỉ theo vai trò. Áp dụng cho mọi hợp đồng. Ghi rõ dòng nào của D27/D28/D30 bị thay; không xoá lịch sử.
+- `BACKEND-TODO.md`: thêm mục "D31" (T02–T20, người làm, mức ưu tiên, endpoint); đánh dấu các dòng cũ bị D31 thay (M03, M07, QR, D27, phí phát sinh và công nợ).
+- `BE-CONTRACT.md`: thêm mục "Đồng bộ 26/10 — D31" liệt kê thay đổi hợp đồng API.
+- Kiểm chứng: đọc lại diff, kiểm bảng Markdown không vỡ cột. Không cần build ứng dụng (task tài liệu).
+
 ## 2026-10-25 — Gộp main vào nhánh FE và bổ sung ghi chép pre-flight
 
 - Gộp `main` 2f2f933 (PR #41 CI/CD, PR #43 pre-flight) vào nhánh `feature/figma-approved-fe-completion`.
