@@ -1,8 +1,18 @@
-## 2026-10-26 — Ghi D31 và cập nhật tài liệu BE theo chính sách mới (T01, Thắng)
+## 2026-10-25 — F09 bổ sung đăng nhập bằng email, giữ tên đăng nhập cũ
+
+- Nền `main` e43c1f3b190b883c7fbc5d73a34be8de6a4c17ca; yêu cầu bàn giao ZIP để thành viên tự kiểm tra và push trên nhánh riêng.
+- `AuthService.LoginAsync`: bỏ khoảng trắng ngoài định danh, tìm username hoặc email không phân biệt hoa/thường của email; nếu nhiều tài khoản cùng khớp thì trả lỗi chung, không chọn người đầu tiên. Giữ BCrypt, trạng thái ACTIVE, role JWT, lịch sử đăng nhập và HTTP hiện có; không cắt khoảng trắng của mật khẩu.
+- Thêm `StorageProject.Tests/EmailLoginTests.cs`: 25 ca về username/email, khoảng trắng, email hoa/thường, sai/rỗng thông tin, tài khoản khoá/ngừng hoạt động, định danh trùng, mật khẩu có khoảng trắng và HTTP/JWT đọc đúng hồ sơ của khách/staff. Dùng fixture SQLite riêng, không chạm dữ liệu nhóm.
+- Bổ sung D31; cập nhật đúng các dòng đăng nhập trong BE-CONTRACT.md/BACKEND-TODO.md. Giữ toàn bộ quy định AI/Git và ghi chép Figma; không đổi feature_list.json hoặc nâng trạng thái tính năng.
+- Kiểm chứng Linux, .NET SDK 10.0.100: `dotnet build StorageProject.slnx --no-restore -m:1` PASS, 0 error; `dotnet test StorageProject.Tests/StorageProject.Tests.csproj` (qua lệnh test solution, --no-build --no-restore -m:1) 88/88 PASS, gồm 25 ca mới. HTTP dùng Kestrel + endpoint/service/JWT thật với SQLite.
+- Lệnh test solution còn báo 9 test IntegrationTests đạt, nhưng fixture trả sớm khi không có SQL Server; không coi đó là đã kiểm SQL Server. Chưa chạy SQL Server của nhóm, trình duyệt gọi backend thật của nhóm hoặc kiểm PayOS; task không sửa các luồng tiền/QR.
+- Cảnh báo dependency NU1902/NU1903 và nullable Board.cs có trên các phần không đổi; không nâng package hay sửa ngoài phạm vi. Không sửa appsettings, schema/migration, endpoint hoặc FE source.
+- Bàn giao bản vá có kiểm tra trước khi áp dụng để giữ nội dung file hiện tại; thành viên tự review, kiểm SQL Server, commit/push/PR/merge. AI không thực hiện các thao tác Git xuất bản.
+## 2026-10-26 — Ghi D32 và cập nhật tài liệu BE theo chính sách mới (T01, Thắng)
 
 - Task chỉ tài liệu; không sửa code, DB, migration và không đổi trạng thái feature.
-- `DECISIONS.md`: thêm D31 (người dùng chốt 26/10): khấu trừ tối đa bằng cọc, không công nợ ngoài cọc; quá hạn 5% cọc ban đầu/ngày, tối đa 100%, ngày 20 xử lý đồ; giữ phí huỷ 10% cọc (D27); hoàn vào tài khoản chính chủ, hai trạng thái Chờ hoàn / Đã hoàn; sự cố cơ sở đổi ô hoặc hoàn tháng đang thuê + tháng chưa dùng + 100% cọc; gia hạn chỉ đổi EndDate khi thu đủ; phiên bản chính sách và bằng chứng đồng ý; không thu hồi QR/PIN thủ công; giữ hỗ trợ khi chưa có hợp đồng; phân quyền chỉ theo vai trò. Áp dụng cho mọi hợp đồng. Ghi rõ dòng nào của D27/D28/D30 bị thay; không xoá lịch sử.
-- `BACKEND-TODO.md`: thêm mục "D31" (T02–T20, người làm, mức ưu tiên, endpoint); đánh dấu các dòng cũ bị D31 thay (M03, M07, QR, D27, phí phát sinh và công nợ).
+- `DECISIONS.md`: thêm D32 (người dùng chốt 26/10): khấu trừ tối đa bằng cọc, không công nợ ngoài cọc; quá hạn 5% cọc ban đầu/ngày, tối đa 100%, ngày 20 xử lý đồ; giữ phí huỷ 10% cọc (D27); hoàn vào tài khoản chính chủ, hai trạng thái Chờ hoàn / Đã hoàn; sự cố cơ sở đổi ô hoặc hoàn tháng đang thuê + tháng chưa dùng + 100% cọc; gia hạn chỉ đổi EndDate khi thu đủ; phiên bản chính sách và bằng chứng đồng ý; không thu hồi QR/PIN thủ công; giữ hỗ trợ khi chưa có hợp đồng; phân quyền chỉ theo vai trò. Áp dụng cho mọi hợp đồng. Ghi rõ dòng nào của D27/D28/D30 bị thay; không xoá lịch sử.
+- `BACKEND-TODO.md`: thêm mục "D32" (T02–T20, người làm, mức ưu tiên, endpoint); đánh dấu các dòng cũ bị D31 thay (M03, M07, QR, D27, phí phát sinh và công nợ).
 - `BE-CONTRACT.md`: thêm mục "Đồng bộ 26/10 — D31" liệt kê thay đổi hợp đồng API.
 - Kiểm chứng: đọc lại diff, kiểm bảng Markdown không vỡ cột. Không cần build ứng dụng (task tài liệu).
 

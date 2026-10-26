@@ -73,14 +73,26 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request, string? ipAddress, string? deviceInfo, CancellationToken ct = default)
     {
-        var user = await dbContext.Users
+        var identifier = request.Username?.Trim() ?? "";
+        if (identifier.Length == 0 || string.IsNullOrEmpty(request.Password))
+        {
+            throw new UnauthorizedAccessException("Tên đăng nhập / email hoặc mật khẩu không chính xác.");
+        }
+
+        var normalizedEmail = identifier.ToUpperInvariant();
+        var matches = await dbContext.Users
             .Include(u => u.UserRoles)
             .ThenInclude(ur => ur.Role)
-            .FirstOrDefaultAsync(u => u.Username == request.Username, ct);
+            .Where(u => u.Username == identifier || u.Email.ToUpper() == normalizedEmail)
+            .Take(2)
+            .ToListAsync(ct);
+
+        // Email có thể trùng username của tài khoản khác; không chọn tuỳ ý một người.
+        var user = matches.Count == 1 ? matches[0] : null;
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
-            throw new UnauthorizedAccessException("Tên đăng nhập hoặc mật khẩu không chính xác.");
+            throw new UnauthorizedAccessException("Tên đăng nhập / email hoặc mật khẩu không chính xác.");
         }
 
         if (user.Status != "ACTIVE")

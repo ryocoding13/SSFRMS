@@ -258,8 +258,15 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Dùng ID thực tế trong feature_list.json (hiện có F01–F41 và CI01–CI08), không giới hạn F01–F38. Tài liệu quy trình không tự tạo feature hoặc đổi passing.
 - Giữ D26, các quy định Git và kiểm chứng hiện hành; test mock/SQLite không thay SQL Server và API thật. Không thay nghiệp vụ trong bản bổ sung quy trình này.
 
+## D31 — 2026-10-25: Đăng nhập bằng email hoặc tên đăng nhập
 
-## D31 — 2026-10-26: Khấu trừ tối đa bằng cọc, quá hạn theo cọc, sự cố cơ sở, không thu hồi mã — Đã chốt
+- Theo yêu cầu hoàn thiện đăng nhập bằng email; thay phần "Backend chỉ đăng nhập bằng username" của D03. Giữ cách đăng ký `username = email` và tài khoản seed cũ.
+- `POST /api/auth/login` tiếp tục nhận `{ username, password }`; trường `username` nhận tên đăng nhập hoặc email. Bỏ khoảng trắng ngoài định danh, so email không phân biệt chữ hoa/thường; không sửa email đã lưu và không cắt khoảng trắng của mật khẩu.
+- Khi một định danh khớp nhiều tài khoản (email trùng username người khác hoặc email chỉ khác hoa/thường), từ chối bằng lỗi đăng nhập chung; không chọn tài khoản đầu tiên và không cấp token. Quản trị viên cần xử lý dữ liệu trùng trước khi dùng định danh đó.
+- Giữ kiểm tra BCrypt, trạng thái ACTIVE, vai trò trong JWT và lịch sử đăng nhập thành công. Giữ mã HTTP hiện có: sai định danh/mật khẩu trả 401, tài khoản không ACTIVE trả 400; FE hiện đã xử lý riêng lỗi 401 khi đăng nhập. Không đổi schema/migration hoặc quyền theo cơ sở.
+- Bằng chứng và giới hạn kiểm thử ghi trong `progress.md`; chưa xác nhận SQL Server của nhóm và không tự nâng trạng thái tính năng.
+
+## D32 — 2026-10-26: Khấu trừ tối đa bằng cọc, quá hạn theo cọc, sự cố cơ sở, không thu hồi mã — Đã chốt
 
 > Người dùng chốt ngày 26/10/2026 (kế hoạch hoàn thiện 26–31/10). Áp dụng cho **mọi hợp đồng**, kể cả hợp đồng đang chạy.
 > Chưa triển khai code; việc BE/FE ghi ở `SafeSpace-Customer-UI/SafeSpace-Customer-UI/BACKEND-TODO.md` mục "D31".
