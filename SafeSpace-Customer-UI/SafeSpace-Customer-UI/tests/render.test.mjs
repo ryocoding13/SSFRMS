@@ -37,6 +37,15 @@ try {
       count++;
     }
   }
+  const d32Data = createSeedData();
+  d32Data.ledger.push({ref:"LEGACY-FEE",kind:"DAMAGE_FEE",fee:true,amount:999999,payable:true,status:"UNPAID",label:"LEGACY-FEE-NOT-COLLECTIBLE"});
+  d32Data.ledger.push({ref:"REFUND-WAIT",kind:"REFUND",amount:100,status:"REFUND_PENDING",label:"Khoản hoàn mới"});
+  memory.set(STORAGE_KEY, JSON.stringify({version:5,authed:true,data:d32Data}));
+  window.location.hash = "#/payments";
+  const paymentsHtml = renderToStaticMarkup(React.createElement(App));
+  assert.ok(!paymentsHtml.includes("LEGACY-FEE-NOT-COLLECTIBLE"));
+  assert.ok(!paymentsHtml.includes("Thanh toán phí tại quầy"));
+  assert.ok(paymentsHtml.includes("Chờ hoàn") && paymentsHtml.includes("Gia hạn"));
   // Khu vận hành: nhân viên (S01–S09) và quản lý cơ sở (M01–M08)
   const opsRoutes = {
     STAFF: ["staff/mismatch", "staff/renewal-payments", "staff/overdue", "staff/inquiries",
@@ -53,6 +62,7 @@ try {
       const html = renderToStaticMarkup(React.createElement(App));
       assert.ok(html.includes(acc.full_name), `${r}: thiếu tên ${acc.full_name}`);
       assert.ok(!html.includes("NaN") && !html.includes("undefined"), `${r} chứa NaN/undefined`);
+      if (r.startsWith("staff/fees")) assert.ok(html.includes("Không tìm thấy trang") && !html.includes("Xác nhận đã thu đủ"));
       count++;
     }
   }
@@ -61,7 +71,8 @@ try {
   window.location.hash = "#/staff";
   const grid = renderToStaticMarkup(React.createElement(App));
   assert.equal((grid.match(/class="panel task-card"/g) || []).length, 9, "S01 hiện 9 thẻ / trang");
-  assert.ok(grid.includes("aria-label=\"Phân trang\"") && grid.includes("trên 12"), "S01 có phân trang (12 việc: 10 việc cũ + 2 khoản thu phí tại quầy S09f)");
+  assert.ok(grid.includes("aria-label=\"Phân trang\"") && grid.includes("trên 10"), "D32: S01 còn 10 việc, không có khoản thu phí tại quầy");
+  assert.ok(!grid.includes("staff/fees"), "D32: không có link thu phí");
   // Không có việc → thông báo trống (S01-trống, S09a-trống)
   const { OPS_KEY } = await vite.ssrLoadModule("/src/features/facility-operations/state/FacilityOperationsProvider.jsx");
   const { createOpsData } = await vite.ssrLoadModule("/src/features/facility-operations/data/facilityOperationsSeed.js");

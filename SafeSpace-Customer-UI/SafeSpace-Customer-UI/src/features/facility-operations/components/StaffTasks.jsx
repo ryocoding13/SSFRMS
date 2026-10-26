@@ -65,18 +65,6 @@ export function staffTasks(ops, me, kind = "all") {
           cta: "Thu tiền", to: `staff/reconcile?id=${p.id}`, sort: p.reported_at,
         }),
       );
-  // S09a → S09f: phí phát sinh & công nợ khách chọn trả tại quầy
-  if (kind === "all" || kind === "reconcile")
-    (ops.fee_collections || [])
-      .filter((f) => f.status === "PENDING")
-      .forEach((f) =>
-        list.push({
-          key: f.id, kind: "reconcile", status: ["Chờ thu tại quầy", "amber"], title: `Phí ${f.contract} · Kho ${f.unit}`,
-          meta: kind === "all" ? `${f.customer} · Tại quầy · ${money(f.amount)}` : `${f.customer} · ${f.items.map(([label]) => label.toLowerCase()).join(", ")}`,
-          when: `${money(f.amount)} · Phí phát sinh & công nợ`,
-          cta: "Thu phí", to: `staff/fees?id=${f.id}`, sort: f.requested_at,
-        }),
-      );
   if (kind === "all" || kind === "handover" || kind === "verify")
     ops.handovers
       .filter((h) => h.status === "WAITING" && (kind === "handover" || verified(h)))
@@ -119,7 +107,7 @@ export function staffTasks(ops, me, kind = "all") {
       .forEach((r) =>
         list.push({
           key: r.id, kind: "return", status: ["Đã lên lịch", "gray"], title: `Kho #${r.unit} · ${r.customer}`,
-          meta: `Cọc đang giữ ${money(r.deposit)} · Còn nợ ${money(r.unpaid)}`, when: `Hẹn ${slot(r.appointment)}`,
+          meta: `Cọc đang giữ ${money(r.deposit)}`, when: `Hẹn ${slot(r.appointment)}`,
           cta: "Kiểm tra", outline: true, to: `staff/return?id=${r.id}`, sort: r.appointment,
         }),
       );

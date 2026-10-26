@@ -48,7 +48,6 @@ export const OPS_ACTIONS = {
   // Nhân viên (Staff)
   CONFIRM_PAYMENT: ({ id }) => ["POST", `/api/ops/payments/${enc(id)}/confirm`],
   // S09f · Backend chưa có (BACKEND-TODO.md mục S09f)
-  CONFIRM_FEE_COLLECTION: ({ id }) => ["POST", `/api/ops/fees/${enc(id)}/confirm`],
   REPORT_MISMATCH: ({ id, note }) => ["POST", `/api/ops/payments/${enc(id)}/mismatch`, { note }],
   VERIFY_CUSTOMER: ({ id, doc_type, doc_no, photo_ok, info_ok }) => [
     "POST", `/api/ops/verifications/${enc(id)}`, { docType: doc_type, docNumber: String(doc_no || "").trim(), photoMatched: Boolean(photo_ok), infoMatched: Boolean(info_ok) },
@@ -58,7 +57,6 @@ export const OPS_ACTIONS = {
   TICKET_RESPONSE: ({ id, note, next }) => ["POST", `/api/ops/tickets/${enc(id)}/responses`, { note, nextStatus: next }],
   // M02a · F12: đổi trạng thái ô (backend nhận mã ô hoặc id), dùng chung cho nhân viên và quản lý
   UPDATE_UNIT_STATUS: ({ id, code, status, reason }) => ["PUT", `/api/staff/units/${enc(code ?? id)}/status`, { status, reason: String(reason || "").trim() }],
-  REVOKE_CREDENTIAL: ({ id }) => ["POST", `/api/staff/credentials/${enc(id)}/revoke`],
   REISSUE_CREDENTIAL: ({ unit, type, reason }) => ["POST", `/api/staff/credentials/reissue`, { unitCode: unit, credentialType: type, reason }],
 
   // Quản lý (Manager)

@@ -184,3 +184,7 @@
 ## FE bổ sung 25/10/2026
 
 Xem `SafeSpace-Customer-UI/SafeSpace-Customer-UI/APPROVED-FE-README.md` để có bảng route đầy đủ. Các API dự kiến, giới hạn demo và yêu cầu BE ở `APPROVED-FE-API-GAPS.md`. Feature dùng chung: `src/features/facility-operations/workflows`; style: `src/shared/styles/workflows.css`.
+
+## D32 — 26/10/2026
+
+`#/staff/fees` ngừng phục vụ (404 nội bộ); không có nút/queue thu phí trả kho. C11 giữ gia hạn, ẩn phí trả kho chờ thu. Quy tắc FE nằm ở `src/shared/utils/returnPolicy.js`; test `tests/return-policy.test.js`, browser `node scripts/check-return-policy.mjs`. M07 có điều kiện mở theo capability máy chủ, xem BACKEND-TODO T10.

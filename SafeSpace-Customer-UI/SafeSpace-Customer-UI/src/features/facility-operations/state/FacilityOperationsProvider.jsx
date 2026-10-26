@@ -1,3 +1,4 @@
+import { supportsReturnPolicy, RETURN_POLICY_PENDING, NO_RETURN_COLLECTION } from "../../../shared/utils/returnPolicy.js";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
 import { Button, Modal } from "../../../shared/components/UI.jsx";
@@ -102,6 +103,9 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
 
   const execute = useCallback(
     async (type, payload, message) => {
+      if (type === "CONFIRM_FEE_COLLECTION") return { ok: false, error: NO_RETURN_COLLECTION };
+      if (type === "REVOKE_CREDENTIAL") return { ok: false, error: "Không hỗ trợ thu hồi QR/PIN thủ công." };
+      if (type === "CONFIRM_REFUND" && source === "api" && !supportsReturnPolicy(ref.current)) return { ok: false, error: RETURN_POLICY_PENDING };
       if (source === "api" && type !== "MARK_READ") {
         try {
           const res = await callAction(type, payload);

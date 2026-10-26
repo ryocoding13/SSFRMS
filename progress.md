@@ -1,3 +1,16 @@
+## 2026-10-26 — T10 / T15 FE: tiền cọc theo D32 (Thắng)
+
+- Nền `origin/main` d57c71b8c2ad69367c90877902b5818781b3222d. Làm trên worktree riêng; không đụng thay đổi cũ, không commit/push/PR/merge. F39/F41 không nâng passing.
+- C11: ẩn khoản phí trả kho chờ thu; bỏ popup trả phí tại quầy. Mapper không cho mở QR phí trả kho; service API/local và reducer chặn thao tác cũ. Gia hạn giữ QR/thu tại quầy hiện có; không sửa logic gia hạn BE.
+- S09: bỏ route fees, queue thu phí và badge tương ứng; không xoá lịch sử giao dịch đã có. Gỡ adapter CONFIRM_FEE_COLLECTION và REVOKE_CREDENTIAL; giữ cấp lại mã. Endpoint thu hồi mã BE vẫn cần Tiến xử lý.
+- S04: vệ sinh chỉ đọc, tự tính 10% cọc khi chọn cần vệ sinh; kiểm tiền không âm và lý do, tổng đề xuất không vượt cọc. Không hiện công nợ hoặc tự suy diễn tiền hoàn chính thức. Payload phí đã gửi nhưng BE T05 vẫn chưa lưu đầy đủ.
+- M07: bỏ ước tính tiền hoàn dự phòng trong API và chữ thu nợ vượt cọc; chuyển người dùng tới màn hoàn cọc riêng. Khoá chốt trên máy chủ cũ; mở sau khi board trả `returnPolicyVersion: "D32"` (hợp đồng tích hợp bổ sung, xem BACKEND-TODO). Backend phải hoàn thành T05–T09 trước khi bật, không chỉ thêm marker.
+- Demo reducer: khấu trừ giới hạn cọc, bỏ legacy unpaid khỏi tính phí trả kho; chốt ghi PENDING, giữ MAINTENANCE khi vệ sinh/chưa sẵn sàng. Demo Ops và workflow hoàn cọc vẫn là hai kho mô phỏng riêng, chưa phải luồng liên thông BE.
+- Sửa lỗi mapper REFUND PENDING bị hiện đã hoàn: chỉ PAID → Đã hoàn. Không sửa số/trạng thái BE trả để giả đã tuân thủ D32.
+- Kiểm chứng Node 24.22.1: `npm test` 86/86; `test:business` 9/9; `test:workflows` 11/11; `test:render` 115 route + assertion D32; `check:structure`, `build`, `bash init.sh --fe-only`, `git diff --check` PASS. Build còn cảnh báo chunk >500 kB hiện có.
+- Thêm script trình duyệt `node scripts/check-return-policy.mjs` cho C11/S09f/S04/M07. **Chưa chạy được**: thiếu Chromium, `npx playwright install chromium` tải về file lỗi. Không coi SSR là browser pass. Chưa kiểm desktop/mobile bằng mắt, SQL Server, PayOS hoặc API thật; không chạy BE vì bản vá không sửa BE.
+- Ngoài gói: ảnh trả kho/tài khoản hoàn (T08), đồng ý chính sách (T20), sự cố/khắc phục, tính phí quá hạn BE và tích hợp hoàn cọc. Cần owner review và kiểm browser/API trước merge.
+
 ## 2026-10-25 — F09 bổ sung đăng nhập bằng email, giữ tên đăng nhập cũ
 
 - Nền `main` e43c1f3b190b883c7fbc5d73a34be8de6a4c17ca; yêu cầu bàn giao ZIP để thành viên tự kiểm tra và push trên nhánh riêng.
