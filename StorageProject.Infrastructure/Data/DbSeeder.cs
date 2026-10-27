@@ -366,9 +366,9 @@ public static partial class DbSeeder
                 {
                     PolicyName = "Phí phạt quá hạn thanh toán",
                     PolicyType = "OVERDUE",
-                    CalculationType = "PERCENTAGE",
-                    Value = 5.0m, // 5% tiền thuê tháng mỗi ngày trả kho trễ (D27)
-                    RuleDescription = "Phí quá hạn: 5% tiền thuê tháng cho mỗi ngày trả kho trễ, trừ vào tiền cọc",
+                    CalculationType = "DEPOSIT_PERCENT_PER_DAY",
+                    Value = 5.0m, // 5% cọc ban đầu mỗi ngày trễ (D32)
+                    RuleDescription = "Phí quá hạn: 5% tiền cọc ban đầu cho mỗi ngày trả kho trễ, tối đa 100% cọc, trừ vào tiền cọc",
                     EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
                     Status = "ACTIVE",
                     CreatedAt = DateTime.UtcNow,

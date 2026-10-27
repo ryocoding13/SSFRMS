@@ -14,7 +14,7 @@ internal static class OpsRules
     public static readonly string[] PolicyTypes =
         ["DEPOSIT", "RENEWAL", "CANCELLATION", "RETURN", "OVERDUE", "EXTRA_FEE", "DISCOUNT", "FEE_WAIVER", "PRICE_RANGE"];
 
-    public static readonly string[] CalculationTypes = ["FIXED", "PERCENTAGE", "RANGE", "RULE"];
+    public static readonly string[] CalculationTypes = ["FIXED", "PERCENTAGE", "RANGE", "RULE", "DEPOSIT_PERCENT_PER_DAY"];
 
     // Kho đang sử dụng: còn tài sản của khách (SRS 10.2)
     public static readonly string[] UnitInUseStatuses = ["OCCUPIED", "RETURN_PENDING"];

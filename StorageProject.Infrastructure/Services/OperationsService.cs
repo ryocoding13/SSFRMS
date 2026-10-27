@@ -560,7 +560,7 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
         }
         if (!OpsRules.CalculationTypes.Contains(calc))
         {
-            throw new ArgumentException("Cách tính phải là FIXED, PERCENTAGE, RANGE hoặc RULE.");
+            throw new ArgumentException("Cách tính phải là FIXED, PERCENTAGE, RANGE, RULE hoặc DEPOSIT_PERCENT_PER_DAY.");
         }
         if (type == "PRICE_RANGE" && calc != "RANGE")
         {
@@ -575,6 +575,11 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
         {
             case "FIXED":
                 if (strict && value == null) throw new ArgumentException("Cách tính FIXED cần nhập giá trị (VND).");
+                min = null; max = null;
+                break;
+            case "DEPOSIT_PERCENT_PER_DAY":
+                if (strict && value == null) throw new ArgumentException("Cách tính DEPOSIT_PERCENT_PER_DAY cần nhập phần trăm cọc mỗi ngày.");
+                if (value > 100) throw new ArgumentException("Phần trăm phải nằm trong khoảng 0–100.");
                 min = null; max = null;
                 break;
             case "PERCENTAGE":

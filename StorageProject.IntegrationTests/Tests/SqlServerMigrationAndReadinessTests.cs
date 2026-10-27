@@ -16,11 +16,12 @@ public sealed class SqlServerMigrationAndReadinessTests(SqlServerFixture fixture
         "20261014150000_ReservationPendingVerification",
         "20261014152714_MakeUnitAssignmentAssignedByNullable",
         "20261015153130_AddFacilityCoordinates",
-        "20261020154838_ReservationPaymentIntegrity"
+        "20261020154838_ReservationPaymentIntegrity",
+        "20261026093424_AddDepositPercentPerDayCalculationType"
     ];
 
     [Fact]
-    public async Task SqlServer_AppliesAllSixMigrations_AndHasNoPendingModelChanges()
+    public async Task SqlServer_AppliesAllMigrations_AndHasNoPendingModelChanges()
     {
         if (!fixture.IsAvailable)
         {
@@ -32,14 +33,14 @@ public sealed class SqlServerMigrationAndReadinessTests(SqlServerFixture fixture
         // 1. Kiểm tra danh sách migrations đã áp dụng
         var appliedMigrations = (await db.Database.GetAppliedMigrationsAsync()).ToList();
 
-        Assert.Equal(6, appliedMigrations.Count);
+        Assert.Equal(ExpectedMigrations.Length, appliedMigrations.Count);
         for (var i = 0; i < ExpectedMigrations.Length; i++)
         {
             Assert.Equal(ExpectedMigrations[i], appliedMigrations[i]);
         }
 
         // 2. Chốt ID migration cuối cùng
-        Assert.Equal("20261020154838_ReservationPaymentIntegrity", appliedMigrations.Last());
+        Assert.Equal(ExpectedMigrations.Last(), appliedMigrations.Last());
 
         // 3. Không có migration nào còn chờ
         var pendingMigrations = await db.Database.GetPendingMigrationsAsync();
