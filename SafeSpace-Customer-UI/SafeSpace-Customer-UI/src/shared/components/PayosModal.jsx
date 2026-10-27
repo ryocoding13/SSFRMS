@@ -92,7 +92,7 @@ export default function PayosModal({ target, title, subtitle, onPaid, onClose, n
       {unconfirmed && (
         <Modal title="Chưa xác nhận được thanh toán" size="confirm" onClose={() => setUnconfirmed(false)}>
           <span className="modal__state modal__state--failure" aria-hidden="true" />
-          <p className="modal__text">Nếu đã chuyển tiền, kiểm tra trạng thái trước khi thanh toán lại. Khoản phí vẫn được giữ để đối chiếu; đóng QR không làm mất công nợ.</p>
+          <p className="modal__text">Nếu đã chuyển tiền, kiểm tra trạng thái trước khi thanh toán lại. Khoản thanh toán vẫn được giữ để đối chiếu; vui lòng không chuyển tiền lần nữa khi chưa kiểm tra.</p>
           <Button block onClick={() => setUnconfirmed(false)}>Quay lại thanh toán</Button>
         </Modal>
       )}

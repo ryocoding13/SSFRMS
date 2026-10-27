@@ -4,7 +4,7 @@ import { dateLabel, dateTimeLabel, daysBetween, money, today } from "../../../sh
 import { go, qs } from "../../../app/router.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
 import { PageHeaderBlock } from "../components/PageHeaderBlock.jsx";
-import { settleReturn } from "../../facility-operations/utils/opsConfirmation.js";
+import { supportsReturnPolicy, RETURN_POLICY_PENDING } from "../../../shared/utils/returnPolicy.js";
 
 export const CONTRACT_STATE = (c) =>
   c.state === "OVERDUE"
@@ -15,40 +15,24 @@ export const CONTRACT_STATE = (c) =>
         ? ["Chờ xác nhận trả kho", "amber"]
         : ["Đã xử lý", "green"];
 
-// M07a · Xác nhận trả kho (Figma 629:9147): khoản chưa thanh toán + phí theo biên bản S04 vẫn được giữ làm công nợ
+// M07: chốt số tiền, không xác nhận đã chuyển hoàn.
 function ReturnConfirmDialog({ contract, ret, onClose, onConfirm }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  const unpaid = Number(ret?.unpaid ?? contract.amount ?? 0);
-  // Ước tính khấu trừ cọc (D27); số chính thức do backend tính khi xác nhận (gồm phí quá hạn tự tính, trả sớm…)
-  const { owed, refund, debt } = settleReturn(ret, contract);
-  const deposit = Number(ret?.deposit || 0);
   return (
     <Modal title={`Xác nhận trả kho · ${contract.id}`} size="md" onClose={busy ? undefined : onClose}>
       <p className="modal__text modal__text--sub">{[contract.customer, `Kho ${contract.unit}`, ret?.appointment ? `trả kho ${dateLabel(ret.appointment)}` : null].filter(Boolean).join(" · ")}</p>
       <div className="refund-box">
         <dl className="pay-rows">
-          <div><dt>Khoản chưa thanh toán</dt><dd className="tone-red">{money(unpaid)}</dd></div>
-          {[["damage_fee", "Phí hư hỏng"], ["cleaning_fee", "Phí vệ sinh"], ["overdue_fee", "Phí quá hạn"]].filter(([k]) => Number(ret?.report?.[k]) > 0).map(([k, label]) => (
-            <div key={k}><dt>{label} (biên bản S04)</dt><dd className="tone-red">{money(Number(ret.report[k]))}</dd></div>
-          ))}
-          <div className="pay-rows__total"><dt>Tổng còn phải thu</dt><dd className="tone-amber">{money(owed)}</dd></div>
-          {deposit > 0 && (
-            <>
-              <div><dt>Tiền cọc đang giữ</dt><dd>{money(deposit)}</dd></div>
-              <div><dt>Trừ vào cọc (dự kiến)</dt><dd className="tone-red">− {money(Math.min(deposit, owed))}</dd></div>
-              <div className="pay-rows__total">
-                <dt>{debt > 0 ? "Còn nợ sau khi trừ cọc (dự kiến)" : "Hoàn cọc cho khách (dự kiến)"}</dt>
-                <dd className={`pay-rows__amount ${debt > 0 ? "tone-red" : "tone-green"}`}>{money(debt > 0 ? debt : refund)}</dd>
-              </div>
-            </>
-          )}
+          <div><dt>Tiền cọc đang giữ</dt><dd>{money(ret?.deposit)}</dd></div>
+          <div><dt>Khấu trừ tối đa</dt><dd>100% tiền cọc</dd></div>
+          <div><dt>Số tiền hoàn chính thức</dt><dd>Máy chủ tính khi chốt</dd></div>
         </dl>
       </div>
       <Field label="Ghi chú (không bắt buộc)">
-        <input maxLength={255} value={note} placeholder="Ví dụ: Đã thông báo khoản còn phải thu cho khách" onChange={(e) => setNote(e.target.value)} />
+        <input maxLength={255} value={note} placeholder="Ví dụ: Đã đối chiếu tình trạng kho và thông tin hoàn tiền" onChange={(e) => setNote(e.target.value)} />
       </Field>
-      <p className="hint">Xác nhận trả kho sẽ kết thúc hợp đồng. Số hoàn cọc chính thức do hệ thống tính theo chính sách (gồm phí quá hạn theo số ngày trễ); khoản còn nợ vẫn được giữ để tiếp tục thu hồi.</p>
+      <p className="hint">Chốt trả kho tạo khoản chờ hoàn. Tổng khấu trừ không vượt cọc; không thu thêm. Hoàn tiền bằng chuyển khoản trong 3–5 ngày làm việc. Kho cần vệ sinh hoặc sửa tiếp tục bảo trì.</p>
       <div className="modal__actions modal__actions--end">
         <Button variant="outline" disabled={busy} onClick={onClose}>Huỷ</Button>
         <Button disabled={busy} onClick={async () => { setBusy(true); const ok = await onConfirm(note.trim()); if (!ok) setBusy(false); }}>{busy ? "Đang lưu…" : "Xác nhận trả kho"}</Button>
@@ -58,7 +42,8 @@ function ReturnConfirmDialog({ contract, ret, onClose, onConfirm }) {
 }
 
 export function ContractListPage({ query }) {
-  const { ops, run } = useOps();
+  const { ops, run, source } = useOps();
+  const settlementReady = source === "local" || supportsReturnPolicy(ops);
   const [returning, setReturning] = useState(false);
   const sel = ops.contracts.find((c) => c.id === query.get("id")) || ops.contracts.find((c) => c.state === "RETURNED") || ops.contracts[0];
   const [note, setNote] = useState("");
@@ -79,7 +64,7 @@ export function ContractListPage({ query }) {
                 <tr key={c.id} className={sel?.id === c.id ? "is-picked" : ""} onClick={() => go(`manager/contracts${qs({ id: c.id })}`, { replace: true })}>
                   <td className="cell-strong">{c.id} · {c.customer}</td>
                   <td>{c.unit} · {dateLabel(c.end)}</td>
-                  <td>{c.due}</td>
+                  <td>{["RETURNED", "CLOSED"].includes(c.state) ? "Đối chiếu biên bản và khoản hoàn" : c.due}</td>
                   <td><Tag tone={tone}>{label}</Tag></td>
                 </tr>
               );
@@ -92,8 +77,9 @@ export function ContractListPage({ query }) {
           <h2>{sel.id} · Bước tiếp theo</h2>
           {sel.state === "RETURNED" ? (
             <>
-              <p className="muted">Biên bản trả kho {sel.unit} đã được gửi. Đối chiếu khoản phải thu và xác nhận trả kho; công nợ còn lại tiếp tục được theo dõi.</p>
-              <Button onClick={() => setReturning(true)}>Xác nhận trả kho</Button>
+              <p className="muted">Biên bản trả kho {sel.unit} đã được gửi. Đối chiếu khấu trừ cọc và chốt khoản chờ hoàn.</p>
+              {!settlementReady && <Notice>{RETURN_POLICY_PENDING}</Notice>}
+              <Button disabled={!settlementReady} onClick={() => setReturning(true)}>Xác nhận trả kho</Button>
             </>
           ) : sel.state === "RENEWAL" ? (
             <>
@@ -101,7 +87,7 @@ export function ContractListPage({ query }) {
               <LinkButton to="manager/renewals">Xem yêu cầu gia hạn</LinkButton>
             </>
           ) : sel.state === "CLOSED" || sel.state === "RESOLVED" ? (
-            <Notice tone="success">{sel.due}</Notice>
+            <Notice>Đã xử lý hợp đồng. Kiểm tra trạng thái chuyển tiền tại mục hoàn cọc.</Notice>
           ) : (
             <>
               <p className="muted">Kiểm tra thanh toán và trao đổi với khách trước khi áp dụng biện pháp xử lý. Ghi nhận liên hệ, phí phát sinh và quyết định của quản lý.</p>
@@ -127,6 +113,7 @@ export function ContractListPage({ query }) {
               }}
             />
           )}
+          <LinkButton to="manager/deposit-refunds" variant="outline">Hoàn cọc sau trả kho</LinkButton>
           {/* Figma M07: lối vào M08 hoàn tiền đơn huỷ */}
           <LinkButton to="manager/refunds" className="btn--fit">Hoàn tiền đơn huỷ{(ops.refunds || []).some((r) => r.status === "PENDING") ? ` (${ops.refunds.filter((r) => r.status === "PENDING").length})` : ""}</LinkButton>
           {(sel.reminders || []).length > 0 && (

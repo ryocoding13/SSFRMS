@@ -421,7 +421,7 @@
       "behavior": "FE các màn bổ sung đã duyệt: chính sách, đối soát, quá hạn, hoàn cọc, hỗ trợ trước hợp đồng, lịch sử, đặt lại mật khẩu; demo opt-in khi thiếu BE",
       "verification": "_fe; npm run check:structure; npm run test:workflows; npm run test:business; kiểm tra trình duyệt theo APPROVED-FE-README.md",
       "state": "blocked",
-      "evidence": "2026-10-25: FE có kiểm chứng riêng trên main 54abba6; chờ API nghiệp vụ bổ sung và owner review. Xem APPROVED-FE-API-GAPS.md; không xác nhận tích hợp BE thật."
+      "evidence": "2026-10-25: FE có kiểm chứng riêng trên main 54abba6; bổ sung T10/T15 FE theo D32 ngày 26/10 trên nền d57c71b (xem progress.md), vẫn chờ API nghiệp vụ bổ sung và owner review. Xem APPROVED-FE-API-GAPS.md; không xác nhận tích hợp BE thật."
     }
   ]
 }

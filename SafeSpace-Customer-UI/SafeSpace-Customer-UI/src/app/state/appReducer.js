@@ -1,3 +1,4 @@
+import { isReturnFee, NO_RETURN_COLLECTION } from "../../shared/utils/returnPolicy.js";
 import { RENTAL_PLANS, SIZE_BANDS, offerByKey, quote } from "../../shared/utils/catalog.js";
 import {
   addDays,
@@ -191,15 +192,12 @@ const handlers = {
     if (!r || r.status !== "APPROVED") fail("Yêu cầu chưa được duyệt hoặc đã được thanh toán.");
     return { state: { ...state, renewals: state.renewals.map(x => x === r ? { ...x, at_counter: true } : x) }, result: { renewal_id } };
   },
-  CHOOSE_FEE_AT_COUNTER(state, { refs }) {
-    const rows = state.ledger.filter((l) => refs.includes(l.ref) && l.fee && ["UNPAID", "AT_COUNTER"].includes(l.status));
-    if (!rows.length) fail("Không còn khoản phí cần thanh toán.", "NOT_FOUND");
-    return { state: { ...state, ledger: state.ledger.map((l) => (rows.includes(l) ? { ...l, status: "AT_COUNTER" } : l)) }, result: { refs: rows.map((l) => l.ref) } };
-  },
+  CHOOSE_FEE_AT_COUNTER() { fail(NO_RETURN_COLLECTION); },
   PAYOS_PAID(state, p, ctx) {
     if (p.ref) {
       const l = state.ledger.find((x) => x.ref === p.ref);
       if (!l) fail("Không tìm thấy khoản thanh toán.", "NOT_FOUND");
+      if (isReturnFee(l)) fail(NO_RETURN_COLLECTION);
       if (l.status === "RECONCILED") return { state, result: { ref: l.ref } };
       const c = contractOf(state, l.contract_id);
       let next = {

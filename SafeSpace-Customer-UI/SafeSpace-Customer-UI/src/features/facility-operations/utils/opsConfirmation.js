@@ -1,16 +1,11 @@
+import { returnDeductions } from "../../../shared/utils/returnPolicy.js";
 import { dateLabel, money } from "../../../shared/utils/format.js";
 
 // Nội dung hộp thoại xác nhận (02), thành công (03a) và thất bại (03b) cho thao tác tại cơ sở.
 // Chữ lấy theo Figma: S02–S05, S09 (779:*), S05c–e (831:*), M03a–d (847:*), phân bổ / phân công (885:*).
 // confirm: false → trang đã có hộp thoại riêng (nhập lý do…), provider chỉ hiện kết quả.
-// D27: khoản chưa thanh toán và phí trong biên bản S04 trừ vào cọc; phần vượt cọc là công nợ (ước tính phía giao diện,
-// số chính thức do backend tính khi xác nhận).
-export function settleReturn(ret, contract) {
-  const fees = ["damage_fee", "cleaning_fee", "overdue_fee"].reduce((sum, k) => sum + (Number(ret?.report?.[k]) || 0), 0);
-  const owed = Number(ret?.unpaid ?? contract?.amount ?? 0) + fees;
-  const deposit = Number(ret?.deposit || 0);
-  return { refund: Math.max(0, deposit - owed), debt: Math.max(0, owed - deposit), owed };
-}
+// D32: ước tính chỉ dùng trong demo; máy chủ quyết toán số chính thức.
+export const settleReturn = returnDeductions;
 const GENERIC_FAIL = "Chưa ghi nhận thay đổi. Giữ nội dung đã nhập để kiểm tra và thử lại.";
 // Phí quá hạn do backend tự tính khi xác nhận trả kho, không có trong biên bản S04
 const FEE_KEYS = [["damage_fee", "Hư hỏng"], ["cleaning_fee", "Vệ sinh"]];
@@ -26,17 +21,6 @@ export function opsConfirmation(type, payload, ops) {
         rows: [["Đơn đặt chỗ", `${p?.id} · ${p?.customer}`], ["Số tiền thực nhận", money(p?.amount)], ["Hình thức thu", "Tiền mặt / chuyển khoản tại quầy"]],
         success: { title: "Đã ghi nhận thanh toán", text: `Đã thu ${money(p?.amount)} cho đơn ${p?.id}. Hệ thống cập nhật hợp đồng và quyền mở kho theo kỳ thuê.`, action: "Về danh sách thu tiền" },
         failure: { title: "Chưa xác nhận được thanh toán", text: "Chưa xác nhận được kết quả lưu. Kiểm tra trạng thái đơn trước khi thực hiện lại để tránh ghi nhận trùng." },
-      };
-    }
-    case "CONFIRM_FEE_COLLECTION": {
-      const f = (ops.fee_collections || []).find((x) => x.id === payload.id);
-      const short = (label) => (/chưa thanh toán/i.test(label) ? "Nợ" : label.replace(/^Phí /, "").replace(/^./, (c) => c.toUpperCase()));
-      const split = (f?.items || []).map(([label, amount]) => `${short(label)}: ${money(amount)}`).join(" · ");
-      return {
-        title: "Xác nhận đã thu đủ tiền?", text: `Chỉ xác nhận sau khi đã nhận đủ ${money(f?.amount)} tại quầy và kiểm tra khoản này chưa được PayOS ghi nhận.`, label: "Xác nhận đã thu", hint: "Kiểm tra thông tin trước khi xác nhận.",
-        rows: [["Khách hàng / hợp đồng", `${f?.customer} · ${f?.contract}`], ["Phân bổ khoản thu", split], ["Tổng đã thực nhận", `${money(f?.amount)} · Tiền mặt`]],
-        success: { title: `Đã ghi nhận thu ${money(f?.amount)}`, text: `${f?.contract} đã thanh toán đủ ${(f?.items || []).map(([label]) => label.replace(/^Phí /, "").toLowerCase()).join(" và ")}. Danh sách chờ thu được cập nhật; khách thấy kết quả trong tài khoản.`, action: "Về danh sách thu tiền" },
-        failure: { title: "Chưa ghi nhận khoản thu", text: "Kiểm tra kết nối và trạng thái giao dịch trước khi lưu lại. Nếu đã nhận tiền, không yêu cầu khách trả thêm." },
       };
     }
     case "VERIFY_CUSTOMER": {
@@ -148,23 +132,13 @@ export function opsConfirmation(type, payload, ops) {
         failure: { title: "Không đổi trạng thái được", text: GENERIC_FAIL },
       };
     case "CONFIRM_REFUND": {
-      const c = find("contracts");
-      const ret = (ops.returns || []).find((x) => x.contract === payload.id);
-      const estimate = settleReturn(ret, c);
       return {
         confirm: false,
-        // Ưu tiên số hoàn cọc backend tính (RefundPolicy: trả sớm, phí quá hạn tự tính…); không có thì dùng ước tính phía giao diện
-        success: (result = {}) => {
-          const fromServer = typeof result.refund === "number";
-          const refund = fromServer ? result.refund : estimate.refund;
-          const knownDebt = typeof result.debt === "number";
-          const debt = knownDebt ? result.debt : fromServer ? 0 : estimate.debt;
-          return {
-            title: `Đã xác nhận trả kho${debt ? ` · Còn nợ ${money(debt)}` : ""}`,
-            text: `Hợp đồng ${payload.id} đã hoàn tất trả kho.${refund ? ` Hoàn cọc ${money(refund)} sau khi trừ các khoản phải thu (D27).` : " Không có tiền cọc được hoàn."}${fromServer && !knownDebt ? " Khoản còn nợ (nếu có) tiếp tục được theo dõi tại danh sách hợp đồng." : ""}`,
-            action: "Đã hiểu",
-          };
-        },
+        success: (result = {}) => ({
+          title: "Đã chốt trả kho",
+          text: `Hợp đồng ${payload.id} đã chốt trả kho. ${typeof result.refund === "number" ? `Số tiền hoàn: ${money(result.refund)}. ` : ""}Xem khoản hoàn và trạng thái chuyển tiền ở mục Hoàn cọc sau trả kho. Chốt trả kho không xác nhận đã chuyển tiền.`,
+          action: "Đã hiểu",
+        }),
         failure: { title: "Không xác nhận trả kho được", text: GENERIC_FAIL },
       };
     }

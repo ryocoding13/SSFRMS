@@ -48,12 +48,13 @@ test("không nhận chìa khóa khi chưa xác minh; nhận chìa khóa không �
   assert.equal(s.units.find(u => u.code === "K01").status, before);
 });
 
-test("trả kho → quản lý xác nhận hoàn cọc = cọc − khoản nợ, kho trống lại", () => {
+test("D32: chốt trả kho tạo chờ hoàn, không trừ trường công nợ cũ", () => {
   let s = createOpsData(T);
-  s = run(s, "SUBMIT_RETURN", { id: "TK-0098", report: { items: "a", walls: "b", keys: "c", proposal: "d" } }).state;
+  s = run(s, "SUBMIT_RETURN", { id: "TK-0098", report: { items: "a", walls: "b", keys: "c", proposal: "Sẵn sàng cho thuê lại" } }).state;
   assert.equal(s.contracts.find((c) => c.id === "HĐ-0098").state, "RETURNED");
   const out = run(s, "CONFIRM_REFUND", { id: "HĐ-0098" });
-  assert.equal(out.result.refund, 1150000 - 460000);
+  assert.equal(out.result.refund, 1150000);
+  assert.equal(out.result.refundStatus, "PENDING");
   assert.equal(out.state.units.find((u) => u.code === "K04").status, "EMPTY");
 });
 
@@ -96,13 +97,9 @@ test("M08 · xác nhận hoàn tiền đơn huỷ theo D27: cần mã giao dịc
   assert.match(run(s, "CONFIRM_RESERVATION_REFUND", { id, transaction_ref: "X" }).error.message, /đã được xác nhận/);
 });
 
-test("S09f · thu phí phát sinh & công nợ tại quầy: một lần, cập nhật hợp đồng còn nợ", () => {
-  let s = createOpsData(T);
-  const f = s.fee_collections.find((x) => x.id === "PHI-0098");
-  assert.equal(f.amount, f.items.reduce((sum, [, v]) => sum + v, 0));
-  const out = run(s, "CONFIRM_FEE_COLLECTION", { id: f.id });
-  assert.ok(!out.error);
-  s = out.state;
-  assert.equal(s.fee_collections.find((x) => x.id === f.id).status, "PAID");
-  assert.match(run(s, "CONFIRM_FEE_COLLECTION", { id: f.id }).error.message, /đã được thu/);
+test("D32: không được thu phí trả kho, giữ dữ liệu cũ để đối chiếu", () => {
+  const s = createOpsData(T);
+  const out = run(s, "CONFIRM_FEE_COLLECTION", { id: "PHI-0098" });
+  assert.match(out.error.message, /không thu thêm/);
+  assert.equal(out.state, s);
 });
