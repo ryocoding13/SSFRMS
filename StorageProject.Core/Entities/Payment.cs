@@ -22,4 +22,5 @@ public class Payment
     public RentalContract Contract { get; set; } = null!;
     public Reservation Reservation { get; set; } = null!;
     public ContractRenewal? Renewal { get; set; }
+    public ICollection<PaymentCheckout> Checkouts { get; set; } = [];
 }

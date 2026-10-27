@@ -110,7 +110,7 @@ public class ContractRenewalConfiguration : IEntityTypeConfiguration<ContractRen
             t.HasCheckConstraint("CK_contract_renewals_period", "[RenewalPeriodMonths] > 0");
             t.HasCheckConstraint("CK_contract_renewals_amount", "[RenewalAmount] >= 0");
             t.HasCheckConstraint("CK_contract_renewals_status",
-                "[Status] IN ('PENDING','APPROVED','REJECTED','PAID','CANCELLED')");
+                "[Status] IN ('PENDING','APPROVED','REJECTED','PAID','CANCELLED','EXPIRED')");
         });
         b.HasKey(cr => cr.RenewalId);
         b.Property(cr => cr.RenewalId).UseIdentityColumn();
@@ -122,7 +122,15 @@ public class ContractRenewalConfiguration : IEntityTypeConfiguration<ContractRen
         b.Property(cr => cr.RenewalAmount).IsRequired().HasColumnType("decimal(15,2)");
         b.Property(cr => cr.Status).IsRequired().HasMaxLength(20).HasDefaultValue("PENDING");
         b.Property(cr => cr.RequestedAt).IsRequired();
+        b.Property(cr => cr.ApprovedAt);
+        b.Property(cr => cr.PaymentDeadlineAt);
+        b.Property(cr => cr.AppliedAt);
+        b.Property(cr => cr.ExpiredAt);
+        b.Property(cr => cr.PolicyVersion);
+        b.Property(cr => cr.AcceptedAt);
         b.Property(cr => cr.CreatedAt).IsRequired();
+
+        b.HasIndex(cr => cr.ContractId).IsUnique().HasFilter("[Status] IN ('PENDING','APPROVED')");
 
         b.HasOne(cr => cr.Contract).WithMany(rc => rc.ContractRenewals)
             .HasForeignKey(cr => cr.ContractId).OnDelete(DeleteBehavior.Restrict);
@@ -148,6 +156,8 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         b.HasOne(p => p.Reservation).WithMany().HasForeignKey(p => p.ReservationId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(p => new { p.ReservationId, p.PaymentType }).IsUnique()
             .HasFilter("[ReservationId] IS NOT NULL AND [PaymentType] IN ('RENT','DEPOSIT')");
+        b.HasIndex(p => p.RenewalId).IsUnique()
+            .HasFilter("[PaymentType] = 'RENEWAL' AND [RenewalId] IS NOT NULL");
         b.HasKey(p => p.PaymentId);
         b.Property(p => p.PaymentId).UseIdentityColumn();
         b.Property(p => p.PaymentType).IsRequired().HasMaxLength(30);

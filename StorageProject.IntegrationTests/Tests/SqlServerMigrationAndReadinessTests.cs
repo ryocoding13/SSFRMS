@@ -17,7 +17,8 @@ public sealed class SqlServerMigrationAndReadinessTests(SqlServerFixture fixture
         "20261014152714_MakeUnitAssignmentAssignedByNullable",
         "20261015153130_AddFacilityCoordinates",
         "20261020154838_ReservationPaymentIntegrity",
-        "20261026093424_AddDepositPercentPerDayCalculationType"
+        "20261026093424_AddDepositPercentPerDayCalculationType",
+        "20261027165711_AddRenewalSettlementAndPolicyConsent"
     ];
 
     [Fact]

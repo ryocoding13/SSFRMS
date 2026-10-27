@@ -38,6 +38,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     // VIII. Renewal
     public DbSet<ContractRenewal> ContractRenewals => Set<ContractRenewal>();
+    public DbSet<PaymentCheckout> PaymentCheckouts => Set<PaymentCheckout>();
+    public DbSet<RentalPolicyVersion> RentalPolicyVersions => Set<RentalPolicyVersion>();
+    public DbSet<PolicyConsent> PolicyConsents => Set<PolicyConsent>();
 
     // IX. Payment
     public DbSet<Payment> Payments => Set<Payment>();

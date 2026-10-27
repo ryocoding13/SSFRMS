@@ -199,16 +199,88 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
         var num = FacilityOpsStateStore.ParseIdNumber(id);
         var renewal = await dbContext.ContractRenewals
             .Include(r => r.Contract).ThenInclude(c => c.Unit)
+            .Include(r => r.Payments)
             .FirstOrDefaultAsync(r => r.RenewalId == num && r.Contract.Unit.FacilityId == fac.FacilityId, ct)
             ?? throw new InvalidOperationException("Không tìm thấy yêu cầu gia hạn tại cơ sở.");
 
+        if (renewal.Status != "PENDING")
+        {
+            throw new InvalidOperationException("Yêu cầu này đã được xử lý.");
+        }
+
+        var contract = renewal.Contract;
+        if (contract.Status is not ("ACTIVE" or "EXPIRING" or "OVERDUE"))
+        {
+            throw new InvalidOperationException("Hợp đồng không còn hiệu lực để gia hạn.");
+        }
+
+        var now = DateTime.UtcNow;
+        var vnToday = DateOnly.FromDateTime(now.AddHours(7));
+
+        var activeRate = await dbContext.RentalRates
+            .Where(rate => rate.FacilityId == contract.Unit.FacilityId
+                     && rate.UnitTypeId == contract.Unit.UnitTypeId
+                     && rate.EffectiveFrom <= vnToday
+                     && (rate.EffectiveTo == null || rate.EffectiveTo >= vnToday))
+            .OrderByDescending(rate => rate.EffectiveFrom)
+            .FirstOrDefaultAsync(ct);
+
+        var newRate = activeRate?.MonthlyRate ?? contract.AgreedMonthlyRate;
+        renewal.NewMonthlyRate = newRate;
+        renewal.RenewalAmount = newRate * renewal.RenewalPeriodMonths;
+
+        var contractExpiryVn = renewal.OldEndDate.ToDateTime(TimeOnly.MinValue);
+        var contractExpiryUtc = contractExpiryVn.AddHours(-7);
+        var deadline = now.AddHours(24);
+        if (contractExpiryUtc < deadline) deadline = contractExpiryUtc;
+
+        renewal.PaymentDeadlineAt = deadline;
         renewal.Status = "APPROVED";
         renewal.ApprovedBy = userId;
-        renewal.ApprovedAt = DateTime.UtcNow;
-        if (renewal.Contract != null)
+        renewal.ApprovedAt = now;
+        // EndDate remains OldEndDate! DO NOT CHANGE contract.EndDate on approval!
+
+        var payment = renewal.Payments.FirstOrDefault(p => p.PaymentType == "RENEWAL");
+        if (payment == null)
         {
-            renewal.Contract.EndDate = renewal.NewEndDate;
+            dbContext.Payments.Add(new Payment
+            {
+                ContractId = contract.ContractId,
+                RenewalId = renewal.RenewalId,
+                PaymentType = "RENEWAL",
+                Amount = renewal.RenewalAmount,
+                Currency = "VND",
+                PaymentMethod = "BANK_TRANSFER",
+                DueDate = renewal.OldEndDate,
+                Status = "PENDING",
+                CreatedAt = now,
+                UpdatedAt = now
+            });
         }
+        else
+        {
+            payment.Amount = renewal.RenewalAmount;
+            payment.Status = "PENDING";
+            payment.UpdatedAt = now;
+        }
+
+        dbContext.ActivityLogs.Add(new ActivityLog
+        {
+            UserId = userId,
+            EntityType = "RENEWAL",
+            EntityId = renewal.RenewalId,
+            Action = "RENEWAL_APPROVED",
+            NewValue = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                renewal.RenewalId,
+                contractId = contract.ContractId,
+                amount = renewal.RenewalAmount,
+                paymentDeadlineAt = deadline,
+                newEndDate = renewal.NewEndDate.ToString("yyyy-MM-dd")
+            }),
+            LoggedAt = now
+        });
+
         await dbContext.SaveChangesAsync(ct);
     }
 
@@ -225,9 +297,26 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
             .FirstOrDefaultAsync(r => r.RenewalId == num && r.Contract.Unit.FacilityId == fac.FacilityId, ct)
             ?? throw new InvalidOperationException("Không tìm thấy yêu cầu gia hạn tại cơ sở.");
 
+        if (renewal.Status != "PENDING")
+        {
+            throw new InvalidOperationException("Yêu cầu này đã được xử lý.");
+        }
+
+        var now = DateTime.UtcNow;
         renewal.Status = "REJECTED";
         renewal.ApprovedBy = userId;
-        renewal.ApprovedAt = DateTime.UtcNow;
+        renewal.ApprovedAt = now;
+
+        dbContext.ActivityLogs.Add(new ActivityLog
+        {
+            UserId = userId,
+            EntityType = "RENEWAL",
+            EntityId = renewal.RenewalId,
+            Action = "RENEWAL_REJECTED",
+            NewValue = System.Text.Json.JsonSerializer.Serialize(new { renewal.RenewalId, reason = request.Reason }),
+            LoggedAt = now
+        });
+
         await dbContext.SaveChangesAsync(ct);
     }
 
