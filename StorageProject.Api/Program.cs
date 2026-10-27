@@ -162,10 +162,12 @@ builder.Services.AddScoped<IOperationsService, OperationsService>();
 builder.Services.AddScoped<IOperationsReportService, OperationsReportService>();
 builder.Services.AddScoped<IFacilityOpsService, FacilityOpsService>();
 builder.Services.AddScoped<IPayOSGateway, SdkPayOSGateway>();
+builder.Services.AddScoped<IRentalPolicyService, RentalPolicyService>();
 if (builder.Configuration.GetValue<bool>("Worker:EnableExpiredCashHold", true))
 {
     builder.Services.AddHostedService<ExpiredCashHoldWorker>();
 }
+builder.Services.AddHostedService<ExpiredRenewalWorker>();
 builder.Services.AddScoped<IPayOSService, PayOSService>();
 builder.Services.AddSingleton(new AccessQrOptions(
     builder.Configuration["AccessQr:Secret"] ?? jwtSecret,
@@ -220,6 +222,8 @@ app.MapReservationEndpoints();
 app.MapContractEndpoints();
 app.MapPaymentEndpoints();
 app.MapRenewalEndpoints();
+app.MapCounterRenewalEndpoints();
+app.MapRentalPolicyEndpoints();
 app.MapSupportTicketEndpoints();
 app.MapAdminEndpoints();
 app.MapOperationsEndpoints();

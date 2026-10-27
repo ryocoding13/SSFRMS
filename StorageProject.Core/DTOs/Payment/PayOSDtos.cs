@@ -27,3 +27,15 @@ public record ReservationPaymentStatusDto(
     bool IsPaid,
     DateTime? PaidAt
 );
+
+public record PayosCheckoutDto(
+    long OrderCode,
+    decimal Amount,
+    string Description,
+    string Status,
+    string QrCode,
+    string CheckoutUrl,
+    DateTime ExpiredAt,
+    long? PaymentId = null,
+    long? RenewalId = null
+);

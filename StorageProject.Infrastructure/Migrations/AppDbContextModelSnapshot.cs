@@ -133,6 +133,12 @@ namespace StorageProject.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("RenewalId"));
 
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("AppliedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("ApprovedAt")
                         .HasColumnType("datetime2");
 
@@ -143,6 +149,9 @@ namespace StorageProject.Infrastructure.Migrations
                         .HasColumnType("bigint");
 
                     b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ExpiredAt")
                         .HasColumnType("datetime2");
 
                     b.Property<DateOnly>("NewEndDate")
@@ -156,6 +165,12 @@ namespace StorageProject.Infrastructure.Migrations
 
                     b.Property<decimal>("OldMonthlyRate")
                         .HasColumnType("decimal(15,2)");
+
+                    b.Property<DateTime?>("PaymentDeadlineAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("PolicyVersion")
+                        .HasColumnType("int");
 
                     b.Property<decimal>("RenewalAmount")
                         .HasColumnType("decimal(15,2)");
@@ -177,7 +192,9 @@ namespace StorageProject.Infrastructure.Migrations
 
                     b.HasIndex("ApprovedBy");
 
-                    b.HasIndex("ContractId");
+                    b.HasIndex("ContractId")
+                        .IsUnique()
+                        .HasFilter("[Status] IN ('PENDING','APPROVED')");
 
                     b.ToTable("contract_renewals", null, t =>
                         {
@@ -185,7 +202,7 @@ namespace StorageProject.Infrastructure.Migrations
 
                             t.HasCheckConstraint("CK_contract_renewals_period", "[RenewalPeriodMonths] > 0");
 
-                            t.HasCheckConstraint("CK_contract_renewals_status", "[Status] IN ('PENDING','APPROVED','REJECTED','PAID','CANCELLED')");
+                            t.HasCheckConstraint("CK_contract_renewals_status", "[Status] IN ('PENDING','APPROVED','REJECTED','PAID','CANCELLED','EXPIRED')");
                         });
                 });
 
@@ -551,7 +568,9 @@ namespace StorageProject.Infrastructure.Migrations
 
                     b.HasIndex("ContractId");
 
-                    b.HasIndex("RenewalId");
+                    b.HasIndex("RenewalId")
+                        .IsUnique()
+                        .HasFilter("[PaymentType] = 'RENEWAL' AND [RenewalId] IS NOT NULL");
 
                     b.HasIndex("TransactionReference")
                         .IsUnique()
@@ -570,6 +589,69 @@ namespace StorageProject.Infrastructure.Migrations
                             t.HasCheckConstraint("CK_payments_payment_type", "[PaymentType] IN ('DEPOSIT','RENT','RENEWAL','EXTRA_FEE','OVERDUE_FEE','DAMAGE_FEE','CLEANING_FEE','LOST_KEY_FEE','ACCESS_CARD_FEE','REFUND')");
 
                             t.HasCheckConstraint("CK_payments_status", "[Status] IN ('PENDING','PAID','FAILED','REFUNDED','PARTIALLY_REFUNDED')");
+                        });
+                });
+
+            modelBuilder.Entity("StorageProject.Core.Entities.PaymentCheckout", b =>
+                {
+                    b.Property<long>("CheckoutId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("CheckoutId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(15,2)");
+
+                    b.Property<string>("CheckoutUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("OrderCode")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("PaymentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("PAYOS");
+
+                    b.Property<string>("QrCode")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("PENDING");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("CheckoutId");
+
+                    b.HasIndex("OrderCode")
+                        .IsUnique();
+
+                    b.HasIndex("PaymentId");
+
+                    b.ToTable("payment_checkouts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_payment_checkouts_amount", "[Amount] >= 0");
+
+                            t.HasCheckConstraint("CK_payment_checkouts_status", "[Status] IN ('PENDING','PAID','CANCELLED','EXPIRED')");
                         });
                 });
 
@@ -684,6 +766,56 @@ namespace StorageProject.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("StorageProject.Core.Entities.PolicyConsent", b =>
+                {
+                    b.Property<long>("ConsentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("ConsentId"));
+
+                    b.Property<DateTime>("AcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("WEB_CUSTOMER");
+
+                    b.Property<long?>("ContractId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("CustomerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("PolicyVersionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("RenewalId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("ReservationId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("ConsentId");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("PolicyVersionId");
+
+                    b.HasIndex("RenewalId")
+                        .HasFilter("[RenewalId] IS NOT NULL");
+
+                    b.HasIndex("ReservationId")
+                        .HasFilter("[ReservationId] IS NOT NULL");
+
+                    b.HasIndex("CustomerId", "PolicyVersionId");
+
+                    b.ToTable("policy_consents", (string)null);
+                });
+
             modelBuilder.Entity("StorageProject.Core.Entities.RentalContract", b =>
                 {
                     b.Property<long>("ContractId")
@@ -751,6 +883,58 @@ namespace StorageProject.Infrastructure.Migrations
                             t.HasCheckConstraint("CK_rental_contracts_rate", "[AgreedMonthlyRate] >= 0");
 
                             t.HasCheckConstraint("CK_rental_contracts_status", "[Status] IN ('DRAFT','ACTIVE','EXPIRING','OVERDUE','RETURN_PENDING','COMPLETED','TERMINATED','CANCELLED')");
+                        });
+                });
+
+            modelBuilder.Entity("StorageProject.Core.Entities.RentalPolicyVersion", b =>
+                {
+                    b.Property<long>("PolicyVersionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("PolicyVersionId"));
+
+                    b.Property<string>("DisplayVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("IsCurrent")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime>("PublishedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("PublishedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("Rate")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("SectionsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("PolicyVersionId");
+
+                    b.HasIndex("IsCurrent")
+                        .HasFilter("[IsCurrent] = 1");
+
+                    b.HasIndex("PublishedBy");
+
+                    b.HasIndex("Version")
+                        .IsUnique();
+
+                    b.ToTable("rental_policy_versions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_rental_policy_versions_rate", "[Rate] >= 0 AND [Rate] <= 100");
+
+                            t.HasCheckConstraint("CK_rental_policy_versions_version", "[Version] > 0");
                         });
                 });
 
@@ -1602,6 +1786,17 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Navigation("Reservation");
                 });
 
+            modelBuilder.Entity("StorageProject.Core.Entities.PaymentCheckout", b =>
+                {
+                    b.HasOne("StorageProject.Core.Entities.Payment", "Payment")
+                        .WithMany("Checkouts")
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Payment");
+                });
+
             modelBuilder.Entity("StorageProject.Core.Entities.Policy", b =>
                 {
                     b.HasOne("StorageProject.Core.Entities.User", "CreatedByUser")
@@ -1625,6 +1820,46 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Navigation("Facility");
 
                     b.Navigation("UnitType");
+                });
+
+            modelBuilder.Entity("StorageProject.Core.Entities.PolicyConsent", b =>
+                {
+                    b.HasOne("StorageProject.Core.Entities.RentalContract", "Contract")
+                        .WithMany("PolicyConsents")
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("StorageProject.Core.Entities.User", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("StorageProject.Core.Entities.RentalPolicyVersion", "PolicyVersion")
+                        .WithMany("Consents")
+                        .HasForeignKey("PolicyVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("StorageProject.Core.Entities.ContractRenewal", "Renewal")
+                        .WithMany("PolicyConsents")
+                        .HasForeignKey("RenewalId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("StorageProject.Core.Entities.Reservation", "Reservation")
+                        .WithMany("PolicyConsents")
+                        .HasForeignKey("ReservationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Contract");
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("PolicyVersion");
+
+                    b.Navigation("Renewal");
+
+                    b.Navigation("Reservation");
                 });
 
             modelBuilder.Entity("StorageProject.Core.Entities.RentalContract", b =>
@@ -1652,6 +1887,17 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Navigation("Reservation");
 
                     b.Navigation("Unit");
+                });
+
+            modelBuilder.Entity("StorageProject.Core.Entities.RentalPolicyVersion", b =>
+                {
+                    b.HasOne("StorageProject.Core.Entities.User", "PublishedByUser")
+                        .WithMany()
+                        .HasForeignKey("PublishedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PublishedByUser");
                 });
 
             modelBuilder.Entity("StorageProject.Core.Entities.RentalRate", b =>
@@ -1897,6 +2143,8 @@ namespace StorageProject.Infrastructure.Migrations
             modelBuilder.Entity("StorageProject.Core.Entities.ContractRenewal", b =>
                 {
                     b.Navigation("Payments");
+
+                    b.Navigation("PolicyConsents");
                 });
 
             modelBuilder.Entity("StorageProject.Core.Entities.Facility", b =>
@@ -1910,6 +2158,11 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Navigation("StorageUnits");
 
                     b.Navigation("UserFacilities");
+                });
+
+            modelBuilder.Entity("StorageProject.Core.Entities.Payment", b =>
+                {
+                    b.Navigation("Checkouts");
                 });
 
             modelBuilder.Entity("StorageProject.Core.Entities.Permission", b =>
@@ -1929,13 +2182,22 @@ namespace StorageProject.Infrastructure.Migrations
 
                     b.Navigation("Payments");
 
+                    b.Navigation("PolicyConsents");
+
                     b.Navigation("ReturnInspections");
 
                     b.Navigation("SupportTickets");
                 });
 
+            modelBuilder.Entity("StorageProject.Core.Entities.RentalPolicyVersion", b =>
+                {
+                    b.Navigation("Consents");
+                });
+
             modelBuilder.Entity("StorageProject.Core.Entities.Reservation", b =>
                 {
+                    b.Navigation("PolicyConsents");
+
                     b.Navigation("RentalContract");
 
                     b.Navigation("UnitAssignments");

@@ -1,3 +1,18 @@
+## 2026-10-28 — T02, T03, T04, T20 BE: Gia hạn, PayOS, thu tại quầy & chính sách cho thuê theo D32 (Đạt)
+
+- Nền `origin/main` 0f0194b, làm trên nhánh `feature/dat-renewal-policy-d32`. Không commit/push/PR/merge; không tự ý nâng feature passing khi chưa có SQL Server/PayOS thật và thành viên phụ trách xác nhận.
+- T02: Duyệt gia hạn (`FacilityOpsService.ApproveRenewalAsync`, `RenewalService.ApproveRenewalAsync`, và legacy `ManagerService.ApproveRenewalAsync`) chốt đơn giá theo rate hiệu lực tại thời điểm duyệt; tạo khoản thanh toán `RENEWAL` `PENDING`, tính hạn thanh toán `PaymentDeadlineAt = min(ApprovedAt + 24h, 00:00 EndDate theo giờ VN)`; **tuyệt đối không tăng EndDate khi duyệt**. `ExpiredRenewalWorker` quét định kỳ 1 phút chuyển các khoản quá hạn sang `EXPIRED`, payment sang `FAILED`, giữ nguyên `EndDate`.
+- T03: `POST /api/payments/{id}/payos` tạo link checkout PayOS theo `paymentId`; lưu `PaymentCheckout`. Webhook đối soát chính xác `orderCode` và `amount`, chữ ký SDK, idempotent; thanh toán gia hạn `RenewalSettlement.RecordAsync` cập nhật `payments.Status = 'PAID'`, `contract_renewals.Status = 'PAID'`, `contract.EndDate = renewal.NewEndDate` đúng một lần. Tiền muộn/lệch giao dịch đưa vào audit review `PAYMENT_REVIEW_REQUIRED`, không tự động gia hạn.
+- T04: Khách chọn trả tại quầy `POST /api/renewals/{id}/counter-payment` chuyển phương thức `CASH`, huỷ an toàn link PayOS, giữ trạng thái `APPROVED` và chưa đổi `EndDate`. `GET /api/ops/counter-renewals` trả hàng chờ thu tại cơ sở phụ trách. `POST /api/ops/counter-renewals/actions` `{ action: "COLLECT_RENEWAL", id }` xác nhận thu tiền mặt và kéo dài `EndDate` đúng một lần; chặn thu lần hai.
+- T20: Thêm bảng `rental_policy_versions` quản lý phiên bản chính sách bất biến (Version, Rate, 7 sections). `GET /api/rental-policy` công khai; `POST /api/rental-policy/actions` chỉ cho phép `OPERATIONS`/`ADMIN`, hỗ trợ optimistic concurrency (409 Conflict) và đồng bộ tỷ lệ quá hạn vào bảng `policies`. Thêm bảng `policy_consents` ghi nhận bằng chứng đồng ý của khách hàng (server timestamp, channel); `POST /api/reservations/{id}/policy-consent` hỗ trợ khách tự xác nhận khi thu tại quầy.
+- Database: Thêm migration `20261027165711_AddRenewalSettlementAndPolicyConsent` tạo bảng `payment_checkouts`, `rental_policy_versions`, `policy_consents`, bổ sung cột và check constraint cho `contract_renewals`. `dotnet ef migrations has-pending-model-changes` báo 0 changes.
+- Kiểm chứng:
+  - `dotnet build StorageProject.slnx -c Release --no-restore -m:1`: PASS, 0 Error.
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release`: PASS 96/96 tests (toàn bộ 88 tests cũ + 8 tests mới trong `RenewalPolicyD32Tests.cs` kiểm tra T02, T03, T04, T20, Expiry).
+  - `git diff --check`: PASS, không có trailing whitespace.
+  - Tạo sprint contract `docs/sprints/dat-renewal-policy-d32.md` và tài liệu nghiệm thu chi tiết `docs/verification/dat-renewal-policy-2026-10.md`.
+- Giới hạn: Đã kiểm chứng toàn diện trên in-memory SQLite, fake clock và fake gateway; chưa chạy trên SQL Server thật của nhóm (`REQUIRE_SQLSERVER=true`) và tài khoản PayOS thật.
+
 ## 2026-10-26 — T10 / T15 FE: tiền cọc theo D32 (Thắng)
 
 - Nền `origin/main` d57c71b8c2ad69367c90877902b5818781b3222d. Làm trên worktree riêng; không đụng thay đổi cũ, không commit/push/PR/merge. F39/F41 không nâng passing.

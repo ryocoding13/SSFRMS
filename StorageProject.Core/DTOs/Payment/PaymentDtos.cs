@@ -12,5 +12,6 @@ public record PaymentDto(
     DateOnly? DueDate,
     DateTime? PaidAt,
     string Status,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    DateTime? PaymentDeadlineAt = null
 );

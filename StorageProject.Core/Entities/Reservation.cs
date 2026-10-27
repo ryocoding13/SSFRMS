@@ -30,4 +30,5 @@ public class Reservation
     public UnitType UnitType { get; set; } = null!;
     public ICollection<UnitAssignment> UnitAssignments { get; set; } = [];
     public RentalContract? RentalContract { get; set; }
+    public ICollection<PolicyConsent> PolicyConsents { get; set; } = [];
 }

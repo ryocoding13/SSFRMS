@@ -222,6 +222,7 @@ public static partial class DbSeeder
 
         // 4. Policies
         await EnsurePoliciesAsync(context, admin.UserId);
+        await EnsureRentalPolicyVersionsAsync(context, admin.UserId);
 
         // 5. Phân công cơ sở (SRS A06: mỗi nhân viên / quản lý 1 cơ sở)
         await EnsureFacilityAssignmentsAsync(context, catalog.Home.FacilityId, admin.UserId);
@@ -394,6 +395,37 @@ public static partial class DbSeeder
             }
 
             context.Policies.AddRange(policies);
+            await context.SaveChangesAsync();
+        }
+    }
+
+    public static async Task EnsureRentalPolicyVersionsAsync(AppDbContext context, long adminUserId)
+    {
+        if (!await context.RentalPolicyVersions.AnyAsync())
+        {
+            var defaultSections = new Dictionary<string, string>
+            {
+                ["payment"] = "Hợp đồng và quyền mở kho được cấp sau khi hệ thống xác nhận thanh toán hoặc nhân viên xác nhận đã thu đủ tại quầy. Bạn sử dụng kho từ ngày bắt đầu hợp đồng; kiểm tra ngày bắt đầu, ngày hết hạn và trạng thái thanh toán trong Kho của tôi.",
+                ["access"] = "QR chỉ sử dụng trong thời hạn hợp đồng. QR hết hiệu lực ngay khi hết hạn thuê hoặc khi yêu cầu trả kho được ghi nhận thành công. Chuyển hết đồ trước khi xác nhận trả kho; cần hỗ trợ ra vào sau đó thì liên hệ nhân viên cơ sở.",
+                ["renewal"] = "Gửi yêu cầu để cơ sở kiểm tra kỳ thuê tiếp theo. Trong lúc chờ duyệt, ngày hết hạn giữ nguyên. Sau khi duyệt, thanh toán đủ tiền gia hạn qua PayOS hoặc tại quầy để cập nhật kỳ thuê. Không thu lại cọc; yêu cầu bị từ chối hiển thị lý do.",
+                ["overdue"] = "Nếu quá hạn mà chưa trả kho, mỗi ngày trừ 5% giá trị cọc ban đầu, tối đa 100% cọc. Sau 20 ngày cọc còn 0 đ, nhân viên kho đưa đồ của khách ra ngoài. Khách hàng tự chịu trách nhiệm theo chính sách.",
+                ["return"] = "Chuyển hết đồ trước khi xác nhận trả kho. Cơ sở kiểm tra kho, nhận lại chìa khóa và lập biên bản. Cọc, khoản chưa thanh toán và phí được đối soát; bạn xem được khấu trừ và số tiền hoàn. Không còn cọc thì số tiền hoàn bằng 0 đ.",
+                ["cancellation"] = "Trước khi huỷ, kiểm tra điều kiện, khoản khấu trừ và tiền hoàn trên đơn. Chờ hoàn là cơ sở chưa ghi nhận hoàn thành chuyển tiền; Đã hoàn là giao dịch đã được xác nhận. Chưa nhận tiền thì liên hệ cơ sở kèm mã đơn/khoản hoàn.",
+                ["support"] = "Xem ngày hết hạn, lịch sử thanh toán, lịch trừ cọc và tiến độ trả kho trong tài khoản. Bạn có thể gửi hỗ trợ tới cơ sở liên quan, kể cả khi chưa có hợp đồng, để được tư vấn loại kho phù hợp."
+            };
+
+            var initialVersion = new RentalPolicyVersion
+            {
+                Version = 1,
+                DisplayVersion = "11/2026",
+                Rate = 5.0m,
+                SectionsJson = System.Text.Json.JsonSerializer.Serialize(defaultSections),
+                PublishedBy = adminUserId,
+                PublishedAt = DateTime.UtcNow,
+                IsCurrent = true
+            };
+
+            context.RentalPolicyVersions.Add(initialVersion);
             await context.SaveChangesAsync();
         }
     }
