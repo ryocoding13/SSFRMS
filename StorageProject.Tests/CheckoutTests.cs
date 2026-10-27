@@ -243,7 +243,7 @@ public sealed class CheckoutTests
         var afterPin = await access.GetQrAsync(f.Order.CustomerId, c.ContractId);
         Assert.Equal(afterQr.Code, afterPin.Code); Assert.NotEqual(afterQr.BackupCode, afterPin.BackupCode);
         Assert.Equal("DENIED", (await access.ScanAsync(before.BackupCode, "test", unitNumber: "K01")).Result);
-        await staff.RevokeCredentialAsync(1, "K01"); await f.PayOS.ProcessWebhookAsync("{}", null);
+        c.Status = "RETURN_PENDING"; await f.Db.SaveChangesAsync();
         await Assert.ThrowsAsync<InvalidOperationException>(() => access.GetQrAsync(f.Order.CustomerId, c.ContractId));
         Assert.Equal("DENIED", (await access.ScanAsync(afterQr.Code, "test")).Result);
     }

@@ -13,6 +13,22 @@
   - Tạo sprint contract `docs/sprints/dat-renewal-policy-d32.md` và tài liệu nghiệm thu chi tiết `docs/verification/dat-renewal-policy-2026-10.md`.
 - Giới hạn: Đã kiểm chứng toàn diện trên in-memory SQLite, fake clock và fake gateway; chưa chạy trên SQL Server thật của nhóm (`REQUIRE_SQLSERVER=true`) và tài khoản PayOS thật.
 
+## Phiên 2026-10-26 — Hoàn thành Task T17, T15, T09 (Backend Logic Fixes) & Migration Schema mới
+
+- **Mục tiêu:** Thực hiện 3 tasks logic nghiệp vụ theo kế hoạch 26–31/10 (D31/D32):
+  1. **Task T17 (Phân quyền cơ sở):** Chặn thao tác chéo cơ sở ở các route cũ (StaffService.SubmitReturnInspectionAsync, ManagerService.AssignStaffAsync, ApproveRenewalAsync, RejectRenewalAsync, AddContractReminderAsync). Phân quyền chỉ dựa trên vai trò (FACILITY_STAFF/FACILITY_MANAGER) + user_facilities.
+  2. **Task T15 (Mã ra vào):** Xóa bỏ hoàn toàn API thu hồi mã thủ công (POST /api/staff/credentials/{id}/revoke), bỏ IStaffService.RevokeCredentialAsync. Điều chỉnh ReissueCredentialAsync khi cấp lại mã QR không đổi PIN và ngược lại. Mã tự vô hiệu hóa khi hợp đồng kết thúc hoặc chuyển sang RETURN_PENDING.
+  3. **Task T09 (Phí quá hạn):** Sửa công thức tính phí quá hạn trong RefundPolicy.OverdueFeeFor và FacilityOpsService.ConfirmRefundAsync: trừ 5% cọc ban đầu cho mỗi ngày trễ, cap tối đa 100% cọc ban đầu (contract.DepositAmount), dừng tính tại thời điểm gửi trả kho thành công (inspection.CreatedAt). Thêm kiểu tính mới DEPOSIT_PERCENT_PER_DAY cho chính sách OVERDUE tại B02 / DbSeeder.
+- **Migration Schema mới:**
+  - StorageConfigurations.cs: Tăng CalculationType.HasMaxLength(30), mở rộng check constraint CK_policies_calculation_type cho phép giá trị 'DEPOSIT_PERCENT_PER_DAY'.
+  - Scaffold migration mới 20261026093424_AddDepositPercentPerDayCalculationType theo đúng quy tắc AGENTS.md (Rule 7: không sửa migration cũ).
+  - Cập nhật test SqlServerMigrationAndReadinessTests kiểm tra đúng 7 migrations và model snapshot khớp 100%.
+- **Kiểm chứng:**
+  - dotnet test StorageProject.slnx --nologo: **89/89 unit tests PASS**, **9/9 SQL Server integration tests PASS** (chạy trên SQL Server thật).
+  - npm run check:structure trong Frontend: PASS.
+  - dotnet ef migrations has-pending-model-changes: PASS (0 pending changes).
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
+
 ## 2026-10-26 — T10 / T15 FE: tiền cọc theo D32 (Thắng)
 
 - Nền `origin/main` d57c71b8c2ad69367c90877902b5818781b3222d. Làm trên worktree riêng; không đụng thay đổi cũ, không commit/push/PR/merge. F39/F41 không nâng passing.

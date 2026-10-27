@@ -173,36 +173,35 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
 
     public async Task AssignStaffAsync(long userId, string id, AssignStaffRequest request, CancellationToken ct = default)
     {
+        var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
         var num = FacilityOpsStateStore.ParseIdNumber(id);
-        var ticket = await dbContext.SupportTickets.FindAsync([num], ct);
-        if (ticket != null)
+        var ticket = await dbContext.SupportTickets
+            .Include(t => t.Unit)
+            .Include(t => t.Contract).ThenInclude(c => c!.Unit)
+            .FirstOrDefaultAsync(t => t.TicketId == num && (t.Contract != null ? t.Contract.Unit.FacilityId == fac.FacilityId : t.Unit != null && t.Unit.FacilityId == fac.FacilityId), ct)
+            ?? throw new InvalidOperationException("Không tìm thấy yêu cầu hỗ trợ tại cơ sở.");
+
+        var staffUserId = FacilityOpsStateStore.ParseIdNumber(request.StaffId ?? "");
+        if (staffUserId > 0)
         {
-            var staffUserId = FacilityOpsStateStore.ParseIdNumber(request.StaffId ?? "");
-            if (staffUserId > 0) ticket.AssignedStaffId = staffUserId;
-            ticket.Status = "IN_PROGRESS";
-            ticket.AssignedAt = DateTime.UtcNow;
-            await dbContext.SaveChangesAsync(ct);
+            var isStaffAtFac = await dbContext.UserFacilities.AnyAsync(uf => uf.UserId == staffUserId && uf.FacilityId == fac.FacilityId && uf.Status == "ACTIVE", ct);
+            if (!isStaffAtFac) throw new InvalidOperationException("Nhân viên không thuộc cơ sở.");
+            ticket.AssignedStaffId = staffUserId;
         }
+        ticket.Status = "IN_PROGRESS";
+        ticket.AssignedAt = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(ct);
     }
 
     public async Task ApproveRenewalAsync(long userId, string id, CancellationToken ct = default)
     {
+        var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
         var num = FacilityOpsStateStore.ParseIdNumber(id);
         var renewal = await dbContext.ContractRenewals
             .Include(r => r.Contract).ThenInclude(c => c.Unit)
             .Include(r => r.Payments)
-            .FirstOrDefaultAsync(r => r.RenewalId == num, ct)
-            ?? throw new KeyNotFoundException("Không tìm thấy yêu cầu gia hạn.");
-
-        var userFacility = await dbContext.UserFacilities
-            .AsNoTracking()
-            .FirstOrDefaultAsync(uf => uf.UserId == userId && uf.Status == "ACTIVE", ct)
-            ?? throw new UnauthorizedAccessException("Bạn chưa được phân công phụ trách cơ sở.");
-
-        if (renewal.Contract.Unit.FacilityId != userFacility.FacilityId)
-        {
-            throw new UnauthorizedAccessException("Yêu cầu gia hạn không thuộc cơ sở do bạn phụ trách.");
-        }
+            .FirstOrDefaultAsync(r => r.RenewalId == num && r.Contract.Unit.FacilityId == fac.FacilityId, ct)
+            ?? throw new InvalidOperationException("Không tìm thấy yêu cầu gia hạn tại cơ sở.");
 
         if (renewal.Status != "PENDING")
         {
@@ -291,21 +290,12 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
         {
             throw new ArgumentException("từ chối phải có lý do");
         }
+        var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
         var num = FacilityOpsStateStore.ParseIdNumber(id);
         var renewal = await dbContext.ContractRenewals
             .Include(r => r.Contract).ThenInclude(c => c.Unit)
-            .FirstOrDefaultAsync(r => r.RenewalId == num, ct)
-            ?? throw new KeyNotFoundException("Không tìm thấy yêu cầu gia hạn.");
-
-        var userFacility = await dbContext.UserFacilities
-            .AsNoTracking()
-            .FirstOrDefaultAsync(uf => uf.UserId == userId && uf.Status == "ACTIVE", ct)
-            ?? throw new UnauthorizedAccessException("Bạn chưa được phân công phụ trách cơ sở.");
-
-        if (renewal.Contract.Unit.FacilityId != userFacility.FacilityId)
-        {
-            throw new UnauthorizedAccessException("Yêu cầu gia hạn không thuộc cơ sở do bạn phụ trách.");
-        }
+            .FirstOrDefaultAsync(r => r.RenewalId == num && r.Contract.Unit.FacilityId == fac.FacilityId, ct)
+            ?? throw new InvalidOperationException("Không tìm thấy yêu cầu gia hạn tại cơ sở.");
 
         if (renewal.Status != "PENDING")
         {
@@ -332,21 +322,23 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
 
     public async Task AddContractReminderAsync(long userId, string id, AddReminderRequest request, CancellationToken ct = default)
     {
+        var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
         var num = FacilityOpsStateStore.ParseIdNumber(id);
-        var contract = await dbContext.RentalContracts.FindAsync([num], ct);
-        if (contract != null)
+        var contract = await dbContext.RentalContracts
+            .Include(c => c.Unit)
+            .FirstOrDefaultAsync(c => c.ContractId == num && c.Unit.FacilityId == fac.FacilityId, ct)
+            ?? throw new InvalidOperationException("Không tìm thấy hợp đồng tại cơ sở.");
+
+        dbContext.OverdueCases.Add(new OverdueCase
         {
-            dbContext.OverdueCases.Add(new OverdueCase
-            {
-                ContractId = contract.ContractId,
-                AssignedStaffId = userId,
-                OverdueFrom = DateOnly.FromDateTime(DateTime.UtcNow),
-                Notes = request.Note,
-                Status = "CONTACTED",
-                OpenedAt = DateTime.UtcNow
-            });
-            await dbContext.SaveChangesAsync(ct);
-        }
+            ContractId = contract.ContractId,
+            AssignedStaffId = userId,
+            OverdueFrom = DateOnly.FromDateTime(DateTime.UtcNow),
+            Notes = request.Note,
+            Status = "CONTACTED",
+            OpenedAt = DateTime.UtcNow
+        });
+        await dbContext.SaveChangesAsync(ct);
     }
 
     public async Task<IReadOnlyList<OpsUnitDto>> GetFacilityUnitsAsync(long userId, CancellationToken ct = default)

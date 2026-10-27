@@ -112,14 +112,14 @@ public class PolicyConfiguration : IEntityTypeConfiguration<Policy>
             t.HasCheckConstraint("CK_policies_policy_type",
                 "[PolicyType] IN ('DEPOSIT','RENEWAL','CANCELLATION','RETURN','OVERDUE','EXTRA_FEE','DISCOUNT','FEE_WAIVER','PRICE_RANGE')");
             t.HasCheckConstraint("CK_policies_calculation_type",
-                "[CalculationType] IS NULL OR [CalculationType] IN ('FIXED','PERCENTAGE','RANGE','RULE')");
+                "[CalculationType] IS NULL OR [CalculationType] IN ('FIXED','PERCENTAGE','RANGE','RULE','DEPOSIT_PERCENT_PER_DAY')");
             t.HasCheckConstraint("CK_policies_status", "[Status] IN ('DRAFT','ACTIVE','INACTIVE','EXPIRED')");
         });
         b.HasKey(p => p.PolicyId);
         b.Property(p => p.PolicyId).UseIdentityColumn();
         b.Property(p => p.PolicyName).IsRequired().HasMaxLength(150);
         b.Property(p => p.PolicyType).IsRequired().HasMaxLength(30);
-        b.Property(p => p.CalculationType).HasMaxLength(20);
+        b.Property(p => p.CalculationType).HasMaxLength(30);
         b.Property(p => p.Value).HasColumnType("decimal(15,2)");
         b.Property(p => p.MinValue).HasColumnType("decimal(15,2)");
         b.Property(p => p.MaxValue).HasColumnType("decimal(15,2)");

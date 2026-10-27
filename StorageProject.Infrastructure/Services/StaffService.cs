@@ -400,21 +400,19 @@ public class StaffService(AppDbContext dbContext) : IStaffService
         var num = FacilityOpsStateStore.ParseIdNumber(id);
         var inspection = await dbContext.ReturnInspections
             .Include(ri => ri.Contract).ThenInclude(c => c.Unit)
-            .FirstOrDefaultAsync(ri => ri.InspectionId == num || ri.ContractId == num, ct);
+            .FirstOrDefaultAsync(ri => (ri.InspectionId == num || ri.ContractId == num) && ri.Contract.Unit.FacilityId == fac.FacilityId, ct)
+            ?? throw new InvalidOperationException("Không tìm thấy biên bản kiểm tra trả kho tại cơ sở.");
 
-        if (inspection != null)
+        inspection.Status = "COMPLETED";
+        inspection.InspectedAt = DateTime.UtcNow;
+        inspection.StaffId = userId;
+        inspection.Notes = request.Items;
+        inspection.ConditionStatus = request.Walls;
+        if (inspection.Contract?.Unit != null)
         {
-            inspection.Status = "COMPLETED";
-            inspection.InspectedAt = DateTime.UtcNow;
-            inspection.StaffId = userId;
-            inspection.Notes = request.Items;
-            inspection.ConditionStatus = request.Walls;
-            if (inspection.Contract?.Unit != null)
-            {
-                inspection.Contract.Unit.Status = "MAINTENANCE";
-            }
-            await dbContext.SaveChangesAsync(ct);
+            inspection.Contract.Unit.Status = "MAINTENANCE";
         }
+        await dbContext.SaveChangesAsync(ct);
     }
 
     // Code cũ được giữ để đối chiếu.
@@ -465,19 +463,7 @@ public class StaffService(AppDbContext dbContext) : IStaffService
         await tx.CommitAsync(ct);
     }
 
-    public async Task RevokeCredentialAsync(long userId, string id, CancellationToken ct = default)
-    {
-        var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
-        var unit = await dbContext.StorageUnits
-            .FirstOrDefaultAsync(u => u.FacilityId == fac.FacilityId && u.UnitNumber == id, ct);
-        if (unit == null)
-        {
-            throw new InvalidOperationException($"Không tìm thấy kho {id}.");
-        }
-        var credentials = await dbContext.AccessCredentials.Where(c => c.UnitId == unit.UnitId && c.Status == "ACTIVE" && c.CredentialType != "KEY").ToListAsync(ct);
-        foreach (var credential in credentials) { credential.Status = "REVOKED"; credential.ReturnedAt = DateTime.UtcNow; }
-        await dbContext.SaveChangesAsync(ct);
-    }
+
 
     public async Task ReissueCredentialAsync(long userId, ReissueCredentialRequest request, CancellationToken ct = default)
     {
@@ -504,7 +490,7 @@ public class StaffService(AppDbContext dbContext) : IStaffService
             receipt.StaffConfirmed = false;
             receipt.CustomerConfirmed = false;
         }
-        else contract.AccessCredentials.Add(new AccessCredential { UnitId = contract.UnitId, IssuedBy = userId,
+        else contract.AccessCredentials.Add(new AccessCredential { ContractId = contract.ContractId, UnitId = contract.UnitId, IssuedBy = userId,
             CredentialType = "ACCESS_CODE", CredentialReference = $"{kind}-{Guid.NewGuid():N}", IssuedAt = now, Status = "ACTIVE" });
         dbContext.ActivityLogs.Add(new ActivityLog { UserId = userId, Action = "CREDENTIAL_REISSUED", EntityType = "RENTAL_CONTRACT",
             EntityId = contract.ContractId, LoggedAt = now, NewValue = System.Text.Json.JsonSerializer.Serialize(new { kind, reason }) });

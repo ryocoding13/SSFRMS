@@ -446,15 +446,17 @@ public partial class FacilityOpsService
         }
 
         var now = NowUtc;
+        // D32 / T09: Dừng tính phí quá hạn khi gửi trả kho thành công (inspection.CreatedAt là thời điểm khách gửi move-out).
+        var moveOutDate = DateOnly.FromDateTime((inspection.CreatedAt != default ? inspection.CreatedAt : (inspection.InspectedAt ?? now)) + VnOffset);
         var returnDate = DateOnly.FromDateTime((inspection.InspectedAt ?? now) + VnOffset);
-        var scenario = returnDate < contract.EndDate ? RefundScenario.EarlyStop : RefundScenario.NormalReturn;
-        var overdueDays = Math.Max(0, returnDate.DayNumber - contract.EndDate.DayNumber);
+        var scenario = moveOutDate < contract.EndDate ? RefundScenario.EarlyStop : RefundScenario.NormalReturn;
+        var overdueDays = Math.Max(0, moveOutDate.DayNumber - contract.EndDate.DayNumber);
         decimal overdueFee = 0;
         if (overdueDays > 0)
         {
             var policy = await OpsRules.FindApplicablePolicyAsync(dbContext, "OVERDUE", facility.FacilityId,
-                contract.Unit.UnitTypeId, returnDate, ct);
-            overdueFee = RefundPolicy.OverdueFeeFor(policy?.CalculationType, policy?.Value, contract.AgreedMonthlyRate, overdueDays);
+                contract.Unit.UnitTypeId, moveOutDate, ct);
+            overdueFee = RefundPolicy.OverdueFeeFor(policy?.CalculationType, policy?.Value, contract.DepositAmount, overdueDays, maxCap: contract.DepositAmount);
         }
         var rentPaid = contract.Payments.Where(p => p.PaymentType == "RENT" && p.Status == "PAID").Sum(p => p.Amount);
         var result = RefundPolicy.Calculate(new RefundInput(scenario, contract.DepositAmount, rentPaid,

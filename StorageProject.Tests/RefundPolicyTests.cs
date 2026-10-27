@@ -114,4 +114,18 @@ public sealed class RefundPolicyTests
         Assert.Throws<InvalidOperationException>(() => RefundPolicy.OverdueFeeFor(null, null, 2_000_000m, 2));
         Assert.Throws<InvalidOperationException>(() => RefundPolicy.OverdueFeeFor("RULE", 5m, 2_000_000m, 2));
     }
+
+    [Fact]
+    public void Overdue_fee_deposit_percent_per_day_calculates_5_percent_and_caps_at_100_percent_deposit()
+    {
+        const decimal initialDeposit = 1_150_000m;
+        // 1 ngày: 5% * 1.150.000 = 57.500
+        Assert.Equal(57_500m, RefundPolicy.OverdueFeeFor("DEPOSIT_PERCENT_PER_DAY", 5m, initialDeposit, 1));
+        // 3 ngày: 172.500
+        Assert.Equal(172_500m, RefundPolicy.OverdueFeeFor("DEPOSIT_PERCENT_PER_DAY", 5m, initialDeposit, 3));
+        // 20 ngày: 100% = 1.150.000
+        Assert.Equal(initialDeposit, RefundPolicy.OverdueFeeFor("DEPOSIT_PERCENT_PER_DAY", 5m, initialDeposit, 20));
+        // 25 ngày: vượt 100% cọc -> dừng ở 100% cọc (1.150.000)
+        Assert.Equal(initialDeposit, RefundPolicy.OverdueFeeFor("DEPOSIT_PERCENT_PER_DAY", 5m, initialDeposit, 25));
+    }
 }
