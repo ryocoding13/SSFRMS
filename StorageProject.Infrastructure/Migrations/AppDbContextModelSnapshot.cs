@@ -612,8 +612,8 @@ namespace StorageProject.Infrastructure.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("PolicyId"));
 
                     b.Property<string>("CalculationType")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -676,7 +676,7 @@ namespace StorageProject.Infrastructure.Migrations
 
                     b.ToTable("policies", null, t =>
                         {
-                            t.HasCheckConstraint("CK_policies_calculation_type", "[CalculationType] IS NULL OR [CalculationType] IN ('FIXED','PERCENTAGE','RANGE','RULE')");
+                            t.HasCheckConstraint("CK_policies_calculation_type", "[CalculationType] IS NULL OR [CalculationType] IN ('FIXED','PERCENTAGE','RANGE','RULE','DEPOSIT_PERCENT_PER_DAY')");
 
                             t.HasCheckConstraint("CK_policies_policy_type", "[PolicyType] IN ('DEPOSIT','RENEWAL','CANCELLATION','RETURN','OVERDUE','EXTRA_FEE','DISCOUNT','FEE_WAIVER','PRICE_RANGE')");
 

@@ -12,6 +12,5 @@ public interface IStaffService
     Task SubmitReturnInspectionAsync(long userId, string id, ReturnInspectionRequest request, CancellationToken ct = default);
     Task AddTicketResponseAsync(long userId, string id, TicketResponseRequest request, CancellationToken ct = default);
     Task UpdateUnitStatusAsync(long userId, string id, UpdateUnitStatusRequest request, CancellationToken ct = default);
-    Task RevokeCredentialAsync(long userId, string id, CancellationToken ct = default);
     Task ReissueCredentialAsync(long userId, ReissueCredentialRequest request, CancellationToken ct = default);
 }

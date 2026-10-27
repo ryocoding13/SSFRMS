@@ -96,17 +96,23 @@ public static class RefundPolicy
     /// Phí quá hạn theo tham số chính sách OVERDUE (B02): PERCENTAGE = % tiền thuê tháng mỗi ngày trễ,
     /// FIXED = số tiền cố định mỗi ngày trễ. Thiếu hoặc không hỗ trợ cách tính thì báo lỗi, không tự đặt mức phí.
     /// </summary>
-    public static decimal OverdueFeeFor(string? calculationType, decimal? value, decimal monthlyRate, int overdueDays)
+    public static decimal OverdueFeeFor(string? calculationType, decimal? value, decimal baseAmount, int overdueDays, decimal? maxCap = null)
     {
         if (overdueDays <= 0) return 0;
         if (value is not decimal v || v < 0)
             throw new InvalidOperationException("Chưa cấu hình chính sách phí quá hạn (B02). Cần cấu hình trước khi tính hoàn cọc.");
-        return calculationType switch
+        var fee = calculationType switch
         {
-            "PERCENTAGE" => Money(monthlyRate * v / 100m * overdueDays),
+            "DEPOSIT_PERCENT_PER_DAY" => Math.Min(baseAmount, Money(baseAmount * v / 100m * overdueDays)),
+            "PERCENTAGE" => Money(baseAmount * v / 100m * overdueDays),
             "FIXED" => Money(v * overdueDays),
-            _ => throw new InvalidOperationException("Chính sách phí quá hạn (B02) phải tính theo % tiền thuê tháng hoặc số tiền cố định mỗi ngày.")
+            _ => throw new InvalidOperationException("Chính sách phí quá hạn (B02) phải tính theo % tiền cọc mỗi ngày, % tiền thuê tháng hoặc số tiền cố định mỗi ngày.")
         };
+        if (maxCap.HasValue && maxCap.Value >= 0)
+        {
+            fee = Math.Min(fee, maxCap.Value);
+        }
+        return fee;
     }
 
     private static decimal Money(decimal v) => Math.Round(v, 0, MidpointRounding.AwayFromZero);

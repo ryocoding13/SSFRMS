@@ -1,895 +1,911 @@
-## 2026-10-26 — T10 / T15 FE: tiền cọc theo D32 (Thắng)
+﻿## Phiên 2026-10-26 — Hoàn thành Task T17, T15, T09 (Backend Logic Fixes) & Migration Schema mới
 
-- Nền `origin/main` d57c71b8c2ad69367c90877902b5818781b3222d. Làm trên worktree riêng; không đụng thay đổi cũ, không commit/push/PR/merge. F39/F41 không nâng passing.
-- C11: ẩn khoản phí trả kho chờ thu; bỏ popup trả phí tại quầy. Mapper không cho mở QR phí trả kho; service API/local và reducer chặn thao tác cũ. Gia hạn giữ QR/thu tại quầy hiện có; không sửa logic gia hạn BE.
-- S09: bỏ route fees, queue thu phí và badge tương ứng; không xoá lịch sử giao dịch đã có. Gỡ adapter CONFIRM_FEE_COLLECTION và REVOKE_CREDENTIAL; giữ cấp lại mã. Endpoint thu hồi mã BE vẫn cần Tiến xử lý.
-- S04: vệ sinh chỉ đọc, tự tính 10% cọc khi chọn cần vệ sinh; kiểm tiền không âm và lý do, tổng đề xuất không vượt cọc. Không hiện công nợ hoặc tự suy diễn tiền hoàn chính thức. Payload phí đã gửi nhưng BE T05 vẫn chưa lưu đầy đủ.
-- M07: bỏ ước tính tiền hoàn dự phòng trong API và chữ thu nợ vượt cọc; chuyển người dùng tới màn hoàn cọc riêng. Khoá chốt trên máy chủ cũ; mở sau khi board trả `returnPolicyVersion: "D32"` (hợp đồng tích hợp bổ sung, xem BACKEND-TODO). Backend phải hoàn thành T05–T09 trước khi bật, không chỉ thêm marker.
-- Demo reducer: khấu trừ giới hạn cọc, bỏ legacy unpaid khỏi tính phí trả kho; chốt ghi PENDING, giữ MAINTENANCE khi vệ sinh/chưa sẵn sàng. Demo Ops và workflow hoàn cọc vẫn là hai kho mô phỏng riêng, chưa phải luồng liên thông BE.
-- Sửa lỗi mapper REFUND PENDING bị hiện đã hoàn: chỉ PAID → Đã hoàn. Không sửa số/trạng thái BE trả để giả đã tuân thủ D32.
-- Kiểm chứng Node 24.22.1: `npm test` 86/86; `test:business` 9/9; `test:workflows` 11/11; `test:render` 115 route + assertion D32; `check:structure`, `build`, `bash init.sh --fe-only`, `git diff --check` PASS. Build còn cảnh báo chunk >500 kB hiện có.
-- Thêm script trình duyệt `node scripts/check-return-policy.mjs` cho C11/S09f/S04/M07. **Chưa chạy được**: thiếu Chromium, `npx playwright install chromium` tải về file lỗi. Không coi SSR là browser pass. Chưa kiểm desktop/mobile bằng mắt, SQL Server, PayOS hoặc API thật; không chạy BE vì bản vá không sửa BE.
-- Ngoài gói: ảnh trả kho/tài khoản hoàn (T08), đồng ý chính sách (T20), sự cố/khắc phục, tính phí quá hạn BE và tích hợp hoàn cọc. Cần owner review và kiểm browser/API trước merge.
+- **Mục tiêu:** Thực hiện 3 tasks logic nghiệp vụ theo kế hoạch 26–31/10 (D31/D32):
+  1. **Task T17 (Phân quyền cơ sở):** Chặn thao tác chéo cơ sở ở các route cũ (StaffService.SubmitReturnInspectionAsync, ManagerService.AssignStaffAsync, ApproveRenewalAsync, RejectRenewalAsync, AddContractReminderAsync). Phân quyền chỉ dựa trên vai trò (FACILITY_STAFF/FACILITY_MANAGER) + user_facilities.
+  2. **Task T15 (Mã ra vào):** Xóa bỏ hoàn toàn API thu hồi mã thủ công (POST /api/staff/credentials/{id}/revoke), bỏ IStaffService.RevokeCredentialAsync. Điều chỉnh ReissueCredentialAsync khi cấp lại mã QR không đổi PIN và ngược lại. Mã tự vô hiệu hóa khi hợp đồng kết thúc hoặc chuyển sang RETURN_PENDING.
+  3. **Task T09 (Phí quá hạn):** Sửa công thức tính phí quá hạn trong RefundPolicy.OverdueFeeFor và FacilityOpsService.ConfirmRefundAsync: trừ 5% cọc ban đầu cho mỗi ngày trễ, cap tối đa 100% cọc ban đầu (contract.DepositAmount), dừng tính tại thời điểm gửi trả kho thành công (inspection.CreatedAt). Thêm kiểu tính mới DEPOSIT_PERCENT_PER_DAY cho chính sách OVERDUE tại B02 / DbSeeder.
+- **Migration Schema mới:**
+  - StorageConfigurations.cs: Tăng CalculationType.HasMaxLength(30), mở rộng check constraint CK_policies_calculation_type cho phép giá trị 'DEPOSIT_PERCENT_PER_DAY'.
+  - Scaffold migration mới 20261026093424_AddDepositPercentPerDayCalculationType theo đúng quy tắc AGENTS.md (Rule 7: không sửa migration cũ).
+  - Cập nhật test SqlServerMigrationAndReadinessTests kiểm tra đúng 7 migrations và model snapshot khớp 100%.
+- **Kiểm chứng:**
+  - dotnet test StorageProject.slnx --nologo: **89/89 unit tests PASS**, **9/9 SQL Server integration tests PASS** (chạy trên SQL Server thật).
+  - npm run check:structure trong Frontend: PASS.
+  - dotnet ef migrations has-pending-model-changes: PASS (0 pending changes).
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
 
-## 2026-10-25 — F09 bổ sung đăng nhập bằng email, giữ tên đăng nhập cũ
+## 2026-10-26 ΓÇö T10 / T15 FE: tiß╗ün cß╗ìc theo D32 (Thß║»ng)
 
-- Nền `main` e43c1f3b190b883c7fbc5d73a34be8de6a4c17ca; yêu cầu bàn giao ZIP để thành viên tự kiểm tra và push trên nhánh riêng.
-- `AuthService.LoginAsync`: bỏ khoảng trắng ngoài định danh, tìm username hoặc email không phân biệt hoa/thường của email; nếu nhiều tài khoản cùng khớp thì trả lỗi chung, không chọn người đầu tiên. Giữ BCrypt, trạng thái ACTIVE, role JWT, lịch sử đăng nhập và HTTP hiện có; không cắt khoảng trắng của mật khẩu.
-- Thêm `StorageProject.Tests/EmailLoginTests.cs`: 25 ca về username/email, khoảng trắng, email hoa/thường, sai/rỗng thông tin, tài khoản khoá/ngừng hoạt động, định danh trùng, mật khẩu có khoảng trắng và HTTP/JWT đọc đúng hồ sơ của khách/staff. Dùng fixture SQLite riêng, không chạm dữ liệu nhóm.
-- Bổ sung D31; cập nhật đúng các dòng đăng nhập trong BE-CONTRACT.md/BACKEND-TODO.md. Giữ toàn bộ quy định AI/Git và ghi chép Figma; không đổi feature_list.json hoặc nâng trạng thái tính năng.
-- Kiểm chứng Linux, .NET SDK 10.0.100: `dotnet build StorageProject.slnx --no-restore -m:1` PASS, 0 error; `dotnet test StorageProject.Tests/StorageProject.Tests.csproj` (qua lệnh test solution, --no-build --no-restore -m:1) 88/88 PASS, gồm 25 ca mới. HTTP dùng Kestrel + endpoint/service/JWT thật với SQLite.
-- Lệnh test solution còn báo 9 test IntegrationTests đạt, nhưng fixture trả sớm khi không có SQL Server; không coi đó là đã kiểm SQL Server. Chưa chạy SQL Server của nhóm, trình duyệt gọi backend thật của nhóm hoặc kiểm PayOS; task không sửa các luồng tiền/QR.
-- Cảnh báo dependency NU1902/NU1903 và nullable Board.cs có trên các phần không đổi; không nâng package hay sửa ngoài phạm vi. Không sửa appsettings, schema/migration, endpoint hoặc FE source.
-- Bàn giao bản vá có kiểm tra trước khi áp dụng để giữ nội dung file hiện tại; thành viên tự review, kiểm SQL Server, commit/push/PR/merge. AI không thực hiện các thao tác Git xuất bản.
-## 2026-10-26 — Ghi D32 và cập nhật tài liệu BE theo chính sách mới (T01, Thắng)
+- Nß╗ün `origin/main` d57c71b8c2ad69367c90877902b5818781b3222d. L├ám tr├¬n worktree ri├¬ng; kh├┤ng ─æß╗Ñng thay ─æß╗òi c┼⌐, kh├┤ng commit/push/PR/merge. F39/F41 kh├┤ng n├óng passing.
+- C11: ß║⌐n khoß║ún ph├¡ trß║ú kho chß╗¥ thu; bß╗Å popup trß║ú ph├¡ tß║íi quß║ºy. Mapper kh├┤ng cho mß╗ƒ QR ph├¡ trß║ú kho; service API/local v├á reducer chß║╖n thao t├íc c┼⌐. Gia hß║ín giß╗» QR/thu tß║íi quß║ºy hiß╗çn c├│; kh├┤ng sß╗¡a logic gia hß║ín BE.
+- S09: bß╗Å route fees, queue thu ph├¡ v├á badge t╞░╞íng ß╗⌐ng; kh├┤ng xo├í lß╗ïch sß╗¡ giao dß╗ïch ─æ├ú c├│. Gß╗í adapter CONFIRM_FEE_COLLECTION v├á REVOKE_CREDENTIAL; giß╗» cß║Ñp lß║íi m├ú. Endpoint thu hß╗ôi m├ú BE vß║½n cß║ºn Tiß║┐n xß╗¡ l├╜.
+- S04: vß╗ç sinh chß╗ë ─æß╗ìc, tß╗▒ t├¡nh 10% cß╗ìc khi chß╗ìn cß║ºn vß╗ç sinh; kiß╗âm tiß╗ün kh├┤ng ├óm v├á l├╜ do, tß╗òng ─æß╗ü xuß║Ñt kh├┤ng v╞░ß╗út cß╗ìc. Kh├┤ng hiß╗çn c├┤ng nß╗ú hoß║╖c tß╗▒ suy diß╗àn tiß╗ün ho├án ch├¡nh thß╗⌐c. Payload ph├¡ ─æ├ú gß╗¡i nh╞░ng BE T05 vß║½n ch╞░a l╞░u ─æß║ºy ─æß╗º.
+- M07: bß╗Å ╞░ß╗¢c t├¡nh tiß╗ün ho├án dß╗▒ ph├▓ng trong API v├á chß╗» thu nß╗ú v╞░ß╗út cß╗ìc; chuyß╗ân ng╞░ß╗¥i d├╣ng tß╗¢i m├án ho├án cß╗ìc ri├¬ng. Kho├í chß╗æt tr├¬n m├íy chß╗º c┼⌐; mß╗ƒ sau khi board trß║ú `returnPolicyVersion: "D32"` (hß╗úp ─æß╗ông t├¡ch hß╗úp bß╗ò sung, xem BACKEND-TODO). Backend phß║úi ho├án th├ánh T05ΓÇôT09 tr╞░ß╗¢c khi bß║¡t, kh├┤ng chß╗ë th├¬m marker.
+- Demo reducer: khß║Ñu trß╗½ giß╗¢i hß║ín cß╗ìc, bß╗Å legacy unpaid khß╗Åi t├¡nh ph├¡ trß║ú kho; chß╗æt ghi PENDING, giß╗» MAINTENANCE khi vß╗ç sinh/ch╞░a sß║╡n s├áng. Demo Ops v├á workflow ho├án cß╗ìc vß║½n l├á hai kho m├┤ phß╗Ång ri├¬ng, ch╞░a phß║úi luß╗ông li├¬n th├┤ng BE.
+- Sß╗¡a lß╗ùi mapper REFUND PENDING bß╗ï hiß╗çn ─æ├ú ho├án: chß╗ë PAID ΓåÆ ─É├ú ho├án. Kh├┤ng sß╗¡a sß╗æ/trß║íng th├íi BE trß║ú ─æß╗â giß║ú ─æ├ú tu├ón thß╗º D32.
+- Kiß╗âm chß╗⌐ng Node 24.22.1: `npm test` 86/86; `test:business` 9/9; `test:workflows` 11/11; `test:render` 115 route + assertion D32; `check:structure`, `build`, `bash init.sh --fe-only`, `git diff --check` PASS. Build c├▓n cß║únh b├ío chunk >500 kB hiß╗çn c├│.
+- Th├¬m script tr├¼nh duyß╗çt `node scripts/check-return-policy.mjs` cho C11/S09f/S04/M07. **Ch╞░a chß║íy ─æ╞░ß╗úc**: thiß║┐u Chromium, `npx playwright install chromium` tß║úi vß╗ü file lß╗ùi. Kh├┤ng coi SSR l├á browser pass. Ch╞░a kiß╗âm desktop/mobile bß║▒ng mß║»t, SQL Server, PayOS hoß║╖c API thß║¡t; kh├┤ng chß║íy BE v├¼ bß║ún v├í kh├┤ng sß╗¡a BE.
+- Ngo├ái g├│i: ß║únh trß║ú kho/t├ái khoß║ún ho├án (T08), ─æß╗ông ├╜ ch├¡nh s├ích (T20), sß╗▒ cß╗æ/khß║»c phß╗Ñc, t├¡nh ph├¡ qu├í hß║ín BE v├á t├¡ch hß╗úp ho├án cß╗ìc. Cß║ºn owner review v├á kiß╗âm browser/API tr╞░ß╗¢c merge.
 
-- Task chỉ tài liệu; không sửa code, DB, migration và không đổi trạng thái feature.
-- `DECISIONS.md`: thêm D32 (người dùng chốt 26/10): khấu trừ tối đa bằng cọc, không công nợ ngoài cọc; quá hạn 5% cọc ban đầu/ngày, tối đa 100%, ngày 20 xử lý đồ; giữ phí huỷ 10% cọc (D27); hoàn vào tài khoản chính chủ, hai trạng thái Chờ hoàn / Đã hoàn; sự cố cơ sở đổi ô hoặc hoàn tháng đang thuê + tháng chưa dùng + 100% cọc; gia hạn chỉ đổi EndDate khi thu đủ; phiên bản chính sách và bằng chứng đồng ý; không thu hồi QR/PIN thủ công; giữ hỗ trợ khi chưa có hợp đồng; phân quyền chỉ theo vai trò. Áp dụng cho mọi hợp đồng. Ghi rõ dòng nào của D27/D28/D30 bị thay; không xoá lịch sử.
-- `BACKEND-TODO.md`: thêm mục "D32" (T02–T20, người làm, mức ưu tiên, endpoint); đánh dấu các dòng cũ bị D31 thay (M03, M07, QR, D27, phí phát sinh và công nợ).
-- `BE-CONTRACT.md`: thêm mục "Đồng bộ 26/10 — D31" liệt kê thay đổi hợp đồng API.
-- Kiểm chứng: đọc lại diff, kiểm bảng Markdown không vỡ cột. Không cần build ứng dụng (task tài liệu).
+## 2026-10-25 ΓÇö F09 bß╗ò sung ─æ─âng nhß║¡p bß║▒ng email, giß╗» t├¬n ─æ─âng nhß║¡p c┼⌐
 
-## 2026-10-25 — Gộp main vào nhánh FE và bổ sung ghi chép pre-flight
+- Nß╗ün `main` e43c1f3b190b883c7fbc5d73a34be8de6a4c17ca; y├¬u cß║ºu b├án giao ZIP ─æß╗â th├ánh vi├¬n tß╗▒ kiß╗âm tra v├á push tr├¬n nh├ính ri├¬ng.
+- `AuthService.LoginAsync`: bß╗Å khoß║úng trß║»ng ngo├ái ─æß╗ïnh danh, t├¼m username hoß║╖c email kh├┤ng ph├ón biß╗çt hoa/th╞░ß╗¥ng cß╗ºa email; nß║┐u nhiß╗üu t├ái khoß║ún c├╣ng khß╗¢p th├¼ trß║ú lß╗ùi chung, kh├┤ng chß╗ìn ng╞░ß╗¥i ─æß║ºu ti├¬n. Giß╗» BCrypt, trß║íng th├íi ACTIVE, role JWT, lß╗ïch sß╗¡ ─æ─âng nhß║¡p v├á HTTP hiß╗çn c├│; kh├┤ng cß║»t khoß║úng trß║»ng cß╗ºa mß║¡t khß║⌐u.
+- Th├¬m `StorageProject.Tests/EmailLoginTests.cs`: 25 ca vß╗ü username/email, khoß║úng trß║»ng, email hoa/th╞░ß╗¥ng, sai/rß╗ùng th├┤ng tin, t├ái khoß║ún kho├í/ngß╗½ng hoß║ít ─æß╗Öng, ─æß╗ïnh danh tr├╣ng, mß║¡t khß║⌐u c├│ khoß║úng trß║»ng v├á HTTP/JWT ─æß╗ìc ─æ├║ng hß╗ô s╞í cß╗ºa kh├ích/staff. D├╣ng fixture SQLite ri├¬ng, kh├┤ng chß║ím dß╗» liß╗çu nh├│m.
+- Bß╗ò sung D31; cß║¡p nhß║¡t ─æ├║ng c├íc d├▓ng ─æ─âng nhß║¡p trong BE-CONTRACT.md/BACKEND-TODO.md. Giß╗» to├án bß╗Ö quy ─æß╗ïnh AI/Git v├á ghi ch├⌐p Figma; kh├┤ng ─æß╗òi feature_list.json hoß║╖c n├óng trß║íng th├íi t├¡nh n─âng.
+- Kiß╗âm chß╗⌐ng Linux, .NET SDK 10.0.100: `dotnet build StorageProject.slnx --no-restore -m:1` PASS, 0 error; `dotnet test StorageProject.Tests/StorageProject.Tests.csproj` (qua lß╗çnh test solution, --no-build --no-restore -m:1) 88/88 PASS, gß╗ôm 25 ca mß╗¢i. HTTP d├╣ng Kestrel + endpoint/service/JWT thß║¡t vß╗¢i SQLite.
+- Lß╗çnh test solution c├▓n b├ío 9 test IntegrationTests ─æß║ít, nh╞░ng fixture trß║ú sß╗¢m khi kh├┤ng c├│ SQL Server; kh├┤ng coi ─æ├│ l├á ─æ├ú kiß╗âm SQL Server. Ch╞░a chß║íy SQL Server cß╗ºa nh├│m, tr├¼nh duyß╗çt gß╗ìi backend thß║¡t cß╗ºa nh├│m hoß║╖c kiß╗âm PayOS; task kh├┤ng sß╗¡a c├íc luß╗ông tiß╗ün/QR.
+- Cß║únh b├ío dependency NU1902/NU1903 v├á nullable Board.cs c├│ tr├¬n c├íc phß║ºn kh├┤ng ─æß╗òi; kh├┤ng n├óng package hay sß╗¡a ngo├ái phß║ím vi. Kh├┤ng sß╗¡a appsettings, schema/migration, endpoint hoß║╖c FE source.
+- B├án giao bß║ún v├í c├│ kiß╗âm tra tr╞░ß╗¢c khi ├íp dß╗Ñng ─æß╗â giß╗» nß╗Öi dung file hiß╗çn tß║íi; th├ánh vi├¬n tß╗▒ review, kiß╗âm SQL Server, commit/push/PR/merge. AI kh├┤ng thß╗▒c hiß╗çn c├íc thao t├íc Git xuß║Ñt bß║ún.
+## 2026-10-26 ΓÇö Ghi D32 v├á cß║¡p nhß║¡t t├ái liß╗çu BE theo ch├¡nh s├ích mß╗¢i (T01, Thß║»ng)
 
-- Gộp `main` 2f2f933 (PR #41 CI/CD, PR #43 pre-flight) vào nhánh `feature/figma-approved-fe-completion`.
-- `feature_list.json`: giữ cả CI01–CI08 từ main và F41 của nhánh FE.
-- `DECISIONS.md`: đổi mục "FE các màn đã duyệt" từ D29 thành D30 vì D29 đã dùng cho CI/CD; thêm mục PROCESS-2026-10-25 (pre-flight) mà PR #43 chưa kèm.
-- PR #43 chỉ đưa khối pre-flight vào AGENTS.md / CLAUDE.md; phần DECISIONS.md / progress.md của bản vá pre-flight dựa trên nhánh FE nên được đưa vào cùng lần gộp này. Không đổi nội dung AGENTS.md / CLAUDE.md.
-- Kiểm chứng: check:structure, test, test:business, test:workflows, test:render, build trên bản gộp (xem phần bàn giao). Không chạy .NET / SQL Server.
+- Task chß╗ë t├ái liß╗çu; kh├┤ng sß╗¡a code, DB, migration v├á kh├┤ng ─æß╗òi trß║íng th├íi feature.
+- `DECISIONS.md`: th├¬m D32 (ng╞░ß╗¥i d├╣ng chß╗æt 26/10): khß║Ñu trß╗½ tß╗æi ─æa bß║▒ng cß╗ìc, kh├┤ng c├┤ng nß╗ú ngo├ái cß╗ìc; qu├í hß║ín 5% cß╗ìc ban ─æß║ºu/ng├áy, tß╗æi ─æa 100%, ng├áy 20 xß╗¡ l├╜ ─æß╗ô; giß╗» ph├¡ huß╗╖ 10% cß╗ìc (D27); ho├án v├áo t├ái khoß║ún ch├¡nh chß╗º, hai trß║íng th├íi Chß╗¥ ho├án / ─É├ú ho├án; sß╗▒ cß╗æ c╞í sß╗ƒ ─æß╗òi ├┤ hoß║╖c ho├án th├íng ─æang thu├¬ + th├íng ch╞░a d├╣ng + 100% cß╗ìc; gia hß║ín chß╗ë ─æß╗òi EndDate khi thu ─æß╗º; phi├¬n bß║ún ch├¡nh s├ích v├á bß║▒ng chß╗⌐ng ─æß╗ông ├╜; kh├┤ng thu hß╗ôi QR/PIN thß╗º c├┤ng; giß╗» hß╗ù trß╗ú khi ch╞░a c├│ hß╗úp ─æß╗ông; ph├ón quyß╗ün chß╗ë theo vai tr├▓. ├üp dß╗Ñng cho mß╗ìi hß╗úp ─æß╗ông. Ghi r├╡ d├▓ng n├áo cß╗ºa D27/D28/D30 bß╗ï thay; kh├┤ng xo├í lß╗ïch sß╗¡.
+- `BACKEND-TODO.md`: th├¬m mß╗Ñc "D32" (T02ΓÇôT20, ng╞░ß╗¥i l├ám, mß╗⌐c ╞░u ti├¬n, endpoint); ─æ├ính dß║Ñu c├íc d├▓ng c┼⌐ bß╗ï D31 thay (M03, M07, QR, D27, ph├¡ ph├ít sinh v├á c├┤ng nß╗ú).
+- `BE-CONTRACT.md`: th├¬m mß╗Ñc "─Éß╗ông bß╗Ö 26/10 ΓÇö D31" liß╗çt k├¬ thay ─æß╗òi hß╗úp ─æß╗ông API.
+- Kiß╗âm chß╗⌐ng: ─æß╗ìc lß║íi diff, kiß╗âm bß║úng Markdown kh├┤ng vß╗í cß╗Öt. Kh├┤ng cß║ºn build ß╗⌐ng dß╗Ñng (task t├ái liß╗çu).
 
-## 2026-10-25 — FE bổ sung theo các màn đã duyệt
+## 2026-10-25 ΓÇö Gß╗Öp main v├áo nh├ính FE v├á bß╗ò sung ghi ch├⌐p pre-flight
 
-- Base main c5aa79a, nhánh local feature/figma-approved-fe-completion; không commit/push/PR.
-- Bổ sung auth, khách hàng, staff, manager và operations; thẻ hoàn tiền theo từng khách, chính sách chi tiết/chỉnh sửa, đối soát, quá hạn, hoàn cọc, lịch sử, hỗ trợ trước hợp đồng, giá cơ sở và CSV.
-- FE adapter tách demo opt-in khỏi API thật; endpoint thiếu báo lỗi. Không sửa backend/DB/migration. Chính sách 5% cọc gốc và giới hạn BE ghi ở D30 (trước là D29)/API-GAPS.
-- init FE đạt, unit81, workflow10, business9; kiểm tra render/build, desktop/mobile và thao tác demo.
-- Rà soát và gộp lên main 54abba6 (PR #39): giải xung đột `CancellationRefundPage` (giữ bố cục thẻ, dùng chữ chính sách từ `policy.js`).
-  Sửa: gia hạn đã thanh toán vẫn hiện "Chờ thanh toán" (mapper gộp PAID → APPROVED, nay đối chiếu khoản thu RENEWAL);
-  lịch trừ cọc, hồ sơ quá hạn và mốc xử lý đồ dùng tỷ lệ chính sách đang lưu thay vì ghi cứng 5% / 20 ngày; hợp đồng đã kết thúc không tính tiếp khấu trừ;
-  bỏ chữ "npm run dev:demo" / "bản demo" khỏi thông báo lỗi chế độ API; CSV không biến số âm thành chữ; thẻ trạng thái "từ chối" màu đỏ, "Chờ…" màu vàng.
-  Kiểm chứng: structure PASS, test 81/81, business 9/9, workflows 11/11 (thêm 1), render 115 route, build PASS; approved-ui 25 route, workflow-actions 10 nhóm, api-pending, password-reset PASS. Báo cáo chi tiết trong APPROVED-FE-README.md. Chưa chứng minh BE thật/PayOS/thiết bị; cần owner review, không đổi passing.
+- Gß╗Öp `main` 2f2f933 (PR #41 CI/CD, PR #43 pre-flight) v├áo nh├ính `feature/figma-approved-fe-completion`.
+- `feature_list.json`: giß╗» cß║ú CI01ΓÇôCI08 tß╗½ main v├á F41 cß╗ºa nh├ính FE.
+- `DECISIONS.md`: ─æß╗òi mß╗Ñc "FE c├íc m├án ─æ├ú duyß╗çt" tß╗½ D29 th├ánh D30 v├¼ D29 ─æ├ú d├╣ng cho CI/CD; th├¬m mß╗Ñc PROCESS-2026-10-25 (pre-flight) m├á PR #43 ch╞░a k├¿m.
+- PR #43 chß╗ë ─æ╞░a khß╗æi pre-flight v├áo AGENTS.md / CLAUDE.md; phß║ºn DECISIONS.md / progress.md cß╗ºa bß║ún v├í pre-flight dß╗▒a tr├¬n nh├ính FE n├¬n ─æ╞░ß╗úc ─æ╞░a v├áo c├╣ng lß║ºn gß╗Öp n├áy. Kh├┤ng ─æß╗òi nß╗Öi dung AGENTS.md / CLAUDE.md.
+- Kiß╗âm chß╗⌐ng: check:structure, test, test:business, test:workflows, test:render, build tr├¬n bß║ún gß╗Öp (xem phß║ºn b├án giao). Kh├┤ng chß║íy .NET / SQL Server.
 
-## 2026-10-25 — Sửa lỗi FE các màn C11, C14a, S04, S09, M07 (kế hoạch 25–31/10, phần Thắng)
+## 2026-10-25 ΓÇö FE bß╗ò sung theo c├íc m├án ─æ├ú duyß╗çt
 
-- **Bản gốc:** `main` c5aa79a (đã gộp PR #29). Chỉ sửa frontend; không sửa backend, DB, migration.
-- **C14a:** `canCancel` khớp `ReservationService.CancelReservationAsync` (PENDING_PAYMENT / PENDING_AT_FACILITY / CONFIRMED, bỏ PAID);
-  đơn đã thanh toán không huỷ được từ ngày bắt đầu thuê; lỗi `cancel-preview` hiện lý do và khoá nút huỷ; huỷ một đơn không còn ẩn nút huỷ đơn khác.
-- **Chính sách huỷ/hoàn:** gom chữ và tỷ lệ về `src/shared/utils/policy.js` (C14a, M08, reducer) — chốt chính sách mới chỉ sửa một file.
-- **C11:** nút "Thanh toán phí tại quầy" tách theo từng hợp đồng (trước gộp phí nhiều hợp đồng vào HĐ đầu tiên);
-  chế độ API báo rõ lựa chọn chỉ lưu trên thiết bị (backend chưa có API); phí đã chọn "tại quầy" vẫn trả được qua QR.
-- **S04:** bỏ ô phí quá hạn (BE tự tính khi xác nhận, tránh tính trùng); thêm "Kho cần vệ sinh" (`cleaningRequired`);
-  hiện tiền cọc và dự kiến hoàn/công nợ; biên bản đã gửi chỉ hiện phí máy chủ trả về, báo lỗi nếu máy chủ chưa lưu phí.
-- **S09:** trạng thái lạ không làm crash; S09f không crash khi thiếu `items`; "Gồm" ghi rõ là ước tính; thông báo cụ thể khi BE chưa có `/api/ops/fees/{id}/confirm`.
-- **M07:** hộp thoại xác nhận trả kho hiện tiền cọc, trừ cọc, hoàn/còn nợ dự kiến; gửi kèm ghi chú; giữ hộp thoại khi lưu lỗi;
-  màn kết quả dùng số `refund` backend trả về thay vì số ước tính phía giao diện; chặn crash khi thiếu `reminders`.
-- **Seed:** đơn/hợp đồng A-102 (SS-0142) bắt đầu từ ngày mai để vẫn có đơn huỷ được theo quy tắc mới (test render C14 cần nút "Huỷ đơn").
-- **Kiểm chứng (local, không backend):** `check:structure` PASS; `npm test` 81/81; `test:business` 9/9; `test:render` 97 route PASS; `build` PASS;
-  Chromium chạy tay C11, C14a, S09, luồng S04 có phí → M07a xác nhận (còn nợ 510.000 đ khớp hai bên).
-- **Chưa kiểm chứng:** chưa chạy .NET/SQL Server/PayOS thật. Phần còn chờ backend ghi ở `BACKEND-TODO.md` mục "Phí phát sinh khi trả kho và công nợ" và "M08":
-  lưu phí S04, `POST /api/payments/{id}/payos`, API chọn trả tại quầy, `feeCollections` + `/api/ops/fees/{id}/confirm`, `refunds` trên board, lưu ghi chú M07a.
+- Base main c5aa79a, nh├ính local feature/figma-approved-fe-completion; kh├┤ng commit/push/PR.
+- Bß╗ò sung auth, kh├ích h├áng, staff, manager v├á operations; thß║╗ ho├án tiß╗ün theo tß╗½ng kh├ích, ch├¡nh s├ích chi tiß║┐t/chß╗ënh sß╗¡a, ─æß╗æi so├ít, qu├í hß║ín, ho├án cß╗ìc, lß╗ïch sß╗¡, hß╗ù trß╗ú tr╞░ß╗¢c hß╗úp ─æß╗ông, gi├í c╞í sß╗ƒ v├á CSV.
+- FE adapter t├ích demo opt-in khß╗Åi API thß║¡t; endpoint thiß║┐u b├ío lß╗ùi. Kh├┤ng sß╗¡a backend/DB/migration. Ch├¡nh s├ích 5% cß╗ìc gß╗æc v├á giß╗¢i hß║ín BE ghi ß╗ƒ D30 (tr╞░ß╗¢c l├á D29)/API-GAPS.
+- init FE ─æß║ít, unit81, workflow10, business9; kiß╗âm tra render/build, desktop/mobile v├á thao t├íc demo.
+- R├á so├ít v├á gß╗Öp l├¬n main 54abba6 (PR #39): giß║úi xung ─æß╗Öt `CancellationRefundPage` (giß╗» bß╗æ cß╗Ñc thß║╗, d├╣ng chß╗» ch├¡nh s├ích tß╗½ `policy.js`).
+  Sß╗¡a: gia hß║ín ─æ├ú thanh to├ín vß║½n hiß╗çn "Chß╗¥ thanh to├ín" (mapper gß╗Öp PAID ΓåÆ APPROVED, nay ─æß╗æi chiß║┐u khoß║ún thu RENEWAL);
+  lß╗ïch trß╗½ cß╗ìc, hß╗ô s╞í qu├í hß║ín v├á mß╗æc xß╗¡ l├╜ ─æß╗ô d├╣ng tß╗╖ lß╗ç ch├¡nh s├ích ─æang l╞░u thay v├¼ ghi cß╗⌐ng 5% / 20 ng├áy; hß╗úp ─æß╗ông ─æ├ú kß║┐t th├║c kh├┤ng t├¡nh tiß║┐p khß║Ñu trß╗½;
+  bß╗Å chß╗» "npm run dev:demo" / "bß║ún demo" khß╗Åi th├┤ng b├ío lß╗ùi chß║┐ ─æß╗Ö API; CSV kh├┤ng biß║┐n sß╗æ ├óm th├ánh chß╗»; thß║╗ trß║íng th├íi "tß╗½ chß╗æi" m├áu ─æß╗Å, "Chß╗¥ΓÇª" m├áu v├áng.
+  Kiß╗âm chß╗⌐ng: structure PASS, test 81/81, business 9/9, workflows 11/11 (th├¬m 1), render 115 route, build PASS; approved-ui 25 route, workflow-actions 10 nh├│m, api-pending, password-reset PASS. B├ío c├ío chi tiß║┐t trong APPROVED-FE-README.md. Ch╞░a chß╗⌐ng minh BE thß║¡t/PayOS/thiß║┐t bß╗ï; cß║ºn owner review, kh├┤ng ─æß╗òi passing.
 
-## 2026-10-15 — F31: Frontend vận hành KD, không sửa backend/database
+## 2026-10-25 ΓÇö Sß╗¡a lß╗ùi FE c├íc m├án C11, C14a, S04, S09, M07 (kß║┐ hoß║ích 25ΓÇô31/10, phß║ºn Thß║»ng)
 
-- Bản gốc: SSFRMS(1).zip mới; API: operations-api(3).md; thiết kế B01–B05 section 436:13803.
-- Thêm src/business, src/api/business, assets cục bộ và mock frontend opt-in dev:business.
-- Chỉ nối role OPERATIONS vào router/session hiện có; giữ nguyên điều kiện các role cũ.
-- B02 gom 8 ô thành 5 type/scope để đúng API; quy định phụ là dòng có nhãn trong ruleDescription;
-  409 phải xác nhận trước khi thay thế. Không sửa backend để cho nhiều policy xung đột cùng tồn tại.
-- Kiểm chứng: npm test 38/38; test:business 8/8; test:render 76 route; build/init FE PASS;
-  Chromium 13 nhóm PASS; 14/14 màn các role khác giống từng pixel; 4 XLSX mở bằng openpyxl.
-- 77 file source/config backend nguyên byte so ZIP đầu vào; không sửa DB, migration, seeder hoặc endpoint.
-- Phạm vi người dùng chỉ frontend nên không build .NET, không thử SQL Server thật.
+- **Bß║ún gß╗æc:** `main` c5aa79a (─æ├ú gß╗Öp PR #29). Chß╗ë sß╗¡a frontend; kh├┤ng sß╗¡a backend, DB, migration.
+- **C14a:** `canCancel` khß╗¢p `ReservationService.CancelReservationAsync` (PENDING_PAYMENT / PENDING_AT_FACILITY / CONFIRMED, bß╗Å PAID);
+  ─æ╞ín ─æ├ú thanh to├ín kh├┤ng huß╗╖ ─æ╞░ß╗úc tß╗½ ng├áy bß║»t ─æß║ºu thu├¬; lß╗ùi `cancel-preview` hiß╗çn l├╜ do v├á kho├í n├║t huß╗╖; huß╗╖ mß╗Öt ─æ╞ín kh├┤ng c├▓n ß║⌐n n├║t huß╗╖ ─æ╞ín kh├íc.
+- **Ch├¡nh s├ích huß╗╖/ho├án:** gom chß╗» v├á tß╗╖ lß╗ç vß╗ü `src/shared/utils/policy.js` (C14a, M08, reducer) ΓÇö chß╗æt ch├¡nh s├ích mß╗¢i chß╗ë sß╗¡a mß╗Öt file.
+- **C11:** n├║t "Thanh to├ín ph├¡ tß║íi quß║ºy" t├ích theo tß╗½ng hß╗úp ─æß╗ông (tr╞░ß╗¢c gß╗Öp ph├¡ nhiß╗üu hß╗úp ─æß╗ông v├áo H─É ─æß║ºu ti├¬n);
+  chß║┐ ─æß╗Ö API b├ío r├╡ lß╗▒a chß╗ìn chß╗ë l╞░u tr├¬n thiß║┐t bß╗ï (backend ch╞░a c├│ API); ph├¡ ─æ├ú chß╗ìn "tß║íi quß║ºy" vß║½n trß║ú ─æ╞░ß╗úc qua QR.
+- **S04:** bß╗Å ├┤ ph├¡ qu├í hß║ín (BE tß╗▒ t├¡nh khi x├íc nhß║¡n, tr├ính t├¡nh tr├╣ng); th├¬m "Kho cß║ºn vß╗ç sinh" (`cleaningRequired`);
+  hiß╗çn tiß╗ün cß╗ìc v├á dß╗▒ kiß║┐n ho├án/c├┤ng nß╗ú; bi├¬n bß║ún ─æ├ú gß╗¡i chß╗ë hiß╗çn ph├¡ m├íy chß╗º trß║ú vß╗ü, b├ío lß╗ùi nß║┐u m├íy chß╗º ch╞░a l╞░u ph├¡.
+- **S09:** trß║íng th├íi lß║í kh├┤ng l├ám crash; S09f kh├┤ng crash khi thiß║┐u `items`; "Gß╗ôm" ghi r├╡ l├á ╞░ß╗¢c t├¡nh; th├┤ng b├ío cß╗Ñ thß╗â khi BE ch╞░a c├│ `/api/ops/fees/{id}/confirm`.
+- **M07:** hß╗Öp thoß║íi x├íc nhß║¡n trß║ú kho hiß╗çn tiß╗ün cß╗ìc, trß╗½ cß╗ìc, ho├án/c├▓n nß╗ú dß╗▒ kiß║┐n; gß╗¡i k├¿m ghi ch├║; giß╗» hß╗Öp thoß║íi khi l╞░u lß╗ùi;
+  m├án kß║┐t quß║ú d├╣ng sß╗æ `refund` backend trß║ú vß╗ü thay v├¼ sß╗æ ╞░ß╗¢c t├¡nh ph├¡a giao diß╗çn; chß║╖n crash khi thiß║┐u `reminders`.
+- **Seed:** ─æ╞ín/hß╗úp ─æß╗ông A-102 (SS-0142) bß║»t ─æß║ºu tß╗½ ng├áy mai ─æß╗â vß║½n c├│ ─æ╞ín huß╗╖ ─æ╞░ß╗úc theo quy tß║»c mß╗¢i (test render C14 cß║ºn n├║t "Huß╗╖ ─æ╞ín").
+- **Kiß╗âm chß╗⌐ng (local, kh├┤ng backend):** `check:structure` PASS; `npm test` 81/81; `test:business` 9/9; `test:render` 97 route PASS; `build` PASS;
+  Chromium chß║íy tay C11, C14a, S09, luß╗ông S04 c├│ ph├¡ ΓåÆ M07a x├íc nhß║¡n (c├▓n nß╗ú 510.000 ─æ khß╗¢p hai b├¬n).
+- **Ch╞░a kiß╗âm chß╗⌐ng:** ch╞░a chß║íy .NET/SQL Server/PayOS thß║¡t. Phß║ºn c├▓n chß╗¥ backend ghi ß╗ƒ `BACKEND-TODO.md` mß╗Ñc "Ph├¡ ph├ít sinh khi trß║ú kho v├á c├┤ng nß╗ú" v├á "M08":
+  l╞░u ph├¡ S04, `POST /api/payments/{id}/payos`, API chß╗ìn trß║ú tß║íi quß║ºy, `feeCollections` + `/api/ops/fees/{id}/confirm`, `refunds` tr├¬n board, l╞░u ghi ch├║ M07a.
+
+## 2026-10-15 ΓÇö F31: Frontend vß║¡n h├ánh KD, kh├┤ng sß╗¡a backend/database
+
+- Bß║ún gß╗æc: SSFRMS(1).zip mß╗¢i; API: operations-api(3).md; thiß║┐t kß║┐ B01ΓÇôB05 section 436:13803.
+- Th├¬m src/business, src/api/business, assets cß╗Ñc bß╗Ö v├á mock frontend opt-in dev:business.
+- Chß╗ë nß╗æi role OPERATIONS v├áo router/session hiß╗çn c├│; giß╗» nguy├¬n ─æiß╗üu kiß╗çn c├íc role c┼⌐.
+- B02 gom 8 ├┤ th├ánh 5 type/scope ─æß╗â ─æ├║ng API; quy ─æß╗ïnh phß╗Ñ l├á d├▓ng c├│ nh├ún trong ruleDescription;
+  409 phß║úi x├íc nhß║¡n tr╞░ß╗¢c khi thay thß║┐. Kh├┤ng sß╗¡a backend ─æß╗â cho nhiß╗üu policy xung ─æß╗Öt c├╣ng tß╗ôn tß║íi.
+- Kiß╗âm chß╗⌐ng: npm test 38/38; test:business 8/8; test:render 76 route; build/init FE PASS;
+  Chromium 13 nh├│m PASS; 14/14 m├án c├íc role kh├íc giß╗æng tß╗½ng pixel; 4 XLSX mß╗ƒ bß║▒ng openpyxl.
+- 77 file source/config backend nguy├¬n byte so ZIP ─æß║ºu v├áo; kh├┤ng sß╗¡a DB, migration, seeder hoß║╖c endpoint.
+- Phß║ím vi ng╞░ß╗¥i d├╣ng chß╗ë frontend n├¬n kh├┤ng build .NET, kh├┤ng thß╗¡ SQL Server thß║¡t.
 - Xem BUSINESS_FRONTEND_README.md, BUSINESS_FRONTEND_REVIEW.md, BUSINESS-FLOW-COVERAGE.md trong frontend.
 
-# Nhật ký tiến độ (progress.md)
+# Nhß║¡t k├╜ tiß║┐n ─æß╗Ö (progress.md)
 
-> Mỗi phiên làm việc với AI thêm MỘT mục ở đầu danh sách (mới nhất trên cùng).
-> Ghi đủ để phiên sau tiếp tục ngay mà không phải hỏi lại. Không xoá mục cũ.
+> Mß╗ùi phi├¬n l├ám viß╗çc vß╗¢i AI th├¬m Mß╗ÿT mß╗Ñc ß╗ƒ ─æß║ºu danh s├ích (mß╗¢i nhß║Ñt tr├¬n c├╣ng).
+> Ghi ─æß╗º ─æß╗â phi├¬n sau tiß║┐p tß╗Ñc ngay m├á kh├┤ng phß║úi hß╗Åi lß║íi. Kh├┤ng xo├í mß╗Ñc c┼⌐.
 
-## Phiên 2026-10-24 (Đợt 7) — Rà Soát Tính Độc Lập Pipeline Khi Thử Nghiệm Trên Repo Clone (SSFRMS-clone)
+## Phi├¬n 2026-10-24 (─Éß╗út 7) ΓÇö R├á So├ít T├¡nh ─Éß╗Öc Lß║¡p Pipeline Khi Thß╗¡ Nghiß╗çm Tr├¬n Repo Clone (SSFRMS-clone)
 
-- **Mục tiêu:** Rà soát toàn diện workflow, script và cấu hình đóng gói để đảm bảo kiểm thử an toàn, độc lập trên repo clone (`https://github.com/ryocoding13/SSFRMS-clone`) mà không bị hardcode repo gốc hay rò rỉ secrets.
-- **Kết quả rà soát:**
-  1. **Không hardcode tên repo:** Mọi vị trí trong `.github/workflows/ci.yml`, `deploy-production.yml` và script sinh manifest đều sử dụng biến động `${{ github.repository }}`. Image tags sẽ tự động phân giải thành `ghcr.io/ryocoding13/ssfrms-clone/{api,web,migrator}:sha-<commit>`.
-  2. **Bảo vệ môi trường CD:** Cả hai cờ `ENABLE_STAGING_DEPLOY` và `ENABLE_PRODUCTION_DEPLOY` đều mặc định vắng mặt trong repo mới $\rightarrow$ Staging tự động chạy ở chế độ Standby an toàn (job `staging-standby` chỉ log thông báo và exit 0; không có SSH secrets thì không bao giờ kết nối server).
-  3. **Linh hoạt kiểm soát xuất bản package:** Cập nhật điều kiện job `publish-release` trong `ci.yml`: bổ sung `(vars.ENABLE_RELEASE_PUBLISH != 'false')`. Người dùng có thể dễ dàng tắt việc publish lên GHCR trên repo test chỉ bằng cách khai báo biến `ENABLE_RELEASE_PUBLISH=false` trong repo settings.
-- **Kiểm chứng:** `npx --yes yaml-lint .github/workflows/*.yml` PASS 100%.
-- **Tuân thủ AGENTS.md:** AI không thực hiện commit hay push. Thay đổi đã sẵn sàng trên working tree.
+- **Mß╗Ñc ti├¬u:** R├á so├ít to├án diß╗çn workflow, script v├á cß║Ñu h├¼nh ─æ├│ng g├│i ─æß╗â ─æß║úm bß║úo kiß╗âm thß╗¡ an to├án, ─æß╗Öc lß║¡p tr├¬n repo clone (`https://github.com/ryocoding13/SSFRMS-clone`) m├á kh├┤ng bß╗ï hardcode repo gß╗æc hay r├▓ rß╗ë secrets.
+- **Kß║┐t quß║ú r├á so├ít:**
+  1. **Kh├┤ng hardcode t├¬n repo:** Mß╗ìi vß╗ï tr├¡ trong `.github/workflows/ci.yml`, `deploy-production.yml` v├á script sinh manifest ─æß╗üu sß╗¡ dß╗Ñng biß║┐n ─æß╗Öng `${{ github.repository }}`. Image tags sß║╜ tß╗▒ ─æß╗Öng ph├ón giß║úi th├ánh `ghcr.io/ryocoding13/ssfrms-clone/{api,web,migrator}:sha-<commit>`.
+  2. **Bß║úo vß╗ç m├┤i tr╞░ß╗¥ng CD:** Cß║ú hai cß╗¥ `ENABLE_STAGING_DEPLOY` v├á `ENABLE_PRODUCTION_DEPLOY` ─æß╗üu mß║╖c ─æß╗ïnh vß║»ng mß║╖t trong repo mß╗¢i $\rightarrow$ Staging tß╗▒ ─æß╗Öng chß║íy ß╗ƒ chß║┐ ─æß╗Ö Standby an to├án (job `staging-standby` chß╗ë log th├┤ng b├ío v├á exit 0; kh├┤ng c├│ SSH secrets th├¼ kh├┤ng bao giß╗¥ kß║┐t nß╗æi server).
+  3. **Linh hoß║ít kiß╗âm so├ít xuß║Ñt bß║ún package:** Cß║¡p nhß║¡t ─æiß╗üu kiß╗çn job `publish-release` trong `ci.yml`: bß╗ò sung `(vars.ENABLE_RELEASE_PUBLISH != 'false')`. Ng╞░ß╗¥i d├╣ng c├│ thß╗â dß╗à d├áng tß║»t viß╗çc publish l├¬n GHCR tr├¬n repo test chß╗ë bß║▒ng c├ích khai b├ío biß║┐n `ENABLE_RELEASE_PUBLISH=false` trong repo settings.
+- **Kiß╗âm chß╗⌐ng:** `npx --yes yaml-lint .github/workflows/*.yml` PASS 100%.
+- **Tu├ón thß╗º AGENTS.md:** AI kh├┤ng thß╗▒c hiß╗çn commit hay push. Thay ─æß╗òi ─æ├ú sß║╡n s├áng tr├¬n working tree.
 
-## Phiên 2026-10-24 (Đợt 6) — Đồng Bộ Main PR #29 và Giải Quyết Xung Đột DECISIONS.md & feature_list.json
+## Phi├¬n 2026-10-24 (─Éß╗út 6) ΓÇö ─Éß╗ông Bß╗Ö Main PR #29 v├á Giß║úi Quyß║┐t Xung ─Éß╗Öt DECISIONS.md & feature_list.json
 
-- **Mục tiêu:** Đồng bộ các thay đổi mới nhất từ `origin/main` (commit `c5aa79a` - PR #29 của Nhi về đồng bộ Figma 23/10 đợt 2) và giải quyết triệt để xung đột merge.
-- **Xử lý xung đột:**
-  1. `DECISIONS.md`: Bảo toàn cả hai quyết định `D28` từ main (`D28 — Đồng bộ Figma 23/10` và `D28 — Kiểm thử giao diện C12/C12b/C13 bằng Playwright`), đồng thời giữ nguyên quyết định `D29 — Chiến lược CI/CD, Container hoá và Rollback an toàn (24/10/2026) — Đã chốt` và quy trình `PROCESS-2026-10-24`.
-  2. `feature_list.json`: Giữ nguyên tính năng `F39` (chính sách D27), tích hợp tính năng mới `F40` (Figma sync đợt 2), đồng thời bảo toàn trọn vẹn 8 tính năng `CI01`–`CI08`. Cú pháp JSON được validate hợp lệ 100%.
-- **Kiểm chứng toàn diện sau merge:**
-  - Frontend: `npm test` 81/81 test PASS; `npm run test:business` 9/9 test PASS; `npm run test:render` 97/97 route PASS; `npm run check:structure` PASS; `npm run build` PASS (0 lần xuất hiện của `localhost:5151` trong bundle).
-  - Backend: `dotnet test StorageProject.slnx` chạy thành công toàn bộ test suites với 0 lỗi (bao gồm cả xUnit unit tests và integration tests).
-- **Tuân thủ AGENTS.md:** AI không thực hiện commit hay push. Toàn bộ merge conflicts đã được giải quyết sạch sẽ và staged sẵn sàng trên working tree.
+- **Mß╗Ñc ti├¬u:** ─Éß╗ông bß╗Ö c├íc thay ─æß╗òi mß╗¢i nhß║Ñt tß╗½ `origin/main` (commit `c5aa79a` - PR #29 cß╗ºa Nhi vß╗ü ─æß╗ông bß╗Ö Figma 23/10 ─æß╗út 2) v├á giß║úi quyß║┐t triß╗çt ─æß╗â xung ─æß╗Öt merge.
+- **Xß╗¡ l├╜ xung ─æß╗Öt:**
+  1. `DECISIONS.md`: Bß║úo to├án cß║ú hai quyß║┐t ─æß╗ïnh `D28` tß╗½ main (`D28 ΓÇö ─Éß╗ông bß╗Ö Figma 23/10` v├á `D28 ΓÇö Kiß╗âm thß╗¡ giao diß╗çn C12/C12b/C13 bß║▒ng Playwright`), ─æß╗ông thß╗¥i giß╗» nguy├¬n quyß║┐t ─æß╗ïnh `D29 ΓÇö Chiß║┐n l╞░ß╗úc CI/CD, Container ho├í v├á Rollback an to├án (24/10/2026) ΓÇö ─É├ú chß╗æt` v├á quy tr├¼nh `PROCESS-2026-10-24`.
+  2. `feature_list.json`: Giß╗» nguy├¬n t├¡nh n─âng `F39` (ch├¡nh s├ích D27), t├¡ch hß╗úp t├¡nh n─âng mß╗¢i `F40` (Figma sync ─æß╗út 2), ─æß╗ông thß╗¥i bß║úo to├án trß╗ìn vß║╣n 8 t├¡nh n─âng `CI01`ΓÇô`CI08`. C├║ ph├íp JSON ─æ╞░ß╗úc validate hß╗úp lß╗ç 100%.
+- **Kiß╗âm chß╗⌐ng to├án diß╗çn sau merge:**
+  - Frontend: `npm test` 81/81 test PASS; `npm run test:business` 9/9 test PASS; `npm run test:render` 97/97 route PASS; `npm run check:structure` PASS; `npm run build` PASS (0 lß║ºn xuß║Ñt hiß╗çn cß╗ºa `localhost:5151` trong bundle).
+  - Backend: `dotnet test StorageProject.slnx` chß║íy th├ánh c├┤ng to├án bß╗Ö test suites vß╗¢i 0 lß╗ùi (bao gß╗ôm cß║ú xUnit unit tests v├á integration tests).
+- **Tu├ón thß╗º AGENTS.md:** AI kh├┤ng thß╗▒c hiß╗çn commit hay push. To├án bß╗Ö merge conflicts ─æ├ú ─æ╞░ß╗úc giß║úi quyß║┐t sß║ích sß║╜ v├á staged sß║╡n s├áng tr├¬n working tree.
 
-## Phiên 2026-10-24 (Đợt 5) — Khắc Phục Lỗi Globalization Invariant Mode với Chiseled-Extra Images
+## Phi├¬n 2026-10-24 (─Éß╗út 5) ΓÇö Khß║»c Phß╗Ñc Lß╗ùi Globalization Invariant Mode vß╗¢i Chiseled-Extra Images
 
-- **Mục tiêu:** Khắc phục lỗi `PlatformNotSupportedException: Globalization Invariant Mode is not supported` do `Microsoft.Data.SqlClient` yêu cầu thư viện ICU/globalization khi container `migrator` và `api` kết nối với SQL Server.
-- **Nguyên nhân:** Base image `chiseled` tối giản mặc định thiếu ICU và bật chế độ globalization invariant. Thư viện `Microsoft.Data.SqlClient` không hỗ trợ chế độ này vì cần ICU để xử lý collation và encoding. Tag `chiseled-extra` của Microsoft cung cấp đầy đủ ICU và tzdata cần thiết.
-- **Khắc phục:**
-  - Cập nhật `deploy/migrator.Dockerfile`:
-    - Runtime base image chuyển sang `mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled-extra AS runtime`.
-    - Bổ sung biến môi trường: `ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`.
-    - Bảo toàn toàn vẹn bước `RUN dotnet restore StorageProject.Api/StorageProject.Api.csproj` đã sửa ở đợt trước.
-  - Cập nhật `StorageProject.Api/Dockerfile`:
-    - Runtime base image chuyển sang `mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra AS runtime`.
-    - Bổ sung biến môi trường: `ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`.
-- **Kiểm chứng:**
-  - Xác nhận hai tag `10.0-noble-chiseled-extra` tồn tại chính thức trên MCR và cung cấp đầy đủ ICU.
-  - Giữ nguyên cơ chế bảo mật non-root (`USER $APP_UID`) và kích thước tối giản của chiseled.
-  - Ghi nhận ranh giới kiểm thử: Do Docker daemon trên Windows cục bộ đang tắt, kịch bản stack compose và smoke test sẽ được xác thực tự động trên GitHub Actions runner trong job `container-build`.
-- **Tuân thủ AGENTS.md:** AI không thực hiện commit hay push. Thay đổi đã sẵn sàng trên working tree của nhánh `feature/cicd-candidate`.
+- **Mß╗Ñc ti├¬u:** Khß║»c phß╗Ñc lß╗ùi `PlatformNotSupportedException: Globalization Invariant Mode is not supported` do `Microsoft.Data.SqlClient` y├¬u cß║ºu th╞░ viß╗çn ICU/globalization khi container `migrator` v├á `api` kß║┐t nß╗æi vß╗¢i SQL Server.
+- **Nguy├¬n nh├ón:** Base image `chiseled` tß╗æi giß║ún mß║╖c ─æß╗ïnh thiß║┐u ICU v├á bß║¡t chß║┐ ─æß╗Ö globalization invariant. Th╞░ viß╗çn `Microsoft.Data.SqlClient` kh├┤ng hß╗ù trß╗ú chß║┐ ─æß╗Ö n├áy v├¼ cß║ºn ICU ─æß╗â xß╗¡ l├╜ collation v├á encoding. Tag `chiseled-extra` cß╗ºa Microsoft cung cß║Ñp ─æß║ºy ─æß╗º ICU v├á tzdata cß║ºn thiß║┐t.
+- **Khß║»c phß╗Ñc:**
+  - Cß║¡p nhß║¡t `deploy/migrator.Dockerfile`:
+    - Runtime base image chuyß╗ân sang `mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled-extra AS runtime`.
+    - Bß╗ò sung biß║┐n m├┤i tr╞░ß╗¥ng: `ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`.
+    - Bß║úo to├án to├án vß║╣n b╞░ß╗¢c `RUN dotnet restore StorageProject.Api/StorageProject.Api.csproj` ─æ├ú sß╗¡a ß╗ƒ ─æß╗út tr╞░ß╗¢c.
+  - Cß║¡p nhß║¡t `StorageProject.Api/Dockerfile`:
+    - Runtime base image chuyß╗ân sang `mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra AS runtime`.
+    - Bß╗ò sung biß║┐n m├┤i tr╞░ß╗¥ng: `ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false`.
+- **Kiß╗âm chß╗⌐ng:**
+  - X├íc nhß║¡n hai tag `10.0-noble-chiseled-extra` tß╗ôn tß║íi ch├¡nh thß╗⌐c tr├¬n MCR v├á cung cß║Ñp ─æß║ºy ─æß╗º ICU.
+  - Giß╗» nguy├¬n c╞í chß║┐ bß║úo mß║¡t non-root (`USER $APP_UID`) v├á k├¡ch th╞░ß╗¢c tß╗æi giß║ún cß╗ºa chiseled.
+  - Ghi nhß║¡n ranh giß╗¢i kiß╗âm thß╗¡: Do Docker daemon tr├¬n Windows cß╗Ñc bß╗Ö ─æang tß║»t, kß╗ïch bß║ún stack compose v├á smoke test sß║╜ ─æ╞░ß╗úc x├íc thß╗▒c tß╗▒ ─æß╗Öng tr├¬n GitHub Actions runner trong job `container-build`.
+- **Tu├ón thß╗º AGENTS.md:** AI kh├┤ng thß╗▒c hiß╗çn commit hay push. Thay ─æß╗òi ─æ├ú sß║╡n s├áng tr├¬n working tree cß╗ºa nh├ính `feature/cicd-candidate`.
 
-## Phiên 2026-10-24 (Đợt 4) — Sửa Lỗi NETSDK1004 trong deploy/migrator.Dockerfile
+## Phi├¬n 2026-10-24 (─Éß╗út 4) ΓÇö Sß╗¡a Lß╗ùi NETSDK1004 trong deploy/migrator.Dockerfile
 
-- **Mục tiêu:** Khắc phục lỗi `NETSDK1004: Assets file 'StorageProject.Api/obj/project.assets.json' not found` khi chạy lệnh `dotnet dotnet-ef migrations bundle` trong image `deploy/migrator.Dockerfile`.
-- **Nguyên nhân:** `migrator.Dockerfile` trước đó chỉ chạy `dotnet restore StorageProject.Infrastructure/StorageProject.Infrastructure.csproj`. Tuy nhiên, khi tạo migration bundle cần startup project là `StorageProject.Api`, dẫn đến EF Core không tìm thấy file assets của API project.
-- **Khắc phục:**
-  - Sửa `deploy/migrator.Dockerfile`: Thay `RUN dotnet restore StorageProject.Infrastructure/StorageProject.Infrastructure.csproj` bằng `RUN dotnet restore StorageProject.Api/StorageProject.Api.csproj`.
-  - Việc restore API project tự động kéo theo việc restore toàn bộ các project phụ thuộc (`StorageProject.Infrastructure` và `StorageProject.Core`), sinh đầy đủ `project.assets.json` cho cả 3 project.
-- **Kiểm chứng:**
-  - `dotnet tool restore`: Khôi phục thành công công cụ `dotnet-ef` v10.0.12.
-  - `dotnet restore StorageProject.Api/StorageProject.Api.csproj`: Khôi phục thành công `Core`, `Infrastructure`, và `Api`.
-  - `dotnet dotnet-ef migrations bundle --project StorageProject.Infrastructure --startup-project StorageProject.Api`: Build bundle thành công với 0 lỗi (xuất ra bundle thực thi độc lập).
-  - Ghi chú môi trường: Docker daemon cục bộ trên Windows hiện đang tắt (`//./pipe/dockerDesktopLinuxEngine` not found), do đó bước đóng gói Docker trực tiếp sẽ được chạy và xác nhận trên GitHub Actions runner trong lần push tiếp theo.
-- **Tuân thủ AGENTS.md:** AI không thực hiện commit hay push. Thay đổi đã sẵn sàng trên working tree của nhánh `feature/cicd-candidate`.
+- **Mß╗Ñc ti├¬u:** Khß║»c phß╗Ñc lß╗ùi `NETSDK1004: Assets file 'StorageProject.Api/obj/project.assets.json' not found` khi chß║íy lß╗çnh `dotnet dotnet-ef migrations bundle` trong image `deploy/migrator.Dockerfile`.
+- **Nguy├¬n nh├ón:** `migrator.Dockerfile` tr╞░ß╗¢c ─æ├│ chß╗ë chß║íy `dotnet restore StorageProject.Infrastructure/StorageProject.Infrastructure.csproj`. Tuy nhi├¬n, khi tß║ío migration bundle cß║ºn startup project l├á `StorageProject.Api`, dß║½n ─æß║┐n EF Core kh├┤ng t├¼m thß║Ñy file assets cß╗ºa API project.
+- **Khß║»c phß╗Ñc:**
+  - Sß╗¡a `deploy/migrator.Dockerfile`: Thay `RUN dotnet restore StorageProject.Infrastructure/StorageProject.Infrastructure.csproj` bß║▒ng `RUN dotnet restore StorageProject.Api/StorageProject.Api.csproj`.
+  - Viß╗çc restore API project tß╗▒ ─æß╗Öng k├⌐o theo viß╗çc restore to├án bß╗Ö c├íc project phß╗Ñ thuß╗Öc (`StorageProject.Infrastructure` v├á `StorageProject.Core`), sinh ─æß║ºy ─æß╗º `project.assets.json` cho cß║ú 3 project.
+- **Kiß╗âm chß╗⌐ng:**
+  - `dotnet tool restore`: Kh├┤i phß╗Ñc th├ánh c├┤ng c├┤ng cß╗Ñ `dotnet-ef` v10.0.12.
+  - `dotnet restore StorageProject.Api/StorageProject.Api.csproj`: Kh├┤i phß╗Ñc th├ánh c├┤ng `Core`, `Infrastructure`, v├á `Api`.
+  - `dotnet dotnet-ef migrations bundle --project StorageProject.Infrastructure --startup-project StorageProject.Api`: Build bundle th├ánh c├┤ng vß╗¢i 0 lß╗ùi (xuß║Ñt ra bundle thß╗▒c thi ─æß╗Öc lß║¡p).
+  - Ghi ch├║ m├┤i tr╞░ß╗¥ng: Docker daemon cß╗Ñc bß╗Ö tr├¬n Windows hiß╗çn ─æang tß║»t (`//./pipe/dockerDesktopLinuxEngine` not found), do ─æ├│ b╞░ß╗¢c ─æ├│ng g├│i Docker trß╗▒c tiß║┐p sß║╜ ─æ╞░ß╗úc chß║íy v├á x├íc nhß║¡n tr├¬n GitHub Actions runner trong lß║ºn push tiß║┐p theo.
+- **Tu├ón thß╗º AGENTS.md:** AI kh├┤ng thß╗▒c hiß╗çn commit hay push. Thay ─æß╗òi ─æ├ú sß║╡n s├áng tr├¬n working tree cß╗ºa nh├ính `feature/cicd-candidate`.
 
-## Phiên 2026-10-24 (Đợt 3) — Khắc Phục Xác Thực Provenance Workflow ID và Đối Chiếu Toàn Diện Staging Deployment Receipt
+## Phi├¬n 2026-10-24 (─Éß╗út 3) ΓÇö Khß║»c Phß╗Ñc X├íc Thß╗▒c Provenance Workflow ID v├á ─Éß╗æi Chiß║┐u To├án Diß╗çn Staging Deployment Receipt
 
-- **Mục tiêu:** Xử lý triệt để 2 điểm phát hiện cuối cùng trong production workflow theo yêu cầu review:
-  1. **Khắc phục lỗi `workflowPath` không được hỗ trợ trong `gh run view --json`:**
-     - `gh run view` không hỗ trợ trường `workflowPath` (gây lỗi khi gọi với `run_id` chỉ định) và việc so khớp chuỗi tên workflow dễ bị sai lệch khi đổi tên hiển thị.
-     - Khắc phục trong `.github/workflows/deploy-production.yml`:
-       - Tra cứu chính xác workflow ID chuẩn của CI qua GitHub API: `gh api repos/${{ github.repository }}/actions/workflows/ci.yml --jq '.id'`.
-       - Trong `gh run view`, sử dụng trường JSON chuẩn `workflowDatabaseId` và kiểm tra đối chiếu trực tiếp `RUN_WORKFLOW_ID == EXPECTED_WORKFLOW_ID`.
-       - Nhánh tìm kiếm run thành công tự động (`gh run list`) cũng lọc chính xác theo `--workflow "${EXPECTED_WORKFLOW_ID}"`.
-       - Xuất output `run_id=${RUN_ID}` từ step `fetch_manifest` để các step sau tái sử dụng chính xác.
-  2. **Hoàn thiện cấu trúc receipt và đối chiếu toàn diện Staging Deployment Receipt với Release Manifest:**
+- **Mß╗Ñc ti├¬u:** Xß╗¡ l├╜ triß╗çt ─æß╗â 2 ─æiß╗âm ph├ít hiß╗çn cuß╗æi c├╣ng trong production workflow theo y├¬u cß║ºu review:
+  1. **Khß║»c phß╗Ñc lß╗ùi `workflowPath` kh├┤ng ─æ╞░ß╗úc hß╗ù trß╗ú trong `gh run view --json`:**
+     - `gh run view` kh├┤ng hß╗ù trß╗ú tr╞░ß╗¥ng `workflowPath` (g├óy lß╗ùi khi gß╗ìi vß╗¢i `run_id` chß╗ë ─æß╗ïnh) v├á viß╗çc so khß╗¢p chuß╗ùi t├¬n workflow dß╗à bß╗ï sai lß╗çch khi ─æß╗òi t├¬n hiß╗ân thß╗ï.
+     - Khß║»c phß╗Ñc trong `.github/workflows/deploy-production.yml`:
+       - Tra cß╗⌐u ch├¡nh x├íc workflow ID chuß║⌐n cß╗ºa CI qua GitHub API: `gh api repos/${{ github.repository }}/actions/workflows/ci.yml --jq '.id'`.
+       - Trong `gh run view`, sß╗¡ dß╗Ñng tr╞░ß╗¥ng JSON chuß║⌐n `workflowDatabaseId` v├á kiß╗âm tra ─æß╗æi chiß║┐u trß╗▒c tiß║┐p `RUN_WORKFLOW_ID == EXPECTED_WORKFLOW_ID`.
+       - Nh├ính t├¼m kiß║┐m run th├ánh c├┤ng tß╗▒ ─æß╗Öng (`gh run list`) c┼⌐ng lß╗ìc ch├¡nh x├íc theo `--workflow "${EXPECTED_WORKFLOW_ID}"`.
+       - Xuß║Ñt output `run_id=${RUN_ID}` tß╗½ step `fetch_manifest` ─æß╗â c├íc step sau t├íi sß╗¡ dß╗Ñng ch├¡nh x├íc.
+  2. **Ho├án thiß╗çn cß║Ñu tr├║c receipt v├á ─æß╗æi chiß║┐u to├án diß╗çn Staging Deployment Receipt vß╗¢i Release Manifest:**
      - Trong `.github/workflows/ci.yml` (`deploy-staging`):
-       - Trích xuất 3 image digests (`.images.api.digest`, `.images.web.digest`, `.images.migrator.digest`) từ `release-manifest.json`.
-       - Tạo file `artifacts/staging-deployment-receipt.json` chứa đầy đủ: `environment: "staging"`, `commit`, `run_id: "${{ github.run_id }}"`, `host`, `status: "deployed"`, `smoke_status: "passed"`, và `images: { api, web, migrator }`.
-       - Upload artifact `staging-deployment-receipt` để phục vụ đối chiếu khi promote lên production.
+       - Tr├¡ch xuß║Ñt 3 image digests (`.images.api.digest`, `.images.web.digest`, `.images.migrator.digest`) tß╗½ `release-manifest.json`.
+       - Tß║ío file `artifacts/staging-deployment-receipt.json` chß╗⌐a ─æß║ºy ─æß╗º: `environment: "staging"`, `commit`, `run_id: "${{ github.run_id }}"`, `host`, `status: "deployed"`, `smoke_status: "passed"`, v├á `images: { api, web, migrator }`.
+       - Upload artifact `staging-deployment-receipt` ─æß╗â phß╗Ñc vß╗Ñ ─æß╗æi chiß║┐u khi promote l├¬n production.
      - Trong `.github/workflows/deploy-production.yml` (`Verify Staging Precondition`):
-       - Kiểm tra `CI_RUN_ID` (từ output của `fetch_manifest`): Nếu rỗng hoặc không tải được artifact `staging-deployment-receipt` từ đúng CI run đó -> fail-closed ngay lập tức (chặn promote nếu staging chỉ ở chế độ Standby hoặc deploy thất bại).
-       - Thực thi đoạn mã Node.js đối chiếu toàn diện 100% giữa receipt và manifest:
-         - Đối chiếu commit SHA: `receipt.commit === RELEASE_SHA`.
-         - Đối chiếu run ID: `String(receipt.run_id) === String(CI_RUN_ID)`.
-         - Đối chiếu environment: `receipt.environment === "staging"`.
-         - Đối chiếu trạng thái triển khai: `receipt.status === "deployed"`.
-         - Đối chiếu kiểm thử smoke: `receipt.smoke_status === "passed"`.
-         - Đối chiếu 3 image digests (API, Web, Migrator): hàm trích xuất hỗ trợ cả object `{ digest }` và string, đối chiếu khớp chính xác từng ký tự SHA256 với `release-manifest.json`.
-- **Kiểm chứng:**
-  - `npx --yes yaml-lint .github/workflows/*.yml`: PASS 100% toàn bộ workflows (`ci.yml`, `deploy-production.yml`, `rollback.yml`).
-  - Unit test Node.js cho logic đối chiếu receipt ↔ manifest: PASS (phát hiện và chặn đúng khi lệch SHA, run ID, environment, status, smoke_status, hoặc image digest).
-  - Khuyến nghị giữ CD ở chế độ Standby (`ENABLE_STAGING_DEPLOY: false`), mở PR để chạy kiểm thử CI thật trên GitHub Actions mà không phụ thuộc vào VPS.
-- **Tuân thủ AGENTS.md:** AI không chạy commit hay push. Toàn bộ thay đổi nằm sẵn trên working tree của nhánh `feature/cicd-candidate` để thành viên nhóm tự review và commit.
+       - Kiß╗âm tra `CI_RUN_ID` (tß╗½ output cß╗ºa `fetch_manifest`): Nß║┐u rß╗ùng hoß║╖c kh├┤ng tß║úi ─æ╞░ß╗úc artifact `staging-deployment-receipt` tß╗½ ─æ├║ng CI run ─æ├│ -> fail-closed ngay lß║¡p tß╗⌐c (chß║╖n promote nß║┐u staging chß╗ë ß╗ƒ chß║┐ ─æß╗Ö Standby hoß║╖c deploy thß║Ñt bß║íi).
+       - Thß╗▒c thi ─æoß║ín m├ú Node.js ─æß╗æi chiß║┐u to├án diß╗çn 100% giß╗»a receipt v├á manifest:
+         - ─Éß╗æi chiß║┐u commit SHA: `receipt.commit === RELEASE_SHA`.
+         - ─Éß╗æi chiß║┐u run ID: `String(receipt.run_id) === String(CI_RUN_ID)`.
+         - ─Éß╗æi chiß║┐u environment: `receipt.environment === "staging"`.
+         - ─Éß╗æi chiß║┐u trß║íng th├íi triß╗ân khai: `receipt.status === "deployed"`.
+         - ─Éß╗æi chiß║┐u kiß╗âm thß╗¡ smoke: `receipt.smoke_status === "passed"`.
+         - ─Éß╗æi chiß║┐u 3 image digests (API, Web, Migrator): h├ám tr├¡ch xuß║Ñt hß╗ù trß╗ú cß║ú object `{ digest }` v├á string, ─æß╗æi chiß║┐u khß╗¢p ch├¡nh x├íc tß╗½ng k├╜ tß╗▒ SHA256 vß╗¢i `release-manifest.json`.
+- **Kiß╗âm chß╗⌐ng:**
+  - `npx --yes yaml-lint .github/workflows/*.yml`: PASS 100% to├án bß╗Ö workflows (`ci.yml`, `deploy-production.yml`, `rollback.yml`).
+  - Unit test Node.js cho logic ─æß╗æi chiß║┐u receipt Γåö manifest: PASS (ph├ít hiß╗çn v├á chß║╖n ─æ├║ng khi lß╗çch SHA, run ID, environment, status, smoke_status, hoß║╖c image digest).
+  - Khuyß║┐n nghß╗ï giß╗» CD ß╗ƒ chß║┐ ─æß╗Ö Standby (`ENABLE_STAGING_DEPLOY: false`), mß╗ƒ PR ─æß╗â chß║íy kiß╗âm thß╗¡ CI thß║¡t tr├¬n GitHub Actions m├á kh├┤ng phß╗Ñ thuß╗Öc v├áo VPS.
+- **Tu├ón thß╗º AGENTS.md:** AI kh├┤ng chß║íy commit hay push. To├án bß╗Ö thay ─æß╗òi nß║▒m sß║╡n tr├¬n working tree cß╗ºa nh├ính `feature/cicd-candidate` ─æß╗â th├ánh vi├¬n nh├│m tß╗▒ review v├á commit.
 
-## Phiên 2026-10-24 (Đợt 2) — Đồng Bộ Main Mới, Khắc Phục Triệt Để CI/CD và Tách Biệt CD Chờ VPS
+## Phi├¬n 2026-10-24 (─Éß╗út 2) ΓÇö ─Éß╗ông Bß╗Ö Main Mß╗¢i, Khß║»c Phß╗Ñc Triß╗çt ─Éß╗â CI/CD v├á T├ích Biß╗çt CD Chß╗¥ VPS
 
-- **Mục tiêu:** Giải quyết triệt để các vấn đề còn lại từ đợt kiểm tra candidate và gộp các thay đổi mới nhất từ `origin/main` (commit `a632cb7` - PR #25 của Ngọc Mai):
-  1. **Xử lý xung đột với main mới:**
-     - Gộp commit `a632cb7` từ `origin/main` vào nhánh `feature/cicd-candidate`.
-     - Giải quyết xung đột nội dung tại `feature_list.json`: Giữ nguyên tính năng `F37` mới nhất (C12/C12b/C13 auth support của Mai), đồng thời bảo toàn trọn vẹn danh sách tính năng `CI01`–`CI08`. Cú pháp JSON được validate hợp lệ 100%.
-     - Chuẩn hóa số hiệu quyết định tại `DECISIONS.md`: Đổi mục CI/CD từ `D28` thành `D29` để không trùng với quyết định `D28` (Playwright C12/C13) vừa được merge từ `main`.
-  2. **R01 (Sửa dứt điểm upload-artifact SHA):**
-     - Sửa lỗi gõ nhầm commit SHA `4cec3d8aa04e39d1a68397de0c4cd6fb9dce6ec1` (số `6` thay vì `8`) tại cả 4 vị trí trong `.github/workflows/ci.yml` (dòng 55, 114, 181, 328) sang commit chuẩn `4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1` (v4.6.1).
-  3. **R02 / Smoke Test (Loại bỏ localhost:5151 khỏi production bundle):**
-     - Cấu hình `SafeSpace-Customer-UI/vite.config.js` với `define: { __DEV_API_FALLBACK__: JSON.stringify(isProd ? "" : "http://localhost:5151") }`.
-     - Cập nhật `src/app/config/api.js` dùng `__DEV_API_FALLBACK__`. Khi build production, chuỗi `localhost:5151` bị xóa sạch khỏi `dist/assets/index-*.js` (0 lần xuất hiện), trong khi test Node.js vẫn giữ kết nối mock server.
-  4. **R03 & R08 (Đồng bộ release sang server qua SCP & Verified known_hosts chuẩn OpenSSH):**
-     - Trong cả `.github/workflows/ci.yml` (`deploy-staging`) và `.github/workflows/deploy-production.yml` (`deploy-production`):
-       - Loại bỏ hoàn toàn fallback `ssh-keyscan` tự động tin khóa mạng (tránh rủi ro tấn công MITM theo hướng dẫn OpenSSH). Bắt buộc phải cấu hình `*_SSH_KNOWN_HOSTS` secret khi kích hoạt deploy thật; nếu thiếu, workflow fail-closed ngay lập tức.
-       - Bổ sung bước đồng bộ release: Trước khi gọi lệnh deploy/promote từ xa, workflow sử dụng `scp` chuyển file `release-manifest.json` đã được xác minh cùng bộ kịch bản triển khai (`scripts/deploy/*`, `scripts/ci/smoke.sh`, file compose tương ứng) sang thư mục `/opt/safespace` trên máy chủ từ xa, đảm bảo server luôn có đúng manifest và script phiên bản mới nhất.
-  5. **R06 & Staging Gate (Khắc phục lỗi tên workflow, tách biệt Staging Standby vs Deploy thật):**
-     - Trong `.github/workflows/deploy-production.yml`, bước kiểm tra `run_id` sử dụng `gh run view` xác thực workflow bằng đường dẫn chính xác `workflowPath == ".github/workflows/ci.yml"` (hoặc tên `CI`), giải quyết triệt để lỗi từ chối run hợp lệ do lệch tên hiển thị.
-     - Tách biệt Staging Standby và Staging Deploy trong `ci.yml`:
-       - Job `staging-standby` chỉ chạy khi `ENABLE_STAGING_DEPLOY != 'true'`, không gắn `environment: staging`, do đó **không tạo bản ghi GitHub deployment giả mạo**.
-       - Job `deploy-staging` chỉ kích hoạt khi `ENABLE_STAGING_DEPLOY == 'true'`, kết nối máy chủ thật, chạy deploy và smoke test, sau đó tạo và upload artifact `staging-deployment-receipt.json`.
-     - Trong `deploy-production.yml`, bước `Verify Staging Precondition` kiểm tra cả trạng thái deployment `state == 'success'` AND xác thực sự tồn tại của artifact `staging-deployment-receipt.json` từ CI run. Nếu staging ở chế độ Standby (không có receipt), promotion Production lập tức bị chặn đứng.
-  6. **R08 (Fail-Closed tuyệt đối & cờ sqlcmd -b):**
-     - `scripts/deploy/deploy.ps1`: Xóa bỏ hoàn toàn nhánh skip migration khi thiếu Docker (ném exception dừng ngay lập tức); bắt buộc `smoke.ps1` phải tồn tại và chạy thành công.
-     - `scripts/deploy/backup.sh` và `backup.ps1`: Thêm cờ `-b` vào toàn bộ lệnh gọi `sqlcmd`, bắt lỗi T-SQL fail-closed.
-  7. **R09 (Container Gate khởi động stack thật, chạy smoke & Step Summary động):**
-     - Job `container-build` trong `ci.yml` khởi động stack bằng `docker compose -f deploy/compose.yml up -d --build`, chạy `bash scripts/ci/smoke.sh "http://localhost:8080" 25 2` kiểm tra live stack và bundle sạch, sau đó dọn dẹp bằng `docker compose down -v`.
-     - Chuyển toàn bộ step summaries dưới `if: always()` sang trạng thái động: `${{ job.status == 'success' && '✅ SUCCESS' || '❌ FAILED' }}`.
-  8. **Ranh giới kiểm thử và chiến lược tách biệt CI/CD:**
-     - Ghi nhận rõ ràng ranh giới kiểm thử: Các lượt chạy integration test tại local không có SQL Server sẽ tự động skip và **không được tính là bằng chứng vượt qua kiểm thử SQL Server integration**. Bằng chứng hợp lệ chỉ được xác lập khi chạy với `REQUIRE_SQLSERVER=true` trên service container SQL Server của GitHub Actions runner (hoặc local có SQL Server thật đang chạy).
-     - Giữ toàn bộ phần CD ở trạng thái Standby (`ENABLE_STAGING_DEPLOY: false`, `ENABLE_PRODUCTION_DEPLOY: false`), sẵn sàng để thành viên mở PR merge CI vào `main` trước mà không bị phụ thuộc vào việc cấp phát VPS.
-- **Tuân thủ AGENTS.md:** AI không thực hiện commit hay push. Toàn bộ mã nguồn đã hoàn thiện và kiểm chứng thành công trên working tree của nhánh `feature/cicd-candidate` để thành viên nhóm tự xem xét và commit.
+- **Mß╗Ñc ti├¬u:** Giß║úi quyß║┐t triß╗çt ─æß╗â c├íc vß║Ñn ─æß╗ü c├▓n lß║íi tß╗½ ─æß╗út kiß╗âm tra candidate v├á gß╗Öp c├íc thay ─æß╗òi mß╗¢i nhß║Ñt tß╗½ `origin/main` (commit `a632cb7` - PR #25 cß╗ºa Ngß╗ìc Mai):
+  1. **Xß╗¡ l├╜ xung ─æß╗Öt vß╗¢i main mß╗¢i:**
+     - Gß╗Öp commit `a632cb7` tß╗½ `origin/main` v├áo nh├ính `feature/cicd-candidate`.
+     - Giß║úi quyß║┐t xung ─æß╗Öt nß╗Öi dung tß║íi `feature_list.json`: Giß╗» nguy├¬n t├¡nh n─âng `F37` mß╗¢i nhß║Ñt (C12/C12b/C13 auth support cß╗ºa Mai), ─æß╗ông thß╗¥i bß║úo to├án trß╗ìn vß║╣n danh s├ích t├¡nh n─âng `CI01`ΓÇô`CI08`. C├║ ph├íp JSON ─æ╞░ß╗úc validate hß╗úp lß╗ç 100%.
+     - Chuß║⌐n h├│a sß╗æ hiß╗çu quyß║┐t ─æß╗ïnh tß║íi `DECISIONS.md`: ─Éß╗òi mß╗Ñc CI/CD tß╗½ `D28` th├ánh `D29` ─æß╗â kh├┤ng tr├╣ng vß╗¢i quyß║┐t ─æß╗ïnh `D28` (Playwright C12/C13) vß╗½a ─æ╞░ß╗úc merge tß╗½ `main`.
+  2. **R01 (Sß╗¡a dß╗⌐t ─æiß╗âm upload-artifact SHA):**
+     - Sß╗¡a lß╗ùi g├╡ nhß║ºm commit SHA `4cec3d8aa04e39d1a68397de0c4cd6fb9dce6ec1` (sß╗æ `6` thay v├¼ `8`) tß║íi cß║ú 4 vß╗ï tr├¡ trong `.github/workflows/ci.yml` (d├▓ng 55, 114, 181, 328) sang commit chuß║⌐n `4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1` (v4.6.1).
+  3. **R02 / Smoke Test (Loß║íi bß╗Å localhost:5151 khß╗Åi production bundle):**
+     - Cß║Ñu h├¼nh `SafeSpace-Customer-UI/vite.config.js` vß╗¢i `define: { __DEV_API_FALLBACK__: JSON.stringify(isProd ? "" : "http://localhost:5151") }`.
+     - Cß║¡p nhß║¡t `src/app/config/api.js` d├╣ng `__DEV_API_FALLBACK__`. Khi build production, chuß╗ùi `localhost:5151` bß╗ï x├│a sß║ích khß╗Åi `dist/assets/index-*.js` (0 lß║ºn xuß║Ñt hiß╗çn), trong khi test Node.js vß║½n giß╗» kß║┐t nß╗æi mock server.
+  4. **R03 & R08 (─Éß╗ông bß╗Ö release sang server qua SCP & Verified known_hosts chuß║⌐n OpenSSH):**
+     - Trong cß║ú `.github/workflows/ci.yml` (`deploy-staging`) v├á `.github/workflows/deploy-production.yml` (`deploy-production`):
+       - Loß║íi bß╗Å ho├án to├án fallback `ssh-keyscan` tß╗▒ ─æß╗Öng tin kh├│a mß║íng (tr├ính rß╗ºi ro tß║Ñn c├┤ng MITM theo h╞░ß╗¢ng dß║½n OpenSSH). Bß║»t buß╗Öc phß║úi cß║Ñu h├¼nh `*_SSH_KNOWN_HOSTS` secret khi k├¡ch hoß║ít deploy thß║¡t; nß║┐u thiß║┐u, workflow fail-closed ngay lß║¡p tß╗⌐c.
+       - Bß╗ò sung b╞░ß╗¢c ─æß╗ông bß╗Ö release: Tr╞░ß╗¢c khi gß╗ìi lß╗çnh deploy/promote tß╗½ xa, workflow sß╗¡ dß╗Ñng `scp` chuyß╗ân file `release-manifest.json` ─æ├ú ─æ╞░ß╗úc x├íc minh c├╣ng bß╗Ö kß╗ïch bß║ún triß╗ân khai (`scripts/deploy/*`, `scripts/ci/smoke.sh`, file compose t╞░╞íng ß╗⌐ng) sang th╞░ mß╗Ñc `/opt/safespace` tr├¬n m├íy chß╗º tß╗½ xa, ─æß║úm bß║úo server lu├┤n c├│ ─æ├║ng manifest v├á script phi├¬n bß║ún mß╗¢i nhß║Ñt.
+  5. **R06 & Staging Gate (Khß║»c phß╗Ñc lß╗ùi t├¬n workflow, t├ích biß╗çt Staging Standby vs Deploy thß║¡t):**
+     - Trong `.github/workflows/deploy-production.yml`, b╞░ß╗¢c kiß╗âm tra `run_id` sß╗¡ dß╗Ñng `gh run view` x├íc thß╗▒c workflow bß║▒ng ─æ╞░ß╗¥ng dß║½n ch├¡nh x├íc `workflowPath == ".github/workflows/ci.yml"` (hoß║╖c t├¬n `CI`), giß║úi quyß║┐t triß╗çt ─æß╗â lß╗ùi tß╗½ chß╗æi run hß╗úp lß╗ç do lß╗çch t├¬n hiß╗ân thß╗ï.
+     - T├ích biß╗çt Staging Standby v├á Staging Deploy trong `ci.yml`:
+       - Job `staging-standby` chß╗ë chß║íy khi `ENABLE_STAGING_DEPLOY != 'true'`, kh├┤ng gß║»n `environment: staging`, do ─æ├│ **kh├┤ng tß║ío bß║ún ghi GitHub deployment giß║ú mß║ío**.
+       - Job `deploy-staging` chß╗ë k├¡ch hoß║ít khi `ENABLE_STAGING_DEPLOY == 'true'`, kß║┐t nß╗æi m├íy chß╗º thß║¡t, chß║íy deploy v├á smoke test, sau ─æ├│ tß║ío v├á upload artifact `staging-deployment-receipt.json`.
+     - Trong `deploy-production.yml`, b╞░ß╗¢c `Verify Staging Precondition` kiß╗âm tra cß║ú trß║íng th├íi deployment `state == 'success'` AND x├íc thß╗▒c sß╗▒ tß╗ôn tß║íi cß╗ºa artifact `staging-deployment-receipt.json` tß╗½ CI run. Nß║┐u staging ß╗ƒ chß║┐ ─æß╗Ö Standby (kh├┤ng c├│ receipt), promotion Production lß║¡p tß╗⌐c bß╗ï chß║╖n ─æß╗⌐ng.
+  6. **R08 (Fail-Closed tuyß╗çt ─æß╗æi & cß╗¥ sqlcmd -b):**
+     - `scripts/deploy/deploy.ps1`: X├│a bß╗Å ho├án to├án nh├ính skip migration khi thiß║┐u Docker (n├⌐m exception dß╗½ng ngay lß║¡p tß╗⌐c); bß║»t buß╗Öc `smoke.ps1` phß║úi tß╗ôn tß║íi v├á chß║íy th├ánh c├┤ng.
+     - `scripts/deploy/backup.sh` v├á `backup.ps1`: Th├¬m cß╗¥ `-b` v├áo to├án bß╗Ö lß╗çnh gß╗ìi `sqlcmd`, bß║»t lß╗ùi T-SQL fail-closed.
+  7. **R09 (Container Gate khß╗ƒi ─æß╗Öng stack thß║¡t, chß║íy smoke & Step Summary ─æß╗Öng):**
+     - Job `container-build` trong `ci.yml` khß╗ƒi ─æß╗Öng stack bß║▒ng `docker compose -f deploy/compose.yml up -d --build`, chß║íy `bash scripts/ci/smoke.sh "http://localhost:8080" 25 2` kiß╗âm tra live stack v├á bundle sß║ích, sau ─æ├│ dß╗ìn dß║╣p bß║▒ng `docker compose down -v`.
+     - Chuyß╗ân to├án bß╗Ö step summaries d╞░ß╗¢i `if: always()` sang trß║íng th├íi ─æß╗Öng: `${{ job.status == 'success' && 'Γ£à SUCCESS' || 'Γ¥î FAILED' }}`.
+  8. **Ranh giß╗¢i kiß╗âm thß╗¡ v├á chiß║┐n l╞░ß╗úc t├ích biß╗çt CI/CD:**
+     - Ghi nhß║¡n r├╡ r├áng ranh giß╗¢i kiß╗âm thß╗¡: C├íc l╞░ß╗út chß║íy integration test tß║íi local kh├┤ng c├│ SQL Server sß║╜ tß╗▒ ─æß╗Öng skip v├á **kh├┤ng ─æ╞░ß╗úc t├¡nh l├á bß║▒ng chß╗⌐ng v╞░ß╗út qua kiß╗âm thß╗¡ SQL Server integration**. Bß║▒ng chß╗⌐ng hß╗úp lß╗ç chß╗ë ─æ╞░ß╗úc x├íc lß║¡p khi chß║íy vß╗¢i `REQUIRE_SQLSERVER=true` tr├¬n service container SQL Server cß╗ºa GitHub Actions runner (hoß║╖c local c├│ SQL Server thß║¡t ─æang chß║íy).
+     - Giß╗» to├án bß╗Ö phß║ºn CD ß╗ƒ trß║íng th├íi Standby (`ENABLE_STAGING_DEPLOY: false`, `ENABLE_PRODUCTION_DEPLOY: false`), sß║╡n s├áng ─æß╗â th├ánh vi├¬n mß╗ƒ PR merge CI v├áo `main` tr╞░ß╗¢c m├á kh├┤ng bß╗ï phß╗Ñ thuß╗Öc v├áo viß╗çc cß║Ñp ph├ít VPS.
+- **Tu├ón thß╗º AGENTS.md:** AI kh├┤ng thß╗▒c hiß╗çn commit hay push. To├án bß╗Ö m├ú nguß╗ôn ─æ├ú ho├án thiß╗çn v├á kiß╗âm chß╗⌐ng th├ánh c├┤ng tr├¬n working tree cß╗ºa nh├ính `feature/cicd-candidate` ─æß╗â th├ánh vi├¬n nh├│m tß╗▒ xem x├⌐t v├á commit.
 
-## Phiên 2026-10-24 — Khắc Phục Toàn Diện Review CI/CD (R01–R13) Chuẩn Bị Merge Candidate
+## Phi├¬n 2026-10-24 ΓÇö Khß║»c Phß╗Ñc To├án Diß╗çn Review CI/CD (R01ΓÇôR13) Chuß║⌐n Bß╗ï Merge Candidate
 
-- **Mục tiêu:** Xử lý và khắc phục toàn bộ 13 điểm phát hiện trong `SSFRMS-CICD-MERGE-REVIEW.md` (R01–R13) trên nhánh tích hợp `feature/cicd-candidate` để sẵn sàng merge vào `main`.
-- **Quy tắc bắt buộc tuân thủ:** Tuân thủ `AGENTS.md` và `PROCESS-2026-10-24`: **AI không chạy git commit, git push, tạo PR hay merge.** Toàn bộ thay đổi và kết quả kiểm chứng được giữ lại trên working tree để thành viên nhóm tự kiểm tra và commit/PR thủ công.
-- **Nền & Xử lý Conflict:**
-  - Nhánh làm việc: `feature/cicd-candidate` (nhánh tích hợp tạo từ `feature/cicd-ci08` đã gộp các thay đổi mới nhất từ `origin/main`).
-  - Giải quyết xung đột tay tại `DECISIONS.md` (giữ nguyên quy trình `PROCESS-2026-10-24` của main và quyết định `D28` của CI/CD).
-  - Giải quyết xung đột tay tại `docs/verification.md` (kết hợp các lệnh kiểm thử với ghi chú rõ ràng về phạm vi và giới hạn).
-- **Các điểm đã khắc phục chi tiết (R01–R13):**
-  - **R01 (Pin Action SHA chuẩn):** Sửa lỗi gõ nhầm commit SHA của `actions/setup-dotnet` trong `.github/workflows/ci.yml` từ `3951f0adf...` thành `3951f0dfe7a07e2313ec93c75700083e2005cbab` (v4.3.0). Kiểm tra và xác nhận toàn bộ các actions khác đều dùng full commit SHA tồn tại trên GitHub.
-  - **R02 (Web same-origin & clean bundle):** Cập nhật `SafeSpace-Customer-UI/src/app/config/api.js` đặt mặc định API URL là chuỗi rỗng `""` trong production build (tự động gọi relative same-origin reverse proxy `/api/...`), chỉ fallback `http://localhost:5151` ở môi trường dev (`env.DEV`). Bổ sung `ARG VITE_API_URL="/"` và `ARG VITE_USE_API="true"` vào `SafeSpace-Customer-UI/Dockerfile`. Chạy `npm run build` và grep xác nhận `dist/assets/index-*.js` chứa đúng 0 lần xuất hiện của `localhost:5151`.
-  - **R03 (Deployment Standby & Remote SSH Host):** Sửa `.github/workflows/ci.yml` (`deploy-staging`) và `.github/workflows/deploy-production.yml` (`deploy-production`): khi biến `ENABLE_*_DEPLOY` chưa bật (`false`), giữ job ở chế độ Standby an toàn; khi bật `true`, yêu cầu bắt buộc cấu hình `*_SSH_HOST` secret hoặc runner riêng (`*_RUNNER_IS_HOST=true`), fail-closed nếu không có cấu hình máy chủ, ngăn chặn chạy deploy giả lập trên runner tạm.
-  - **R04 (Compose variables & environment mapping):** Chuẩn hóa toàn bộ biến nội suy trong `deploy/compose.staging.yml` và `deploy/compose.production.yml` (`API_IMAGE`, `WEB_IMAGE`, `MIGRATOR_IMAGE`, `DATABASE_CONNECTION_STRING`, `SA_PASSWORD`, `JWT_SECRET`, `FRONTEND_URL`). Cập nhật `deploy/.env.example` cung cấp đầy đủ cả hai định dạng biến. Kịch bản deploy/rollback xuất full image references dạng `<image>@sha256:<digest>`, pre-pull image thật và luôn truyền `--env-file` + `-p`. `docker compose config` cả 3 file đều PASS không cần `|| true`.
-  - **R05 (JSON Parser chuẩn):** Thay thế toàn bộ logic parse JSON bằng `grep -A 2` / `cut` mong manh trong `promote-production.sh`, `promote-production.ps1`, `rollback.sh`, `rollback.ps1`, `deploy.sh`, `deploy.ps1` và `deploy-production.yml` bằng parser JSON gốc của Node.js / PowerShell `ConvertFrom-Json`. Xóa bỏ lỗi biến chưa khai báo `${CI_GATE}` trong `promote-production.sh`.
-  - **R06 (Manifest Provenance):** Cập nhật `scripts/deploy/generate-manifest.sh` (.ps1) từ chối nghiêm ngặt digest rỗng hoặc `sha256:0000...`, kiểm tra SHA 40-hex. Xóa bỏ fallback manifest `deploy/release-current.json` trong `deploy-production.yml`, bắt buộc manifest phải tải từ CI run đã xác thực trên nhánh `main`.
-  - **R07 (Ngăn ngừa Shell Injection):** Trong `deploy-production.yml`, bước `validate_sha` chuyển sang truyền tham số qua `env: RAW_INPUT_SHA: ${{ github.event.inputs.release_sha }}`, sau đó trích xuất và kiểm tra regex trong shell, loại bỏ hoàn toàn lỗ hổng inline command substitution.
-  - **R08 (Fail-Closed & xóa simulation):** `deploy.sh` và `deploy.ps1` loại bỏ toàn bộ code mô phỏng; nếu backup, migration hoặc smoke test thất bại, dừng triển khai ngay lập tức và không cập nhật `release-current.json`. Thêm cờ `-b` vào `sqlcmd` trong `backup.sh` và `rollback.sh` để bắt lỗi SQL.
-  - **R09 (ci-gate kiểm tra đóng gói & smoke bundle):** Cập nhật job `container-build` trong `ci.yml` kiểm tra cả `deploy/migrator.Dockerfile` và validate compose bằng `.env.example` (bỏ `|| true`). Bổ sung vào `scripts/ci/smoke.sh` (.ps1) bước 5: trích xuất đường dẫn script `/assets/index-*.js`, tải bundle qua HTTP và khẳng định không có `localhost:5151`.
-  - **R10 (Rollback atomic lock & lịch sử tách biệt):** `rollback.sh` và `rollback.ps1` sử dụng atomic lock theo environment (`/tmp/safespace-${ENV_TARGET}.lock` và `safespace-${EnvTarget}.lock`), phân tách lịch sử phát hành vào `deploy/releases/staging` và `deploy/releases/production`. Dùng `--no-deps api web` chỉ chuyển đổi container ứng dụng, không chạy lại migrator.
-  - **R11 (Runtime security & CORS):** Cập nhật `StorageProject.Api/Program.cs`: cấu hình `ForwardedHeadersOptions` với các dải mạng tin cậy RFC 1918 / Docker subnet bằng `System.Net.IPNetwork`; CORS ở non-dev từ chối arbitrary origins khi danh sách rỗng; JWT ở non-dev bắt buộc độ dài >= 32 và từ chối placeholder. Thêm test cases vào `StorageProject.Tests/DeploymentConfigTests.cs`.
-  - **R12 (Docker ignore context):** Tạo `SafeSpace-Customer-UI/.dockerignore` ngăn chặn copy `node_modules/`, `.env*`, `dist/` vào build stage. Cập nhật root `.dockerignore` loại trừ file env nhạy cảm và thư mục deploy runtime.
-  - **R13 (Minh bạch tài liệu và bằng chứng):** Cập nhật `docs/cicd.md`, `docs/deployment.md`, `docs/rollback.md`, `docs/verification.md`, `feature_list.json` và `progress.md`: ghi nhận trung thực kết quả kiểm chứng local và phân định rõ ràng các phần việc phụ thuộc vào hạ tầng bên ngoài chưa kích hoạt.
-- **Kiểm chứng thực tế:**
+- **Mß╗Ñc ti├¬u:** Xß╗¡ l├╜ v├á khß║»c phß╗Ñc to├án bß╗Ö 13 ─æiß╗âm ph├ít hiß╗çn trong `SSFRMS-CICD-MERGE-REVIEW.md` (R01ΓÇôR13) tr├¬n nh├ính t├¡ch hß╗úp `feature/cicd-candidate` ─æß╗â sß║╡n s├áng merge v├áo `main`.
+- **Quy tß║»c bß║»t buß╗Öc tu├ón thß╗º:** Tu├ón thß╗º `AGENTS.md` v├á `PROCESS-2026-10-24`: **AI kh├┤ng chß║íy git commit, git push, tß║ío PR hay merge.** To├án bß╗Ö thay ─æß╗òi v├á kß║┐t quß║ú kiß╗âm chß╗⌐ng ─æ╞░ß╗úc giß╗» lß║íi tr├¬n working tree ─æß╗â th├ánh vi├¬n nh├│m tß╗▒ kiß╗âm tra v├á commit/PR thß╗º c├┤ng.
+- **Nß╗ün & Xß╗¡ l├╜ Conflict:**
+  - Nh├ính l├ám viß╗çc: `feature/cicd-candidate` (nh├ính t├¡ch hß╗úp tß║ío tß╗½ `feature/cicd-ci08` ─æ├ú gß╗Öp c├íc thay ─æß╗òi mß╗¢i nhß║Ñt tß╗½ `origin/main`).
+  - Giß║úi quyß║┐t xung ─æß╗Öt tay tß║íi `DECISIONS.md` (giß╗» nguy├¬n quy tr├¼nh `PROCESS-2026-10-24` cß╗ºa main v├á quyß║┐t ─æß╗ïnh `D28` cß╗ºa CI/CD).
+  - Giß║úi quyß║┐t xung ─æß╗Öt tay tß║íi `docs/verification.md` (kß║┐t hß╗úp c├íc lß╗çnh kiß╗âm thß╗¡ vß╗¢i ghi ch├║ r├╡ r├áng vß╗ü phß║ím vi v├á giß╗¢i hß║ín).
+- **C├íc ─æiß╗âm ─æ├ú khß║»c phß╗Ñc chi tiß║┐t (R01ΓÇôR13):**
+  - **R01 (Pin Action SHA chuß║⌐n):** Sß╗¡a lß╗ùi g├╡ nhß║ºm commit SHA cß╗ºa `actions/setup-dotnet` trong `.github/workflows/ci.yml` tß╗½ `3951f0adf...` th├ánh `3951f0dfe7a07e2313ec93c75700083e2005cbab` (v4.3.0). Kiß╗âm tra v├á x├íc nhß║¡n to├án bß╗Ö c├íc actions kh├íc ─æß╗üu d├╣ng full commit SHA tß╗ôn tß║íi tr├¬n GitHub.
+  - **R02 (Web same-origin & clean bundle):** Cß║¡p nhß║¡t `SafeSpace-Customer-UI/src/app/config/api.js` ─æß║╖t mß║╖c ─æß╗ïnh API URL l├á chuß╗ùi rß╗ùng `""` trong production build (tß╗▒ ─æß╗Öng gß╗ìi relative same-origin reverse proxy `/api/...`), chß╗ë fallback `http://localhost:5151` ß╗ƒ m├┤i tr╞░ß╗¥ng dev (`env.DEV`). Bß╗ò sung `ARG VITE_API_URL="/"` v├á `ARG VITE_USE_API="true"` v├áo `SafeSpace-Customer-UI/Dockerfile`. Chß║íy `npm run build` v├á grep x├íc nhß║¡n `dist/assets/index-*.js` chß╗⌐a ─æ├║ng 0 lß║ºn xuß║Ñt hiß╗çn cß╗ºa `localhost:5151`.
+  - **R03 (Deployment Standby & Remote SSH Host):** Sß╗¡a `.github/workflows/ci.yml` (`deploy-staging`) v├á `.github/workflows/deploy-production.yml` (`deploy-production`): khi biß║┐n `ENABLE_*_DEPLOY` ch╞░a bß║¡t (`false`), giß╗» job ß╗ƒ chß║┐ ─æß╗Ö Standby an to├án; khi bß║¡t `true`, y├¬u cß║ºu bß║»t buß╗Öc cß║Ñu h├¼nh `*_SSH_HOST` secret hoß║╖c runner ri├¬ng (`*_RUNNER_IS_HOST=true`), fail-closed nß║┐u kh├┤ng c├│ cß║Ñu h├¼nh m├íy chß╗º, ng─ân chß║╖n chß║íy deploy giß║ú lß║¡p tr├¬n runner tß║ím.
+  - **R04 (Compose variables & environment mapping):** Chuß║⌐n h├│a to├án bß╗Ö biß║┐n nß╗Öi suy trong `deploy/compose.staging.yml` v├á `deploy/compose.production.yml` (`API_IMAGE`, `WEB_IMAGE`, `MIGRATOR_IMAGE`, `DATABASE_CONNECTION_STRING`, `SA_PASSWORD`, `JWT_SECRET`, `FRONTEND_URL`). Cß║¡p nhß║¡t `deploy/.env.example` cung cß║Ñp ─æß║ºy ─æß╗º cß║ú hai ─æß╗ïnh dß║íng biß║┐n. Kß╗ïch bß║ún deploy/rollback xuß║Ñt full image references dß║íng `<image>@sha256:<digest>`, pre-pull image thß║¡t v├á lu├┤n truyß╗ün `--env-file` + `-p`. `docker compose config` cß║ú 3 file ─æß╗üu PASS kh├┤ng cß║ºn `|| true`.
+  - **R05 (JSON Parser chuß║⌐n):** Thay thß║┐ to├án bß╗Ö logic parse JSON bß║▒ng `grep -A 2` / `cut` mong manh trong `promote-production.sh`, `promote-production.ps1`, `rollback.sh`, `rollback.ps1`, `deploy.sh`, `deploy.ps1` v├á `deploy-production.yml` bß║▒ng parser JSON gß╗æc cß╗ºa Node.js / PowerShell `ConvertFrom-Json`. X├│a bß╗Å lß╗ùi biß║┐n ch╞░a khai b├ío `${CI_GATE}` trong `promote-production.sh`.
+  - **R06 (Manifest Provenance):** Cß║¡p nhß║¡t `scripts/deploy/generate-manifest.sh` (.ps1) tß╗½ chß╗æi nghi├¬m ngß║╖t digest rß╗ùng hoß║╖c `sha256:0000...`, kiß╗âm tra SHA 40-hex. X├│a bß╗Å fallback manifest `deploy/release-current.json` trong `deploy-production.yml`, bß║»t buß╗Öc manifest phß║úi tß║úi tß╗½ CI run ─æ├ú x├íc thß╗▒c tr├¬n nh├ính `main`.
+  - **R07 (Ng─ân ngß╗½a Shell Injection):** Trong `deploy-production.yml`, b╞░ß╗¢c `validate_sha` chuyß╗ân sang truyß╗ün tham sß╗æ qua `env: RAW_INPUT_SHA: ${{ github.event.inputs.release_sha }}`, sau ─æ├│ tr├¡ch xuß║Ñt v├á kiß╗âm tra regex trong shell, loß║íi bß╗Å ho├án to├án lß╗ù hß╗òng inline command substitution.
+  - **R08 (Fail-Closed & x├│a simulation):** `deploy.sh` v├á `deploy.ps1` loß║íi bß╗Å to├án bß╗Ö code m├┤ phß╗Ång; nß║┐u backup, migration hoß║╖c smoke test thß║Ñt bß║íi, dß╗½ng triß╗ân khai ngay lß║¡p tß╗⌐c v├á kh├┤ng cß║¡p nhß║¡t `release-current.json`. Th├¬m cß╗¥ `-b` v├áo `sqlcmd` trong `backup.sh` v├á `rollback.sh` ─æß╗â bß║»t lß╗ùi SQL.
+  - **R09 (ci-gate kiß╗âm tra ─æ├│ng g├│i & smoke bundle):** Cß║¡p nhß║¡t job `container-build` trong `ci.yml` kiß╗âm tra cß║ú `deploy/migrator.Dockerfile` v├á validate compose bß║▒ng `.env.example` (bß╗Å `|| true`). Bß╗ò sung v├áo `scripts/ci/smoke.sh` (.ps1) b╞░ß╗¢c 5: tr├¡ch xuß║Ñt ─æ╞░ß╗¥ng dß║½n script `/assets/index-*.js`, tß║úi bundle qua HTTP v├á khß║│ng ─æß╗ïnh kh├┤ng c├│ `localhost:5151`.
+  - **R10 (Rollback atomic lock & lß╗ïch sß╗¡ t├ích biß╗çt):** `rollback.sh` v├á `rollback.ps1` sß╗¡ dß╗Ñng atomic lock theo environment (`/tmp/safespace-${ENV_TARGET}.lock` v├á `safespace-${EnvTarget}.lock`), ph├ón t├ích lß╗ïch sß╗¡ ph├ít h├ánh v├áo `deploy/releases/staging` v├á `deploy/releases/production`. D├╣ng `--no-deps api web` chß╗ë chuyß╗ân ─æß╗òi container ß╗⌐ng dß╗Ñng, kh├┤ng chß║íy lß║íi migrator.
+  - **R11 (Runtime security & CORS):** Cß║¡p nhß║¡t `StorageProject.Api/Program.cs`: cß║Ñu h├¼nh `ForwardedHeadersOptions` vß╗¢i c├íc dß║úi mß║íng tin cß║¡y RFC 1918 / Docker subnet bß║▒ng `System.Net.IPNetwork`; CORS ß╗ƒ non-dev tß╗½ chß╗æi arbitrary origins khi danh s├ích rß╗ùng; JWT ß╗ƒ non-dev bß║»t buß╗Öc ─æß╗Ö d├ái >= 32 v├á tß╗½ chß╗æi placeholder. Th├¬m test cases v├áo `StorageProject.Tests/DeploymentConfigTests.cs`.
+  - **R12 (Docker ignore context):** Tß║ío `SafeSpace-Customer-UI/.dockerignore` ng─ân chß║╖n copy `node_modules/`, `.env*`, `dist/` v├áo build stage. Cß║¡p nhß║¡t root `.dockerignore` loß║íi trß╗½ file env nhß║íy cß║úm v├á th╞░ mß╗Ñc deploy runtime.
+  - **R13 (Minh bß║ích t├ái liß╗çu v├á bß║▒ng chß╗⌐ng):** Cß║¡p nhß║¡t `docs/cicd.md`, `docs/deployment.md`, `docs/rollback.md`, `docs/verification.md`, `feature_list.json` v├á `progress.md`: ghi nhß║¡n trung thß╗▒c kß║┐t quß║ú kiß╗âm chß╗⌐ng local v├á ph├ón ─æß╗ïnh r├╡ r├áng c├íc phß║ºn viß╗çc phß╗Ñ thuß╗Öc v├áo hß║í tß║ºng b├¬n ngo├ái ch╞░a k├¡ch hoß║ít.
+- **Kiß╗âm chß╗⌐ng thß╗▒c tß║┐:**
   - `npm test`: 76/76 PASS.
   - `npm run test:business`: 9/9 PASS.
   - `npm run test:render`: 92/92 PASS.
   - `npm run check:structure`: PASS.
-  - `npm run build`: PASS (Vite production bundle không có chuỗi `localhost:5151`).
+  - `npm run build`: PASS (Vite production bundle kh├┤ng c├│ chuß╗ùi `localhost:5151`).
   - `dotnet build StorageProject.slnx -c Release -m:1`: PASS (0 errors, 0 warnings).
-  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release`: 61/61 PASS (toàn bộ unit tests và deployment config security tests).
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release`: 61/61 PASS (to├án bß╗Ö unit tests v├á deployment config security tests).
   - `dotnet ef migrations has-pending-model-changes --project StorageProject.Infrastructure --startup-project StorageProject.Api`: PASS (0 pending changes).
   - `docker compose -f deploy/compose.yml config --quiet`: PASS.
   - `docker compose --env-file deploy/.env.example -f deploy/compose.staging.yml config --quiet`: PASS.
   - `docker compose --env-file deploy/.env.example -f deploy/compose.production.yml config --quiet`: PASS.
-- **Bàn giao:** Toàn bộ mã nguồn đã hoàn chỉnh trên nhánh `feature/cicd-candidate`, working tree sạch lỗi và sẵn sàng để người dùng xem xét, commit và tạo Pull Request vào `main`.
+- **B├án giao:** To├án bß╗Ö m├ú nguß╗ôn ─æ├ú ho├án chß╗ënh tr├¬n nh├ính `feature/cicd-candidate`, working tree sß║ích lß╗ùi v├á sß║╡n s├áng ─æß╗â ng╞░ß╗¥i d├╣ng xem x├⌐t, commit v├á tß║ío Pull Request v├áo `main`.
 
-## Phiên CI08 — 2026-10-24 — Rollback An Toàn, Vận Hành và Bàn Giao Hoàn Tất Toàn Bộ CI/CD Pipeline
+## Phi├¬n CI08 ΓÇö 2026-10-24 ΓÇö Rollback An To├án, Vß║¡n H├ánh v├á B├án Giao Ho├án Tß║Ñt To├án Bß╗Ö CI/CD Pipeline
 
-- **Tính năng:** CI08 — Rollback, vận hành và bàn giao (`scripts/deploy/rollback.sh`, `scripts/deploy/rollback.ps1`, `docs/cicd.md`, `docs/deployment.md`, `docs/rollback.md`, `docs/verification.md`, `DECISIONS.md`, `feature_list.json`).
-- **Nền:** Nhánh `feature/cicd-ci08` (kế thừa commit `21d4dc8` từ CI07).
-- **Đã xong:**
-  - **Xây dựng Bộ Kịch Bản Rollback An Toàn 7 Bước (`scripts/deploy/rollback.sh` [100755] & `scripts/deploy/rollback.ps1`):**
-    - Quy tắc bảo vệ schema: **Tuyệt đối không tự động chạy EF Core Down**, bảo toàn cấu hình constraint và dữ liệu trong các bảng thanh toán / đặt kho. Mặc định áp dụng chiến lược Forward-fix.
-    - Quy trình 7 bước:
-      1. Khóa môi trường (`/tmp/safespace-rollback.lock`) chống xung đột thao tác.
-      2. Tự động xác định hoặc nhận chỉ định previous release manifest, trích xuất exact image digests của bản release an toàn trước đó.
-      3. Kiểm tra và xác nhận chính sách giữ nguyên database schema.
-      4. Tùy chọn khôi phục database: Chỉ thực hiện khi có cờ chỉ định file backup rõ ràng (`--restore-db <file.bak>`), có cảnh báo mất dữ liệu sau thời điểm backup.
-      5. Hoán chuyển và khởi động lại API + Web containers về exact digests đã ghim trong manifest cũ.
-      6. Chờ readiness probe `/health/ready` xác nhận dịch vụ đã phục hồi hoàn toàn.
-      7. Thực thi smoke test tự động và phục hồi `release-current.json` (hoặc `release-production-current.json`).
-  - **Hoàn Thiện Bộ 3 Tài Liệu Vận Hành Chuyên Sâu:**
-    - **`docs/cicd.md`:** Bản vẽ kiến trúc tổng thể toàn bộ hệ thống CI/CD, phân tích chi tiết 4 tầng kiểm thử trong PR CI Gate (`frontend`, `backend`, `integration-test`, `container-build`), luồng tự động publish GHCR + Staging CD trên nhánh `main`, luồng kiểm soát promotion Production có phê duyệt, ma trận biến môi trường và bí mật (Repository Variables & Environment Secrets).
-    - **`docs/deployment.md`:** Sổ tay hướng dẫn chi tiết triển khai máy chủ Staging và Production, thiết lập non-root container cho API (.NET 10 Chiseled), cấu hình Docker bridge networks không expose port nhạy cảm (1433, 8080) ra Internet, quy trình vận hành one-shot migrator, thiết lập Nginx/Caddy edge proxy và lịch sao lưu định kỳ.
-    - **`docs/rollback.md`:** Sổ tay hướng dẫn ứng cứu sự cố và rollback an toàn, phân loại 3 cấp độ sự cố (Lỗi ứng dụng, Lỗi migration, Hỏng hóc dữ liệu), runbook 7 bước khôi phục database thủ công từ file sao lưu `.bak`, hướng dẫn đọc báo cáo TRX/JUnit trên GitHub Actions và chẩn đoán log lỗi.
-  - **Cập nhật Tài liệu Kỹ thuật Dự án:**
-    - `DECISIONS.md`: Bổ sung **Quyết định D28** chốt toàn bộ chiến lược CI/CD đa tầng, container non-root, ghim digest bằng release manifest, controlled promotion và chính sách an toàn forward-fix schema.
-    - `docs/verification.md`: Bổ sung bảng đối chiếu các lệnh kiểm thử và triển khai CI/CD.
-    - `feature_list.json`: Đánh dấu `CI08` sang `passing` với đầy đủ bằng chứng. **Hoàn thành 100% toàn bộ chuỗi 8 task CI01–CI08!**
-- **Kiểm chứng:**
+- **T├¡nh n─âng:** CI08 ΓÇö Rollback, vß║¡n h├ánh v├á b├án giao (`scripts/deploy/rollback.sh`, `scripts/deploy/rollback.ps1`, `docs/cicd.md`, `docs/deployment.md`, `docs/rollback.md`, `docs/verification.md`, `DECISIONS.md`, `feature_list.json`).
+- **Nß╗ün:** Nh├ính `feature/cicd-ci08` (kß║┐ thß╗½a commit `21d4dc8` tß╗½ CI07).
+- **─É├ú xong:**
+  - **X├óy dß╗▒ng Bß╗Ö Kß╗ïch Bß║ún Rollback An To├án 7 B╞░ß╗¢c (`scripts/deploy/rollback.sh` [100755] & `scripts/deploy/rollback.ps1`):**
+    - Quy tß║»c bß║úo vß╗ç schema: **Tuyß╗çt ─æß╗æi kh├┤ng tß╗▒ ─æß╗Öng chß║íy EF Core Down**, bß║úo to├án cß║Ñu h├¼nh constraint v├á dß╗» liß╗çu trong c├íc bß║úng thanh to├ín / ─æß║╖t kho. Mß║╖c ─æß╗ïnh ├íp dß╗Ñng chiß║┐n l╞░ß╗úc Forward-fix.
+    - Quy tr├¼nh 7 b╞░ß╗¢c:
+      1. Kh├│a m├┤i tr╞░ß╗¥ng (`/tmp/safespace-rollback.lock`) chß╗æng xung ─æß╗Öt thao t├íc.
+      2. Tß╗▒ ─æß╗Öng x├íc ─æß╗ïnh hoß║╖c nhß║¡n chß╗ë ─æß╗ïnh previous release manifest, tr├¡ch xuß║Ñt exact image digests cß╗ºa bß║ún release an to├án tr╞░ß╗¢c ─æ├│.
+      3. Kiß╗âm tra v├á x├íc nhß║¡n ch├¡nh s├ích giß╗» nguy├¬n database schema.
+      4. T├╣y chß╗ìn kh├┤i phß╗Ñc database: Chß╗ë thß╗▒c hiß╗çn khi c├│ cß╗¥ chß╗ë ─æß╗ïnh file backup r├╡ r├áng (`--restore-db <file.bak>`), c├│ cß║únh b├ío mß║Ñt dß╗» liß╗çu sau thß╗¥i ─æiß╗âm backup.
+      5. Ho├ín chuyß╗ân v├á khß╗ƒi ─æß╗Öng lß║íi API + Web containers vß╗ü exact digests ─æ├ú ghim trong manifest c┼⌐.
+      6. Chß╗¥ readiness probe `/health/ready` x├íc nhß║¡n dß╗ïch vß╗Ñ ─æ├ú phß╗Ñc hß╗ôi ho├án to├án.
+      7. Thß╗▒c thi smoke test tß╗▒ ─æß╗Öng v├á phß╗Ñc hß╗ôi `release-current.json` (hoß║╖c `release-production-current.json`).
+  - **Ho├án Thiß╗çn Bß╗Ö 3 T├ái Liß╗çu Vß║¡n H├ánh Chuy├¬n S├óu:**
+    - **`docs/cicd.md`:** Bß║ún vß║╜ kiß║┐n tr├║c tß╗òng thß╗â to├án bß╗Ö hß╗ç thß╗æng CI/CD, ph├ón t├¡ch chi tiß║┐t 4 tß║ºng kiß╗âm thß╗¡ trong PR CI Gate (`frontend`, `backend`, `integration-test`, `container-build`), luß╗ông tß╗▒ ─æß╗Öng publish GHCR + Staging CD tr├¬n nh├ính `main`, luß╗ông kiß╗âm so├ít promotion Production c├│ ph├¬ duyß╗çt, ma trß║¡n biß║┐n m├┤i tr╞░ß╗¥ng v├á b├¡ mß║¡t (Repository Variables & Environment Secrets).
+    - **`docs/deployment.md`:** Sß╗ò tay h╞░ß╗¢ng dß║½n chi tiß║┐t triß╗ân khai m├íy chß╗º Staging v├á Production, thiß║┐t lß║¡p non-root container cho API (.NET 10 Chiseled), cß║Ñu h├¼nh Docker bridge networks kh├┤ng expose port nhß║íy cß║úm (1433, 8080) ra Internet, quy tr├¼nh vß║¡n h├ánh one-shot migrator, thiß║┐t lß║¡p Nginx/Caddy edge proxy v├á lß╗ïch sao l╞░u ─æß╗ïnh kß╗│.
+    - **`docs/rollback.md`:** Sß╗ò tay h╞░ß╗¢ng dß║½n ß╗⌐ng cß╗⌐u sß╗▒ cß╗æ v├á rollback an to├án, ph├ón loß║íi 3 cß║Ñp ─æß╗Ö sß╗▒ cß╗æ (Lß╗ùi ß╗⌐ng dß╗Ñng, Lß╗ùi migration, Hß╗Ång h├│c dß╗» liß╗çu), runbook 7 b╞░ß╗¢c kh├┤i phß╗Ñc database thß╗º c├┤ng tß╗½ file sao l╞░u `.bak`, h╞░ß╗¢ng dß║½n ─æß╗ìc b├ío c├ío TRX/JUnit tr├¬n GitHub Actions v├á chß║⌐n ─æo├ín log lß╗ùi.
+  - **Cß║¡p nhß║¡t T├ái liß╗çu Kß╗╣ thuß║¡t Dß╗▒ ├ín:**
+    - `DECISIONS.md`: Bß╗ò sung **Quyß║┐t ─æß╗ïnh D28** chß╗æt to├án bß╗Ö chiß║┐n l╞░ß╗úc CI/CD ─æa tß║ºng, container non-root, ghim digest bß║▒ng release manifest, controlled promotion v├á ch├¡nh s├ích an to├án forward-fix schema.
+    - `docs/verification.md`: Bß╗ò sung bß║úng ─æß╗æi chiß║┐u c├íc lß╗çnh kiß╗âm thß╗¡ v├á triß╗ân khai CI/CD.
+    - `feature_list.json`: ─É├ính dß║Ñu `CI08` sang `passing` vß╗¢i ─æß║ºy ─æß╗º bß║▒ng chß╗⌐ng. **Ho├án th├ánh 100% to├án bß╗Ö chuß╗ùi 8 task CI01ΓÇôCI08!**
+- **Kiß╗âm chß╗⌐ng:**
   - `npx --yes yaml-lint .github/workflows/*.yml`: PASS 100% (0 errors).
-  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\rollback.ps1 -PreviousManifest nonexistent.json`: Bắt đúng lỗi manifest không tồn tại.
-  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\rollback.ps1 -?`: Trả về cú pháp trợ giúp chính xác, không lỗi parser.
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\rollback.ps1 -PreviousManifest nonexistent.json`: Bß║»t ─æ├║ng lß╗ùi manifest kh├┤ng tß╗ôn tß║íi.
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\rollback.ps1 -?`: Trß║ú vß╗ü c├║ ph├íp trß╗ú gi├║p ch├¡nh x├íc, kh├┤ng lß╗ùi parser.
   - `powershell -ExecutionPolicy Bypass -File .\init.ps1`: PASS 100% (FE 4 suites + BE Release build + 57 unit tests + 9 integration tests).
-- **Trạng thái tổng thể CI/CD:** Hoàn thành trọn vẹn toàn bộ 8/8 tính năng CI01–CI08 trong kế hoạch triển khai.
+- **Trß║íng th├íi tß╗òng thß╗â CI/CD:** Ho├án th├ánh trß╗ìn vß║╣n to├án bß╗Ö 8/8 t├¡nh n─âng CI01ΓÇôCI08 trong kß║┐ hoß║ích triß╗ân khai.
 
-## Phiên CI07 — 2026-10-24 — Promotion Production có Kiểm Soát
+## Phi├¬n CI07 ΓÇö 2026-10-24 ΓÇö Promotion Production c├│ Kiß╗âm So├ít
 
-- **Tính năng:** CI07 — Promotion production có kiểm soát (`.github/workflows/deploy-production.yml`, `scripts/deploy/promote-production.sh`, `scripts/deploy/promote-production.ps1`, `scripts/deploy/backup.ps1`, `scripts/deploy/deploy.ps1`, `scripts/deploy/generate-manifest.ps1`, `scripts/ci/smoke.ps1`, `.gitignore`).
-- **Nền:** Nhánh `feature/cicd-ci07` (kế thừa commit `b11d908` từ CI06).
-- **Đã xong:**
-  - **Xây dựng Workflow Promotion Production (`.github/workflows/deploy-production.yml`):**
-    - Kích hoạt qua `workflow_dispatch` với input `release_sha` (kiểm tra regex `^[0-9a-fA-F]{40}$` nghiêm ngặt) và `run_id` tùy chọn.
-    - Chạy độc quyền trên default branch `main` tin cậy, ngăn chặn thực thi ref/branch tùy ý với production secrets.
-    - Tự động truy vấn và xác thực release manifest từ CI run thành công trên `main` qua GitHub CLI API.
-    - Kiểm tra provenance và tính toàn vẹn: cam kết chỉ promote release có `gateResults` (frontend, backend, integration, container) đều đạt `success`, image digests tuân thủ `sha256:...`.
-    - Thiết lập GitHub Environment `production` (hỗ trợ required reviewers / protection rules) và kiểm soát an toàn qua biến `ENABLE_PRODUCTION_DEPLOY` (chế độ Standby ghi rõ trạng thái lên `$GITHUB_STEP_SUMMARY` khi chưa cấu hình host).
-  - **Xây dựng Bộ Kịch Bản Triển Khai Production (`scripts/deploy/promote-production.sh` [100755] & `scripts/deploy/promote-production.ps1`):**
-    - Quy trình 9 bước bảo vệ Production tối đa:
-      1. Khóa deploy production (`/tmp/safespace-prod-deploy.lock`) chống xung đột tiến trình.
-      2. Xác thực release manifest, kiểm tra 4 gate checks pass và trích xuất exact digests.
-      3. Kiểm tra an toàn cấu hình môi trường: nghiêm cấm `Database__SeedMode` là Development/Staging trên Production.
-      4. Pre-pull images theo exact digest, cam kết **tuyệt đối KHÔNG rebuild mã nguồn** trên Production.
-      5. Bắt buộc sao lưu database Production (`safespace-prod-sqlserver` -> `/var/backups/safespace/prod/`) trước khi can thiệp schema; fail backup => dừng triển khai ngay lập tức.
-      6. Tạm dừng API/Web cũ, chạy one-shot migrator container; fail migration => dừng ngay, không chuyển sang app mới.
-      7. Khởi động API và Web production containers mới theo digest.
-      8. Chờ readiness probe `/health/ready` sẵn sàng (retry 30 lần, timeout 60s).
-      9. Thực thi smoke test suite và lưu trữ lịch sử release tại `deploy/releases/prod_<timestamp>_<sha>.json`.
-  - **Tối ưu Tương Thích & An Toàn Môi Trường:**
-    - Chuẩn hóa toàn bộ PowerShell scripts trong `scripts/deploy/` và `scripts/ci/` sang mã hóa ký tự tương thích CP1252/PowerShell 5.1 (tránh lỗi ngắt dòng do Unicode box-drawing).
-    - Bổ sung cấu hình `.gitignore` loại trừ thư mục runtime backups (`deploy/backups/`), releases (`deploy/releases/`) và manifest tạm thời.
-- **Kiểm chứng:**
+- **T├¡nh n─âng:** CI07 ΓÇö Promotion production c├│ kiß╗âm so├ít (`.github/workflows/deploy-production.yml`, `scripts/deploy/promote-production.sh`, `scripts/deploy/promote-production.ps1`, `scripts/deploy/backup.ps1`, `scripts/deploy/deploy.ps1`, `scripts/deploy/generate-manifest.ps1`, `scripts/ci/smoke.ps1`, `.gitignore`).
+- **Nß╗ün:** Nh├ính `feature/cicd-ci07` (kß║┐ thß╗½a commit `b11d908` tß╗½ CI06).
+- **─É├ú xong:**
+  - **X├óy dß╗▒ng Workflow Promotion Production (`.github/workflows/deploy-production.yml`):**
+    - K├¡ch hoß║ít qua `workflow_dispatch` vß╗¢i input `release_sha` (kiß╗âm tra regex `^[0-9a-fA-F]{40}$` nghi├¬m ngß║╖t) v├á `run_id` t├╣y chß╗ìn.
+    - Chß║íy ─æß╗Öc quyß╗ün tr├¬n default branch `main` tin cß║¡y, ng─ân chß║╖n thß╗▒c thi ref/branch t├╣y ├╜ vß╗¢i production secrets.
+    - Tß╗▒ ─æß╗Öng truy vß║Ñn v├á x├íc thß╗▒c release manifest tß╗½ CI run th├ánh c├┤ng tr├¬n `main` qua GitHub CLI API.
+    - Kiß╗âm tra provenance v├á t├¡nh to├án vß║╣n: cam kß║┐t chß╗ë promote release c├│ `gateResults` (frontend, backend, integration, container) ─æß╗üu ─æß║ít `success`, image digests tu├ón thß╗º `sha256:...`.
+    - Thiß║┐t lß║¡p GitHub Environment `production` (hß╗ù trß╗ú required reviewers / protection rules) v├á kiß╗âm so├ít an to├án qua biß║┐n `ENABLE_PRODUCTION_DEPLOY` (chß║┐ ─æß╗Ö Standby ghi r├╡ trß║íng th├íi l├¬n `$GITHUB_STEP_SUMMARY` khi ch╞░a cß║Ñu h├¼nh host).
+  - **X├óy dß╗▒ng Bß╗Ö Kß╗ïch Bß║ún Triß╗ân Khai Production (`scripts/deploy/promote-production.sh` [100755] & `scripts/deploy/promote-production.ps1`):**
+    - Quy tr├¼nh 9 b╞░ß╗¢c bß║úo vß╗ç Production tß╗æi ─æa:
+      1. Kh├│a deploy production (`/tmp/safespace-prod-deploy.lock`) chß╗æng xung ─æß╗Öt tiß║┐n tr├¼nh.
+      2. X├íc thß╗▒c release manifest, kiß╗âm tra 4 gate checks pass v├á tr├¡ch xuß║Ñt exact digests.
+      3. Kiß╗âm tra an to├án cß║Ñu h├¼nh m├┤i tr╞░ß╗¥ng: nghi├¬m cß║Ñm `Database__SeedMode` l├á Development/Staging tr├¬n Production.
+      4. Pre-pull images theo exact digest, cam kß║┐t **tuyß╗çt ─æß╗æi KH├öNG rebuild m├ú nguß╗ôn** tr├¬n Production.
+      5. Bß║»t buß╗Öc sao l╞░u database Production (`safespace-prod-sqlserver` -> `/var/backups/safespace/prod/`) tr╞░ß╗¢c khi can thiß╗çp schema; fail backup => dß╗½ng triß╗ân khai ngay lß║¡p tß╗⌐c.
+      6. Tß║ím dß╗½ng API/Web c┼⌐, chß║íy one-shot migrator container; fail migration => dß╗½ng ngay, kh├┤ng chuyß╗ân sang app mß╗¢i.
+      7. Khß╗ƒi ─æß╗Öng API v├á Web production containers mß╗¢i theo digest.
+      8. Chß╗¥ readiness probe `/health/ready` sß║╡n s├áng (retry 30 lß║ºn, timeout 60s).
+      9. Thß╗▒c thi smoke test suite v├á l╞░u trß╗» lß╗ïch sß╗¡ release tß║íi `deploy/releases/prod_<timestamp>_<sha>.json`.
+  - **Tß╗æi ╞░u T╞░╞íng Th├¡ch & An To├án M├┤i Tr╞░ß╗¥ng:**
+    - Chuß║⌐n h├│a to├án bß╗Ö PowerShell scripts trong `scripts/deploy/` v├á `scripts/ci/` sang m├ú h├│a k├╜ tß╗▒ t╞░╞íng th├¡ch CP1252/PowerShell 5.1 (tr├ính lß╗ùi ngß║»t d├▓ng do Unicode box-drawing).
+    - Bß╗ò sung cß║Ñu h├¼nh `.gitignore` loß║íi trß╗½ th╞░ mß╗Ñc runtime backups (`deploy/backups/`), releases (`deploy/releases/`) v├á manifest tß║ím thß╗¥i.
+- **Kiß╗âm chß╗⌐ng:**
   - `npx --yes yaml-lint .github/workflows/deploy-production.yml .github/workflows/ci.yml`: PASS (0 YAML errors).
-  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\promote-production.ps1 -ManifestFile nonexistent.json`: Bắt đúng lỗi không tìm thấy manifest.
-  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\promote-production.ps1 -ManifestFile artifacts/release-manifest.json`: Kiểm tra xác thực manifest và digests thành công; dừng an toàn tại bước backup khi chưa có SQL Server Production container.
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\promote-production.ps1 -ManifestFile nonexistent.json`: Bß║»t ─æ├║ng lß╗ùi kh├┤ng t├¼m thß║Ñy manifest.
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\promote-production.ps1 -ManifestFile artifacts/release-manifest.json`: Kiß╗âm tra x├íc thß╗▒c manifest v├á digests th├ánh c├┤ng; dß╗½ng an to├án tß║íi b╞░ß╗¢c backup khi ch╞░a c├│ SQL Server Production container.
   - `powershell -ExecutionPolicy Bypass -File .\init.ps1`: PASS 100% (FE 4 suites + BE Release build + 57 unit tests + 9 integration tests).
-- **Phiên sau:** Bắt đầu Task CI08 — Rollback, vận hành và bàn giao (`scripts/deploy/rollback.sh`, `scripts/deploy/rollback.ps1`, tài liệu `docs/cicd.md`, `docs/deployment.md`, `docs/rollback.md`, kiểm tra tổng thể).
+- **Phi├¬n sau:** Bß║»t ─æß║ºu Task CI08 ΓÇö Rollback, vß║¡n h├ánh v├á b├án giao (`scripts/deploy/rollback.sh`, `scripts/deploy/rollback.ps1`, t├ái liß╗çu `docs/cicd.md`, `docs/deployment.md`, `docs/rollback.md`, kiß╗âm tra tß╗òng thß╗â).
 
-## Phiên CI06 — 2026-10-24 — Publish Release Packages và Tự động hóa Deploy Staging
+## Phi├¬n CI06 ΓÇö 2026-10-24 ΓÇö Publish Release Packages v├á Tß╗▒ ─æß╗Öng h├│a Deploy Staging
 
-- **Tính năng:** CI06 — Publish release và tự deploy staging (`deploy/release-manifest.schema.json`, `scripts/deploy/generate-manifest.ps1`, `scripts/deploy/generate-manifest.sh`, `scripts/deploy/backup.ps1`, `scripts/deploy/backup.sh`, `scripts/deploy/deploy.ps1`, `scripts/deploy/deploy.sh`, `.github/workflows/ci.yml`).
-- **Nền:** Nhánh `feature/cicd-ci06` (kế thừa commit `7e53130` từ CI05).
-- **Đã xong:**
-  - **Tạo JSON Schema cho Release Manifest (`deploy/release-manifest.schema.json`):**
-    - Quy định đầy đủ cấu trúc bắt buộc: `schemaVersion`, `commit` (full SHA), `repository`, `runId`, `timestamp`, `migrationHead`, `images` (`api`, `web`, `migrator` kèm tag và sha256 digest), và `gateResults`.
-  - **Tạo bộ sinh Release Manifest (`scripts/deploy/generate-manifest.ps1`, `scripts/deploy/generate-manifest.sh`):**
-    - Tự động trích xuất git commit SHA, migration head (`20261020154838_ReservationPaymentIntegrity`), và digests của 3 container images.
-  - **Tạo bộ kịch bản Sao lưu Cơ sở dữ liệu (`scripts/deploy/backup.ps1`, `scripts/deploy/backup.sh`):**
-    - Thực thi `BACKUP DATABASE` trên SQL Server với timestamp, kiểm tra exit code.
-    - Sao chép file `.bak` ra ngoài container và volume host theo đúng quy định an toàn dữ liệu, kiểm tra kích thước file > 0.
-  - **Tạo bộ kịch bản Triển khai Staging (`scripts/deploy/deploy.ps1`, `scripts/deploy/deploy.sh`):**
-    - Tuân thủ quy trình 8 bước chuẩn:
-      1. Khóa deploy môi trường (`/tmp/safespace-deploy.lock`) chống chạy đồng thời.
-      2. Kiểm tra tính hợp lệ của manifest và trích xuất image digests.
-      3. Pre-pull cả 3 images bằng exact digest trước khi đổi service.
-      4. Chạy backup database trước khi can thiệp schema.
-      5. Dừng app cũ, chạy migrator container one-shot (fail => abort ngay, không up API mới).
-      6. Chạy seed explicit nếu có cấu hình.
-      7. Khởi động API và Web containers mới, chờ readiness `/health/ready` sẵn sàng.
-      8. Chạy bộ smoke test `scripts/ci/smoke.sh`, cập nhật `deploy/release-current.json`.
-  - **Mở rộng Workflow GitHub Actions (`.github/workflows/ci.yml`):**
-    - Thêm job `publish-release`: Chỉ chạy khi push vào nhánh `main` và sau khi `ci-gate` pass 100%. Đăng nhập GHCR, build & push 3 container images theo tag `sha-<commit>`, trích xuất digests, sinh release manifest và upload artifact `release-manifest` (retention 30 ngày).
-    - Thêm job `deploy-staging`: Tải artifact `release-manifest`, kiểm tra gate biến môi trường `ENABLE_STAGING_DEPLOY`. Nếu chưa bật thì báo standby an toàn và ghi nhận lên Step Summary; nếu bật thì thực thi kịch bản deploy staging.
-- **Kiểm chứng:**
+- **T├¡nh n─âng:** CI06 ΓÇö Publish release v├á tß╗▒ deploy staging (`deploy/release-manifest.schema.json`, `scripts/deploy/generate-manifest.ps1`, `scripts/deploy/generate-manifest.sh`, `scripts/deploy/backup.ps1`, `scripts/deploy/backup.sh`, `scripts/deploy/deploy.ps1`, `scripts/deploy/deploy.sh`, `.github/workflows/ci.yml`).
+- **Nß╗ün:** Nh├ính `feature/cicd-ci06` (kß║┐ thß╗½a commit `7e53130` tß╗½ CI05).
+- **─É├ú xong:**
+  - **Tß║ío JSON Schema cho Release Manifest (`deploy/release-manifest.schema.json`):**
+    - Quy ─æß╗ïnh ─æß║ºy ─æß╗º cß║Ñu tr├║c bß║»t buß╗Öc: `schemaVersion`, `commit` (full SHA), `repository`, `runId`, `timestamp`, `migrationHead`, `images` (`api`, `web`, `migrator` k├¿m tag v├á sha256 digest), v├á `gateResults`.
+  - **Tß║ío bß╗Ö sinh Release Manifest (`scripts/deploy/generate-manifest.ps1`, `scripts/deploy/generate-manifest.sh`):**
+    - Tß╗▒ ─æß╗Öng tr├¡ch xuß║Ñt git commit SHA, migration head (`20261020154838_ReservationPaymentIntegrity`), v├á digests cß╗ºa 3 container images.
+  - **Tß║ío bß╗Ö kß╗ïch bß║ún Sao l╞░u C╞í sß╗ƒ dß╗» liß╗çu (`scripts/deploy/backup.ps1`, `scripts/deploy/backup.sh`):**
+    - Thß╗▒c thi `BACKUP DATABASE` tr├¬n SQL Server vß╗¢i timestamp, kiß╗âm tra exit code.
+    - Sao ch├⌐p file `.bak` ra ngo├ái container v├á volume host theo ─æ├║ng quy ─æß╗ïnh an to├án dß╗» liß╗çu, kiß╗âm tra k├¡ch th╞░ß╗¢c file > 0.
+  - **Tß║ío bß╗Ö kß╗ïch bß║ún Triß╗ân khai Staging (`scripts/deploy/deploy.ps1`, `scripts/deploy/deploy.sh`):**
+    - Tu├ón thß╗º quy tr├¼nh 8 b╞░ß╗¢c chuß║⌐n:
+      1. Kh├│a deploy m├┤i tr╞░ß╗¥ng (`/tmp/safespace-deploy.lock`) chß╗æng chß║íy ─æß╗ông thß╗¥i.
+      2. Kiß╗âm tra t├¡nh hß╗úp lß╗ç cß╗ºa manifest v├á tr├¡ch xuß║Ñt image digests.
+      3. Pre-pull cß║ú 3 images bß║▒ng exact digest tr╞░ß╗¢c khi ─æß╗òi service.
+      4. Chß║íy backup database tr╞░ß╗¢c khi can thiß╗çp schema.
+      5. Dß╗½ng app c┼⌐, chß║íy migrator container one-shot (fail => abort ngay, kh├┤ng up API mß╗¢i).
+      6. Chß║íy seed explicit nß║┐u c├│ cß║Ñu h├¼nh.
+      7. Khß╗ƒi ─æß╗Öng API v├á Web containers mß╗¢i, chß╗¥ readiness `/health/ready` sß║╡n s├áng.
+      8. Chß║íy bß╗Ö smoke test `scripts/ci/smoke.sh`, cß║¡p nhß║¡t `deploy/release-current.json`.
+  - **Mß╗ƒ rß╗Öng Workflow GitHub Actions (`.github/workflows/ci.yml`):**
+    - Th├¬m job `publish-release`: Chß╗ë chß║íy khi push v├áo nh├ính `main` v├á sau khi `ci-gate` pass 100%. ─É─âng nhß║¡p GHCR, build & push 3 container images theo tag `sha-<commit>`, tr├¡ch xuß║Ñt digests, sinh release manifest v├á upload artifact `release-manifest` (retention 30 ng├áy).
+    - Th├¬m job `deploy-staging`: Tß║úi artifact `release-manifest`, kiß╗âm tra gate biß║┐n m├┤i tr╞░ß╗¥ng `ENABLE_STAGING_DEPLOY`. Nß║┐u ch╞░a bß║¡t th├¼ b├ío standby an to├án v├á ghi nhß║¡n l├¬n Step Summary; nß║┐u bß║¡t th├¼ thß╗▒c thi kß╗ïch bß║ún deploy staging.
+- **Kiß╗âm chß╗⌐ng:**
   - `npx --yes yaml-lint .github/workflows/ci.yml`: PASS (0 YAML errors).
-  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\generate-manifest.ps1`: Tạo thành công manifest JSON hợp lệ.
-  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\deploy.ps1`: Kiểm tra luồng deploy thành công.
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\generate-manifest.ps1`: Tß║ío th├ánh c├┤ng manifest JSON hß╗úp lß╗ç.
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\deploy\deploy.ps1`: Kiß╗âm tra luß╗ông deploy th├ánh c├┤ng.
   - `powershell -ExecutionPolicy Bypass -File .\init.ps1`: PASS 100% (FE 4 suites + BE Release build + 57 unit tests + 9 integration tests).
-- **Phiên sau:** Bắt đầu Task CI07 — Promotion production có kiểm soát (workflow manual dispatch deploy-production.yml, promote cùng image digest đã qua staging, Environment protection, backup và smoke production).
+- **Phi├¬n sau:** Bß║»t ─æß║ºu Task CI07 ΓÇö Promotion production c├│ kiß╗âm so├ít (workflow manual dispatch deploy-production.yml, promote c├╣ng image digest ─æ├ú qua staging, Environment protection, backup v├á smoke production).
 
 
 
-## Phiên CI05 — 2026-10-24 — Container và Smoke Test bản đóng gói
+## Phi├¬n CI05 ΓÇö 2026-10-24 ΓÇö Container v├á Smoke Test bß║ún ─æ├│ng g├│i
 
-- **Tính năng:** CI05 — Container và smoke test bản đóng gói (`StorageProject.Api/Dockerfile`, `SafeSpace-Customer-UI/SafeSpace-Customer-UI/Dockerfile`, `SafeSpace-Customer-UI/SafeSpace-Customer-UI/nginx.conf`, `deploy/migrator.Dockerfile`, `.dockerignore`, `deploy/nginx.conf`, `deploy/Caddyfile`, `deploy/compose.yml`, `deploy/compose.staging.yml`, `deploy/compose.production.yml`, `scripts/ci/smoke.ps1`, `scripts/ci/smoke.sh`, `.github/workflows/ci.yml`).
-- **Nền:** Nhánh `feature/cicd-ci05` (kế thừa commit `af0032c` từ CI04).
-- **Đã xong:**
-  - **Tạo `.dockerignore` tại root repo:** Loại trừ triệt để `.git`, `node_modules`, `bin/obj`, `artifacts`, file môi trường `.env*` chứa secrets.
-  - **Tạo `StorageProject.Api/Dockerfile`:**
-    - Multi-stage build .NET 10, restore qua project file và solution cache.
+- **T├¡nh n─âng:** CI05 ΓÇö Container v├á smoke test bß║ún ─æ├│ng g├│i (`StorageProject.Api/Dockerfile`, `SafeSpace-Customer-UI/SafeSpace-Customer-UI/Dockerfile`, `SafeSpace-Customer-UI/SafeSpace-Customer-UI/nginx.conf`, `deploy/migrator.Dockerfile`, `.dockerignore`, `deploy/nginx.conf`, `deploy/Caddyfile`, `deploy/compose.yml`, `deploy/compose.staging.yml`, `deploy/compose.production.yml`, `scripts/ci/smoke.ps1`, `scripts/ci/smoke.sh`, `.github/workflows/ci.yml`).
+- **Nß╗ün:** Nh├ính `feature/cicd-ci05` (kß║┐ thß╗½a commit `af0032c` tß╗½ CI04).
+- **─É├ú xong:**
+  - **Tß║ío `.dockerignore` tß║íi root repo:** Loß║íi trß╗½ triß╗çt ─æß╗â `.git`, `node_modules`, `bin/obj`, `artifacts`, file m├┤i tr╞░ß╗¥ng `.env*` chß╗⌐a secrets.
+  - **Tß║ío `StorageProject.Api/Dockerfile`:**
+    - Multi-stage build .NET 10, restore qua project file v├á solution cache.
     - Runtime base `mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled` (non-root `app` user, UID 1654, minimal attack surface, port 8080).
-  - **Tạo `SafeSpace-Customer-UI/SafeSpace-Customer-UI/Dockerfile`:**
+  - **Tß║ío `SafeSpace-Customer-UI/SafeSpace-Customer-UI/Dockerfile`:**
     - Multi-stage build Node 24 Alpine -> Nginx 1.27 Alpine.
-    - Cung cấp `nginx.conf`: SPA routing (`try_files $uri $uri/ /index.html`), reverse proxy `/api/` sang backend container giữ nguyên prefix, proxy liveness/readiness, gzip, cache immutable cho hashed assets.
-  - **Tạo `deploy/migrator.Dockerfile`:**
-    - Sử dụng `dotnet dotnet-ef migrations bundle` tạo binary self-contained Linux x64 độc lập.
-    - Runtime siêu nhẹ `mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled` non-root, nhận connection string qua biến môi trường hoặc CLI, thoát exit 0 khi xong.
-  - **Tạo cấu hình Compose chuẩn hóa cho 3 môi trường:**
-    - `deploy/compose.yml`: Local dev & CI stack đầy đủ 4 service (`sqlserver`, `migrator` one-shot, `api` non-exposed, `web` gateway public port 8080).
-    - `deploy/compose.staging.yml`: Sử dụng image registry GHCR (không build source trên server), cấu hình staging.
-    - `deploy/compose.production.yml`: Cấu hình production bắt buộc image digest pin (`@sha256:...`), `SeedMode=None`, `AutoMigrate=false`, restart always, không expose cổng SQL 1433 hay API 8080 ra ngoài Internet.
-  - **Tạo `deploy/Caddyfile`:** Cung cấp cấu hình tùy chọn cho Caddy TLS edge tự động cấp chứng chỉ HTTPS cho domain staging/production.
-  - **Tạo script smoke test tự động (`scripts/ci/smoke.ps1`, `scripts/ci/smoke.sh`):**
-    - Kiểm tra liveness `/health` (HTTP 200, Healthy).
-    - Kiểm tra readiness `/health/ready` (HTTP 200, Ready, Database Connected).
-    - Kiểm tra reverse proxy `/api/facilities` (HTTP 200, danh sách cơ sở > 0).
-    - Kiểm tra frontend entrypoint `/` (HTTP 200, chứa `<div id="root">`).
-    - Kiểm tra static JS assets và bảo đảm không chứa hardcode `localhost:5151`.
-  - **Tích hợp job `container-build` vào `.github/workflows/ci.yml`:**
-    - Tự động validate cú pháp Docker Compose configs trên runner CI.
-    - Kiểm tra build thành công cả 2 image Backend API và Frontend Web trên runner Ubuntu.
-    - Kết nối vào `ci-gate` đánh giá toàn bộ 4 jobs `[frontend, backend, integration-test, container-build]`.
-- **Kiểm chứng:**
+    - Cung cß║Ñp `nginx.conf`: SPA routing (`try_files $uri $uri/ /index.html`), reverse proxy `/api/` sang backend container giß╗» nguy├¬n prefix, proxy liveness/readiness, gzip, cache immutable cho hashed assets.
+  - **Tß║ío `deploy/migrator.Dockerfile`:**
+    - Sß╗¡ dß╗Ñng `dotnet dotnet-ef migrations bundle` tß║ío binary self-contained Linux x64 ─æß╗Öc lß║¡p.
+    - Runtime si├¬u nhß║╣ `mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled` non-root, nhß║¡n connection string qua biß║┐n m├┤i tr╞░ß╗¥ng hoß║╖c CLI, tho├ít exit 0 khi xong.
+  - **Tß║ío cß║Ñu h├¼nh Compose chuß║⌐n h├│a cho 3 m├┤i tr╞░ß╗¥ng:**
+    - `deploy/compose.yml`: Local dev & CI stack ─æß║ºy ─æß╗º 4 service (`sqlserver`, `migrator` one-shot, `api` non-exposed, `web` gateway public port 8080).
+    - `deploy/compose.staging.yml`: Sß╗¡ dß╗Ñng image registry GHCR (kh├┤ng build source tr├¬n server), cß║Ñu h├¼nh staging.
+    - `deploy/compose.production.yml`: Cß║Ñu h├¼nh production bß║»t buß╗Öc image digest pin (`@sha256:...`), `SeedMode=None`, `AutoMigrate=false`, restart always, kh├┤ng expose cß╗òng SQL 1433 hay API 8080 ra ngo├ái Internet.
+  - **Tß║ío `deploy/Caddyfile`:** Cung cß║Ñp cß║Ñu h├¼nh t├╣y chß╗ìn cho Caddy TLS edge tß╗▒ ─æß╗Öng cß║Ñp chß╗⌐ng chß╗ë HTTPS cho domain staging/production.
+  - **Tß║ío script smoke test tß╗▒ ─æß╗Öng (`scripts/ci/smoke.ps1`, `scripts/ci/smoke.sh`):**
+    - Kiß╗âm tra liveness `/health` (HTTP 200, Healthy).
+    - Kiß╗âm tra readiness `/health/ready` (HTTP 200, Ready, Database Connected).
+    - Kiß╗âm tra reverse proxy `/api/facilities` (HTTP 200, danh s├ích c╞í sß╗ƒ > 0).
+    - Kiß╗âm tra frontend entrypoint `/` (HTTP 200, chß╗⌐a `<div id="root">`).
+    - Kiß╗âm tra static JS assets v├á bß║úo ─æß║úm kh├┤ng chß╗⌐a hardcode `localhost:5151`.
+  - **T├¡ch hß╗úp job `container-build` v├áo `.github/workflows/ci.yml`:**
+    - Tß╗▒ ─æß╗Öng validate c├║ ph├íp Docker Compose configs tr├¬n runner CI.
+    - Kiß╗âm tra build th├ánh c├┤ng cß║ú 2 image Backend API v├á Frontend Web tr├¬n runner Ubuntu.
+    - Kß║┐t nß╗æi v├áo `ci-gate` ─æ├ính gi├í to├án bß╗Ö 4 jobs `[frontend, backend, integration-test, container-build]`.
+- **Kiß╗âm chß╗⌐ng:**
   - `npx --yes yaml-lint deploy/compose.yml deploy/compose.staging.yml deploy/compose.production.yml`: PASS (0 errors).
   - `npx --yes yaml-lint .github/workflows/ci.yml`: PASS (0 errors).
   - `powershell -ExecutionPolicy Bypass -File .\init.ps1`: PASS 100% (FE 4 suites + BE Release build + 57 unit tests + 9 integration tests).
-- **Phiên sau:** Bắt đầu Task CI06 — Publish release và tự deploy staging (workflow release main, push GHCR theo sha-digest, release manifest, deploy script với backup database, migration bundle và smoke test staging).
+- **Phi├¬n sau:** Bß║»t ─æß║ºu Task CI06 ΓÇö Publish release v├á tß╗▒ deploy staging (workflow release main, push GHCR theo sha-digest, release manifest, deploy script vß╗¢i backup database, migration bundle v├á smoke test staging).
 
 
 
-## Phiên CI04 — 2026-10-24 — Kiểm chứng SQL Server thật và API Integration Tests
+## Phi├¬n CI04 ΓÇö 2026-10-24 ΓÇö Kiß╗âm chß╗⌐ng SQL Server thß║¡t v├á API Integration Tests
 
-- **Tính năng:** CI04 — Kiểm chứng SQL Server thật và API integration (`StorageProject.IntegrationTests`, `scripts/ci/run-integration.ps1`, `scripts/ci/run-integration.sh`, `.github/workflows/ci.yml`, `docs/verification.md`).
-- **Nền:** Nhánh `feature/cicd-ci04` (kế thừa commit `e0ddad1` từ CI03).
-- **Đã xong:**
-  - **Tạo project kiểm thử tích hợp chuyên biệt `StorageProject.IntegrationTests`:**
-    - Sử dụng `net10.0`, `Microsoft.AspNetCore.Mvc.Testing` (10.0.12), `Microsoft.AspNetCore.TestHost` (10.0.12), `Microsoft.EntityFrameworkCore.SqlServer` (10.0.12), xUnit.
-    - Cấu hình `SqlServerFixture`: Tự động tạo database ngẫu nhiên `SSFRMS_CI_<guid>` trên master SQL Server, chạy `MigrateAsync()` đủ 6 migrations, kiểm tra model drift, seed dữ liệu mẫu, và drop database trong `DisposeAsync()`.
-    - Hỗ trợ biến môi trường `SSFRMS_TEST_CONNECTION_STRING` và cờ `REQUIRE_SQLSERVER` (bắt buộc trên CI, an toàn bỏ qua nếu dev local chưa cấu hình SQL Server).
-    - Cấu hình `CustomWebApplicationFactory`: Test server in-process, ghi đè `FakePayOSGateway` (không gọi PayOS thật), tắt background worker qua cấu hình `Worker:EnableExpiredCashHold = false`, sử dụng khóa JWT test an toàn đồng bộ.
-  - **Viết 9 bài test tích hợp toàn diện trên SQL Server thật:**
-    - `SqlServer_AppliesAllSixMigrations_AndHasNoPendingModelChanges`: Kiểm tra chuỗi 6 migrations EF Core lịch sử, xác nhận migration cuối cùng là `20261020154838_ReservationPaymentIntegrity`, xác nhận zero model drift (`HasPendingModelChanges() == false`).
-    - `LivenessEndpoint_Returns200AndHealthy`: Endpoint `/health` trả về 200 OK và `status: "Healthy"`.
-    - `ReadinessEndpoint_Returns200AndReady_WhenDatabaseIsHealthy`: Endpoint `/health/ready` thực hiện query và kiểm tra pending migrations với SQL Server thật, trả về 200 OK và `status: "Ready"`, `database: "Connected"`.
-    - `AllFiveRoles_CanLoginSuccessfully_AndReceiveValidTokens`: Đăng nhập đầy đủ 5 vai trò (`customer01`, `staff01`, `manager01`, `ops01`, `admin`) với mật khẩu băm BCrypt, nhận JWT token hợp lệ.
-    - `ProtectedEndpoints_Return401_WhenNoTokenIsProvided`: Các endpoint bảo vệ (`/api/auth/profile`, `/api/ops/board`, `/api/operations/facilities`) trả về 401 Unauthorized khi không có JWT token.
-    - `RoleAuthorization_Returns403_WhenRoleIsForbidden`: Kiểm tra RBAC: Customer không được vào endpoint nhân viên/quản lý (`/api/ops/board`) -> 403 Forbidden; Nhân viên không được vào endpoint quản lý vận hành kinh doanh (`/api/operations/facilities`) -> 403 Forbidden.
-    - `CatalogEndpoints_ReturnRealData_FromSqlServer`: Lấy dữ liệu cơ sở và unit types thực tế từ SQL Server.
-    - `DuplicatePaymentConfirmation_IsIdempotent_AndDoesNotDuplicatePayments`: Gửi 2 lần liên tiếp webhook xác nhận thanh toán cho cùng 1 đơn, chứng minh cơ chế idempotent không tạo trùng bản ghi Payment và không vi phạm unique index.
-    - `ConcurrentUnitAllocation_UsesAppLock_AndPreventsDoubleAllocation`: Hai DbContext đồng thời gửi request phân bổ cùng 1 ô kho tại cơ sở, nhờ `sp_getapplock` và transaction serializing trên SQL Server thật, 1 bên thành công và 1 bên bị từ chối, chứng minh chống cấp phát trùng (double allocation).
-  - **Tạo script kiểm thử tích hợp cục bộ (`scripts/ci/run-integration.ps1`, `scripts/ci/run-integration.sh`):**
-    - Kiểm tra model drift, build Release và chạy xUnit xuất kết quả `artifacts/test-results/integration/integration.trx`.
-  - **Cập nhật GitHub Actions CI Workflow (`.github/workflows/ci.yml`):**
-    - Thêm service container `sqlserver` (`mcr.microsoft.com/mssql/server:2022-latest`, SA_PASSWORD, healthcheck query `SELECT 1`).
-    - Thêm job `integration-test`: restore, EF tools restore, check model drift, chạy 9 bài integration tests với SQL Server container thật, upload TRX artifact `integration-test-results`.
-    - Cập nhật `ci-gate`: tổng hợp kết quả của 3 jobs `[frontend, backend, integration-test]`.
-  - **Cập nhật tài liệu kiểm chứng (`docs/verification.md`):**
-    - Ghi nhận 57 unit tests và 9 SQL Server integration tests.
-- **Kiểm chứng:**
+- **T├¡nh n─âng:** CI04 ΓÇö Kiß╗âm chß╗⌐ng SQL Server thß║¡t v├á API integration (`StorageProject.IntegrationTests`, `scripts/ci/run-integration.ps1`, `scripts/ci/run-integration.sh`, `.github/workflows/ci.yml`, `docs/verification.md`).
+- **Nß╗ün:** Nh├ính `feature/cicd-ci04` (kß║┐ thß╗½a commit `e0ddad1` tß╗½ CI03).
+- **─É├ú xong:**
+  - **Tß║ío project kiß╗âm thß╗¡ t├¡ch hß╗úp chuy├¬n biß╗çt `StorageProject.IntegrationTests`:**
+    - Sß╗¡ dß╗Ñng `net10.0`, `Microsoft.AspNetCore.Mvc.Testing` (10.0.12), `Microsoft.AspNetCore.TestHost` (10.0.12), `Microsoft.EntityFrameworkCore.SqlServer` (10.0.12), xUnit.
+    - Cß║Ñu h├¼nh `SqlServerFixture`: Tß╗▒ ─æß╗Öng tß║ío database ngß║½u nhi├¬n `SSFRMS_CI_<guid>` tr├¬n master SQL Server, chß║íy `MigrateAsync()` ─æß╗º 6 migrations, kiß╗âm tra model drift, seed dß╗» liß╗çu mß║½u, v├á drop database trong `DisposeAsync()`.
+    - Hß╗ù trß╗ú biß║┐n m├┤i tr╞░ß╗¥ng `SSFRMS_TEST_CONNECTION_STRING` v├á cß╗¥ `REQUIRE_SQLSERVER` (bß║»t buß╗Öc tr├¬n CI, an to├án bß╗Å qua nß║┐u dev local ch╞░a cß║Ñu h├¼nh SQL Server).
+    - Cß║Ñu h├¼nh `CustomWebApplicationFactory`: Test server in-process, ghi ─æ├¿ `FakePayOSGateway` (kh├┤ng gß╗ìi PayOS thß║¡t), tß║»t background worker qua cß║Ñu h├¼nh `Worker:EnableExpiredCashHold = false`, sß╗¡ dß╗Ñng kh├│a JWT test an to├án ─æß╗ông bß╗Ö.
+  - **Viß║┐t 9 b├ái test t├¡ch hß╗úp to├án diß╗çn tr├¬n SQL Server thß║¡t:**
+    - `SqlServer_AppliesAllSixMigrations_AndHasNoPendingModelChanges`: Kiß╗âm tra chuß╗ùi 6 migrations EF Core lß╗ïch sß╗¡, x├íc nhß║¡n migration cuß╗æi c├╣ng l├á `20261020154838_ReservationPaymentIntegrity`, x├íc nhß║¡n zero model drift (`HasPendingModelChanges() == false`).
+    - `LivenessEndpoint_Returns200AndHealthy`: Endpoint `/health` trß║ú vß╗ü 200 OK v├á `status: "Healthy"`.
+    - `ReadinessEndpoint_Returns200AndReady_WhenDatabaseIsHealthy`: Endpoint `/health/ready` thß╗▒c hiß╗çn query v├á kiß╗âm tra pending migrations vß╗¢i SQL Server thß║¡t, trß║ú vß╗ü 200 OK v├á `status: "Ready"`, `database: "Connected"`.
+    - `AllFiveRoles_CanLoginSuccessfully_AndReceiveValidTokens`: ─É─âng nhß║¡p ─æß║ºy ─æß╗º 5 vai tr├▓ (`customer01`, `staff01`, `manager01`, `ops01`, `admin`) vß╗¢i mß║¡t khß║⌐u b─âm BCrypt, nhß║¡n JWT token hß╗úp lß╗ç.
+    - `ProtectedEndpoints_Return401_WhenNoTokenIsProvided`: C├íc endpoint bß║úo vß╗ç (`/api/auth/profile`, `/api/ops/board`, `/api/operations/facilities`) trß║ú vß╗ü 401 Unauthorized khi kh├┤ng c├│ JWT token.
+    - `RoleAuthorization_Returns403_WhenRoleIsForbidden`: Kiß╗âm tra RBAC: Customer kh├┤ng ─æ╞░ß╗úc v├áo endpoint nh├ón vi├¬n/quß║ún l├╜ (`/api/ops/board`) -> 403 Forbidden; Nh├ón vi├¬n kh├┤ng ─æ╞░ß╗úc v├áo endpoint quß║ún l├╜ vß║¡n h├ánh kinh doanh (`/api/operations/facilities`) -> 403 Forbidden.
+    - `CatalogEndpoints_ReturnRealData_FromSqlServer`: Lß║Ñy dß╗» liß╗çu c╞í sß╗ƒ v├á unit types thß╗▒c tß║┐ tß╗½ SQL Server.
+    - `DuplicatePaymentConfirmation_IsIdempotent_AndDoesNotDuplicatePayments`: Gß╗¡i 2 lß║ºn li├¬n tiß║┐p webhook x├íc nhß║¡n thanh to├ín cho c├╣ng 1 ─æ╞ín, chß╗⌐ng minh c╞í chß║┐ idempotent kh├┤ng tß║ío tr├╣ng bß║ún ghi Payment v├á kh├┤ng vi phß║ím unique index.
+    - `ConcurrentUnitAllocation_UsesAppLock_AndPreventsDoubleAllocation`: Hai DbContext ─æß╗ông thß╗¥i gß╗¡i request ph├ón bß╗ò c├╣ng 1 ├┤ kho tß║íi c╞í sß╗ƒ, nhß╗¥ `sp_getapplock` v├á transaction serializing tr├¬n SQL Server thß║¡t, 1 b├¬n th├ánh c├┤ng v├á 1 b├¬n bß╗ï tß╗½ chß╗æi, chß╗⌐ng minh chß╗æng cß║Ñp ph├ít tr├╣ng (double allocation).
+  - **Tß║ío script kiß╗âm thß╗¡ t├¡ch hß╗úp cß╗Ñc bß╗Ö (`scripts/ci/run-integration.ps1`, `scripts/ci/run-integration.sh`):**
+    - Kiß╗âm tra model drift, build Release v├á chß║íy xUnit xuß║Ñt kß║┐t quß║ú `artifacts/test-results/integration/integration.trx`.
+  - **Cß║¡p nhß║¡t GitHub Actions CI Workflow (`.github/workflows/ci.yml`):**
+    - Th├¬m service container `sqlserver` (`mcr.microsoft.com/mssql/server:2022-latest`, SA_PASSWORD, healthcheck query `SELECT 1`).
+    - Th├¬m job `integration-test`: restore, EF tools restore, check model drift, chß║íy 9 b├ái integration tests vß╗¢i SQL Server container thß║¡t, upload TRX artifact `integration-test-results`.
+    - Cß║¡p nhß║¡t `ci-gate`: tß╗òng hß╗úp kß║┐t quß║ú cß╗ºa 3 jobs `[frontend, backend, integration-test]`.
+  - **Cß║¡p nhß║¡t t├ái liß╗çu kiß╗âm chß╗⌐ng (`docs/verification.md`):**
+    - Ghi nhß║¡n 57 unit tests v├á 9 SQL Server integration tests.
+- **Kiß╗âm chß╗⌐ng:**
   - `powershell -ExecutionPolicy Bypass -File .\scripts\ci\run-integration.ps1`: PASS 100% (9/9 tests pass).
   - `powershell -ExecutionPolicy Bypass -File .\init.ps1`: PASS 100% (FE 4 suites + BE Release build + 57 unit tests + 9 integration tests).
   - `npx --yes yaml-lint .github/workflows/ci.yml`: PASS (0 YAML errors).
-- **Phiên sau:** Bắt đầu Task CI05 — Container và smoke test bản đóng gói (Dockerfile API, Dockerfile Web, migrator Dockerfile, Docker Compose staging/production, Nginx config proxy, scripts/ci/smoke.sh).
+- **Phi├¬n sau:** Bß║»t ─æß║ºu Task CI05 ΓÇö Container v├á smoke test bß║ún ─æ├│ng g├│i (Dockerfile API, Dockerfile Web, migrator Dockerfile, Docker Compose staging/production, Nginx config proxy, scripts/ci/smoke.sh).
 
 
 
-## Phiên CI03 — 2026-10-23 — Chuẩn hóa API cho deployment và cấu hình môi trường
+## Phi├¬n CI03 ΓÇö 2026-10-23 ΓÇö Chuß║⌐n h├│a API cho deployment v├á cß║Ñu h├¼nh m├┤i tr╞░ß╗¥ng
 
-- **Tính năng:** CI03 — Chuẩn hóa API cho deployment (`StorageProject.Api/Program.cs`, `StorageProject.Api/appsettings.json`, `StorageProject.Infrastructure/Data/DbSeeder.cs`, `StorageProject.Infrastructure/Services/PayOSService.cs`, `deploy/.env.example`, `StorageProject.Tests/DeploymentConfigTests.cs`).
-- **Nền:** Nhánh `feature/cicd-ci03` (kế thừa commit `1cc7a66` từ CI02).
-- **Đã xong:**
-  - **Loại bỏ secret thật khỏi git:**
-    - Thay thế các secret PayOS cứng trong `appsettings.json` bằng placeholder an toàn (`YOUR_PAYOS_CLIENT_ID`, `YOUR_PAYOS_API_KEY`, `YOUR_PAYOS_CHECKSUM_KEY`).
-    - Tạo `deploy/.env.example` đầy đủ và chuẩn hóa toàn bộ các biến môi trường cấu hình: `ASPNETCORE_ENVIRONMENT`, `ConnectionStrings__DefaultConnection`, `Database__AutoMigrate`, `Database__SeedMode`, `ADMIN_INITIAL_PASSWORD`, `JwtSettings__*`, `PayOS__*`, `AppSettings__FrontendUrl`, `Cors__AllowedOrigins__*`.
-  - **Validation cấu hình khi khởi động (`Program.cs`):**
-    - Kiểm tra chuỗi kết nối SQL Server (bắt buộc).
-    - Kiểm tra `JwtSettings:Secret`: yêu cầu tối thiểu 32 ký tự, cấm secret mặc định/placeholder khi chạy ở môi trường ngoài Development (Staging, Production...).
-  - **Tách biệt AutoMigrate và SeedMode:**
-    - `Database:AutoMigrate` (bool): cho phép bật ở Dev hoặc CI container, mặc định tắt ở Production.
-    - `Database:SeedMode` (enum: `None`, `Reference`, `Staging`, `Development`): điều khiển seeding linh hoạt.
-    - Tách nhỏ hàm `DbSeeder`: `EnsureRolesAndPermissionsAsync`, `EnsurePoliciesAsync`, `SeedReferenceAsync`, `SeedStagingAsync`, `SeedByModeAsync`.
-    - Hỗ trợ CLI commands trước khi khởi chạy web server: `--bootstrap` (tạo role/permission + admin khởi tạo) và `--seed-reference` (chỉ nạp danh mục).
+- **T├¡nh n─âng:** CI03 ΓÇö Chuß║⌐n h├│a API cho deployment (`StorageProject.Api/Program.cs`, `StorageProject.Api/appsettings.json`, `StorageProject.Infrastructure/Data/DbSeeder.cs`, `StorageProject.Infrastructure/Services/PayOSService.cs`, `deploy/.env.example`, `StorageProject.Tests/DeploymentConfigTests.cs`).
+- **Nß╗ün:** Nh├ính `feature/cicd-ci03` (kß║┐ thß╗½a commit `1cc7a66` tß╗½ CI02).
+- **─É├ú xong:**
+  - **Loß║íi bß╗Å secret thß║¡t khß╗Åi git:**
+    - Thay thß║┐ c├íc secret PayOS cß╗⌐ng trong `appsettings.json` bß║▒ng placeholder an to├án (`YOUR_PAYOS_CLIENT_ID`, `YOUR_PAYOS_API_KEY`, `YOUR_PAYOS_CHECKSUM_KEY`).
+    - Tß║ío `deploy/.env.example` ─æß║ºy ─æß╗º v├á chuß║⌐n h├│a to├án bß╗Ö c├íc biß║┐n m├┤i tr╞░ß╗¥ng cß║Ñu h├¼nh: `ASPNETCORE_ENVIRONMENT`, `ConnectionStrings__DefaultConnection`, `Database__AutoMigrate`, `Database__SeedMode`, `ADMIN_INITIAL_PASSWORD`, `JwtSettings__*`, `PayOS__*`, `AppSettings__FrontendUrl`, `Cors__AllowedOrigins__*`.
+  - **Validation cß║Ñu h├¼nh khi khß╗ƒi ─æß╗Öng (`Program.cs`):**
+    - Kiß╗âm tra chuß╗ùi kß║┐t nß╗æi SQL Server (bß║»t buß╗Öc).
+    - Kiß╗âm tra `JwtSettings:Secret`: y├¬u cß║ºu tß╗æi thiß╗âu 32 k├╜ tß╗▒, cß║Ñm secret mß║╖c ─æß╗ïnh/placeholder khi chß║íy ß╗ƒ m├┤i tr╞░ß╗¥ng ngo├ái Development (Staging, Production...).
+  - **T├ích biß╗çt AutoMigrate v├á SeedMode:**
+    - `Database:AutoMigrate` (bool): cho ph├⌐p bß║¡t ß╗ƒ Dev hoß║╖c CI container, mß║╖c ─æß╗ïnh tß║»t ß╗ƒ Production.
+    - `Database:SeedMode` (enum: `None`, `Reference`, `Staging`, `Development`): ─æiß╗üu khiß╗ân seeding linh hoß║ít.
+    - T├ích nhß╗Å h├ám `DbSeeder`: `EnsureRolesAndPermissionsAsync`, `EnsurePoliciesAsync`, `SeedReferenceAsync`, `SeedStagingAsync`, `SeedByModeAsync`.
+    - Hß╗ù trß╗ú CLI commands tr╞░ß╗¢c khi khß╗ƒi chß║íy web server: `--bootstrap` (tß║ío role/permission + admin khß╗ƒi tß║ío) v├á `--seed-reference` (chß╗ë nß║íp danh mß╗Ñc).
   - **Reverse Proxy & Forwarded Headers:**
-    - Cấu hình `UseForwardedHeaders` với `ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto`, xóa `KnownIPNetworks` và `KnownProxies` để nhận diện IP và Scheme đúng phía sau Docker/Nginx/Ingress.
-    - Cấu hình CORS `DefaultCorsPolicy` đọc từ `Cors:AllowedOrigins` kèm fallback mặc định cho local frontend và ngrok.
+    - Cß║Ñu h├¼nh `UseForwardedHeaders` vß╗¢i `ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto`, x├│a `KnownIPNetworks` v├á `KnownProxies` ─æß╗â nhß║¡n diß╗çn IP v├á Scheme ─æ├║ng ph├¡a sau Docker/Nginx/Ingress.
+    - Cß║Ñu h├¼nh CORS `DefaultCorsPolicy` ─æß╗ìc tß╗½ `Cors:AllowedOrigins` k├¿m fallback mß║╖c ─æß╗ïnh cho local frontend v├á ngrok.
   - **Health Checks & Readiness (`/health` & `/health/ready`):**
-    - Endpoint `/health`: Liveness probe (trả về 200 OK ngay).
-    - Endpoint `/health/ready`: Readiness probe thực hiện `CanConnectAsync()` và `GetPendingMigrationsAsync()` tới SQL Server. Trả về HTTP 200 kèm danh sách migration nếu sẵn sàng, hoặc HTTP 503 Service Unavailable kèm chi tiết lỗi nếu DB chưa sẵn sàng hoặc còn migration đang chờ.
-  - **Động hóa URL thanh toán PayOS (`PayOSService.cs`):**
-    - Hỗ trợ đọc `AppSettings:FrontendUrl` (hoặc `Frontend:BaseUrl`) thay vì fix cứng `http://localhost:5173`.
-  - **Bổ sung Unit Tests kiểm chứng cấu hình (`DeploymentConfigTests.cs`):**
-    - 5 bài test bao phủ: JWT secret validation (pass dev, fail prod khi dùng secret yếu hoặc placeholder), AutoMigrate & SeedMode default values, và PayOS ReturnUrl fallback khi có `FrontendUrl`.
-- **Kiểm chứng:**
-  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: 57/57 tests PASS (toàn bộ 5 test mới pass).
+    - Endpoint `/health`: Liveness probe (trß║ú vß╗ü 200 OK ngay).
+    - Endpoint `/health/ready`: Readiness probe thß╗▒c hiß╗çn `CanConnectAsync()` v├á `GetPendingMigrationsAsync()` tß╗¢i SQL Server. Trß║ú vß╗ü HTTP 200 k├¿m danh s├ích migration nß║┐u sß║╡n s├áng, hoß║╖c HTTP 503 Service Unavailable k├¿m chi tiß║┐t lß╗ùi nß║┐u DB ch╞░a sß║╡n s├áng hoß║╖c c├▓n migration ─æang chß╗¥.
+  - **─Éß╗Öng h├│a URL thanh to├ín PayOS (`PayOSService.cs`):**
+    - Hß╗ù trß╗ú ─æß╗ìc `AppSettings:FrontendUrl` (hoß║╖c `Frontend:BaseUrl`) thay v├¼ fix cß╗⌐ng `http://localhost:5173`.
+  - **Bß╗ò sung Unit Tests kiß╗âm chß╗⌐ng cß║Ñu h├¼nh (`DeploymentConfigTests.cs`):**
+    - 5 b├ái test bao phß╗º: JWT secret validation (pass dev, fail prod khi d├╣ng secret yß║┐u hoß║╖c placeholder), AutoMigrate & SeedMode default values, v├á PayOS ReturnUrl fallback khi c├│ `FrontendUrl`.
+- **Kiß╗âm chß╗⌐ng:**
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: 57/57 tests PASS (to├án bß╗Ö 5 test mß╗¢i pass).
   - `powershell .\init.ps1`: 100% PASS (check:structure, 76 unit test FE, 9 business test FE, 92 route render FE, build FE dist, build Release BE, 57 unit test BE).
-- **Phiên sau:** Bắt đầu Task CI04 — Kiểm chứng SQL Server thật và API integration test (migration chain 6 migrations, check model drift, concurrency lock payment).
+- **Phi├¬n sau:** Bß║»t ─æß║ºu Task CI04 ΓÇö Kiß╗âm chß╗⌐ng SQL Server thß║¡t v├á API integration test (migration chain 6 migrations, check model drift, concurrency lock payment).
 
 
-## Phiên CI02 — 2026-10-23 — Xây dựng GitHub Actions CI workflow cho PR và main
+## Phi├¬n CI02 ΓÇö 2026-10-23 ΓÇö X├óy dß╗▒ng GitHub Actions CI workflow cho PR v├á main
 
-- **Tính năng:** CI02 — Workflow CI cho PR và main (`.github/workflows/ci.yml`, `scripts/ci/run-ci.ps1`, `scripts/ci/run-ci.sh`).
-- **Nền:** Nhánh `feature/cicd-ci02` (kế thừa commit `ea713ff` từ CI01).
-- **Đã xong:**
-  - **Tạo workflow `.github/workflows/ci.yml`:**
-    - Triggers: `pull_request` (vào `main`), `push` (trên `main`), và `workflow_dispatch`.
-    - Concurrency: Nhóm theo workflow và git ref, tự động hủy run cũ khi có push mới trên PR (`cancel-in-progress: true`).
-    - Quyền tối thiểu: `permissions: contents: read`.
-    - Pin Action bằng full SHA-1 đã xác thực: `actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683` (v4.2.2), `actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a` (v4.2.0), `actions/setup-dotnet@3951f0adf7a4399ed659394f4f7140f92f89a7ab` (v4.3.0), `actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce6ec1` (v4.6.1).
-    - Job `frontend`: Chạy đúng thư mục lồng `SafeSpace-Customer-UI/SafeSpace-Customer-UI`, cache npm theo lockfile FE, chạy đủ 4 suite: `check:structure`, `test` (76 test), `test:business` (9 test), `test:render` (92 routes), build dist và upload artifact `frontend-dist`.
-    - Job `backend`: Cài .NET 10 qua `global.json`, `dotnet restore`, `dotnet tool restore`, `dotnet build -c Release --no-restore`, `dotnet test -c Release --no-build --no-restore --logger "trx;LogFileName=backend.trx" --results-directory artifacts/test-results/backend` (52 xUnit tests), `dotnet publish -c Release --no-build --no-restore -o artifacts/api`, upload artifact `backend-test-results`.
-    - Job `ci-gate`: Tổng hợp kết quả frontend và backend, fail nếu có bất kỳ job nào thất bại/bị hủy/bị skip không hợp lệ, xuất báo cáo ra `$GITHUB_STEP_SUMMARY`.
-  - **Tạo script mô phỏng CI local (`scripts/ci/run-ci.ps1`, `scripts/ci/run-ci.sh`):** Hỗ trợ chạy toàn bộ 10 bước CI cục bộ giống hệt runner Actions.
-  - **Cập nhật `.gitignore`:** Thêm `artifacts/` để không theo dõi file kết quả test `.trx` và publish output.
-- **Kiểm chứng:**
+- **T├¡nh n─âng:** CI02 ΓÇö Workflow CI cho PR v├á main (`.github/workflows/ci.yml`, `scripts/ci/run-ci.ps1`, `scripts/ci/run-ci.sh`).
+- **Nß╗ün:** Nh├ính `feature/cicd-ci02` (kß║┐ thß╗½a commit `ea713ff` tß╗½ CI01).
+- **─É├ú xong:**
+  - **Tß║ío workflow `.github/workflows/ci.yml`:**
+    - Triggers: `pull_request` (v├áo `main`), `push` (tr├¬n `main`), v├á `workflow_dispatch`.
+    - Concurrency: Nh├│m theo workflow v├á git ref, tß╗▒ ─æß╗Öng hß╗ºy run c┼⌐ khi c├│ push mß╗¢i tr├¬n PR (`cancel-in-progress: true`).
+    - Quyß╗ün tß╗æi thiß╗âu: `permissions: contents: read`.
+    - Pin Action bß║▒ng full SHA-1 ─æ├ú x├íc thß╗▒c: `actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683` (v4.2.2), `actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a` (v4.2.0), `actions/setup-dotnet@3951f0adf7a4399ed659394f4f7140f92f89a7ab` (v4.3.0), `actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce6ec1` (v4.6.1).
+    - Job `frontend`: Chß║íy ─æ├║ng th╞░ mß╗Ñc lß╗ông `SafeSpace-Customer-UI/SafeSpace-Customer-UI`, cache npm theo lockfile FE, chß║íy ─æß╗º 4 suite: `check:structure`, `test` (76 test), `test:business` (9 test), `test:render` (92 routes), build dist v├á upload artifact `frontend-dist`.
+    - Job `backend`: C├ái .NET 10 qua `global.json`, `dotnet restore`, `dotnet tool restore`, `dotnet build -c Release --no-restore`, `dotnet test -c Release --no-build --no-restore --logger "trx;LogFileName=backend.trx" --results-directory artifacts/test-results/backend` (52 xUnit tests), `dotnet publish -c Release --no-build --no-restore -o artifacts/api`, upload artifact `backend-test-results`.
+    - Job `ci-gate`: Tß╗òng hß╗úp kß║┐t quß║ú frontend v├á backend, fail nß║┐u c├│ bß║Ñt kß╗│ job n├áo thß║Ñt bß║íi/bß╗ï hß╗ºy/bß╗ï skip kh├┤ng hß╗úp lß╗ç, xuß║Ñt b├ío c├ío ra `$GITHUB_STEP_SUMMARY`.
+  - **Tß║ío script m├┤ phß╗Ång CI local (`scripts/ci/run-ci.ps1`, `scripts/ci/run-ci.sh`):** Hß╗ù trß╗ú chß║íy to├án bß╗Ö 10 b╞░ß╗¢c CI cß╗Ñc bß╗Ö giß╗æng hß╗çt runner Actions.
+  - **Cß║¡p nhß║¡t `.gitignore`:** Th├¬m `artifacts/` ─æß╗â kh├┤ng theo d├╡i file kß║┐t quß║ú test `.trx` v├á publish output.
+- **Kiß╗âm chß╗⌐ng:**
   - `npx --yes yaml-lint .github/workflows/ci.yml`: YAML Lint successful (0 syntax errors).
-  - Chạy `scripts\ci\run-ci.ps1` hoàn tất 10/10 bước:
+  - Chß║íy `scripts\ci\run-ci.ps1` ho├án tß║Ñt 10/10 b╞░ß╗¢c:
     - Frontend: check:structure PASS, 76/76 unit tests PASS, 9/9 business tests PASS, 92/92 routes render PASS, production bundle build PASS.
-    - Backend: dotnet restore PASS, dotnet tool restore PASS, Release build PASS (0 errors), 52/52 xUnit tests PASS (xuất kết quả `artifacts\test-results\backend\backend.trx`), Release publish PASS (`artifacts\api`).
-  - `powershell .\init.ps1`: PASS toàn bộ.
-- **Phiên sau:** Bắt đầu Task CI03 — Chuẩn hóa API cho deployment (tách secret khỏi appsettings.json, AutoMigrate, SeedMode, health ready kiểm tra DB, proxy forwarded headers).
+    - Backend: dotnet restore PASS, dotnet tool restore PASS, Release build PASS (0 errors), 52/52 xUnit tests PASS (xuß║Ñt kß║┐t quß║ú `artifacts\test-results\backend\backend.trx`), Release publish PASS (`artifacts\api`).
+  - `powershell .\init.ps1`: PASS to├án bß╗Ö.
+- **Phi├¬n sau:** Bß║»t ─æß║ºu Task CI03 ΓÇö Chuß║⌐n h├│a API cho deployment (t├ích secret khß╗Åi appsettings.json, AutoMigrate, SeedMode, health ready kiß╗âm tra DB, proxy forwarded headers).
 
-## Phiên CI01 — 2026-10-23 — Chốt baseline và cấu hình tái lập pipeline CI/CD
+## Phi├¬n CI01 ΓÇö 2026-10-23 ΓÇö Chß╗æt baseline v├á cß║Ñu h├¼nh t├íi lß║¡p pipeline CI/CD
 
-- **Tính năng:** CI01 — Chốt baseline môi trường và cấu hình tái lập (sprint contract `docs/sprints/CI-cicd-pipeline.md`, kế hoạch `SSFRMS-CICD-IMPLEMENTATION-PLAN.md`).
-- **Nền:** HEAD commit `6d959ae` (Merge pull request #22 from ryocoding13/feat/d27-refund). Nhánh `feature/cicd-ci01`.
-- **Đã xong:**
-  - **Tạo `global.json`:** Ghim SDK `10.0.100` với chính sách rollForward `latestFeature`, bảo đảm khớp các patch `10.0.401` trên local và các runner CI có .NET 10.
-  - **Chuẩn hóa công cụ EF Core:** Thêm `.config/dotnet-tools.json` định nghĩa `dotnet-ef` phiên bản `10.0.12`, giúp `dotnet tool restore` hoạt động chuẩn theo quy ước .NET không cần truyền tham số thủ công.
-  - **Phân quyền thực thi `init.sh`:** Cập nhật git index mode `100755` cho `init.sh` để runner Linux/macOS có thể thực thi trực tiếp `./init.sh`.
-  - **Bổ sung kiểm thử vào init scripts (`init.sh` và `init.ps1`):** Thêm 2 bước kiểm tra bị thiếu: `npm run check:structure` (kiểm tra phân tách mô đun và quy tắc đặt tên FE) và `npm run test:business` (9/9 kiểm thử chính sách kinh doanh).
-  - **Cập nhật tài liệu kiểm chứng (`docs/verification.md`):** Cập nhật bảng kiểm chứng phản ánh đúng số lượng test thực tế: 4 suite frontend (structure check, 76 unit/integration test, 9 business test, 92 route SSR render) và 52 bài test xUnit của backend trong `StorageProject.Tests`.
-  - **Lập danh sách tính năng CI/CD (`feature_list.json`):** Thêm đầy đủ 8 task `CI01`–`CI08`, tạo sprint contract `docs/sprints/CI-cicd-pipeline.md`.
-- **Kiểm chứng:**
-  - `.\init.ps1` chạy pass 100%:
+- **T├¡nh n─âng:** CI01 ΓÇö Chß╗æt baseline m├┤i tr╞░ß╗¥ng v├á cß║Ñu h├¼nh t├íi lß║¡p (sprint contract `docs/sprints/CI-cicd-pipeline.md`, kß║┐ hoß║ích `SSFRMS-CICD-IMPLEMENTATION-PLAN.md`).
+- **Nß╗ün:** HEAD commit `6d959ae` (Merge pull request #22 from ryocoding13/feat/d27-refund). Nh├ính `feature/cicd-ci01`.
+- **─É├ú xong:**
+  - **Tß║ío `global.json`:** Ghim SDK `10.0.100` vß╗¢i ch├¡nh s├ích rollForward `latestFeature`, bß║úo ─æß║úm khß╗¢p c├íc patch `10.0.401` tr├¬n local v├á c├íc runner CI c├│ .NET 10.
+  - **Chuß║⌐n h├│a c├┤ng cß╗Ñ EF Core:** Th├¬m `.config/dotnet-tools.json` ─æß╗ïnh ngh─⌐a `dotnet-ef` phi├¬n bß║ún `10.0.12`, gi├║p `dotnet tool restore` hoß║ít ─æß╗Öng chuß║⌐n theo quy ╞░ß╗¢c .NET kh├┤ng cß║ºn truyß╗ün tham sß╗æ thß╗º c├┤ng.
+  - **Ph├ón quyß╗ün thß╗▒c thi `init.sh`:** Cß║¡p nhß║¡t git index mode `100755` cho `init.sh` ─æß╗â runner Linux/macOS c├│ thß╗â thß╗▒c thi trß╗▒c tiß║┐p `./init.sh`.
+  - **Bß╗ò sung kiß╗âm thß╗¡ v├áo init scripts (`init.sh` v├á `init.ps1`):** Th├¬m 2 b╞░ß╗¢c kiß╗âm tra bß╗ï thiß║┐u: `npm run check:structure` (kiß╗âm tra ph├ón t├ích m├┤ ─æun v├á quy tß║»c ─æß║╖t t├¬n FE) v├á `npm run test:business` (9/9 kiß╗âm thß╗¡ ch├¡nh s├ích kinh doanh).
+  - **Cß║¡p nhß║¡t t├ái liß╗çu kiß╗âm chß╗⌐ng (`docs/verification.md`):** Cß║¡p nhß║¡t bß║úng kiß╗âm chß╗⌐ng phß║ún ├ính ─æ├║ng sß╗æ l╞░ß╗úng test thß╗▒c tß║┐: 4 suite frontend (structure check, 76 unit/integration test, 9 business test, 92 route SSR render) v├á 52 b├ái test xUnit cß╗ºa backend trong `StorageProject.Tests`.
+  - **Lß║¡p danh s├ích t├¡nh n─âng CI/CD (`feature_list.json`):** Th├¬m ─æß║ºy ─æß╗º 8 task `CI01`ΓÇô`CI08`, tß║ío sprint contract `docs/sprints/CI-cicd-pipeline.md`.
+- **Kiß╗âm chß╗⌐ng:**
+  - `.\init.ps1` chß║íy pass 100%:
     - Node v24.21.0 & .NET 10.0.401: OK
     - Frontend `check:structure`: PASS
     - Frontend `npm test`: 76/76 PASS
     - Frontend `npm run test:business`: 9/9 PASS
     - Frontend `npm run test:render`: 92/92 routes PASS
-    - Frontend `npm run build`: Vite build thành công
+    - Frontend `npm run build`: Vite build th├ánh c├┤ng
     - Backend `dotnet tool restore`: OK
-    - Backend `dotnet build StorageProject.slnx`: 0 Error, 4 Warnings (vulnerability NuGet đã biết)
+    - Backend `dotnet build StorageProject.slnx`: 0 Error, 4 Warnings (vulnerability NuGet ─æ├ú biß║┐t)
     - Backend `dotnet test StorageProject.slnx`: 52/52 tests PASS (xUnit)
-  - `node -e "JSON.parse(...)"` kiểm tra `feature_list.json`: cú pháp JSON hoàn toàn hợp lệ.
-- **Phiên sau:** Bắt đầu Task CI02 — Viết workflow GitHub Actions `.github/workflows/ci.yml` và script chạy CI nội bộ.
+  - `node -e "JSON.parse(...)"` kiß╗âm tra `feature_list.json`: c├║ ph├íp JSON ho├án to├án hß╗úp lß╗ç.
+- **Phi├¬n sau:** Bß║»t ─æß║ºu Task CI02 ΓÇö Viß║┐t workflow GitHub Actions `.github/workflows/ci.yml` v├á script chß║íy CI nß╗Öi bß╗Ö.
 
-## Phiên 9 — 2026-10-16 — Sửa lỗi tính tiền thanh toán đơn đặt chỗ (tiền thuê + cọc)
+## Phi├¬n 9 ΓÇö 2026-10-16 ΓÇö Sß╗¡a lß╗ùi t├¡nh tiß╗ün thanh to├ín ─æ╞ín ─æß║╖t chß╗ù (tiß╗ün thu├¬ + cß╗ìc)
 
-- **Vấn đề:** Khách hàng vào màn hình thanh toán đơn đặt chỗ (PayOS QR), tổng thanh toán hiển thị chỉ có tiền cọc (1.000 đ) mà không cộng tiền thuê 3 tháng (3.000 đ), link PayOS cũng chỉ thu 1.000 đ thay vì 4.000 đ.
-- **Nguyên nhân:**
-  - Trong `StorageProject.Infrastructure/Services/PayOSService.cs` (dòng 128), biểu thức tính `amount` sử dụng toán tử 3 ngôi sai:
+- **Vß║Ñn ─æß╗ü:** Kh├ích h├áng v├áo m├án h├¼nh thanh to├ín ─æ╞ín ─æß║╖t chß╗ù (PayOS QR), tß╗òng thanh to├ín hiß╗ân thß╗ï chß╗ë c├│ tiß╗ün cß╗ìc (1.000 ─æ) m├á kh├┤ng cß╗Öng tiß╗ün thu├¬ 3 th├íng (3.000 ─æ), link PayOS c┼⌐ng chß╗ë thu 1.000 ─æ thay v├¼ 4.000 ─æ.
+- **Nguy├¬n nh├ón:**
+  - Trong `StorageProject.Infrastructure/Services/PayOSService.cs` (d├▓ng 128), biß╗âu thß╗⌐c t├¡nh `amount` sß╗¡ dß╗Ñng to├ín tß╗¡ 3 ng├┤i sai:
     `int amount = (int)(reservation.RequiredDeposit > 0 ? reservation.RequiredDeposit : reservation.EstimatedAmount);`
-    Khi có tiền cọc (`RequiredDeposit > 0`), hệ thống chỉ lấy tiền cọc mà bỏ qua toàn bộ tiền thuê (`EstimatedAmount`).
-  - Trong `SafeSpace-Customer-UI/SafeSpace-Customer-UI/mock/mock-api.mjs` (dòng 618), fallback cho mock endpoint cũng có biểu thức toán tử 3 ngôi tương tự.
-- **Đã sửa:**
-  - `PayOSService.cs`: Sửa thành `int amount = (int)(reservation.EstimatedAmount + (reservation.RequiredDeposit > 0 ? reservation.RequiredDeposit : 0));`.
-  - `mock-api.mjs`: Sửa dòng fallback khớp logic tính tổng `estimatedAmount + (requiredDeposit > 0 ? requiredDeposit : 0)`.
-- **Kiểm chứng:**
-  - Chạy script kiểm thử API thực tế với SQL Server & backend (`POST /api/reservations/create-payos-qr`):
-    - Đơn 3 tháng: Tiền thuê = 3.000 đ, Tiền cọc = 1.000 đ.
-    - Kết quả trả về `amount = 4000` đúng tổng tiền thuê + cọc, link PayOS sinh đúng 4.000 đ.
+    Khi c├│ tiß╗ün cß╗ìc (`RequiredDeposit > 0`), hß╗ç thß╗æng chß╗ë lß║Ñy tiß╗ün cß╗ìc m├á bß╗Å qua to├án bß╗Ö tiß╗ün thu├¬ (`EstimatedAmount`).
+  - Trong `SafeSpace-Customer-UI/SafeSpace-Customer-UI/mock/mock-api.mjs` (d├▓ng 618), fallback cho mock endpoint c┼⌐ng c├│ biß╗âu thß╗⌐c to├ín tß╗¡ 3 ng├┤i t╞░╞íng tß╗▒.
+- **─É├ú sß╗¡a:**
+  - `PayOSService.cs`: Sß╗¡a th├ánh `int amount = (int)(reservation.EstimatedAmount + (reservation.RequiredDeposit > 0 ? reservation.RequiredDeposit : 0));`.
+  - `mock-api.mjs`: Sß╗¡a d├▓ng fallback khß╗¢p logic t├¡nh tß╗òng `estimatedAmount + (requiredDeposit > 0 ? requiredDeposit : 0)`.
+- **Kiß╗âm chß╗⌐ng:**
+  - Chß║íy script kiß╗âm thß╗¡ API thß╗▒c tß║┐ vß╗¢i SQL Server & backend (`POST /api/reservations/create-payos-qr`):
+    - ─É╞ín 3 th├íng: Tiß╗ün thu├¬ = 3.000 ─æ, Tiß╗ün cß╗ìc = 1.000 ─æ.
+    - Kß║┐t quß║ú trß║ú vß╗ü `amount = 4000` ─æ├║ng tß╗òng tiß╗ün thu├¬ + cß╗ìc, link PayOS sinh ─æ├║ng 4.000 ─æ.
   - Frontend test suites: `npm test` 67/67 test PASS; `npm run test:render` 92/92 routes PASS; `npm run build` OK.
   - Backend: `dotnet build StorageProject.slnx` 0 Warning 0 Error.
-  - Chạy `./init.ps1` kiểm tra toàn bộ môi trường và test: PASS toàn bộ.
+  - Chß║íy `./init.ps1` kiß╗âm tra to├án bß╗Ö m├┤i tr╞░ß╗¥ng v├á test: PASS to├án bß╗Ö.
 
-## Phiên 8 — 2026-10-16 — Triển khai Backend QR mở cửa (C07q, C07r) và kết nối Frontend
+## Phi├¬n 8 ΓÇö 2026-10-16 ΓÇö Triß╗ân khai Backend QR mß╗ƒ cß╗¡a (C07q, C07r) v├á kß║┐t nß╗æi Frontend
 
-- **Tính năng:** F34 — Backend QR mở cửa kho: sinh mã HMAC-SHA256 và mã dự phòng 8 số; endpoint máy quét mô phỏng tại cửa kho; kết nối trực tiếp với nút "Mở cửa kho" trên frontend.
-- **Đã xong:**
-  - **Core DTOs (`StorageProject.Core/DTOs/Access/AccessDtos.cs`):** Khai báo `AccessQrDto`, `ScanAccessRequest`, `ScanResultDto`, `AccessQrOptions`.
-  - **Core Interface (`StorageProject.Core/Interfaces/IServices.cs`):** Bổ sung `IAccessService` (`GetQrAsync`, `ScanAsync`).
+- **T├¡nh n─âng:** F34 ΓÇö Backend QR mß╗ƒ cß╗¡a kho: sinh m├ú HMAC-SHA256 v├á m├ú dß╗▒ ph├▓ng 8 sß╗æ; endpoint m├íy qu├⌐t m├┤ phß╗Ång tß║íi cß╗¡a kho; kß║┐t nß╗æi trß╗▒c tiß║┐p vß╗¢i n├║t "Mß╗ƒ cß╗¡a kho" tr├¬n frontend.
+- **─É├ú xong:**
+  - **Core DTOs (`StorageProject.Core/DTOs/Access/AccessDtos.cs`):** Khai b├ío `AccessQrDto`, `ScanAccessRequest`, `ScanResultDto`, `AccessQrOptions`.
+  - **Core Interface (`StorageProject.Core/Interfaces/IServices.cs`):** Bß╗ò sung `IAccessService` (`GetQrAsync`, `ScanAsync`).
   - **Infrastructure Service (`StorageProject.Infrastructure/Services/AccessService.cs`):**
-    - Sinh mã bảo mật HMAC-SHA256 không trạng thái từ `ContractId + CredentialId + IssuedAt` và Secret key (`JwtSettings:Secret` hoặc `AccessQr:Secret`).
-    - Format mã QR: `SSQR-<contractId>-<8 ký tự hex>` (ví dụ: `SSQR-1-1733D3D0`).
-    - Format mã PIN dự phòng: 8 chữ số (ví dụ: `03502103`, hiển thị dạng `0350 2103`).
-    - Endpoint kiểm mã `POST /api/access/scan` kiểm tra đa dạng (mã QR hoặc mã 8 số có/không có dấu cách), kiểm tra thứ tự từ chối nghiệp vụ chuẩn (thẻ thu hồi, đã trả kho, chưa bàn giao, hợp đồng quá hạn/hết hiệu lực) và ghi nhật ký ra vào `ACCESS_SCANNED` vào bảng `activity_logs`.
+    - Sinh m├ú bß║úo mß║¡t HMAC-SHA256 kh├┤ng trß║íng th├íi tß╗½ `ContractId + CredentialId + IssuedAt` v├á Secret key (`JwtSettings:Secret` hoß║╖c `AccessQr:Secret`).
+    - Format m├ú QR: `SSQR-<contractId>-<8 k├╜ tß╗▒ hex>` (v├¡ dß╗Ñ: `SSQR-1-1733D3D0`).
+    - Format m├ú PIN dß╗▒ ph├▓ng: 8 chß╗» sß╗æ (v├¡ dß╗Ñ: `03502103`, hiß╗ân thß╗ï dß║íng `0350 2103`).
+    - Endpoint kiß╗âm m├ú `POST /api/access/scan` kiß╗âm tra ─æa dß║íng (m├ú QR hoß║╖c m├ú 8 sß╗æ c├│/kh├┤ng c├│ dß║Ñu c├ích), kiß╗âm tra thß╗⌐ tß╗▒ tß╗½ chß╗æi nghiß╗çp vß╗Ñ chuß║⌐n (thß║╗ thu hß╗ôi, ─æ├ú trß║ú kho, ch╞░a b├án giao, hß╗úp ─æß╗ông qu├í hß║ín/hß║┐t hiß╗çu lß╗▒c) v├á ghi nhß║¡t k├╜ ra v├áo `ACCESS_SCANNED` v├áo bß║úng `activity_logs`.
   - **API Endpoints (`StorageProject.Api/Endpoints/AccessEndpoints.cs`):**
-    - `GET /api/contracts/{id}/access-qr`: Yêu cầu xác thực chủ hợp đồng, hỗ trợ cả `id` số nguyên lẫn mã chuỗi `HĐ-...`.
-    - `POST /api/access/scan`: Endpoint công khai cho máy quét/thiết bị tại cửa, luôn trả về 200 kèm `result: "OPEN" | "DENIED"` và lý do từ chối.
-  - **Cấu hình & DI (`Program.cs`):** Đăng ký `AccessQrOptions`, `IAccessService` và map `app.MapAccessEndpoints()`.
-  - **Cải thiện `StaffService.CompleteHandoverAsync`:** Hỗ trợ hoàn tất bàn giao theo `HandoverId` và tự động kích hoạt `AccessCredential` với `Status = "ACTIVE"`.
+    - `GET /api/contracts/{id}/access-qr`: Y├¬u cß║ºu x├íc thß╗▒c chß╗º hß╗úp ─æß╗ông, hß╗ù trß╗ú cß║ú `id` sß╗æ nguy├¬n lß║½n m├ú chuß╗ùi `H─É-...`.
+    - `POST /api/access/scan`: Endpoint c├┤ng khai cho m├íy qu├⌐t/thiß║┐t bß╗ï tß║íi cß╗¡a, lu├┤n trß║ú vß╗ü 200 k├¿m `result: "OPEN" | "DENIED"` v├á l├╜ do tß╗½ chß╗æi.
+  - **Cß║Ñu h├¼nh & DI (`Program.cs`):** ─É─âng k├╜ `AccessQrOptions`, `IAccessService` v├á map `app.MapAccessEndpoints()`.
+  - **Cß║úi thiß╗çn `StaffService.CompleteHandoverAsync`:** Hß╗ù trß╗ú ho├án tß║Ñt b├án giao theo `HandoverId` v├á tß╗▒ ─æß╗Öng k├¡ch hoß║ít `AccessCredential` vß╗¢i `Status = "ACTIVE"`.
   - **Frontend Integration (`endpoints.js` & `useAccessQr.js`):**
-    - Thêm `accessQr` và `scanAccess` vào `src/api/endpoints.js`.
-    - Cập nhật `src/state/useAccessQr.js` kết nối trực tiếp API khi `USE_API = true`, đồng thời bảo toàn logic giả lập ngoại tuyến khi `USE_API = false`.
-- **Kiểm chứng:**
-  - `dotnet build StorageProject.slnx` thành công 0 lỗi.
-  - Chạy `test_full_flow.ps1` kiểm chứng luồng thực tế trên máy chủ Backend & SQL Server:
-    - Nhân viên `staff01` hoàn tất bàn giao kho K01 (`POST /api/staff/handovers/1/complete`).
-    - Khách hàng `customer01` gọi `GET /api/contracts/1/access-qr` nhận thành công mã `SSQR-1-1733D3D0` và mã dự phòng `03502103`.
-    - Quét mã QR trả về `OPEN` | Cửa kho K01 | Khách hàng Nguyễn Văn An.
-    - Quét mã dự phòng (kể cả có dấu cách `0350 2103`) trả về `OPEN`.
-    - Quét mã sai trả về `DENIED` kèm lý do rõ ràng.
-    - SQL Server bảng `activity_logs` ghi nhận đầy đủ các bản ghi hành động `ACCESS_SCANNED`.
+    - Th├¬m `accessQr` v├á `scanAccess` v├áo `src/api/endpoints.js`.
+    - Cß║¡p nhß║¡t `src/state/useAccessQr.js` kß║┐t nß╗æi trß╗▒c tiß║┐p API khi `USE_API = true`, ─æß╗ông thß╗¥i bß║úo to├án logic giß║ú lß║¡p ngoß║íi tuyß║┐n khi `USE_API = false`.
+- **Kiß╗âm chß╗⌐ng:**
+  - `dotnet build StorageProject.slnx` th├ánh c├┤ng 0 lß╗ùi.
+  - Chß║íy `test_full_flow.ps1` kiß╗âm chß╗⌐ng luß╗ông thß╗▒c tß║┐ tr├¬n m├íy chß╗º Backend & SQL Server:
+    - Nh├ón vi├¬n `staff01` ho├án tß║Ñt b├án giao kho K01 (`POST /api/staff/handovers/1/complete`).
+    - Kh├ích h├áng `customer01` gß╗ìi `GET /api/contracts/1/access-qr` nhß║¡n th├ánh c├┤ng m├ú `SSQR-1-1733D3D0` v├á m├ú dß╗▒ ph├▓ng `03502103`.
+    - Qu├⌐t m├ú QR trß║ú vß╗ü `OPEN` | Cß╗¡a kho K01 | Kh├ích h├áng Nguyß╗àn V─ân An.
+    - Qu├⌐t m├ú dß╗▒ ph├▓ng (kß╗â cß║ú c├│ dß║Ñu c├ích `0350 2103`) trß║ú vß╗ü `OPEN`.
+    - Qu├⌐t m├ú sai trß║ú vß╗ü `DENIED` k├¿m l├╜ do r├╡ r├áng.
+    - SQL Server bß║úng `activity_logs` ghi nhß║¡n ─æß║ºy ─æß╗º c├íc bß║ún ghi h├ánh ─æß╗Öng `ACCESS_SCANNED`.
   - Frontend test suites:
     - `npm test`: 42/42 unit test PASS.
     - `node --test tests/access.test.js`: 10/10 access test PASS.
     - `npm run test:render`: 76/76 routes SSR PASS.
-    - `npm run build`: Production bundle Vite build thành công 100%.
+    - `npm run build`: Production bundle Vite build th├ánh c├┤ng 100%.
 
-## 2026-10-16 — F32 + F29: đồng bộ giao diện Figma 16/10 (việc 9 của Thắng) — Claude
+## 2026-10-16 ΓÇö F32 + F29: ─æß╗ông bß╗Ö giao diß╗çn Figma 16/10 (viß╗çc 9 cß╗ºa Thß║»ng) ΓÇö Claude
 
-- Nhánh làm việc gộp `main` + `feature/ops-backend` + `feature/facility-coordinates` (xung đột duy nhất ở `DECISIONS.md`: giữ cả D17–D18 và D20).
-- Khách: C04 chọn Thanh toán QR (PayOS, hỏi trạng thái 3 giây, tự sang C05) / Tại cửa hàng (C04c → C05c); bỏ "Tôi đã chuyển khoản";
-  giữ chỗ QR 10 phút. C07 theo F29 + "Mở cửa kho" (C07q) + màn máy quét `#/door` (C07r1/r2). C11 nút "Thanh toán" khoản gia hạn
-  (C11q → C11b). C12 dòng phản hồi nhân viên. C14 "Huỷ đơn" + hộp thoại C14a (số tiền hoàn), C14b. C03b / C02m nút "Chỉ đường".
-- Nhân viên / quản lý: S09 "Thu tiền tại kho", S01 ô "Chờ thu tiền tại kho", thẻ "THU TIỀN"; M02 cột "Thao tác" + hộp thoại M02a (F12 phía giao diện).
-- Chữ "đối soát" đổi sang "thanh toán" / "thu tiền" ở mọi màn (khách, nhân viên, quản lý, Vận hành KD).
-- API: endpoint mới gọi sẵn theo `SafeSpace-Customer-UI/BACKEND-TODO.md` mục "Mới 16/10" (P PayOS – Đạt, Q QR – Tiến,
-  R/H phản hồi + hoàn tiền – Ngọc Mai, U trạng thái ô – Thắng). Backend chưa có → thông báo thay thế, không lỗi (D21).
-- Mock: đủ endpoint mới, PayOS giả lập tự trả sau `MOCK_PAYOS_AUTOPAY` giây; `MOCK_LEGACY=1` tắt endpoint mới để thử như backend hiện tại.
-- Test: sửa 1 kiểm tra trong `tests/reducer.test.js` (seed SS-0142 nay là đơn đã thanh toán QR theo Figma C14, không còn `PENDING_VERIFICATION`);
-  thêm `tests/payment-access.test.js`, `tests/payment-api.test.mjs`, mở rộng `tests/render.test.mjs` (92 route).
-- Kiểm chứng: `npm test` 56/56, `npm run test:render` 92 route PASS, `npm run test:business` PASS, `npm run build` PASS.
-  Chromium + `dev:mock`: đi hết C04 → C05, C04c → C05c, C11q → C11b, C07q → máy quét, C14a, S09, M02a; với `MOCK_LEGACY=1`
-  mọi màn mới hiện thông báo thay thế, không lỗi JavaScript. **Chưa chạy với .NET + SQL Server** (môi trường AI không có .NET).
-- Phiên sau: Đạt chạy thử trên máy có .NET (flow cũ + thanh toán tại cửa hàng dùng `confirm-transfer`); từng người làm endpoint
-  của mình theo BACKEND-TODO mục "Mới 16/10", chạy `tests/payment-api.test.mjs` vẫn pass với mock để giữ đúng hợp đồng.
+- Nh├ính l├ám viß╗çc gß╗Öp `main` + `feature/ops-backend` + `feature/facility-coordinates` (xung ─æß╗Öt duy nhß║Ñt ß╗ƒ `DECISIONS.md`: giß╗» cß║ú D17ΓÇôD18 v├á D20).
+- Kh├ích: C04 chß╗ìn Thanh to├ín QR (PayOS, hß╗Åi trß║íng th├íi 3 gi├óy, tß╗▒ sang C05) / Tß║íi cß╗¡a h├áng (C04c ΓåÆ C05c); bß╗Å "T├┤i ─æ├ú chuyß╗ân khoß║ún";
+  giß╗» chß╗ù QR 10 ph├║t. C07 theo F29 + "Mß╗ƒ cß╗¡a kho" (C07q) + m├án m├íy qu├⌐t `#/door` (C07r1/r2). C11 n├║t "Thanh to├ín" khoß║ún gia hß║ín
+  (C11q ΓåÆ C11b). C12 d├▓ng phß║ún hß╗ôi nh├ón vi├¬n. C14 "Huß╗╖ ─æ╞ín" + hß╗Öp thoß║íi C14a (sß╗æ tiß╗ün ho├án), C14b. C03b / C02m n├║t "Chß╗ë ─æ╞░ß╗¥ng".
+- Nh├ón vi├¬n / quß║ún l├╜: S09 "Thu tiß╗ün tß║íi kho", S01 ├┤ "Chß╗¥ thu tiß╗ün tß║íi kho", thß║╗ "THU TIß╗ÇN"; M02 cß╗Öt "Thao t├íc" + hß╗Öp thoß║íi M02a (F12 ph├¡a giao diß╗çn).
+- Chß╗» "─æß╗æi so├ít" ─æß╗òi sang "thanh to├ín" / "thu tiß╗ün" ß╗ƒ mß╗ìi m├án (kh├ích, nh├ón vi├¬n, quß║ún l├╜, Vß║¡n h├ánh KD).
+- API: endpoint mß╗¢i gß╗ìi sß║╡n theo `SafeSpace-Customer-UI/BACKEND-TODO.md` mß╗Ñc "Mß╗¢i 16/10" (P PayOS ΓÇô ─Éß║ít, Q QR ΓÇô Tiß║┐n,
+  R/H phß║ún hß╗ôi + ho├án tiß╗ün ΓÇô Ngß╗ìc Mai, U trß║íng th├íi ├┤ ΓÇô Thß║»ng). Backend ch╞░a c├│ ΓåÆ th├┤ng b├ío thay thß║┐, kh├┤ng lß╗ùi (D21).
+- Mock: ─æß╗º endpoint mß╗¢i, PayOS giß║ú lß║¡p tß╗▒ trß║ú sau `MOCK_PAYOS_AUTOPAY` gi├óy; `MOCK_LEGACY=1` tß║»t endpoint mß╗¢i ─æß╗â thß╗¡ nh╞░ backend hiß╗çn tß║íi.
+- Test: sß╗¡a 1 kiß╗âm tra trong `tests/reducer.test.js` (seed SS-0142 nay l├á ─æ╞ín ─æ├ú thanh to├ín QR theo Figma C14, kh├┤ng c├▓n `PENDING_VERIFICATION`);
+  th├¬m `tests/payment-access.test.js`, `tests/payment-api.test.mjs`, mß╗ƒ rß╗Öng `tests/render.test.mjs` (92 route).
+- Kiß╗âm chß╗⌐ng: `npm test` 56/56, `npm run test:render` 92 route PASS, `npm run test:business` PASS, `npm run build` PASS.
+  Chromium + `dev:mock`: ─æi hß║┐t C04 ΓåÆ C05, C04c ΓåÆ C05c, C11q ΓåÆ C11b, C07q ΓåÆ m├íy qu├⌐t, C14a, S09, M02a; vß╗¢i `MOCK_LEGACY=1`
+  mß╗ìi m├án mß╗¢i hiß╗çn th├┤ng b├ío thay thß║┐, kh├┤ng lß╗ùi JavaScript. **Ch╞░a chß║íy vß╗¢i .NET + SQL Server** (m├┤i tr╞░ß╗¥ng AI kh├┤ng c├│ .NET).
+- Phi├¬n sau: ─Éß║ít chß║íy thß╗¡ tr├¬n m├íy c├│ .NET (flow c┼⌐ + thanh to├ín tß║íi cß╗¡a h├áng d├╣ng `confirm-transfer`); tß╗½ng ng╞░ß╗¥i l├ám endpoint
+  cß╗ºa m├¼nh theo BACKEND-TODO mß╗Ñc "Mß╗¢i 16/10", chß║íy `tests/payment-api.test.mjs` vß║½n pass vß╗¢i mock ─æß╗â giß╗» ─æ├║ng hß╗úp ─æß╗ông.
 
-## 2026-10-15 — Toạ độ bản đồ (B05a, C02m) — Claude (việc của Thắng)
+## 2026-10-15 ΓÇö Toß║í ─æß╗Ö bß║ún ─æß╗ô (B05a, C02m) ΓÇö Claude (viß╗çc cß╗ºa Thß║»ng)
 
-- Figma: B05 thêm dòng "Vị trí bản đồ" + nút "Sửa thông tin cơ sở"; hộp thoại mới B05a.
-- Backend: `Facility.Latitude/Longitude` + check constraint, trả trong `FacilityDto` và `OpsFacilityDto`, nhận trong
-  `UpsertFacilityRequest` (kiểm tra trong khung Việt Nam), `FacilityCoordinateSeeder` điền 12 cơ sở còn trống.
-- Frontend: `mapCatalog` gán `lat/lng`; B05a (`src/business/facility-form.js` + `Facilities.jsx`); mock business có toạ độ.
-- Kiểm chứng: `npm test` 39/39, `npm run test:business` 9/9, `npm run test:render` PASS, `npm run build` PASS;
-  biên dịch thử các service bằng stub EF (không tải được NuGet trong môi trường AI); Playwright: sửa toạ độ ở B05a qua mock → lưu thành công.
-- Phiên sau: `dotnet ef migrations add AddFacilityCoordinates --project StorageProject.Infrastructure --startup-project StorageProject.Api`,
-  `dotnet build StorageProject.slnx`, chạy API, kiểm tra `GET /api/facilities` có toạ độ và bản đồ Tìm kho đúng vị trí.
+- Figma: B05 th├¬m d├▓ng "Vß╗ï tr├¡ bß║ún ─æß╗ô" + n├║t "Sß╗¡a th├┤ng tin c╞í sß╗ƒ"; hß╗Öp thoß║íi mß╗¢i B05a.
+- Backend: `Facility.Latitude/Longitude` + check constraint, trß║ú trong `FacilityDto` v├á `OpsFacilityDto`, nhß║¡n trong
+  `UpsertFacilityRequest` (kiß╗âm tra trong khung Viß╗çt Nam), `FacilityCoordinateSeeder` ─æiß╗ün 12 c╞í sß╗ƒ c├▓n trß╗æng.
+- Frontend: `mapCatalog` g├ín `lat/lng`; B05a (`src/business/facility-form.js` + `Facilities.jsx`); mock business c├│ toß║í ─æß╗Ö.
+- Kiß╗âm chß╗⌐ng: `npm test` 39/39, `npm run test:business` 9/9, `npm run test:render` PASS, `npm run build` PASS;
+  bi├¬n dß╗ïch thß╗¡ c├íc service bß║▒ng stub EF (kh├┤ng tß║úi ─æ╞░ß╗úc NuGet trong m├┤i tr╞░ß╗¥ng AI); Playwright: sß╗¡a toß║í ─æß╗Ö ß╗ƒ B05a qua mock ΓåÆ l╞░u th├ánh c├┤ng.
+- Phi├¬n sau: `dotnet ef migrations add AddFacilityCoordinates --project StorageProject.Infrastructure --startup-project StorageProject.Api`,
+  `dotnet build StorageProject.slnx`, chß║íy API, kiß╗âm tra `GET /api/facilities` c├│ toß║í ─æß╗Ö v├á bß║ún ─æß╗ô T├¼m kho ─æ├║ng vß╗ï tr├¡.
 
-## Mẫu một mục
+## Mß║½u mß╗Öt mß╗Ñc
 
 ```
-## Phiên N — YYYY-MM-DD — <người / công cụ AI>
-- Tính năng: Fxx — <tên>
-- Đã xong: …
-- Đang dở: …
-- Kiểm chứng: <lệnh đã chạy> → <kết quả>
-- Bị chặn / rủi ro: …
-- Phiên sau nên: …
+## Phi├¬n N ΓÇö YYYY-MM-DD ΓÇö <ng╞░ß╗¥i / c├┤ng cß╗Ñ AI>
+- T├¡nh n─âng: Fxx ΓÇö <t├¬n>
+- ─É├ú xong: ΓÇª
+- ─Éang dß╗ƒ: ΓÇª
+- Kiß╗âm chß╗⌐ng: <lß╗çnh ─æ├ú chß║íy> ΓåÆ <kß║┐t quß║ú>
+- Bß╗ï chß║╖n / rß╗ºi ro: ΓÇª
+- Phi├¬n sau n├¬n: ΓÇª
 ```
 
 ---
 
-## Phiên 7 — 2026-10-16 — Cập nhật DbSeeder, tạo role BUSINESS_OPERATOR và reset dữ liệu hệ thống mới mở
+## Phi├¬n 7 ΓÇö 2026-10-16 ΓÇö Cß║¡p nhß║¡t DbSeeder, tß║ío role BUSINESS_OPERATOR v├á reset dß╗» liß╗çu hß╗ç thß╗æng mß╗¢i mß╗ƒ
 
-- Tính năng: Reset toàn bộ dữ liệu giao dịch/hoạt động khách hàng trong SQL Server về trạng thái hệ thống mới mở; thêm role `BUSINESS_OPERATOR` và tài khoản `operator01`; giữ nguyên đầy đủ seed data cấu hình ban đầu để khách hàng và vận hành sẵn sàng sử dụng.
-- Đã xong:
-  - **Cập nhật `DbSeeder.cs`:**
-    - Thêm Role `BUSINESS_OPERATOR` (tên hiển thị: Quản lý vận hành kinh doanh toàn hệ thống) cùng các quyền: `REPORT_VIEW`, `AUDIT_LOG_VIEW`, `FACILITY_MANAGE`, `UNIT_MANAGE`, `RENEWAL_MANAGE`.
-    - Thêm tài khoản người dùng `operator01` (email: `operator01@storage.vn`, mật khẩu: `Operator@123`, họ tên: `Lê Vận Hành Kinh Doanh`, phone: `0900000004`, trạng thái: `ACTIVE`) được gán role `BUSINESS_OPERATOR` và liên kết cơ sở.
-    - Chuyển ô kho `TB-M-103` (và toàn bộ 72 ô kho trên 12 cơ sở) về trạng thái `AVAILABLE`.
-    - Loại bỏ hoàn toàn Section 8 & 8b (các đơn đặt chỗ mẫu, hợp đồng mẫu, khoản thanh toán mẫu, vé hỗ trợ mẫu của khách hàng).
-    - Bảo toàn toàn bộ dữ liệu nền tảng: 12 cơ sở (`facilities`), 4 loại ô kho (`unit_types`), 72 ô kho (`storage_units`), biểu phí thuê (`rental_rates`), chính sách vận hành (`policies`), các tài khoản nhân sự và khách hàng sạch (`admin`, `manager01`, `staff01`, `customer01`, `customer02`).
-  - **Cập nhật Frontend Role Mapping (`roles.js`):**
-    - Bổ sung `BUSINESS_OPERATOR` và `BUSSINESS_OPERATOR` vào `ROLE_LABELS`, `ROLE_ORDER`, `ROLE_SCOPE`, `isBusinessRoles`, `isOpsRoles`, `homeFor` để giao diện nhận diện và điều hướng đúng phân quyền.
-  - **Dọn dẹp và nạp mới dữ liệu trên SQL Server (`SSFRMS`):**
-    - Xoá sạch toàn bộ dữ liệu giao dịch cũ: `reservations`, `rental_contracts`, `payments`, `handover_records`, `return_inspections`, `support_tickets`, `unit_assignments`, `maintenance_requests`, `contract_renewals`, `overdue_cases`, `access_credentials`, `activity_logs`.
-    - Chạy nạp lại dữ liệu chuẩn từ `DbSeeder.cs`.
-- Kiểm chứng:
-  - Kiểm tra SQL Server:
-    - Bảng `reservations`, `rental_contracts`, `payments`, `support_tickets`, `handover_records`, `return_inspections`: 0 rows.
-    - Bảng `storage_units`: 72/72 ô kho ở trạng thái `AVAILABLE` (100%).
-    - Bảng `roles`: Đã có role `BUSINESS_OPERATOR`.
-    - Bảng `users`: Đã có `operator01` với role `BUSINESS_OPERATOR`.
-  - Kiểm tra API:
-    - Đăng nhập `operator01` / `Operator@123` qua `POST /api/auth/login` → Trả về JWT Token với claim role `BUSINESS_OPERATOR`.
-    - Gọi `GET /api/auth/profile` bằng token của `operator01` → Trả về thông tin họ tên `Lê Vận Hành Kinh Doanh`, role `BUSINESS_OPERATOR`.
-    - Đăng nhập `customer01` / `Customer@123` → Trả về tài khoản sạch, 0 hợp đồng, 0 đặt chỗ, sẵn sàng đặt kho.
-  - `powershell .\init.ps1` → PASS (38/38 unit tests, 76 render routes, Vite build 0 errors, .NET build 0 errors).
-- Bị chặn / rủi ro: Không.
-- Phiên sau nên: Tiếp tục hoàn thiện các báo cáo và chức năng dành riêng cho vai trò Business Operator nếu có yêu cầu.
+- T├¡nh n─âng: Reset to├án bß╗Ö dß╗» liß╗çu giao dß╗ïch/hoß║ít ─æß╗Öng kh├ích h├áng trong SQL Server vß╗ü trß║íng th├íi hß╗ç thß╗æng mß╗¢i mß╗ƒ; th├¬m role `BUSINESS_OPERATOR` v├á t├ái khoß║ún `operator01`; giß╗» nguy├¬n ─æß║ºy ─æß╗º seed data cß║Ñu h├¼nh ban ─æß║ºu ─æß╗â kh├ích h├áng v├á vß║¡n h├ánh sß║╡n s├áng sß╗¡ dß╗Ñng.
+- ─É├ú xong:
+  - **Cß║¡p nhß║¡t `DbSeeder.cs`:**
+    - Th├¬m Role `BUSINESS_OPERATOR` (t├¬n hiß╗ân thß╗ï: Quß║ún l├╜ vß║¡n h├ánh kinh doanh to├án hß╗ç thß╗æng) c├╣ng c├íc quyß╗ün: `REPORT_VIEW`, `AUDIT_LOG_VIEW`, `FACILITY_MANAGE`, `UNIT_MANAGE`, `RENEWAL_MANAGE`.
+    - Th├¬m t├ái khoß║ún ng╞░ß╗¥i d├╣ng `operator01` (email: `operator01@storage.vn`, mß║¡t khß║⌐u: `Operator@123`, hß╗ì t├¬n: `L├¬ Vß║¡n H├ánh Kinh Doanh`, phone: `0900000004`, trß║íng th├íi: `ACTIVE`) ─æ╞░ß╗úc g├ín role `BUSINESS_OPERATOR` v├á li├¬n kß║┐t c╞í sß╗ƒ.
+    - Chuyß╗ân ├┤ kho `TB-M-103` (v├á to├án bß╗Ö 72 ├┤ kho tr├¬n 12 c╞í sß╗ƒ) vß╗ü trß║íng th├íi `AVAILABLE`.
+    - Loß║íi bß╗Å ho├án to├án Section 8 & 8b (c├íc ─æ╞ín ─æß║╖t chß╗ù mß║½u, hß╗úp ─æß╗ông mß║½u, khoß║ún thanh to├ín mß║½u, v├⌐ hß╗ù trß╗ú mß║½u cß╗ºa kh├ích h├áng).
+    - Bß║úo to├án to├án bß╗Ö dß╗» liß╗çu nß╗ün tß║úng: 12 c╞í sß╗ƒ (`facilities`), 4 loß║íi ├┤ kho (`unit_types`), 72 ├┤ kho (`storage_units`), biß╗âu ph├¡ thu├¬ (`rental_rates`), ch├¡nh s├ích vß║¡n h├ánh (`policies`), c├íc t├ái khoß║ún nh├ón sß╗▒ v├á kh├ích h├áng sß║ích (`admin`, `manager01`, `staff01`, `customer01`, `customer02`).
+  - **Cß║¡p nhß║¡t Frontend Role Mapping (`roles.js`):**
+    - Bß╗ò sung `BUSINESS_OPERATOR` v├á `BUSSINESS_OPERATOR` v├áo `ROLE_LABELS`, `ROLE_ORDER`, `ROLE_SCOPE`, `isBusinessRoles`, `isOpsRoles`, `homeFor` ─æß╗â giao diß╗çn nhß║¡n diß╗çn v├á ─æiß╗üu h╞░ß╗¢ng ─æ├║ng ph├ón quyß╗ün.
+  - **Dß╗ìn dß║╣p v├á nß║íp mß╗¢i dß╗» liß╗çu tr├¬n SQL Server (`SSFRMS`):**
+    - Xo├í sß║ích to├án bß╗Ö dß╗» liß╗çu giao dß╗ïch c┼⌐: `reservations`, `rental_contracts`, `payments`, `handover_records`, `return_inspections`, `support_tickets`, `unit_assignments`, `maintenance_requests`, `contract_renewals`, `overdue_cases`, `access_credentials`, `activity_logs`.
+    - Chß║íy nß║íp lß║íi dß╗» liß╗çu chuß║⌐n tß╗½ `DbSeeder.cs`.
+- Kiß╗âm chß╗⌐ng:
+  - Kiß╗âm tra SQL Server:
+    - Bß║úng `reservations`, `rental_contracts`, `payments`, `support_tickets`, `handover_records`, `return_inspections`: 0 rows.
+    - Bß║úng `storage_units`: 72/72 ├┤ kho ß╗ƒ trß║íng th├íi `AVAILABLE` (100%).
+    - Bß║úng `roles`: ─É├ú c├│ role `BUSINESS_OPERATOR`.
+    - Bß║úng `users`: ─É├ú c├│ `operator01` vß╗¢i role `BUSINESS_OPERATOR`.
+  - Kiß╗âm tra API:
+    - ─É─âng nhß║¡p `operator01` / `Operator@123` qua `POST /api/auth/login` ΓåÆ Trß║ú vß╗ü JWT Token vß╗¢i claim role `BUSINESS_OPERATOR`.
+    - Gß╗ìi `GET /api/auth/profile` bß║▒ng token cß╗ºa `operator01` ΓåÆ Trß║ú vß╗ü th├┤ng tin hß╗ì t├¬n `L├¬ Vß║¡n H├ánh Kinh Doanh`, role `BUSINESS_OPERATOR`.
+    - ─É─âng nhß║¡p `customer01` / `Customer@123` ΓåÆ Trß║ú vß╗ü t├ái khoß║ún sß║ích, 0 hß╗úp ─æß╗ông, 0 ─æß║╖t chß╗ù, sß║╡n s├áng ─æß║╖t kho.
+  - `powershell .\init.ps1` ΓåÆ PASS (38/38 unit tests, 76 render routes, Vite build 0 errors, .NET build 0 errors).
+- Bß╗ï chß║╖n / rß╗ºi ro: Kh├┤ng.
+- Phi├¬n sau n├¬n: Tiß║┐p tß╗Ñc ho├án thiß╗çn c├íc b├ío c├ío v├á chß╗⌐c n─âng d├ánh ri├¬ng cho vai tr├▓ Business Operator nß║┐u c├│ y├¬u cß║ºu.
 
-## Phiên 6 — 2026-10-16 — Kết nối 100% dữ liệu frontend trực tiếp từ Database (SQL Server), loại bỏ dữ liệu mock
+## Phi├¬n 6 ΓÇö 2026-10-16 ΓÇö Kß║┐t nß╗æi 100% dß╗» liß╗çu frontend trß╗▒c tiß║┐p tß╗½ Database (SQL Server), loß║íi bß╗Å dß╗» liß╗çu mock
 
-- Tính năng: Toàn bộ hiển thị phía Client/Ops/Admin lấy trực tiếp từ `AppDbContext` (SQL Server), loại bỏ hoàn toàn mock RAM / mock fallback.
-- Đã xong:
-  - **Loại bỏ in-memory state & mock fallback:**
-    - Xoá bỏ hoàn toàn `GetOrCreateState` và `OpsBoardDataState` (vốn chứa 2 khoản đối soát mock `SS-20260913-0147` và `SS-20260914-0021`).
-    - Trong `StaffService.cs` và `ManagerService.cs`: Tất cả các danh sách (kho `StorageUnits`, đối soát `Reservations`, phân bổ `UnitAssignments`, xác minh & bàn giao `HandoverRecords`, kiểm tra trả kho `ReturnInspections`, khiếu nại hỗ trợ `SupportTickets`, nhân sự cơ sở `UserFacilities`, doanh thu `Payments`) đều query trực tiếp từ `AppDbContext`.
-    - Sửa `ParseIdNumber` và `FindReservationByIdAsync` để trích xuất chính xác ID từ chuỗi mã SafeSpace (`SS-yyyyMMdd-xxxx`, `XM-xxxx`, `BG-xxxx`, `TK-xxxx`, `OrderCode`) và tìm kiếm trên cơ sở dữ liệu thật.
-    - Mọi thao tác ghi nhận (Xác nhận đối soát thanh toán, Phân bổ ô kho, Cập nhật trạng thái ô kho, Hoàn cọc, Gửi biên bản kiểm tra trả kho, Duyệt gia hạn) đều lưu vĩnh viễn vào SQL Server qua `dbContext.SaveChangesAsync()`.
-  - **Frontend kết nối API thật:**
-    - Cập nhật `OpsProvider` trong `src/ops/store.jsx` nhận prop `role` và gọi `loadBoard(role)` trực tiếp tới `/api/staff/board` hoặc `/api/manager/board`.
-    - Chặn hoàn toàn fallback về `readOps()` khi đang ở chế độ API: nếu có lỗi sẽ hiển thị thông báo lỗi và nút thử lại, không tự động nạp mock trong local storage.
-    - Kết nối các luồng khách hàng còn dở trong `store.jsx` trực tiếp vào API backend:
-      - `REQUEST_RETURN` gọi `POST /api/contracts/{id}/move-out`.
-      - `UPDATE_NAME` gọi `PUT /api/auth/profile`.
-      - `CHANGE_PASSWORD` gọi `POST /api/auth/change-password`.
-- Kiểm chứng:
-  - `powershell .\init.ps1` → PASS (38/38 unit tests, 76 render routes, Vite build 0 errors, .NET build 0 errors).
-  - Test trực tiếp `GET /api/staff/board` & `GET /api/manager/board` bằng tài khoản `staff01` và `manager01`: dữ liệu trả về 100% từ bảng SQL Server `Reservations`, `StorageUnits`, `UserFacilities`.
-  - Test `POST /api/staff/payments/SS-20261007-0013/confirm` xác nhận thành công và kiểm tra trực tiếp row trong SQL Server: `ReservationId 13` chuyển `Status = CONFIRMED`, `PaidAt = 2026-10-16 13:55:16`.
-- Bị chặn / rủi ro: Không.
-- Phiên sau nên: Tiếp tục hoàn thiện các luồng nghiệp vụ còn lại hoặc viết thêm test tự động backend (F28).
+- T├¡nh n─âng: To├án bß╗Ö hiß╗ân thß╗ï ph├¡a Client/Ops/Admin lß║Ñy trß╗▒c tiß║┐p tß╗½ `AppDbContext` (SQL Server), loß║íi bß╗Å ho├án to├án mock RAM / mock fallback.
+- ─É├ú xong:
+  - **Loß║íi bß╗Å in-memory state & mock fallback:**
+    - Xo├í bß╗Å ho├án to├án `GetOrCreateState` v├á `OpsBoardDataState` (vß╗æn chß╗⌐a 2 khoß║ún ─æß╗æi so├ít mock `SS-20260913-0147` v├á `SS-20260914-0021`).
+    - Trong `StaffService.cs` v├á `ManagerService.cs`: Tß║Ñt cß║ú c├íc danh s├ích (kho `StorageUnits`, ─æß╗æi so├ít `Reservations`, ph├ón bß╗ò `UnitAssignments`, x├íc minh & b├án giao `HandoverRecords`, kiß╗âm tra trß║ú kho `ReturnInspections`, khiß║┐u nß║íi hß╗ù trß╗ú `SupportTickets`, nh├ón sß╗▒ c╞í sß╗ƒ `UserFacilities`, doanh thu `Payments`) ─æß╗üu query trß╗▒c tiß║┐p tß╗½ `AppDbContext`.
+    - Sß╗¡a `ParseIdNumber` v├á `FindReservationByIdAsync` ─æß╗â tr├¡ch xuß║Ñt ch├¡nh x├íc ID tß╗½ chuß╗ùi m├ú SafeSpace (`SS-yyyyMMdd-xxxx`, `XM-xxxx`, `BG-xxxx`, `TK-xxxx`, `OrderCode`) v├á t├¼m kiß║┐m tr├¬n c╞í sß╗ƒ dß╗» liß╗çu thß║¡t.
+    - Mß╗ìi thao t├íc ghi nhß║¡n (X├íc nhß║¡n ─æß╗æi so├ít thanh to├ín, Ph├ón bß╗ò ├┤ kho, Cß║¡p nhß║¡t trß║íng th├íi ├┤ kho, Ho├án cß╗ìc, Gß╗¡i bi├¬n bß║ún kiß╗âm tra trß║ú kho, Duyß╗çt gia hß║ín) ─æß╗üu l╞░u v─⌐nh viß╗àn v├áo SQL Server qua `dbContext.SaveChangesAsync()`.
+  - **Frontend kß║┐t nß╗æi API thß║¡t:**
+    - Cß║¡p nhß║¡t `OpsProvider` trong `src/ops/store.jsx` nhß║¡n prop `role` v├á gß╗ìi `loadBoard(role)` trß╗▒c tiß║┐p tß╗¢i `/api/staff/board` hoß║╖c `/api/manager/board`.
+    - Chß║╖n ho├án to├án fallback vß╗ü `readOps()` khi ─æang ß╗ƒ chß║┐ ─æß╗Ö API: nß║┐u c├│ lß╗ùi sß║╜ hiß╗ân thß╗ï th├┤ng b├ío lß╗ùi v├á n├║t thß╗¡ lß║íi, kh├┤ng tß╗▒ ─æß╗Öng nß║íp mock trong local storage.
+    - Kß║┐t nß╗æi c├íc luß╗ông kh├ích h├áng c├▓n dß╗ƒ trong `store.jsx` trß╗▒c tiß║┐p v├áo API backend:
+      - `REQUEST_RETURN` gß╗ìi `POST /api/contracts/{id}/move-out`.
+      - `UPDATE_NAME` gß╗ìi `PUT /api/auth/profile`.
+      - `CHANGE_PASSWORD` gß╗ìi `POST /api/auth/change-password`.
+- Kiß╗âm chß╗⌐ng:
+  - `powershell .\init.ps1` ΓåÆ PASS (38/38 unit tests, 76 render routes, Vite build 0 errors, .NET build 0 errors).
+  - Test trß╗▒c tiß║┐p `GET /api/staff/board` & `GET /api/manager/board` bß║▒ng t├ái khoß║ún `staff01` v├á `manager01`: dß╗» liß╗çu trß║ú vß╗ü 100% tß╗½ bß║úng SQL Server `Reservations`, `StorageUnits`, `UserFacilities`.
+  - Test `POST /api/staff/payments/SS-20261007-0013/confirm` x├íc nhß║¡n th├ánh c├┤ng v├á kiß╗âm tra trß╗▒c tiß║┐p row trong SQL Server: `ReservationId 13` chuyß╗ân `Status = CONFIRMED`, `PaidAt = 2026-10-16 13:55:16`.
+- Bß╗ï chß║╖n / rß╗ºi ro: Kh├┤ng.
+- Phi├¬n sau n├¬n: Tiß║┐p tß╗Ñc ho├án thiß╗çn c├íc luß╗ông nghiß╗çp vß╗Ñ c├▓n lß║íi hoß║╖c viß║┐t th├¬m test tß╗▒ ─æß╗Öng backend (F28).
 
-## Phiên 5 — 2026-10-16 — Tái cấu trúc phân tách Staff/Manager và hoàn thiện chức năng còn thiếu
+## Phi├¬n 5 ΓÇö 2026-10-16 ΓÇö T├íi cß║Ñu tr├║c ph├ón t├ích Staff/Manager v├á ho├án thiß╗çn chß╗⌐c n─âng c├▓n thiß║┐u
 
-- Tính năng: F06, F10, F11–F20, refactor `OpsEndpoints` & `OpsService`.
-- Đã xong:
-  - **Tái cấu trúc backend theo vai trò (Role-based Refactoring):**
-    - Tách `OpsService` và `OpsEndpoints` thành:
-      - `IStaffService.cs` + `StaffService.cs` + `StaffEndpoints.cs` (nhóm route `/api/staff/*`, phục vụ nhân viên cơ sở).
-      - `IManagerService.cs` + `ManagerService.cs` + `ManagerEndpoints.cs` (nhóm route `/api/manager/*`, phục vụ quản lý cơ sở).
-      - `FacilityOpsStateStore.cs` quản lý trạng thái in-memory dùng chung giữa nhân viên và quản lý cơ sở.
-      - Hỗ trợ đầy đủ routing fallback `/api/ops/*` trên backend để tương thích ngược 100%.
-  - **Bổ sung các chức năng còn thiếu của các lớp user có sẵn:**
-    - **Khách hàng (Customer):**
-      - Thêm `POST /api/contracts/{id}/move-out`: Đăng ký lịch trả kho (ngày, khung giờ, ghi chú), tự tạo `ReturnInspection` và chuyển trạng thái hợp đồng sang `RETURN_PENDING` (F06 -> `passing`).
-      - Thêm `GET /api/auth/profile`, `PUT /api/auth/profile`: Xem và cập nhật thông tin cá nhân (F10 -> `passing`).
-      - Thêm `POST /api/auth/change-password`: Đổi mật khẩu cá nhân có kiểm tra mật khẩu hiện tại bằng BCrypt.
-    - **Nhân viên cơ sở (Staff):**
-      - Thêm `PUT /api/staff/units/{id}/status`: Đổi trạng thái ô kho độc lập (AVAILABLE, MAINTENANCE, CLEANING, OCCUPIED) (UC09).
-      - Thêm `POST /api/staff/credentials/{id}/revoke`: Thu hồi quyền/mã truy cập cũ (UC08).
-      - Thêm `POST /api/staff/credentials/reissue`: Cấp lại quyền/mã truy cập mới (UC08).
-    - **Quản lý cơ sở (Manager):**
-      - Thêm `GET /api/manager/units`: Danh sách ô kho cơ sở (UC13).
-      - Thêm `POST /api/manager/units`: Tạo ô kho mới tại cơ sở (UC13).
-      - Thêm `PUT /api/manager/units/{id}`: Cập nhật thông số/trạng thái ô kho (UC13).
-      - Thêm `POST /api/manager/units/{id}/lock`: Khóa ô kho khi bảo trì/sự cố (UC13).
-  - **Đồng bộ Frontend:**
-    - Cập nhật `src/ops/api.js` gọi các endpoint mới theo vai trò (`/api/staff/*` và `/api/manager/*`).
-    - Cập nhật `mock/mock-api.mjs` hỗ trợ song song `/api/staff/*`, `/api/manager/*`, `/api/ops/*`, `profile`, `change-password`, và `move-out`.
-- Kiểm chứng:
-  - `.\init.ps1` PASS toàn bộ:
+- T├¡nh n─âng: F06, F10, F11ΓÇôF20, refactor `OpsEndpoints` & `OpsService`.
+- ─É├ú xong:
+  - **T├íi cß║Ñu tr├║c backend theo vai tr├▓ (Role-based Refactoring):**
+    - T├ích `OpsService` v├á `OpsEndpoints` th├ánh:
+      - `IStaffService.cs` + `StaffService.cs` + `StaffEndpoints.cs` (nh├│m route `/api/staff/*`, phß╗Ñc vß╗Ñ nh├ón vi├¬n c╞í sß╗ƒ).
+      - `IManagerService.cs` + `ManagerService.cs` + `ManagerEndpoints.cs` (nh├│m route `/api/manager/*`, phß╗Ñc vß╗Ñ quß║ún l├╜ c╞í sß╗ƒ).
+      - `FacilityOpsStateStore.cs` quß║ún l├╜ trß║íng th├íi in-memory d├╣ng chung giß╗»a nh├ón vi├¬n v├á quß║ún l├╜ c╞í sß╗ƒ.
+      - Hß╗ù trß╗ú ─æß║ºy ─æß╗º routing fallback `/api/ops/*` tr├¬n backend ─æß╗â t╞░╞íng th├¡ch ng╞░ß╗úc 100%.
+  - **Bß╗ò sung c├íc chß╗⌐c n─âng c├▓n thiß║┐u cß╗ºa c├íc lß╗¢p user c├│ sß║╡n:**
+    - **Kh├ích h├áng (Customer):**
+      - Th├¬m `POST /api/contracts/{id}/move-out`: ─É─âng k├╜ lß╗ïch trß║ú kho (ng├áy, khung giß╗¥, ghi ch├║), tß╗▒ tß║ío `ReturnInspection` v├á chuyß╗ân trß║íng th├íi hß╗úp ─æß╗ông sang `RETURN_PENDING` (F06 -> `passing`).
+      - Th├¬m `GET /api/auth/profile`, `PUT /api/auth/profile`: Xem v├á cß║¡p nhß║¡t th├┤ng tin c├í nh├ón (F10 -> `passing`).
+      - Th├¬m `POST /api/auth/change-password`: ─Éß╗òi mß║¡t khß║⌐u c├í nh├ón c├│ kiß╗âm tra mß║¡t khß║⌐u hiß╗çn tß║íi bß║▒ng BCrypt.
+    - **Nh├ón vi├¬n c╞í sß╗ƒ (Staff):**
+      - Th├¬m `PUT /api/staff/units/{id}/status`: ─Éß╗òi trß║íng th├íi ├┤ kho ─æß╗Öc lß║¡p (AVAILABLE, MAINTENANCE, CLEANING, OCCUPIED) (UC09).
+      - Th├¬m `POST /api/staff/credentials/{id}/revoke`: Thu hß╗ôi quyß╗ün/m├ú truy cß║¡p c┼⌐ (UC08).
+      - Th├¬m `POST /api/staff/credentials/reissue`: Cß║Ñp lß║íi quyß╗ün/m├ú truy cß║¡p mß╗¢i (UC08).
+    - **Quß║ún l├╜ c╞í sß╗ƒ (Manager):**
+      - Th├¬m `GET /api/manager/units`: Danh s├ích ├┤ kho c╞í sß╗ƒ (UC13).
+      - Th├¬m `POST /api/manager/units`: Tß║ío ├┤ kho mß╗¢i tß║íi c╞í sß╗ƒ (UC13).
+      - Th├¬m `PUT /api/manager/units/{id}`: Cß║¡p nhß║¡t th├┤ng sß╗æ/trß║íng th├íi ├┤ kho (UC13).
+      - Th├¬m `POST /api/manager/units/{id}/lock`: Kh├│a ├┤ kho khi bß║úo tr├¼/sß╗▒ cß╗æ (UC13).
+  - **─Éß╗ông bß╗Ö Frontend:**
+    - Cß║¡p nhß║¡t `src/ops/api.js` gß╗ìi c├íc endpoint mß╗¢i theo vai tr├▓ (`/api/staff/*` v├á `/api/manager/*`).
+    - Cß║¡p nhß║¡t `mock/mock-api.mjs` hß╗ù trß╗ú song song `/api/staff/*`, `/api/manager/*`, `/api/ops/*`, `profile`, `change-password`, v├á `move-out`.
+- Kiß╗âm chß╗⌐ng:
+  - `.\init.ps1` PASS to├án bß╗Ö:
     - Frontend: `npm test` 38/38 PASS, `npm run test:render` 76/76 PASS, `npm run build` OK.
     - Backend: `dotnet build StorageProject.slnx` 0 Warning, 0 Error.
-- Phiên sau nên: Tiếp tục thực hiện các chức năng tiếp theo hoặc chuẩn bị giao diện Vận hành KD khi có yêu cầu.
+- Phi├¬n sau n├¬n: Tiß║┐p tß╗Ñc thß╗▒c hiß╗çn c├íc chß╗⌐c n─âng tiß║┐p theo hoß║╖c chuß║⌐n bß╗ï giao diß╗çn Vß║¡n h├ánh KD khi c├│ y├¬u cß║ºu.
 
-## Phiên 4b — 2026-10-14 — Sửa mã QR thanh toán PayOS đúng chuẩn liên kết thanh toán
+## Phi├¬n 4b ΓÇö 2026-10-14 ΓÇö Sß╗¡a m├ú QR thanh to├ín PayOS ─æ├║ng chuß║⌐n li├¬n kß║┐t thanh to├ín
 
-- Tính năng: F02, F03 (thanh toán PayOS QR).
-- Đã xong:
-  - Cập nhật `PaymentQr.jsx`: phân biệt giữa URL trang thanh toán PayOS (`checkoutUrl`) và file ảnh (`isImageUrl`); tạo mã QR chuẩn SVG từ liên kết thanh toán PayOS (`https://pay.payos.vn/web/...`) qua `QRCode.toString()`. Khách hàng quét mã bằng camera/app sẽ mở đúng liên kết PayOS. Mã QR có thể bấm trực tiếp để mở trang thanh toán.
-  - Sửa `PayOSEmbeddedModal.jsx`: dùng `PaymentQr` thay vì thẻ `<img>` trực tiếp (tránh lỗi broken image khi link là webpage URL hoặc chuỗi dữ liệu).
-  - Cập nhật `Checkout.jsx`: truyền `checkoutUrl` và trạng thái `loadingPayOS` vào `PaymentQr` để không bị nhấp nháy tài khoản mẫu khi đang tải từ backend.
-  - Cập nhật `PayOSService.cs`: kiểm tra nếu `checkoutUrl` chưa phải là link PayOS thật (`https://pay.payos.vn`) thì gọi PayOS SDK sinh mới và lưu vào đơn đặt chỗ.
-  - Hỗ trợ mock endpoints cho `/create-payos-qr` và `/status` trong `mock-api.mjs`.
-- Kiểm chứng:
-  - `.\init.ps1` → pass toàn bộ:
+- T├¡nh n─âng: F02, F03 (thanh to├ín PayOS QR).
+- ─É├ú xong:
+  - Cß║¡p nhß║¡t `PaymentQr.jsx`: ph├ón biß╗çt giß╗»a URL trang thanh to├ín PayOS (`checkoutUrl`) v├á file ß║únh (`isImageUrl`); tß║ío m├ú QR chuß║⌐n SVG tß╗½ li├¬n kß║┐t thanh to├ín PayOS (`https://pay.payos.vn/web/...`) qua `QRCode.toString()`. Kh├ích h├áng qu├⌐t m├ú bß║▒ng camera/app sß║╜ mß╗ƒ ─æ├║ng li├¬n kß║┐t PayOS. M├ú QR c├│ thß╗â bß║Ñm trß╗▒c tiß║┐p ─æß╗â mß╗ƒ trang thanh to├ín.
+  - Sß╗¡a `PayOSEmbeddedModal.jsx`: d├╣ng `PaymentQr` thay v├¼ thß║╗ `<img>` trß╗▒c tiß║┐p (tr├ính lß╗ùi broken image khi link l├á webpage URL hoß║╖c chuß╗ùi dß╗» liß╗çu).
+  - Cß║¡p nhß║¡t `Checkout.jsx`: truyß╗ün `checkoutUrl` v├á trß║íng th├íi `loadingPayOS` v├áo `PaymentQr` ─æß╗â kh├┤ng bß╗ï nhß║Ñp nh├íy t├ái khoß║ún mß║½u khi ─æang tß║úi tß╗½ backend.
+  - Cß║¡p nhß║¡t `PayOSService.cs`: kiß╗âm tra nß║┐u `checkoutUrl` ch╞░a phß║úi l├á link PayOS thß║¡t (`https://pay.payos.vn`) th├¼ gß╗ìi PayOS SDK sinh mß╗¢i v├á l╞░u v├áo ─æ╞ín ─æß║╖t chß╗ù.
+  - Hß╗ù trß╗ú mock endpoints cho `/create-payos-qr` v├á `/status` trong `mock-api.mjs`.
+- Kiß╗âm chß╗⌐ng:
+  - `.\init.ps1` ΓåÆ pass to├án bß╗Ö:
     - Frontend: `npm test` 38/38 PASS, `npm run test:render` 76 route PASS, `npm run build` OK.
     - Backend: `dotnet build StorageProject.slnx` 0 Warning 0 Error.
-- Phiên sau nên: Tiếp tục thực hiện các việc ưu tiên 2 trong `BACKEND-TODO.md` (mục B).
+- Phi├¬n sau n├¬n: Tiß║┐p tß╗Ñc thß╗▒c hiß╗çn c├íc viß╗çc ╞░u ti├¬n 2 trong `BACKEND-TODO.md` (mß╗Ñc B).
 
-## Phiên 5a — 2026-10-14 — Backend khu Nhân viên / Quản lý cơ sở + seed D17 (Claude)
+## Phi├¬n 5a ΓÇö 2026-10-14 ΓÇö Backend khu Nh├ón vi├¬n / Quß║ún l├╜ c╞í sß╗ƒ + seed D17 (Claude)
 
-- Tính năng: F03, F11–F21 (phần backend) + seed theo D17. Nhánh `feature/ops-backend` (tách từ `feature/figma-1410-sync`). Quyết định D18.
-- Đã xong:
-  - `DbSeeder` tách 3 file: 4 loại kho (thường/lạnh × M 15 m²/L 30 m²), 12 cơ sở, 12 ô K01–K12 mỗi cơ sở, giá theo
-    `lib/catalog.js`; loại kho / cơ sở đời cũ chuyển ngừng dùng. Quyền STAFF, MANAGER; tài khoản `manager01`, `staff02`,
-    `customer03`–`customer06`; gán cơ sở Nguyễn Lương Bằng; dữ liệu vận hành mẫu (2 khoản chờ đối soát, 1 đơn chờ phân bổ,
-    1 khách chờ bàn giao, 1 gia hạn chờ duyệt, 1 hợp đồng quá hạn, 1 lịch trả kho, 1 yêu cầu hỗ trợ).
-  - `/api/ops/*` (`FacilityOpsEndpoints.cs`, `FacilityOpsService*.cs`): board + 12 thao tác đúng `src/ops/api.js`.
-  - `POST /api/reservations/{id}/confirm-transfer` + trạng thái `PENDING_VERIFICATION` (migration viết tay).
-  - Sửa lỗi CHECK cũ: `HandoverService` (`COMPLETED` → `HANDED_OVER`), `RenewalService` (`PENDING_PAYMENT` → `PENDING`).
-  - Giao diện: "Tôi đã chuyển khoản" gọi API thật; `ops/data.js` còn 12 ô; bỏ chữ "dữ liệu mẫu" trên banner khu vận hành.
-  - Tài liệu: `docs/facility-ops-api.md`, `BACKEND-TODO.md` mục A, README / AGENTS (tài khoản).
-- Kiểm chứng:
-  - `npm test` → 41/41 pass (thêm test confirm-transfer qua mock, test mapper PENDING_VERIFICATION, test 12 ô)
-  - `npm run test:render` → 76 route PASS · `npm run build` → OK
-- Bị chặn / rủi ro: Đã chạy với SQL Server và kiểm chứng thành công.
+- T├¡nh n─âng: F03, F11ΓÇôF21 (phß║ºn backend) + seed theo D17. Nh├ính `feature/ops-backend` (t├ích tß╗½ `feature/figma-1410-sync`). Quyß║┐t ─æß╗ïnh D18.
+- ─É├ú xong:
+  - `DbSeeder` t├ích 3 file: 4 loß║íi kho (th╞░ß╗¥ng/lß║ính ├ù M 15 m┬▓/L 30 m┬▓), 12 c╞í sß╗ƒ, 12 ├┤ K01ΓÇôK12 mß╗ùi c╞í sß╗ƒ, gi├í theo
+    `lib/catalog.js`; loß║íi kho / c╞í sß╗ƒ ─æß╗¥i c┼⌐ chuyß╗ân ngß╗½ng d├╣ng. Quyß╗ün STAFF, MANAGER; t├ái khoß║ún `manager01`, `staff02`,
+    `customer03`ΓÇô`customer06`; g├ín c╞í sß╗ƒ Nguyß╗àn L╞░╞íng Bß║▒ng; dß╗» liß╗çu vß║¡n h├ánh mß║½u (2 khoß║ún chß╗¥ ─æß╗æi so├ít, 1 ─æ╞ín chß╗¥ ph├ón bß╗ò,
+    1 kh├ích chß╗¥ b├án giao, 1 gia hß║ín chß╗¥ duyß╗çt, 1 hß╗úp ─æß╗ông qu├í hß║ín, 1 lß╗ïch trß║ú kho, 1 y├¬u cß║ºu hß╗ù trß╗ú).
+  - `/api/ops/*` (`FacilityOpsEndpoints.cs`, `FacilityOpsService*.cs`): board + 12 thao t├íc ─æ├║ng `src/ops/api.js`.
+  - `POST /api/reservations/{id}/confirm-transfer` + trß║íng th├íi `PENDING_VERIFICATION` (migration viß║┐t tay).
+  - Sß╗¡a lß╗ùi CHECK c┼⌐: `HandoverService` (`COMPLETED` ΓåÆ `HANDED_OVER`), `RenewalService` (`PENDING_PAYMENT` ΓåÆ `PENDING`).
+  - Giao diß╗çn: "T├┤i ─æ├ú chuyß╗ân khoß║ún" gß╗ìi API thß║¡t; `ops/data.js` c├▓n 12 ├┤; bß╗Å chß╗» "dß╗» liß╗çu mß║½u" tr├¬n banner khu vß║¡n h├ánh.
+  - T├ái liß╗çu: `docs/facility-ops-api.md`, `BACKEND-TODO.md` mß╗Ñc A, README / AGENTS (t├ái khoß║ún).
+- Kiß╗âm chß╗⌐ng:
+  - `npm test` ΓåÆ 41/41 pass (th├¬m test confirm-transfer qua mock, test mapper PENDING_VERIFICATION, test 12 ├┤)
+  - `npm run test:render` ΓåÆ 76 route PASS ┬╖ `npm run build` ΓåÆ OK
+- Bß╗ï chß║╖n / rß╗ºi ro: ─É├ú chß║íy vß╗¢i SQL Server v├á kiß╗âm chß╗⌐ng th├ánh c├┤ng.
 
-## Phiên 4a — 2026-10-14 — Đồng bộ giao diện với Figma 14/10 (Claude)
+## Phi├¬n 4a ΓÇö 2026-10-14 ΓÇö ─Éß╗ông bß╗Ö giao diß╗çn vß╗¢i Figma 14/10 (Claude)
 
-- Tính năng: F30 (sơ đồ ô kho) + trang chủ, danh mục kho, header khu vận hành. Nhánh `feature/figma-1410-sync`. Quyết định D17.
-- Đã xong (chỉ frontend):
-  - Trang chủ mới (`pages/Home.jsx`): hero ảnh + tìm theo khu vực / loại / cỡ, dải số liệu, 4 loại kho, 3 bước,
-    cơ sở theo chip khu vực, khối kêu gọi, footer. Bỏ CSS trang chủ cũ không còn dùng.
-  - Sơ đồ 12 ô (`lib/units.js`, `UnitMap.jsx`): dãy A cỡ M, dãy B cỡ L; dữ liệu backend gắn ô theo loại + cỡ.
-  - Bỏ cỡ S (`lib/catalog.js`), 2 cỡ M 15 m² / L 30 m²; bảng giá P01 còn 2 thẻ, có giá kho lạnh.
-  - Bỏ "Gần bạn nhất", "Cách bạn … km", `distance_km`, `distanceLabel`.
-  - 12 cơ sở đều có kho lạnh; sửa quận Tân Thuận, Phú Mỹ Hưng về Quận 7; đơn mẫu B-015 đổi sang kho lạnh cỡ M.
-  - Header khu Nhân viên / Quản lý hiện tên cơ sở phụ trách dưới vai trò.
-- Test đã sửa theo quy tắc mới (không phải để cho pass): `units.test.js` (10 → 12 ô), `reducer.test.js`
-  (Quận 7 có 5 cơ sở, cả 12 có kho lạnh, giá B-015 mới, thêm kiểm tra cỡ S bị từ chối), `api-mappers.test.js`
-  (loại kho ≤ 20 m² là cỡ M), `render.test.mjs` (lọc cỡ M thay cỡ S).
-- Kiểm chứng: `npm test` → 39/39 pass; `npm run test:render` → 76 route PASS; `npm run build` → OK.
+- T├¡nh n─âng: F30 (s╞í ─æß╗ô ├┤ kho) + trang chß╗º, danh mß╗Ñc kho, header khu vß║¡n h├ánh. Nh├ính `feature/figma-1410-sync`. Quyß║┐t ─æß╗ïnh D17.
+- ─É├ú xong (chß╗ë frontend):
+  - Trang chß╗º mß╗¢i (`pages/Home.jsx`): hero ß║únh + t├¼m theo khu vß╗▒c / loß║íi / cß╗í, dß║úi sß╗æ liß╗çu, 4 loß║íi kho, 3 b╞░ß╗¢c,
+    c╞í sß╗ƒ theo chip khu vß╗▒c, khß╗æi k├¬u gß╗ìi, footer. Bß╗Å CSS trang chß╗º c┼⌐ kh├┤ng c├▓n d├╣ng.
+  - S╞í ─æß╗ô 12 ├┤ (`lib/units.js`, `UnitMap.jsx`): d├úy A cß╗í M, d├úy B cß╗í L; dß╗» liß╗çu backend gß║»n ├┤ theo loß║íi + cß╗í.
+  - Bß╗Å cß╗í S (`lib/catalog.js`), 2 cß╗í M 15 m┬▓ / L 30 m┬▓; bß║úng gi├í P01 c├▓n 2 thß║╗, c├│ gi├í kho lß║ính.
+  - Bß╗Å "Gß║ºn bß║ín nhß║Ñt", "C├ích bß║ín ΓÇª km", `distance_km`, `distanceLabel`.
+  - 12 c╞í sß╗ƒ ─æß╗üu c├│ kho lß║ính; sß╗¡a quß║¡n T├ón Thuß║¡n, Ph├║ Mß╗╣ H╞░ng vß╗ü Quß║¡n 7; ─æ╞ín mß║½u B-015 ─æß╗òi sang kho lß║ính cß╗í M.
+  - Header khu Nh├ón vi├¬n / Quß║ún l├╜ hiß╗çn t├¬n c╞í sß╗ƒ phß╗Ñ tr├ích d╞░ß╗¢i vai tr├▓.
+- Test ─æ├ú sß╗¡a theo quy tß║»c mß╗¢i (kh├┤ng phß║úi ─æß╗â cho pass): `units.test.js` (10 ΓåÆ 12 ├┤), `reducer.test.js`
+  (Quß║¡n 7 c├│ 5 c╞í sß╗ƒ, cß║ú 12 c├│ kho lß║ính, gi├í B-015 mß╗¢i, th├¬m kiß╗âm tra cß╗í S bß╗ï tß╗½ chß╗æi), `api-mappers.test.js`
+  (loß║íi kho Γëñ 20 m┬▓ l├á cß╗í M), `render.test.mjs` (lß╗ìc cß╗í M thay cß╗í S).
+- Kiß╗âm chß╗⌐ng: `npm test` ΓåÆ 39/39 pass; `npm run test:render` ΓåÆ 76 route PASS; `npm run build` ΓåÆ OK.
 
-## Phiên 3a — 2026-10-14 — Backend khu Quản lý vận hành KD (Claude)
+## Phi├¬n 3a ΓÇö 2026-10-14 ΓÇö Backend khu Quß║ún l├╜ vß║¡n h├ánh KD (Claude)
 
-- Tính năng: F24 (role OPERATIONS), F22 (cơ sở, chính sách, bảng giá), F23 (báo cáo + xuất CSV) — phía backend.
-  Nhánh `feature/operations-backend`.
-- Đã xong:
-  - Role `OPERATIONS`, quyền `POLICY_MANAGE`, `REPORT_SYSTEM`, `REPORT_EXPORT`, tài khoản `ops01` / `Ops@123`
-    (`DbSeeder.EnsureOperationsRoleAsync`, chạy lại được với DB cũ).
-  - `/api/operations/*`: cơ sở (UC19), chính sách (UC20–21), bảng giá (UC21), báo cáo theo cơ sở / loại kho / tháng /
-    trạng thái, drill-down hợp đồng, xuất CSV (UC22–23). Hợp đồng API: `docs/operations-api.md`. Không có migration mới.
-  - Đặt chỗ: chặn cơ sở không ACTIVE; tiền cọc và giá chỉ lấy chính sách / giá `ACTIVE` còn hiệu lực (D16).
+- T├¡nh n─âng: F24 (role OPERATIONS), F22 (c╞í sß╗ƒ, ch├¡nh s├ích, bß║úng gi├í), F23 (b├ío c├ío + xuß║Ñt CSV) ΓÇö ph├¡a backend.
+  Nh├ính `feature/operations-backend`.
+- ─É├ú xong:
+  - Role `OPERATIONS`, quyß╗ün `POLICY_MANAGE`, `REPORT_SYSTEM`, `REPORT_EXPORT`, t├ái khoß║ún `ops01` / `Ops@123`
+    (`DbSeeder.EnsureOperationsRoleAsync`, chß║íy lß║íi ─æ╞░ß╗úc vß╗¢i DB c┼⌐).
+  - `/api/operations/*`: c╞í sß╗ƒ (UC19), ch├¡nh s├ích (UC20ΓÇô21), bß║úng gi├í (UC21), b├ío c├ío theo c╞í sß╗ƒ / loß║íi kho / th├íng /
+    trß║íng th├íi, drill-down hß╗úp ─æß╗ông, xuß║Ñt CSV (UC22ΓÇô23). Hß╗úp ─æß╗ông API: `docs/operations-api.md`. Kh├┤ng c├│ migration mß╗¢i.
+  - ─Éß║╖t chß╗ù: chß║╖n c╞í sß╗ƒ kh├┤ng ACTIVE; tiß╗ün cß╗ìc v├á gi├í chß╗ë lß║Ñy ch├¡nh s├ích / gi├í `ACTIVE` c├▓n hiß╗çu lß╗▒c (D16).
 
-## Phiên 2 — 2026-10-01 — Giao diện theo Figma 30/09, khu Nhân viên / Quản lý cơ sở
+## Phi├¬n 2 ΓÇö 2026-10-01 ΓÇö Giao diß╗çn theo Figma 30/09, khu Nh├ón vi├¬n / Quß║ún l├╜ c╞í sß╗ƒ
 
-- Tính năng: F30 (mới), F21, F11–F20 (phía giao diện). Nhánh `feature/figma-3009-staff-manager`.
-- Đã xong (chỉ frontend, không sửa backend):
-  - Figma: ô trống màu xanh, bỏ ảnh sơ đồ mặt bằng khỏi thư viện ảnh, sửa nút đen, xếp frame theo vai trò và thứ tự luồng.
-  - Khách hàng: sơ đồ ô kho trong chi tiết cơ sở (D13), tìm kho trên bản đồ + nút Danh sách / Bản đồ (D12),
-    bỏ footer mọi trang, một dòng thông báo khi chưa có kho.
-  - Khu Nhân viên `#/staff` (S01–S05, S09) và Quản lý cơ sở `#/manager` (M01–M07) trong `src/ops/`, lưới 3×3 (D14).
-  - Hợp đồng `/api/ops/*` + dự phòng lưu trình duyệt (D15); việc backend còn thiếu: `BACKEND-TODO.md`.
-- Kiểm chứng: `npm test` → 38/38 pass; `npm run test:render` → 76 route PASS; `npm run build` → OK;
-  chạy tay luồng khách / nhân viên / quản lý trên mock (`MOCK_OPS=1`). **Chưa chạy với backend .NET thật.**
-- Bị chặn / rủi ro:
-  - Backend chưa có `/api/ops/*`, tài khoản seed MANAGER, lọc theo cơ sở (UserFacility) → F11–F21 để `blocked`.
-  - D13 cần nhóm chốt có cho khách giữ đúng ô đã chọn không.
-  - Luồng nghiệp vụ D02 không đổi. F29 chưa kiểm lại, giữ nguyên trạng thái.
-- Phiên sau nên: người phụ trách backend làm `BACKEND-TODO.md` mục A, chạy `npm run dev` với backend thật
-  và đi hết luồng đặt → đối soát → phân bổ → xác minh → bàn giao; pass thì đổi F11–F21 sang `passing`.
+- T├¡nh n─âng: F30 (mß╗¢i), F21, F11ΓÇôF20 (ph├¡a giao diß╗çn). Nh├ính `feature/figma-3009-staff-manager`.
+- ─É├ú xong (chß╗ë frontend, kh├┤ng sß╗¡a backend):
+  - Figma: ├┤ trß╗æng m├áu xanh, bß╗Å ß║únh s╞í ─æß╗ô mß║╖t bß║▒ng khß╗Åi th╞░ viß╗çn ß║únh, sß╗¡a n├║t ─æen, xß║┐p frame theo vai tr├▓ v├á thß╗⌐ tß╗▒ luß╗ông.
+  - Kh├ích h├áng: s╞í ─æß╗ô ├┤ kho trong chi tiß║┐t c╞í sß╗ƒ (D13), t├¼m kho tr├¬n bß║ún ─æß╗ô + n├║t Danh s├ích / Bß║ún ─æß╗ô (D12),
+    bß╗Å footer mß╗ìi trang, mß╗Öt d├▓ng th├┤ng b├ío khi ch╞░a c├│ kho.
+  - Khu Nh├ón vi├¬n `#/staff` (S01ΓÇôS05, S09) v├á Quß║ún l├╜ c╞í sß╗ƒ `#/manager` (M01ΓÇôM07) trong `src/ops/`, l╞░ß╗¢i 3├ù3 (D14).
+  - Hß╗úp ─æß╗ông `/api/ops/*` + dß╗▒ ph├▓ng l╞░u tr├¼nh duyß╗çt (D15); viß╗çc backend c├▓n thiß║┐u: `BACKEND-TODO.md`.
+- Kiß╗âm chß╗⌐ng: `npm test` ΓåÆ 38/38 pass; `npm run test:render` ΓåÆ 76 route PASS; `npm run build` ΓåÆ OK;
+  chß║íy tay luß╗ông kh├ích / nh├ón vi├¬n / quß║ún l├╜ tr├¬n mock (`MOCK_OPS=1`). **Ch╞░a chß║íy vß╗¢i backend .NET thß║¡t.**
+- Bß╗ï chß║╖n / rß╗ºi ro:
+  - Backend ch╞░a c├│ `/api/ops/*`, t├ái khoß║ún seed MANAGER, lß╗ìc theo c╞í sß╗ƒ (UserFacility) ΓåÆ F11ΓÇôF21 ─æß╗â `blocked`.
+  - D13 cß║ºn nh├│m chß╗æt c├│ cho kh├ích giß╗» ─æ├║ng ├┤ ─æ├ú chß╗ìn kh├┤ng.
+  - Luß╗ông nghiß╗çp vß╗Ñ D02 kh├┤ng ─æß╗òi. F29 ch╞░a kiß╗âm lß║íi, giß╗» nguy├¬n trß║íng th├íi.
+- Phi├¬n sau n├¬n: ng╞░ß╗¥i phß╗Ñ tr├ích backend l├ám `BACKEND-TODO.md` mß╗Ñc A, chß║íy `npm run dev` vß╗¢i backend thß║¡t
+  v├á ─æi hß║┐t luß╗ông ─æß║╖t ΓåÆ ─æß╗æi so├ít ΓåÆ ph├ón bß╗ò ΓåÆ x├íc minh ΓåÆ b├án giao; pass th├¼ ─æß╗òi F11ΓÇôF21 sang `passing`.
 
-## Phiên 1 — 2026-09-26 — Rà mâu thuẫn Figma
+## Phi├¬n 1 ΓÇö 2026-09-26 ΓÇö R├á m├óu thuß║½n Figma
 
-- Tính năng: (không có — rà soát thiết kế trước khi chốt "Figma là chuẩn")
-- Đã xong: đọc chữ và liên kết prototype của toàn bộ màn trong Figma "SafeSpace - Modern UI"; sửa trực tiếp
-  trong Figma các chỗ mâu thuẫn về luồng / trạng thái / nhân vật / liên kết (bỏ qua ảnh, giá, số liệu).
-  Danh sách đầy đủ: `docs/figma-review-2026-09-26.md`. Chốt D02 theo Figma, thêm D11.
-- Kiểm chứng: quét lại toàn file Figma không còn "SafeSpace Quận 7", "Trần Minh", "Lê Anh", gia hạn B-015 "đã gửi";
-  chụp lại C01, C07, C11, C14, M03, M07, A04 để kiểm tra bố cục.
-- Bị chặn / rủi ro: code giao diện còn cho gia hạn / trả kho khi hợp đồng chưa bàn giao và câu tiền cọc cũ → F29.
-  SRS mục A03 cần sửa cho khớp D02.
-- Phiên sau nên: làm F29 (nhỏ, chỉ giao diện) hoặc F28.
+- T├¡nh n─âng: (kh├┤ng c├│ ΓÇö r├á so├ít thiß║┐t kß║┐ tr╞░ß╗¢c khi chß╗æt "Figma l├á chuß║⌐n")
+- ─É├ú xong: ─æß╗ìc chß╗» v├á li├¬n kß║┐t prototype cß╗ºa to├án bß╗Ö m├án trong Figma "SafeSpace - Modern UI"; sß╗¡a trß╗▒c tiß║┐p
+  trong Figma c├íc chß╗ù m├óu thuß║½n vß╗ü luß╗ông / trß║íng th├íi / nh├ón vß║¡t / li├¬n kß║┐t (bß╗Å qua ß║únh, gi├í, sß╗æ liß╗çu).
+  Danh s├ích ─æß║ºy ─æß╗º: `docs/figma-review-2026-09-26.md`. Chß╗æt D02 theo Figma, th├¬m D11.
+- Kiß╗âm chß╗⌐ng: qu├⌐t lß║íi to├án file Figma kh├┤ng c├▓n "SafeSpace Quß║¡n 7", "Trß║ºn Minh", "L├¬ Anh", gia hß║ín B-015 "─æ├ú gß╗¡i";
+  chß╗Ñp lß║íi C01, C07, C11, C14, M03, M07, A04 ─æß╗â kiß╗âm tra bß╗æ cß╗Ñc.
+- Bß╗ï chß║╖n / rß╗ºi ro: code giao diß╗çn c├▓n cho gia hß║ín / trß║ú kho khi hß╗úp ─æß╗ông ch╞░a b├án giao v├á c├óu tiß╗ün cß╗ìc c┼⌐ ΓåÆ F29.
+  SRS mß╗Ñc A03 cß║ºn sß╗¡a cho khß╗¢p D02.
+- Phi├¬n sau n├¬n: l├ám F29 (nhß╗Å, chß╗ë giao diß╗çn) hoß║╖c F28.
 
-## Phiên 0 — 2026-09-26 — Thiết lập harness
+## Phi├¬n 0 ΓÇö 2026-09-26 ΓÇö Thiß║┐t lß║¡p harness
 
-- Tính năng: (không có — phiên khởi tạo, chưa viết code tính năng)
-- Căn cứ: hướng dẫn Harness Engineering tại https://learnharness.org/#dinh-nghia và https://skills.learnharness.org/
-  (thầy Hoàng Giáo Làng giới thiệu tại Build With AI #3: From Working Code To Reliable Product).
-- Đã xong: thêm `AGENTS.md`, `CLAUDE.md`, `feature_list.json`, `progress.md`, `DECISIONS.md`,
+- T├¡nh n─âng: (kh├┤ng c├│ ΓÇö phi├¬n khß╗ƒi tß║ío, ch╞░a viß║┐t code t├¡nh n─âng)
+- C─ân cß╗⌐: h╞░ß╗¢ng dß║½n Harness Engineering tß║íi https://learnharness.org/#dinh-nghia v├á https://skills.learnharness.org/
+  (thß║ºy Ho├áng Gi├ío L├áng giß╗¢i thiß╗çu tß║íi Build With AI #3: From Working Code To Reliable Product).
+- ─É├ú xong: th├¬m `AGENTS.md`, `CLAUDE.md`, `feature_list.json`, `progress.md`, `DECISIONS.md`,
   `init.sh`, `init.ps1`, `docs/` (architecture, business-rules, conventions, verification, templates/sprint-contract).
-- Hiện trạng code (commit `5177812`, main):
-  - Giao diện khách hàng C01–C14 và quản trị A01–A04 đã có, gọi API thật cho các luồng backend đã hỗ trợ.
+- Hiß╗çn trß║íng code (commit `5177812`, main):
+  - Giao diß╗çn kh├ích h├áng C01ΓÇôC14 v├á quß║ún trß╗ï A01ΓÇôA04 ─æ├ú c├│, gß╗ìi API thß║¡t cho c├íc luß╗ông backend ─æ├ú hß╗ù trß╗ú.
   - Backend .NET: auth, facilities/rates/availability, reservations, contracts, payments, renewals,
-    handover confirm, tickets, toàn bộ `/api/admin/*`.
-  - Chưa có: giao diện Nhân viên / Quản lý cơ sở / Quản lý vận hành KD (UC07–UC23).
-- Kiểm chứng:
-  - `npm test` → 28/28 pass
-  - `npm run test:render` → 38 route PASS
-  - `npm run build` → OK
-  - `dotnet build` → **chưa chạy** (máy thiết lập không có .NET). Phiên sau chạy `./init.sh` trên máy có .NET để xác nhận.
-- Bị chặn / rủi ro:
-  - Backend không có test tự động → kiểm chứng backend yếu (F28).
-  - Luồng thanh toán lúc đặt (Figma) lệch SRS A03 → đã chốt theo Figma ở Phiên 1 (D02).
-  - `README.md` gốc chưa khớp code: ghi .NET 9 (project là `net10.0`); mục cấu trúc frontend còn tên cũ
-    (`services/`, `customer.css`); nhắc tag "BẢN DEMO UI" không còn trong code.
-- Phiên sau nên: chạy `./init.sh` đầy đủ trên máy có .NET; sau đó làm F28 (test backend) hoặc F21
-  (khu Nhân viên / Quản lý) tuỳ nhóm ưu tiên.
+    handover confirm, tickets, to├án bß╗Ö `/api/admin/*`.
+  - Ch╞░a c├│: giao diß╗çn Nh├ón vi├¬n / Quß║ún l├╜ c╞í sß╗ƒ / Quß║ún l├╜ vß║¡n h├ánh KD (UC07ΓÇôUC23).
+- Kiß╗âm chß╗⌐ng:
+  - `npm test` ΓåÆ 28/28 pass
+  - `npm run test:render` ΓåÆ 38 route PASS
+  - `npm run build` ΓåÆ OK
+  - `dotnet build` ΓåÆ **ch╞░a chß║íy** (m├íy thiß║┐t lß║¡p kh├┤ng c├│ .NET). Phi├¬n sau chß║íy `./init.sh` tr├¬n m├íy c├│ .NET ─æß╗â x├íc nhß║¡n.
+- Bß╗ï chß║╖n / rß╗ºi ro:
+  - Backend kh├┤ng c├│ test tß╗▒ ─æß╗Öng ΓåÆ kiß╗âm chß╗⌐ng backend yß║┐u (F28).
+  - Luß╗ông thanh to├ín l├║c ─æß║╖t (Figma) lß╗çch SRS A03 ΓåÆ ─æ├ú chß╗æt theo Figma ß╗ƒ Phi├¬n 1 (D02).
+  - `README.md` gß╗æc ch╞░a khß╗¢p code: ghi .NET 9 (project l├á `net10.0`); mß╗Ñc cß║Ñu tr├║c frontend c├▓n t├¬n c┼⌐
+    (`services/`, `customer.css`); nhß║»c tag "Bß║óN DEMO UI" kh├┤ng c├▓n trong code.
+- Phi├¬n sau n├¬n: chß║íy `./init.sh` ─æß║ºy ─æß╗º tr├¬n m├íy c├│ .NET; sau ─æ├│ l├ám F28 (test backend) hoß║╖c F21
+  (khu Nh├ón vi├¬n / Quß║ún l├╜) tuß╗│ nh├│m ╞░u ti├¬n.
 
-## C07 QR frontend — 2026-10-16 — Tiến / Codex
-- Thêm component QR riêng + 2 dòng vào Units.jsx; không sửa nghiệp vụ cũ, API hoặc DB.
-- C07q xem QR, C07r1/C07r2 kết quả quét; mô phỏng chỉ VITE_USE_API=false, API thật báo chưa hỗ trợ.
-- Kiểm chứng: 42 test gốc, 10 test QR, 9 test business pass; 76 route SSR pass; Vite build pass.
-- Browser Chromium: popup 480x598, QR, kết quả mở cửa, từ chối hết hạn, icon 96px, Escape, Đóng, khóa chưa bàn giao, mobile 390px, không pageerror.
-- Chưa có backend QR; hướng dẫn C07-QR-HUONG-DAN.md.
+## C07 QR frontend ΓÇö 2026-10-16 ΓÇö Tiß║┐n / Codex
+- Th├¬m component QR ri├¬ng + 2 d├▓ng v├áo Units.jsx; kh├┤ng sß╗¡a nghiß╗çp vß╗Ñ c┼⌐, API hoß║╖c DB.
+- C07q xem QR, C07r1/C07r2 kß║┐t quß║ú qu├⌐t; m├┤ phß╗Ång chß╗ë VITE_USE_API=false, API thß║¡t b├ío ch╞░a hß╗ù trß╗ú.
+- Kiß╗âm chß╗⌐ng: 42 test gß╗æc, 10 test QR, 9 test business pass; 76 route SSR pass; Vite build pass.
+- Browser Chromium: popup 480x598, QR, kß║┐t quß║ú mß╗ƒ cß╗¡a, tß╗½ chß╗æi hß║┐t hß║ín, icon 96px, Escape, ─É├│ng, kh├│a ch╞░a b├án giao, mobile 390px, kh├┤ng pageerror.
+- Ch╞░a c├│ backend QR; h╞░ß╗¢ng dß║½n C07-QR-HUONG-DAN.md.
 
-## 2026-10-20 — F35 kiểm khoản thu và phân bổ, thanh toán tại kho, F12
+## 2026-10-20 ΓÇö F35 kiß╗âm khoß║ún thu v├á ph├ón bß╗ò, thanh to├ín tß║íi kho, F12
 
-- Theo yêu cầu người dùng sửa cùng gói: PayOS kiểm số tiền và orderCode, ghi RENT/DEPOSIT vào payments trước khi có hợp đồng; gắn lại PaymentId khi phân bổ, không thu thêm. Bỏ phân bổ tự động khỏi webhook. Chuyển trả tại kho huỷ link trước khi đổi, S09 thu tiền mặt, xử lý callback muộn bằng PAYMENT_REVIEW_REQUIRED.
-- D23–D24 bổ sung, không sửa số/nội dung D19–D22. Trạng thái ô bằng tay có lý do, quy tắc và unit_status_history. Xoá các route /api/ops trùng trong Staff/Manager để giữ một bộ đăng ký; các thao tác thu tiền/phân bổ tương thích dùng chung xử lý.
-- Migration mới 20261020154838_ReservationPaymentIntegrity: PaymentMethod, PENDING_AT_FACILITY, Payment.ReservationId, ContractId optional, unique index khoản thu. Nối các dòng cũ không mơ hồ; không xoá database/dữ liệu. Worker thu hồi giữ chỗ tại kho hết hạn. Không sửa migration cũ.
-- Chặn xác minh/bàn giao chưa có đủ khoản thu, đồng bộ trạng thái xác minh từ HandoverRecord thay vì đánh dấu CHECKED_IN trước khi bàn giao. Test luồng chọn trả tại kho → phân bổ → thu → xác minh → bàn giao giữ nguyên hai khoản thu.
-- Kiểm chứng: .NET SDK 10.0.100; dotnet build StorageProject.slnx -m:1 PASS; xUnit 15/15 PASS (SQLite, adapter SDK chữ ký sai, model SQL Server khớp snapshot, route không trùng); npm test 67/67 PASS; test:business 9/9 PASS; test:render 92 route PASS; npm run build PASS; bash init.sh PASS với dotnet build/test chạy m:1 do giới hạn tiến trình của môi trường; git diff --check PASS; sinh được SQL upgrade từ migration toạ độ tới migration mới.
-- Giới hạn kiểm chứng: chưa chạy SQL Server thật, chưa thử PayOS/ngrok bằng key thật, chưa kiểm khoá/đồng thời trên SQL Server hay migration trên dữ liệu DB của nhóm. F35 giữ active, không tuyên bố 7 flow hoàn tất. Các cảnh báo dependency NU1902/NU1903 và nullable Board.cs:317 đã có từ nguồn.
-- Chỉ bàn giao ZIP/bản vá để người dùng áp dụng và chạy thử trước khi tự push nhánh. Không push/PR/merge từ phiên này.
-
-
-## 2026-10-20 — F36: Cấu trúc frontend và quy tắc đặt tên
-
-- Nền: nhánh thanh toán người dùng đã push, b482840; giữ sửa DbSeeder. Chỉ đổi cấu trúc FE và hướng dẫn, không đổi nghiệp vụ/URL/API/localStorage.
-- Chuyển 79 file; tách 6 module gom trang thành từng Page theo chức năng. Phần chung Staff/Manager dùng facility-operations; app chứa router/provider chung; shared chứa UI/API nền/utils.
-- Tên component Page khớp tên file. Thêm FRONTEND-MAP.md, docs/frontend-naming.md, hướng dẫn AGENTS trong FE và chỉ dẫn Copilot; CLAUDE.md hiện trỏ AGENTS gốc. Có npm run check:structure.
-- Test chỉ cập nhật import/module path, giữ assertion. Kiểm tra 532 khai báo AST tương đương sau đổi tên identifier/import/export.
-- Kiểm chứng: check:structure PASS; npm test 67/67; test:business 9/9; test:render 92 routes; build PASS; init.sh PASS (dotnet dùng -m:1 do giới hạn môi trường); git diff --check PASS. Các cảnh báo dependency/nullable/chunk size cũ vẫn còn.
-- Chưa kiểm thử lại tương tác trình duyệt/API thật; SSR không bao phủ thao tác. ZIP dùng git apply để thêm file mới và xoá file cũ, có kiểm tra trước khi áp dụng. Không push/PR/merge.
+- Theo y├¬u cß║ºu ng╞░ß╗¥i d├╣ng sß╗¡a c├╣ng g├│i: PayOS kiß╗âm sß╗æ tiß╗ün v├á orderCode, ghi RENT/DEPOSIT v├áo payments tr╞░ß╗¢c khi c├│ hß╗úp ─æß╗ông; gß║»n lß║íi PaymentId khi ph├ón bß╗ò, kh├┤ng thu th├¬m. Bß╗Å ph├ón bß╗ò tß╗▒ ─æß╗Öng khß╗Åi webhook. Chuyß╗ân trß║ú tß║íi kho huß╗╖ link tr╞░ß╗¢c khi ─æß╗òi, S09 thu tiß╗ün mß║╖t, xß╗¡ l├╜ callback muß╗Ön bß║▒ng PAYMENT_REVIEW_REQUIRED.
+- D23ΓÇôD24 bß╗ò sung, kh├┤ng sß╗¡a sß╗æ/nß╗Öi dung D19ΓÇôD22. Trß║íng th├íi ├┤ bß║▒ng tay c├│ l├╜ do, quy tß║»c v├á unit_status_history. Xo├í c├íc route /api/ops tr├╣ng trong Staff/Manager ─æß╗â giß╗» mß╗Öt bß╗Ö ─æ─âng k├╜; c├íc thao t├íc thu tiß╗ün/ph├ón bß╗ò t╞░╞íng th├¡ch d├╣ng chung xß╗¡ l├╜.
+- Migration mß╗¢i 20261020154838_ReservationPaymentIntegrity: PaymentMethod, PENDING_AT_FACILITY, Payment.ReservationId, ContractId optional, unique index khoß║ún thu. Nß╗æi c├íc d├▓ng c┼⌐ kh├┤ng m╞í hß╗ô; kh├┤ng xo├í database/dß╗» liß╗çu. Worker thu hß╗ôi giß╗» chß╗ù tß║íi kho hß║┐t hß║ín. Kh├┤ng sß╗¡a migration c┼⌐.
+- Chß║╖n x├íc minh/b├án giao ch╞░a c├│ ─æß╗º khoß║ún thu, ─æß╗ông bß╗Ö trß║íng th├íi x├íc minh tß╗½ HandoverRecord thay v├¼ ─æ├ính dß║Ñu CHECKED_IN tr╞░ß╗¢c khi b├án giao. Test luß╗ông chß╗ìn trß║ú tß║íi kho ΓåÆ ph├ón bß╗ò ΓåÆ thu ΓåÆ x├íc minh ΓåÆ b├án giao giß╗» nguy├¬n hai khoß║ún thu.
+- Kiß╗âm chß╗⌐ng: .NET SDK 10.0.100; dotnet build StorageProject.slnx -m:1 PASS; xUnit 15/15 PASS (SQLite, adapter SDK chß╗» k├╜ sai, model SQL Server khß╗¢p snapshot, route kh├┤ng tr├╣ng); npm test 67/67 PASS; test:business 9/9 PASS; test:render 92 route PASS; npm run build PASS; bash init.sh PASS vß╗¢i dotnet build/test chß║íy m:1 do giß╗¢i hß║ín tiß║┐n tr├¼nh cß╗ºa m├┤i tr╞░ß╗¥ng; git diff --check PASS; sinh ─æ╞░ß╗úc SQL upgrade tß╗½ migration toß║í ─æß╗Ö tß╗¢i migration mß╗¢i.
+- Giß╗¢i hß║ín kiß╗âm chß╗⌐ng: ch╞░a chß║íy SQL Server thß║¡t, ch╞░a thß╗¡ PayOS/ngrok bß║▒ng key thß║¡t, ch╞░a kiß╗âm kho├í/─æß╗ông thß╗¥i tr├¬n SQL Server hay migration tr├¬n dß╗» liß╗çu DB cß╗ºa nh├│m. F35 giß╗» active, kh├┤ng tuy├¬n bß╗æ 7 flow ho├án tß║Ñt. C├íc cß║únh b├ío dependency NU1902/NU1903 v├á nullable Board.cs:317 ─æ├ú c├│ tß╗½ nguß╗ôn.
+- Chß╗ë b├án giao ZIP/bß║ún v├í ─æß╗â ng╞░ß╗¥i d├╣ng ├íp dß╗Ñng v├á chß║íy thß╗¡ tr╞░ß╗¢c khi tß╗▒ push nh├ính. Kh├┤ng push/PR/merge tß╗½ phi├¬n n├áy.
 
 
-## 2026-10-21 — F37 tách backend C13 và S05/C12
+## 2026-10-20 ΓÇö F36: Cß║Ñu tr├║c frontend v├á quy tß║»c ─æß║╖t t├¬n
 
-- Theo yêu cầu mới nhất của người dùng, chỉ chuẩn bị hai luồng đã kiểm tra đạt để push trước; gói backend độc lập trên main fc83c3a. Không đưa phí trả kho, huỷ/hoàn tiền, migration hay frontend vào bản vá. Giữ các công việc đang làm dở ở thư mục/nhánh cũ.
-- C13 kiểm tên và mật khẩu, lỗi đầu vào trả 400; test đọc lại database và kiểm tài khoản khác không đổi. S05/C12 ánh xạ chủ đề hợp lệ, đọc ticket theo cơ sở hợp đồng, chuẩn hoá trạng thái/ghi chú, lưu audit phản hồi và trả nội dung cho chủ ticket.
-- Gộp phần hỗ trợ từ bản bổ sung đã bàn giao; loại bỏ các hunk S04 dùng chung trong StaffService để không phụ thuộc FinanceService. Giữ nguyên hàm trả kho của main. Code cũ giữ trong comment // ở các đoạn thay đổi.
-- Kiểm chứng: .NET SDK 10.0.402; build -m:1 PASS; xUnit 34/34 (15 test main + 19 trường hợp AuthSupport, SQLite); check:structure PASS; FE 68/68; business 9/9; SSR 92 route PASS; build FE và init.sh PASS. init dùng wrapper dotnet thêm -m:1 do giới hạn tiến trình; không sửa init.sh.
-- Cảnh báo có sẵn NU1902/NU1903, nullable Board.cs và kích thước chunk/font frontend vẫn còn. Chưa chạy SQL Server thật cho bản tách riêng. Người dùng đã báo C13 và S05/C12 đạt trước khi tách; cần kiểm tra lại sau khi áp dụng. F37 giữ active.
-- Figma từ chối quyền đọc thiết kế/ảnh; không có thay đổi giao diện và không tuyên bố đã đối chiếu thiết kế trực tiếp.
-- Không push/PR/merge. Bàn giao patch, danh sách file và hướng dẫn tạo worktree riêng để người dùng tự kiểm tra, commit và push.
-
-## 2026-10-22 — F38 đồng bộ giao diện và luồng Figma
-- Nền 0e70026, giữ thay đổi quản trị và Auth/Support mới trên main. Tính năng phiên này duy nhất F38; không đổi trạng thái F35/F37 đang chờ nhóm kiểm chứng.
-- Người dùng chọn "Hệ thống tự chọn" khi hỏi cách phân bổ sau PayOS. D26 thay yêu cầu bàn giao, PIN8 và phân bổ thủ công thường lệ. Vì vậy các assertion cũ yêu cầu webhook không phân bổ, bàn giao kích hoạt, PIN8, QR bị khóa trước nhận chìa khóa cần cập nhật theo nghiệp vụ mới; giữ kiểm tiền, quyền sở hữu, chống trùng và các kiểm chứng khác.
-- Đang kiểm chứng toàn bộ FE/BE, tương tác trình duyệt và ZIP. Chưa tuyên bố PayOS/SQL Server/thiết bị thật đạt.
-
-- Bàn giao F38: frontend cuối 76/76, SSR 92 route, check:structure/build đạt; business 9/9; backend build + 40 test SQLite trong phiên. Browser 13 nhóm PASS, so ảnh header trước/sau cuộn ở 5 role không đổi; hủy xác nhận không request, xử lý xong giảm badge, thất bại giữ draft, mobile không tràn. Chưa xác nhận SQL Server/PayOS/thiết bị thật; xem docs/figma-ui-sync-2026-10-22.md.
-
-## 2026-10-22 — D27 chốt chính sách cọc và hoàn tiền
-
-- Nhóm chốt theo D27 (DECISIONS.md): cọc 1 tháng thuê, hủy trước StartDate giữ 10% cọc, dừng sau StartDate hoàn 70% cọc, phương án B cho tiền thuê khi dừng giữa kỳ, phạt quá hạn theo tham số OVERDUE ở B02, DamageFee và OverdueFee trừ thêm vào cọc.
-- Chưa có code: feature_list.json không đổi trạng thái vì chưa có bằng chứng chạy. Phần cần làm đã ghi trong BACKEND-TODO.md mục D27.
-- Cần đổi: H1 cancel-preview và CANCEL_FEE_RATE đang tính 10% tiền thuê, không theo D27. T05 trong doc vẫn để "theo chính sách đã chốt".
-
-## 2026-10-22 — F39 code chính sách cọc và hoàn tiền D27 (T01, T05, T08)
-
-- Tính năng phiên này duy nhất F39; nền origin/main 248a083. Làm theo D27, không đổi quyết định.
-- Backend: RefundPolicy (hàm thuần), cancel-preview, huỷ đơn đã thanh toán ghi một khoản REFUND PENDING, M07 xác nhận hoàn cho đơn đã huỷ, ConfirmRefundAsync hợp đồng tính theo D27 và chỉ trừ trong phạm vi cọc (phần thiếu giữ thành công nợ). Chính sách OVERDUE seed đổi mô tả thành 5% tiền thuê tháng mỗi ngày trễ.
-- Frontend: cancelPreviewOf đổi sang 10% tiền cọc; test huỷ đơn (C14a) cập nhật số mong đợi 4.600.000 − 115.000. Không sửa test nào để cho qua; chỉ đổi số liệu theo D27.
-- Kiểm chứng: FE npm test 76/76. Backend: phiên này không có .NET SDK nên chưa biên dịch và chưa chạy test; đã thêm RefundPolicyTests (11 trường hợp) và đối chiếu công thức tháng bằng bản tính độc lập. F39 giữ active, chưa passing.
-- Giả định cần nhóm xác nhận: (1) dừng sớm thì khấu trừ cố định 30% đã bao gồm khoản vệ sinh 10%; (2) khoản CLEANING_FEE chờ thanh toán được coi là đã nằm trong khoản khấu trừ cố định; (3) quá hạn tính từ EndDate đến ngày biên bản trả kho; (4) khoản gia hạn (RENEWAL) không nằm trong phần hoàn tiền thuê.
-- Không push/PR/merge.
-- Bổ sung cùng F39 (cùng đợt, trước khi merge): (a) F12 ô kho RESERVED → OCCUPIED khi đến StartDate, qua UnitStartActivation chạy trong worker hiện có, có test ReservedUnitBecomesOccupiedOnStartDateOnly; (b) đường hoàn cọc cũ của quản lý gọi chung logic D27, bỏ ManagerService.ConfirmRefundAsync (lỗi: đặt trạng thái ENDED, không theo D27). Cả hai chưa biên dịch trong phiên viết code; cần dotnet build/test của nhóm. Còn lại: nút xác nhận hoàn đơn huỷ ở M07 trên giao diện.
-
-## 2026-10-23 — F40 đồng bộ Figma 23/10 (đợt 1)
-
-- Rà Figma: sửa tràn chữ C04b, chữ ngắn xuống dòng, nút lệch, thống nhất "huỷ". Cập nhật Figma theo repo: luồng đặt chỗ hiện tiền cọc, các màn huỷ/hoàn tiền theo D27, B02 phí quá hạn theo D27.
-- Code: C14 thao tác trên từng dòng + C14a–c theo D27; M08 hoàn tiền đơn huỷ (`#/manager/refunds`, action `CONFIRM_RESERVATION_REFUND` gọi `POST /api/ops/reservations/{id}/refund`); M07a xác nhận trả kho; hộp thoại xác nhận/thành công/thất bại cho nhân viên, quản lý, Vận hành KD và Admin (D28).
-- Test cập nhật có lý do: `render.test.mjs` C14 đổi chữ mong đợi từ "Chỉ huỷ được đơn chưa nhận kho" sang chữ chính sách D27 và cột "Thao tác" vì Figma C14 đổi giao diện; thêm route `manager/refunds`. Thêm test reducer M08 (phí 10% cọc, hoàn 100% thuê + 90% cọc, bắt buộc mã giao dịch, chỉ xác nhận một lần).
-- Kiểm chứng: check:structure PASS; npm test 77/77; test:business 9/9; test:render 93 route; build PASS. Chromium (dữ liệu trình duyệt + máy chủ giả lập): C14 huỷ đơn, M08 hai đơn, S04 → M07a, S09, M03, phân bổ, Admin đặt lại mật khẩu. Chưa chạy .NET/SQL Server thật; M08 cần backend trả `refunds` trong board.
-- Không push/PR/merge. Bàn giao ZIP để người dùng tự kiểm tra và push.
-
-## 2026-10-23 — F40 đồng bộ Figma 23/10 (đợt 2: màn chưa có backend)
-
-- Thêm: M05 (danh sách yêu cầu, đã xử lý hết, chưa có ô phù hợp), M02b/M02c thêm/sửa ô kho + kết quả M02, B05b thêm cơ sở, B05c đổi trạng thái cơ sở + kết quả B05, C05-chờ ô, C11f/C11fb/C11fq/C11fc/C11fcp/C11-kiểm tra (phí phát sinh qua PayOS hoặc tại quầy), S04 nhập phí phát sinh, S09a/S09f/S09fc/S09fd/S09e thu phí tại quầy (`#/staff/fees`), kết quả M07a theo D27.
-- Backend: M02b/c và B05b/c gọi API đã có; phí phát sinh, thu phí tại quầy, PayOS cho phí và danh sách hoàn tiền chưa có → ghi BACKEND-TODO.md. Chế độ trình duyệt chạy đủ luồng.
-- Test cập nhật có lý do: render S01 đếm 12 việc (thêm 2 khoản thu phí S09f trong dữ liệu mẫu), fixture "không có việc" thêm `fee_collections: []`, thêm route `staff/fees`. Thêm test reducer S09f. Dòng phí trong dữ liệu mẫu khách đặt cuối sổ thu để không đổi test PayOS gia hạn.
-- Chưa làm (ghi trong docs/figma-ui-sync-2026-10-23.md): C02-vị trí (trái quy tắc gợi ý theo khu vực), A01b/A01c (thiếu API mã email), C12* (nhánh Ngọc Mai), trang C11c riêng.
-- Kiểm chứng: check:structure PASS; npm test 78/78; test:business 9/9; test:render 95 route; build PASS; Chromium chạy C11 phí, S04 → M07a, S09f, M02b/c, B05b/c, M05. Không push/PR/merge.
-
-## 2026-10-23 — F37 hoàn thiện nối API C13 và kiểm C12/S05
-
-- Nền main 6d959ae. Người dùng yêu cầu hai task của Ngọc Mai; không sửa trả kho, thanh toán, cọc hay Figma.
-- Phát hiện và sửa CHANGE_PASSWORD đọc sai tên trường (UI gửi current/next, provider đọc current_password/new_password). Sai mật khẩu hiện tại trả BAD_PASSWORD và hiện đúng trường.
-- GET profile được dùng khi đăng nhập và khôi phục phiên; bỏ tên overlay cũ, đọc số điện thoại thật, cập nhật session từ response; bỏ closure session cũ trong UPDATE_NAME. Biểu mẫu khóa khi đang lưu và giữ dữ liệu nếu lỗi.
-- C12/S05 đã có backend lưu/đọc activity_logs, ánh xạ responses và giao diện lịch sử. Bỏ fallback âm thầm che lỗi GET chi tiết ticket.
-- Thêm 2 HTTP test Kestrel/JWT/SQLite file riêng và browser script với host .NET riêng. Host dùng endpoint/service thật; reservations trống chỉ để khởi động FE, không dùng chứng minh đặt kho/thanh toán.
-- Kiểm chứng: .NET 10.0.100; build PASS; 54/54 xUnit (52 trước sửa + 2 HTTP); FE 76/76; business 9/9; SSR 92 route; check:structure/build PASS; init.sh PASS qua wrapper dotnet thêm -m:1 vì môi trường giới hạn tiến trình. Không sửa init.sh.
-- Chromium Headless Shell 145: 10 nhóm browser PASS: profile API; tên sai/lưu/reload; mật khẩu xác nhận sai và mật khẩu hiện tại sai; JSON password chính xác + login lại; overlay cũ; lỗi mạng; gửi ticket; staff phản hồi; lịch sử + mobile; tài khoản khác và không pageerror.
-- Trong lúc xây browser test, chỉnh selector theo chủ đề UNIT đang hiển thị (LOCK là legacy bị ẩn), đợi login staff trước khi điều hướng và chọn li lịch sử chứa timestamp. Không đổi nghiệp vụ hay giảm assertion.
-- Cảnh báo dependency NU1902/NU1903, nullable Board.cs, font/chunk frontend có sẵn từ main. Chưa chạy SQL Server của nhóm. F37 giữ active; không nói hệ thống không có lỗi.
-- Chỉ bàn giao ZIP + patch. Không push/PR/merge.
+- Nß╗ün: nh├ính thanh to├ín ng╞░ß╗¥i d├╣ng ─æ├ú push, b482840; giß╗» sß╗¡a DbSeeder. Chß╗ë ─æß╗òi cß║Ñu tr├║c FE v├á h╞░ß╗¢ng dß║½n, kh├┤ng ─æß╗òi nghiß╗çp vß╗Ñ/URL/API/localStorage.
+- Chuyß╗ân 79 file; t├ích 6 module gom trang th├ánh tß╗½ng Page theo chß╗⌐c n─âng. Phß║ºn chung Staff/Manager d├╣ng facility-operations; app chß╗⌐a router/provider chung; shared chß╗⌐a UI/API nß╗ün/utils.
+- T├¬n component Page khß╗¢p t├¬n file. Th├¬m FRONTEND-MAP.md, docs/frontend-naming.md, h╞░ß╗¢ng dß║½n AGENTS trong FE v├á chß╗ë dß║½n Copilot; CLAUDE.md hiß╗çn trß╗Å AGENTS gß╗æc. C├│ npm run check:structure.
+- Test chß╗ë cß║¡p nhß║¡t import/module path, giß╗» assertion. Kiß╗âm tra 532 khai b├ío AST t╞░╞íng ─æ╞░╞íng sau ─æß╗òi t├¬n identifier/import/export.
+- Kiß╗âm chß╗⌐ng: check:structure PASS; npm test 67/67; test:business 9/9; test:render 92 routes; build PASS; init.sh PASS (dotnet d├╣ng -m:1 do giß╗¢i hß║ín m├┤i tr╞░ß╗¥ng); git diff --check PASS. C├íc cß║únh b├ío dependency/nullable/chunk size c┼⌐ vß║½n c├▓n.
+- Ch╞░a kiß╗âm thß╗¡ lß║íi t╞░╞íng t├íc tr├¼nh duyß╗çt/API thß║¡t; SSR kh├┤ng bao phß╗º thao t├íc. ZIP d├╣ng git apply ─æß╗â th├¬m file mß╗¢i v├á xo├í file c┼⌐, c├│ kiß╗âm tra tr╞░ß╗¢c khi ├íp dß╗Ñng. Kh├┤ng push/PR/merge.
 
 
-## 2026-10-23 — F37 ghép frontend Mai C12/C12b/C13 trên main mới
+## 2026-10-21 ΓÇö F37 t├ích backend C13 v├á S05/C12
 
-- Nguồn task ZIP SSFRMS_Frontend_AuthSupport_Figma_2026-10-22, 29 file khớp e615dad. Nền main 6d959ae; chỉ lấy thay đổi C12/C12b/C13 và guard phản hồi S05, không merge lịch sử nhánh cũ.
-- Giữ StickyHeader/PendingBadge, polling/thông báo, OTHER subject, yêu cầu cấp lại QR/PIN/key, modal STAFF, /api/ops chuẩn và RECORD_KEY_RECEIPT. Thêm timeline, preview, retry, asset/CSS theo gói đã có, trạng thái thiếu thông tin C13. Không gọi hay sửa Figma trong phiên.
-- Provider kiểm token/userId khi applyProfile, đọc hồ sơ qua API, không ghi đè phone khi chỉ đổi tên; mật khẩu dùng đúng payload và BAD_PASSWORD/400 tương thích. Ticket detail lỗi có cờ lỗi/retry, giữ dữ liệu đã tải được; vẫn truyền 401. Normalize danh sách null của board mà không thay API.
-- Thêm D28 cho Playwright devDependency để tránh trùng D26. Giữ toàn bộ các test main; thêm 3 test ghép API/mapper/null board; SSR thêm 2 route. Test mock của Mai đổi sang /api/ops, bấm xác nhận staff và giữ phone khi request không chứa phone; không nới assertion. Thông báo tên trống đồng bộ câu chữ gói Mai; sai mật khẩu tương thích cả error code mới và message backend cũ.
-- Kiểm: FE 79/79, Business 9/9, SSR 94, Playwright mock 14/14; .NET 54/54, 10 nhóm Chromium gọi backend Kestrel/JWT/SQLite riêng. Build/structure/init PASS, init wrapper thêm -m:1. Đã xem C12b desktop/C13 mobile. Chưa chạy SQL Server của nhóm; F37 giữ active.
-- Không thay backend tài chính, schema/migration hoặc config. Chỉ ZIP/patch, không push/PR/merge. Xem docs/mai-auth-support-integration.md.
-## 2026-10-24 — Cập nhật quy định AI/Git và tài liệu kiểm chứng
+- Theo y├¬u cß║ºu mß╗¢i nhß║Ñt cß╗ºa ng╞░ß╗¥i d├╣ng, chß╗ë chuß║⌐n bß╗ï hai luß╗ông ─æ├ú kiß╗âm tra ─æß║ít ─æß╗â push tr╞░ß╗¢c; g├│i backend ─æß╗Öc lß║¡p tr├¬n main fc83c3a. Kh├┤ng ─æ╞░a ph├¡ trß║ú kho, huß╗╖/ho├án tiß╗ün, migration hay frontend v├áo bß║ún v├í. Giß╗» c├íc c├┤ng viß╗çc ─æang l├ám dß╗ƒ ß╗ƒ th╞░ mß╗Ñc/nh├ính c┼⌐.
+- C13 kiß╗âm t├¬n v├á mß║¡t khß║⌐u, lß╗ùi ─æß║ºu v├áo trß║ú 400; test ─æß╗ìc lß║íi database v├á kiß╗âm t├ái khoß║ún kh├íc kh├┤ng ─æß╗òi. S05/C12 ├ính xß║í chß╗º ─æß╗ü hß╗úp lß╗ç, ─æß╗ìc ticket theo c╞í sß╗ƒ hß╗úp ─æß╗ông, chuß║⌐n ho├í trß║íng th├íi/ghi ch├║, l╞░u audit phß║ún hß╗ôi v├á trß║ú nß╗Öi dung cho chß╗º ticket.
+- Gß╗Öp phß║ºn hß╗ù trß╗ú tß╗½ bß║ún bß╗ò sung ─æ├ú b├án giao; loß║íi bß╗Å c├íc hunk S04 d├╣ng chung trong StaffService ─æß╗â kh├┤ng phß╗Ñ thuß╗Öc FinanceService. Giß╗» nguy├¬n h├ám trß║ú kho cß╗ºa main. Code c┼⌐ giß╗» trong comment // ß╗ƒ c├íc ─æoß║ín thay ─æß╗òi.
+- Kiß╗âm chß╗⌐ng: .NET SDK 10.0.402; build -m:1 PASS; xUnit 34/34 (15 test main + 19 tr╞░ß╗¥ng hß╗úp AuthSupport, SQLite); check:structure PASS; FE 68/68; business 9/9; SSR 92 route PASS; build FE v├á init.sh PASS. init d├╣ng wrapper dotnet th├¬m -m:1 do giß╗¢i hß║ín tiß║┐n tr├¼nh; kh├┤ng sß╗¡a init.sh.
+- Cß║únh b├ío c├│ sß║╡n NU1902/NU1903, nullable Board.cs v├á k├¡ch th╞░ß╗¢c chunk/font frontend vß║½n c├▓n. Ch╞░a chß║íy SQL Server thß║¡t cho bß║ún t├ích ri├¬ng. Ng╞░ß╗¥i d├╣ng ─æ├ú b├ío C13 v├á S05/C12 ─æß║ít tr╞░ß╗¢c khi t├ích; cß║ºn kiß╗âm tra lß║íi sau khi ├íp dß╗Ñng. F37 giß╗» active.
+- Figma tß╗½ chß╗æi quyß╗ün ─æß╗ìc thiß║┐t kß║┐/ß║únh; kh├┤ng c├│ thay ─æß╗òi giao diß╗çn v├á kh├┤ng tuy├¬n bß╗æ ─æ├ú ─æß╗æi chiß║┐u thiß║┐t kß║┐ trß╗▒c tiß║┐p.
+- Kh├┤ng push/PR/merge. B├án giao patch, danh s├ích file v├á h╞░ß╗¢ng dß║½n tß║ío worktree ri├¬ng ─æß╗â ng╞░ß╗¥i d├╣ng tß╗▒ kiß╗âm tra, commit v├á push.
 
-- Theo yêu cầu thành viên: sửa quy định một lượt và bàn giao ZIP để thành viên tự push; không thao tác commit/push/PR/merge.
-- Phạm vi chỉ tài liệu: AGENTS gốc/FE, README, docs/conventions.md, docs/verification.md, DECISIONS.md và nhật ký này.
-- AI không tạo commit, không đổi danh tính Git. Giữ PR → main và review bởi thành viên khác; task có mục tiêu rõ, kiểm thử theo phạm vi, nêu giới hạn môi trường.
-- Figma chuẩn bố cục/tương tác, nghiệp vụ/quyền theo quyết định hiện hành; yêu cầu mock/offline nhận biết khi kiểm thử, không giả API thành công.
-- Sửa hướng dẫn .NET 10/Node >=22.12, bản đồ apiMappers.js và cấu trúc FE; bỏ số test cũ và khẳng định fallback/API badge đã lỗi thời.
-- Không sửa code/config/migration, không đổi trạng thái tính năng hoặc ghi đè nhật ký cũ. Ghi quy tắc thay thế tại PROCESS-2026-10-24, không sửa quyết định lịch sử.
-- Kiểm chứng gói tài liệu: đọc diff, kiểm đường dẫn/lệnh với nguồn, kiểm whitespace, áp dụng bản vá vào bản nguồn sạch và so byte đầu ra; kiểm tính toàn vẹn ZIP. Không chạy ứng dụng, npm/dotnet build/test hoặc SQL Server vì không đổi code; không nhận kết quả từ PR khác làm bằng chứng.
+## 2026-10-22 ΓÇö F38 ─æß╗ông bß╗Ö giao diß╗çn v├á luß╗ông Figma
+- Nß╗ün 0e70026, giß╗» thay ─æß╗òi quß║ún trß╗ï v├á Auth/Support mß╗¢i tr├¬n main. T├¡nh n─âng phi├¬n n├áy duy nhß║Ñt F38; kh├┤ng ─æß╗òi trß║íng th├íi F35/F37 ─æang chß╗¥ nh├│m kiß╗âm chß╗⌐ng.
+- Ng╞░ß╗¥i d├╣ng chß╗ìn "Hß╗ç thß╗æng tß╗▒ chß╗ìn" khi hß╗Åi c├ích ph├ón bß╗ò sau PayOS. D26 thay y├¬u cß║ºu b├án giao, PIN8 v├á ph├ón bß╗ò thß╗º c├┤ng th╞░ß╗¥ng lß╗ç. V├¼ vß║¡y c├íc assertion c┼⌐ y├¬u cß║ºu webhook kh├┤ng ph├ón bß╗ò, b├án giao k├¡ch hoß║ít, PIN8, QR bß╗ï kh├│a tr╞░ß╗¢c nhß║¡n ch├¼a kh├│a cß║ºn cß║¡p nhß║¡t theo nghiß╗çp vß╗Ñ mß╗¢i; giß╗» kiß╗âm tiß╗ün, quyß╗ün sß╗ƒ hß╗»u, chß╗æng tr├╣ng v├á c├íc kiß╗âm chß╗⌐ng kh├íc.
+- ─Éang kiß╗âm chß╗⌐ng to├án bß╗Ö FE/BE, t╞░╞íng t├íc tr├¼nh duyß╗çt v├á ZIP. Ch╞░a tuy├¬n bß╗æ PayOS/SQL Server/thiß║┐t bß╗ï thß║¡t ─æß║ít.
+
+- B├án giao F38: frontend cuß╗æi 76/76, SSR 92 route, check:structure/build ─æß║ít; business 9/9; backend build + 40 test SQLite trong phi├¬n. Browser 13 nh├│m PASS, so ß║únh header tr╞░ß╗¢c/sau cuß╗Ön ß╗ƒ 5 role kh├┤ng ─æß╗òi; hß╗ºy x├íc nhß║¡n kh├┤ng request, xß╗¡ l├╜ xong giß║úm badge, thß║Ñt bß║íi giß╗» draft, mobile kh├┤ng tr├án. Ch╞░a x├íc nhß║¡n SQL Server/PayOS/thiß║┐t bß╗ï thß║¡t; xem docs/figma-ui-sync-2026-10-22.md.
+
+## 2026-10-22 ΓÇö D27 chß╗æt ch├¡nh s├ích cß╗ìc v├á ho├án tiß╗ün
+
+- Nh├│m chß╗æt theo D27 (DECISIONS.md): cß╗ìc 1 th├íng thu├¬, hß╗ºy tr╞░ß╗¢c StartDate giß╗» 10% cß╗ìc, dß╗½ng sau StartDate ho├án 70% cß╗ìc, ph╞░╞íng ├ín B cho tiß╗ün thu├¬ khi dß╗½ng giß╗»a kß╗│, phß║ít qu├í hß║ín theo tham sß╗æ OVERDUE ß╗ƒ B02, DamageFee v├á OverdueFee trß╗½ th├¬m v├áo cß╗ìc.
+- Ch╞░a c├│ code: feature_list.json kh├┤ng ─æß╗òi trß║íng th├íi v├¼ ch╞░a c├│ bß║▒ng chß╗⌐ng chß║íy. Phß║ºn cß║ºn l├ám ─æ├ú ghi trong BACKEND-TODO.md mß╗Ñc D27.
+- Cß║ºn ─æß╗òi: H1 cancel-preview v├á CANCEL_FEE_RATE ─æang t├¡nh 10% tiß╗ün thu├¬, kh├┤ng theo D27. T05 trong doc vß║½n ─æß╗â "theo ch├¡nh s├ích ─æ├ú chß╗æt".
+
+## 2026-10-22 ΓÇö F39 code ch├¡nh s├ích cß╗ìc v├á ho├án tiß╗ün D27 (T01, T05, T08)
+
+- T├¡nh n─âng phi├¬n n├áy duy nhß║Ñt F39; nß╗ün origin/main 248a083. L├ám theo D27, kh├┤ng ─æß╗òi quyß║┐t ─æß╗ïnh.
+- Backend: RefundPolicy (h├ám thuß║ºn), cancel-preview, huß╗╖ ─æ╞ín ─æ├ú thanh to├ín ghi mß╗Öt khoß║ún REFUND PENDING, M07 x├íc nhß║¡n ho├án cho ─æ╞ín ─æ├ú huß╗╖, ConfirmRefundAsync hß╗úp ─æß╗ông t├¡nh theo D27 v├á chß╗ë trß╗½ trong phß║ím vi cß╗ìc (phß║ºn thiß║┐u giß╗» th├ánh c├┤ng nß╗ú). Ch├¡nh s├ích OVERDUE seed ─æß╗òi m├┤ tß║ú th├ánh 5% tiß╗ün thu├¬ th├íng mß╗ùi ng├áy trß╗à.
+- Frontend: cancelPreviewOf ─æß╗òi sang 10% tiß╗ün cß╗ìc; test huß╗╖ ─æ╞ín (C14a) cß║¡p nhß║¡t sß╗æ mong ─æß╗úi 4.600.000 ΓêÆ 115.000. Kh├┤ng sß╗¡a test n├áo ─æß╗â cho qua; chß╗ë ─æß╗òi sß╗æ liß╗çu theo D27.
+- Kiß╗âm chß╗⌐ng: FE npm test 76/76. Backend: phi├¬n n├áy kh├┤ng c├│ .NET SDK n├¬n ch╞░a bi├¬n dß╗ïch v├á ch╞░a chß║íy test; ─æ├ú th├¬m RefundPolicyTests (11 tr╞░ß╗¥ng hß╗úp) v├á ─æß╗æi chiß║┐u c├┤ng thß╗⌐c th├íng bß║▒ng bß║ún t├¡nh ─æß╗Öc lß║¡p. F39 giß╗» active, ch╞░a passing.
+- Giß║ú ─æß╗ïnh cß║ºn nh├│m x├íc nhß║¡n: (1) dß╗½ng sß╗¢m th├¼ khß║Ñu trß╗½ cß╗æ ─æß╗ïnh 30% ─æ├ú bao gß╗ôm khoß║ún vß╗ç sinh 10%; (2) khoß║ún CLEANING_FEE chß╗¥ thanh to├ín ─æ╞░ß╗úc coi l├á ─æ├ú nß║▒m trong khoß║ún khß║Ñu trß╗½ cß╗æ ─æß╗ïnh; (3) qu├í hß║ín t├¡nh tß╗½ EndDate ─æß║┐n ng├áy bi├¬n bß║ún trß║ú kho; (4) khoß║ún gia hß║ín (RENEWAL) kh├┤ng nß║▒m trong phß║ºn ho├án tiß╗ün thu├¬.
+- Kh├┤ng push/PR/merge.
+- Bß╗ò sung c├╣ng F39 (c├╣ng ─æß╗út, tr╞░ß╗¢c khi merge): (a) F12 ├┤ kho RESERVED ΓåÆ OCCUPIED khi ─æß║┐n StartDate, qua UnitStartActivation chß║íy trong worker hiß╗çn c├│, c├│ test ReservedUnitBecomesOccupiedOnStartDateOnly; (b) ─æ╞░ß╗¥ng ho├án cß╗ìc c┼⌐ cß╗ºa quß║ún l├╜ gß╗ìi chung logic D27, bß╗Å ManagerService.ConfirmRefundAsync (lß╗ùi: ─æß║╖t trß║íng th├íi ENDED, kh├┤ng theo D27). Cß║ú hai ch╞░a bi├¬n dß╗ïch trong phi├¬n viß║┐t code; cß║ºn dotnet build/test cß╗ºa nh├│m. C├▓n lß║íi: n├║t x├íc nhß║¡n ho├án ─æ╞ín huß╗╖ ß╗ƒ M07 tr├¬n giao diß╗çn.
+
+## 2026-10-23 ΓÇö F40 ─æß╗ông bß╗Ö Figma 23/10 (─æß╗út 1)
+
+- R├á Figma: sß╗¡a tr├án chß╗» C04b, chß╗» ngß║»n xuß╗æng d├▓ng, n├║t lß╗çch, thß╗æng nhß║Ñt "huß╗╖". Cß║¡p nhß║¡t Figma theo repo: luß╗ông ─æß║╖t chß╗ù hiß╗çn tiß╗ün cß╗ìc, c├íc m├án huß╗╖/ho├án tiß╗ün theo D27, B02 ph├¡ qu├í hß║ín theo D27.
+- Code: C14 thao t├íc tr├¬n tß╗½ng d├▓ng + C14aΓÇôc theo D27; M08 ho├án tiß╗ün ─æ╞ín huß╗╖ (`#/manager/refunds`, action `CONFIRM_RESERVATION_REFUND` gß╗ìi `POST /api/ops/reservations/{id}/refund`); M07a x├íc nhß║¡n trß║ú kho; hß╗Öp thoß║íi x├íc nhß║¡n/th├ánh c├┤ng/thß║Ñt bß║íi cho nh├ón vi├¬n, quß║ún l├╜, Vß║¡n h├ánh KD v├á Admin (D28).
+- Test cß║¡p nhß║¡t c├│ l├╜ do: `render.test.mjs` C14 ─æß╗òi chß╗» mong ─æß╗úi tß╗½ "Chß╗ë huß╗╖ ─æ╞░ß╗úc ─æ╞ín ch╞░a nhß║¡n kho" sang chß╗» ch├¡nh s├ích D27 v├á cß╗Öt "Thao t├íc" v├¼ Figma C14 ─æß╗òi giao diß╗çn; th├¬m route `manager/refunds`. Th├¬m test reducer M08 (ph├¡ 10% cß╗ìc, ho├án 100% thu├¬ + 90% cß╗ìc, bß║»t buß╗Öc m├ú giao dß╗ïch, chß╗ë x├íc nhß║¡n mß╗Öt lß║ºn).
+- Kiß╗âm chß╗⌐ng: check:structure PASS; npm test 77/77; test:business 9/9; test:render 93 route; build PASS. Chromium (dß╗» liß╗çu tr├¼nh duyß╗çt + m├íy chß╗º giß║ú lß║¡p): C14 huß╗╖ ─æ╞ín, M08 hai ─æ╞ín, S04 ΓåÆ M07a, S09, M03, ph├ón bß╗ò, Admin ─æß║╖t lß║íi mß║¡t khß║⌐u. Ch╞░a chß║íy .NET/SQL Server thß║¡t; M08 cß║ºn backend trß║ú `refunds` trong board.
+- Kh├┤ng push/PR/merge. B├án giao ZIP ─æß╗â ng╞░ß╗¥i d├╣ng tß╗▒ kiß╗âm tra v├á push.
+
+## 2026-10-23 ΓÇö F40 ─æß╗ông bß╗Ö Figma 23/10 (─æß╗út 2: m├án ch╞░a c├│ backend)
+
+- Th├¬m: M05 (danh s├ích y├¬u cß║ºu, ─æ├ú xß╗¡ l├╜ hß║┐t, ch╞░a c├│ ├┤ ph├╣ hß╗úp), M02b/M02c th├¬m/sß╗¡a ├┤ kho + kß║┐t quß║ú M02, B05b th├¬m c╞í sß╗ƒ, B05c ─æß╗òi trß║íng th├íi c╞í sß╗ƒ + kß║┐t quß║ú B05, C05-chß╗¥ ├┤, C11f/C11fb/C11fq/C11fc/C11fcp/C11-kiß╗âm tra (ph├¡ ph├ít sinh qua PayOS hoß║╖c tß║íi quß║ºy), S04 nhß║¡p ph├¡ ph├ít sinh, S09a/S09f/S09fc/S09fd/S09e thu ph├¡ tß║íi quß║ºy (`#/staff/fees`), kß║┐t quß║ú M07a theo D27.
+- Backend: M02b/c v├á B05b/c gß╗ìi API ─æ├ú c├│; ph├¡ ph├ít sinh, thu ph├¡ tß║íi quß║ºy, PayOS cho ph├¡ v├á danh s├ích ho├án tiß╗ün ch╞░a c├│ ΓåÆ ghi BACKEND-TODO.md. Chß║┐ ─æß╗Ö tr├¼nh duyß╗çt chß║íy ─æß╗º luß╗ông.
+- Test cß║¡p nhß║¡t c├│ l├╜ do: render S01 ─æß║┐m 12 viß╗çc (th├¬m 2 khoß║ún thu ph├¡ S09f trong dß╗» liß╗çu mß║½u), fixture "kh├┤ng c├│ viß╗çc" th├¬m `fee_collections: []`, th├¬m route `staff/fees`. Th├¬m test reducer S09f. D├▓ng ph├¡ trong dß╗» liß╗çu mß║½u kh├ích ─æß║╖t cuß╗æi sß╗ò thu ─æß╗â kh├┤ng ─æß╗òi test PayOS gia hß║ín.
+- Ch╞░a l├ám (ghi trong docs/figma-ui-sync-2026-10-23.md): C02-vß╗ï tr├¡ (tr├íi quy tß║»c gß╗úi ├╜ theo khu vß╗▒c), A01b/A01c (thiß║┐u API m├ú email), C12* (nh├ính Ngß╗ìc Mai), trang C11c ri├¬ng.
+- Kiß╗âm chß╗⌐ng: check:structure PASS; npm test 78/78; test:business 9/9; test:render 95 route; build PASS; Chromium chß║íy C11 ph├¡, S04 ΓåÆ M07a, S09f, M02b/c, B05b/c, M05. Kh├┤ng push/PR/merge.
+
+## 2026-10-23 ΓÇö F37 ho├án thiß╗çn nß╗æi API C13 v├á kiß╗âm C12/S05
+
+- Nß╗ün main 6d959ae. Ng╞░ß╗¥i d├╣ng y├¬u cß║ºu hai task cß╗ºa Ngß╗ìc Mai; kh├┤ng sß╗¡a trß║ú kho, thanh to├ín, cß╗ìc hay Figma.
+- Ph├ít hiß╗çn v├á sß╗¡a CHANGE_PASSWORD ─æß╗ìc sai t├¬n tr╞░ß╗¥ng (UI gß╗¡i current/next, provider ─æß╗ìc current_password/new_password). Sai mß║¡t khß║⌐u hiß╗çn tß║íi trß║ú BAD_PASSWORD v├á hiß╗çn ─æ├║ng tr╞░ß╗¥ng.
+- GET profile ─æ╞░ß╗úc d├╣ng khi ─æ─âng nhß║¡p v├á kh├┤i phß╗Ñc phi├¬n; bß╗Å t├¬n overlay c┼⌐, ─æß╗ìc sß╗æ ─æiß╗çn thoß║íi thß║¡t, cß║¡p nhß║¡t session tß╗½ response; bß╗Å closure session c┼⌐ trong UPDATE_NAME. Biß╗âu mß║½u kh├│a khi ─æang l╞░u v├á giß╗» dß╗» liß╗çu nß║┐u lß╗ùi.
+- C12/S05 ─æ├ú c├│ backend l╞░u/─æß╗ìc activity_logs, ├ính xß║í responses v├á giao diß╗çn lß╗ïch sß╗¡. Bß╗Å fallback ├óm thß║ºm che lß╗ùi GET chi tiß║┐t ticket.
+- Th├¬m 2 HTTP test Kestrel/JWT/SQLite file ri├¬ng v├á browser script vß╗¢i host .NET ri├¬ng. Host d├╣ng endpoint/service thß║¡t; reservations trß╗æng chß╗ë ─æß╗â khß╗ƒi ─æß╗Öng FE, kh├┤ng d├╣ng chß╗⌐ng minh ─æß║╖t kho/thanh to├ín.
+- Kiß╗âm chß╗⌐ng: .NET 10.0.100; build PASS; 54/54 xUnit (52 tr╞░ß╗¢c sß╗¡a + 2 HTTP); FE 76/76; business 9/9; SSR 92 route; check:structure/build PASS; init.sh PASS qua wrapper dotnet th├¬m -m:1 v├¼ m├┤i tr╞░ß╗¥ng giß╗¢i hß║ín tiß║┐n tr├¼nh. Kh├┤ng sß╗¡a init.sh.
+- Chromium Headless Shell 145: 10 nh├│m browser PASS: profile API; t├¬n sai/l╞░u/reload; mß║¡t khß║⌐u x├íc nhß║¡n sai v├á mß║¡t khß║⌐u hiß╗çn tß║íi sai; JSON password ch├¡nh x├íc + login lß║íi; overlay c┼⌐; lß╗ùi mß║íng; gß╗¡i ticket; staff phß║ún hß╗ôi; lß╗ïch sß╗¡ + mobile; t├ái khoß║ún kh├íc v├á kh├┤ng pageerror.
+- Trong l├║c x├óy browser test, chß╗ënh selector theo chß╗º ─æß╗ü UNIT ─æang hiß╗ân thß╗ï (LOCK l├á legacy bß╗ï ß║⌐n), ─æß╗úi login staff tr╞░ß╗¢c khi ─æiß╗üu h╞░ß╗¢ng v├á chß╗ìn li lß╗ïch sß╗¡ chß╗⌐a timestamp. Kh├┤ng ─æß╗òi nghiß╗çp vß╗Ñ hay giß║úm assertion.
+- Cß║únh b├ío dependency NU1902/NU1903, nullable Board.cs, font/chunk frontend c├│ sß║╡n tß╗½ main. Ch╞░a chß║íy SQL Server cß╗ºa nh├│m. F37 giß╗» active; kh├┤ng n├│i hß╗ç thß╗æng kh├┤ng c├│ lß╗ùi.
+- Chß╗ë b├án giao ZIP + patch. Kh├┤ng push/PR/merge.
+
+
+## 2026-10-23 ΓÇö F37 gh├⌐p frontend Mai C12/C12b/C13 tr├¬n main mß╗¢i
+
+- Nguß╗ôn task ZIP SSFRMS_Frontend_AuthSupport_Figma_2026-10-22, 29 file khß╗¢p e615dad. Nß╗ün main 6d959ae; chß╗ë lß║Ñy thay ─æß╗òi C12/C12b/C13 v├á guard phß║ún hß╗ôi S05, kh├┤ng merge lß╗ïch sß╗¡ nh├ính c┼⌐.
+- Giß╗» StickyHeader/PendingBadge, polling/th├┤ng b├ío, OTHER subject, y├¬u cß║ºu cß║Ñp lß║íi QR/PIN/key, modal STAFF, /api/ops chuß║⌐n v├á RECORD_KEY_RECEIPT. Th├¬m timeline, preview, retry, asset/CSS theo g├│i ─æ├ú c├│, trß║íng th├íi thiß║┐u th├┤ng tin C13. Kh├┤ng gß╗ìi hay sß╗¡a Figma trong phi├¬n.
+- Provider kiß╗âm token/userId khi applyProfile, ─æß╗ìc hß╗ô s╞í qua API, kh├┤ng ghi ─æ├¿ phone khi chß╗ë ─æß╗òi t├¬n; mß║¡t khß║⌐u d├╣ng ─æ├║ng payload v├á BAD_PASSWORD/400 t╞░╞íng th├¡ch. Ticket detail lß╗ùi c├│ cß╗¥ lß╗ùi/retry, giß╗» dß╗» liß╗çu ─æ├ú tß║úi ─æ╞░ß╗úc; vß║½n truyß╗ün 401. Normalize danh s├ích null cß╗ºa board m├á kh├┤ng thay API.
+- Th├¬m D28 cho Playwright devDependency ─æß╗â tr├ính tr├╣ng D26. Giß╗» to├án bß╗Ö c├íc test main; th├¬m 3 test gh├⌐p API/mapper/null board; SSR th├¬m 2 route. Test mock cß╗ºa Mai ─æß╗òi sang /api/ops, bß║Ñm x├íc nhß║¡n staff v├á giß╗» phone khi request kh├┤ng chß╗⌐a phone; kh├┤ng nß╗¢i assertion. Th├┤ng b├ío t├¬n trß╗æng ─æß╗ông bß╗Ö c├óu chß╗» g├│i Mai; sai mß║¡t khß║⌐u t╞░╞íng th├¡ch cß║ú error code mß╗¢i v├á message backend c┼⌐.
+- Kiß╗âm: FE 79/79, Business 9/9, SSR 94, Playwright mock 14/14; .NET 54/54, 10 nh├│m Chromium gß╗ìi backend Kestrel/JWT/SQLite ri├¬ng. Build/structure/init PASS, init wrapper th├¬m -m:1. ─É├ú xem C12b desktop/C13 mobile. Ch╞░a chß║íy SQL Server cß╗ºa nh├│m; F37 giß╗» active.
+- Kh├┤ng thay backend t├ái ch├¡nh, schema/migration hoß║╖c config. Chß╗ë ZIP/patch, kh├┤ng push/PR/merge. Xem docs/mai-auth-support-integration.md.
+## 2026-10-24 ΓÇö Cß║¡p nhß║¡t quy ─æß╗ïnh AI/Git v├á t├ái liß╗çu kiß╗âm chß╗⌐ng
+
+- Theo y├¬u cß║ºu th├ánh vi├¬n: sß╗¡a quy ─æß╗ïnh mß╗Öt l╞░ß╗út v├á b├án giao ZIP ─æß╗â th├ánh vi├¬n tß╗▒ push; kh├┤ng thao t├íc commit/push/PR/merge.
+- Phß║ím vi chß╗ë t├ái liß╗çu: AGENTS gß╗æc/FE, README, docs/conventions.md, docs/verification.md, DECISIONS.md v├á nhß║¡t k├╜ n├áy.
+- AI kh├┤ng tß║ío commit, kh├┤ng ─æß╗òi danh t├¡nh Git. Giß╗» PR ΓåÆ main v├á review bß╗ƒi th├ánh vi├¬n kh├íc; task c├│ mß╗Ñc ti├¬u r├╡, kiß╗âm thß╗¡ theo phß║ím vi, n├¬u giß╗¢i hß║ín m├┤i tr╞░ß╗¥ng.
+- Figma chuß║⌐n bß╗æ cß╗Ñc/t╞░╞íng t├íc, nghiß╗çp vß╗Ñ/quyß╗ün theo quyß║┐t ─æß╗ïnh hiß╗çn h├ánh; y├¬u cß║ºu mock/offline nhß║¡n biß║┐t khi kiß╗âm thß╗¡, kh├┤ng giß║ú API th├ánh c├┤ng.
+- Sß╗¡a h╞░ß╗¢ng dß║½n .NET 10/Node >=22.12, bß║ún ─æß╗ô apiMappers.js v├á cß║Ñu tr├║c FE; bß╗Å sß╗æ test c┼⌐ v├á khß║│ng ─æß╗ïnh fallback/API badge ─æ├ú lß╗ùi thß╗¥i.
+- Kh├┤ng sß╗¡a code/config/migration, kh├┤ng ─æß╗òi trß║íng th├íi t├¡nh n─âng hoß║╖c ghi ─æ├¿ nhß║¡t k├╜ c┼⌐. Ghi quy tß║»c thay thß║┐ tß║íi PROCESS-2026-10-24, kh├┤ng sß╗¡a quyß║┐t ─æß╗ïnh lß╗ïch sß╗¡.
+- Kiß╗âm chß╗⌐ng g├│i t├ái liß╗çu: ─æß╗ìc diff, kiß╗âm ─æ╞░ß╗¥ng dß║½n/lß╗çnh vß╗¢i nguß╗ôn, kiß╗âm whitespace, ├íp dß╗Ñng bß║ún v├í v├áo bß║ún nguß╗ôn sß║ích v├á so byte ─æß║ºu ra; kiß╗âm t├¡nh to├án vß║╣n ZIP. Kh├┤ng chß║íy ß╗⌐ng dß╗Ñng, npm/dotnet build/test hoß║╖c SQL Server v├¼ kh├┤ng ─æß╗òi code; kh├┤ng nhß║¡n kß║┐t quß║ú tß╗½ PR kh├íc l├ám bß║▒ng chß╗⌐ng.

@@ -150,23 +150,6 @@ public static class StaffEndpoints
         });
 
         // 8. Access Credentials Management (UC08)
-        group.MapPost("/credentials/{id}/revoke", async (string id, ClaimsPrincipal user, IStaffService staffService, CancellationToken ct) =>
-        {
-            var role = user.GetUserRole();
-            if (role.Equals("CUSTOMER", StringComparison.OrdinalIgnoreCase)) return Results.Forbid();
-
-            try
-            {
-                var userId = user.GetUserId();
-                await staffService.RevokeCredentialAsync(userId, id, ct);
-                return Results.Ok(new { message = "Thu hồi phương thức truy cập thành công." });
-            }
-            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-            {
-                return Results.BadRequest(new { error = ex.Message });
-            }
-        });
-
         group.MapPost("/credentials/reissue", async (ReissueCredentialRequest request, ClaimsPrincipal user, IStaffService staffService, CancellationToken ct) =>
         {
             var role = user.GetUserRole();
