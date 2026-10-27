@@ -22,7 +22,6 @@ import FacilityOperationsLayout from "./FacilityOperationsLayout.jsx";
 import { StaffResultPage } from "../staff/results/StaffResultPage.jsx";
 import { KeyReceiptPage } from "../staff/keys/KeyReceiptPage.jsx";
 import { PaymentConfirmationPage } from "../staff/payments/PaymentConfirmationPage.jsx";
-import { FeeCollectionPage } from "../staff/payments/FeeCollectionPage.jsx";
 import { ReturnInspectionPage } from "../staff/returns/ReturnInspectionPage.jsx";
 import { StaffSupportPage } from "../staff/support/StaffSupportPage.jsx";
 import { StaffDashboardPage } from "../staff/dashboard/StaffDashboardPage.jsx";
@@ -45,7 +44,6 @@ const STAFF = {
   inquiries: [StaffInquiryPage, "staff/support"],
   "": [StaffDashboardPage, "staff"],
   reconcile: [PaymentConfirmationPage, "staff/reconcile"],
-  fees: [FeeCollectionPage, "staff/reconcile"],
   verify: [CustomerVerificationPage, "staff/verify"],
   handover: [KeyReceiptPage, "staff/verify"],
   keys: [KeyReceiptPage, "staff/verify"],

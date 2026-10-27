@@ -298,7 +298,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       const fee = FEE_KINDS.has(kind);
       const paid = p.status === "PAID";
       const open = !paid && !["CANCELLED", "REFUNDED", "FAILED"].includes(p.status);
-      const status = paid
+      const status = kind === "REFUND" ? (paid ? "REFUNDED" : p.status === "PENDING" ? "REFUND_PENDING" : p.status) : paid
         ? kind === "DEPOSIT" ? "DEPOSIT_HELD" : "RECONCILED"
         : p.status === "REFUNDED" || kind === "REFUND"
           ? "REFUNDED"
@@ -313,8 +313,8 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
         amount: Number(p.amount),
         status,
         // C11: khoản gia hạn đã duyệt nhưng chưa trả → nút "Thanh toán" (QR PayOS)
-        // C11f: phí phát sinh trả kho (vệ sinh, hư hỏng, quá hạn…) chưa trả → "Thanh toán" (PayOS) hoặc trả tại quầy
-        payable: open && (kind === "RENEWAL" || fee),
+        // D32: khoản phí trả kho không được mở thanh toán ngoài cọc.
+        payable: p.status === "PENDING" && kind === "RENEWAL",
         fee,
         period: ren ? { from: dateOnly(ren.oldEndDate), to: dateOnly(ren.newEndDate), months: ren.renewalPeriodMonths } : null,
       });

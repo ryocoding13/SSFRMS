@@ -1,3 +1,4 @@
+import { isReturnFee, NO_RETURN_COLLECTION } from "../../shared/utils/returnPolicy.js";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { customerNotifications } from "../../features/customer/notifications/customerNotifications.js";
 import { api } from "../../shared/api/customerApi.js";
@@ -156,6 +157,7 @@ function LocalProvider({ children }) {
   const services = useMemo(
     () => ({
       async startPayos({ kind, item }) {
+        if (kind === "payment" && isReturnFee(item)) return { ok: false, error: NO_RETURN_COLLECTION };
         const content = kind === "payment" ? item.ref.replaceAll("-", "") : item.reservation_id.replaceAll("-", "");
         const key = kind === "payment" ? `p:${item.ref}` : `r:${item.reservation_id}`;
         if (!simulated.current.has(key)) {
@@ -673,12 +675,7 @@ function ApiProvider({ children }) {
             await loadCustomer();
             return { ok: true };
           }
-          case "CHOOSE_FEE_AT_COUNTER": {
-            const rows = d.ledger.filter((l) => p.refs.includes(l.ref) && l.fee && ["UNPAID", "AT_COUNTER"].includes(l.status));
-            if (!rows.length) return fail("Không còn khoản phí cần thanh toán.", "NOT_FOUND");
-            updateOverlay((o) => ({ ...o, feesAtCounter: { ...(o.feesAtCounter || {}), ...Object.fromEntries(rows.map((l) => [l.api_id, Date.now()])) } }));
-            return { ok: true, refs: rows.map((l) => l.ref) };
-          }
+          case "CHOOSE_FEE_AT_COUNTER": return fail(NO_RETURN_COLLECTION);
           default:
             return fail(`Thao tác không được hỗ trợ: ${type}`, "UNKNOWN");
         }
@@ -722,6 +719,7 @@ function ApiProvider({ children }) {
     return {
       startPayos: ({ kind, item }) =>
         guard(async () => {
+          if (kind === "payment" && isReturnFee(item)) return { ok: false, error: NO_RETURN_COLLECTION };
           const dto = kind === "payment" ? await api.paymentPayos(item.api_id) : await api.reservationPayos(item.api_id);
           const checkout = normPayos(dto);
           if (!checkout) return fail("Máy chủ chưa trả mã QR thanh toán. Vui lòng thử lại.");

@@ -1,3 +1,4 @@
+import { cleaningFee, NO_RETURN_COLLECTION } from "../../../shared/utils/returnPolicy.js";
 // Nghiệp vụ vận hành tại cơ sở (thuần, có test). Mỗi action trả { state, result } hoặc ném OpsError.
 import { dateLabel, money } from "../../../shared/utils/format.js";
 import { settleReturn } from "../utils/opsConfirmation.js";
@@ -89,11 +90,14 @@ const ACTIONS = {
     if (r.status === "SUBMITTED") fail("Biên bản trả kho đã được gửi.");
     const need = ["items", "walls", "keys", "proposal"];
     if (need.some((k) => !String(report?.[k] || "").trim())) fail("Điền đủ 4 mục kiểm tra trước khi gửi biên bản.");
+    if (!Number.isFinite(Number(report.damage_fee ?? 0)) || Number(report.damage_fee ?? 0) < 0) fail("Phí hư hỏng phải không âm.");
+    if ((Number(report.damage_fee) > 0 || report.cleaning_required) && !String(report.fee_reason || "").trim()) fail("Nhập lý do khấu trừ.");
+    report = { ...report, cleaning_fee: cleaningFee(r.deposit, report.cleaning_required) };
     const next = {
       ...state,
       returns: patch(state.returns, id, () => ({ status: "SUBMITTED", report, submitted_at: iso(now) })),
       units: patchUnit(state.units, r.unit, () => ({ status: "INSPECTION" })),
-      contracts: state.contracts.map((c) => (c.id === r.contract ? { ...c, state: "RETURNED", due: `Còn phải thu ${money(r.unpaid + ["damage_fee", "cleaning_fee", "overdue_fee"].reduce((sum, k) => sum + (Number(report[k]) || 0), 0))}` } : c)),
+      contracts: state.contracts.map((c) => (c.id === r.contract ? { ...c, state: "RETURNED", due: "Chờ chốt khấu trừ tiền cọc" } : c)),
       assignments: state.assignments.map((a) => (a.ref === id ? { ...a, status: "DONE" } : a)),
     };
     return { state: addLog(next, now, `Biên bản trả kho ${r.unit} chờ quản lý xác nhận`, "manager/contracts", "MANAGER"), result: { id } };
@@ -178,26 +182,17 @@ const ACTIONS = {
     const c = find(state.contracts, id, "hợp đồng");
     if (c.state !== "RETURNED") fail("Hợp đồng chưa có biên bản trả kho.");
     const r = state.returns.find((x) => x.contract === id);
-    const { refund, debt } = settleReturn(r, c);
+    const { refund } = settleReturn(r, c);
     const next = {
       ...state,
-      contracts: patch(state.contracts, id, () => ({ state: "CLOSED", due: debt ? `Đã trả kho · Còn nợ ${money(debt)}` : `Hoàn cọc ${money(refund)} sau khi trừ khoản còn nợ` })),
-      units: r ? patchUnit(state.units, r.unit, () => ({ status: "EMPTY", tenant: null, end: null })) : state.units,
+      contracts: patch(state.contracts, id, () => ({ state: "CLOSED", due: `Chờ hoàn ${money(refund)}`, refund_status: "PENDING", refund_amount: refund })),
+      units: r ? patchUnit(state.units, r.unit, () => ({ status: r.report?.cleaning_required || r.report?.proposal !== "Sẵn sàng cho thuê lại" ? "MAINTENANCE" : "EMPTY", tenant: null, end: null })) : state.units,
     };
-    return { state: addLog(next, now, `Đã xác nhận hoàn cọc ${money(refund)} · ${id}`, "manager/contracts", "MANAGER"), result: { id, refund, debt } };
+    return { state: addLog(next, now, `Chờ hoàn cọc ${money(refund)} · ${id}`, "manager/contracts", "MANAGER"), result: { id, refund, refundStatus: "PENDING" } };
   },
 
   // S09f · Nhân viên xác nhận đã thu phí phát sinh / công nợ tại quầy
-  CONFIRM_FEE_COLLECTION(state, { id }, now) {
-    const f = find(state.fee_collections || [], id, "khoản phí");
-    if (f.status !== "PENDING") fail("Khoản này đã được thu.");
-    const next = {
-      ...state,
-      fee_collections: patch(state.fee_collections, id, () => ({ status: "PAID", paid_at: iso(now) })),
-      contracts: state.contracts.map((c) => (c.id === f.contract && /phải thu|Chưa thanh toán/.test(c.due) ? { ...c, due: "Đã thu đủ phí phát sinh & công nợ", amount: 0 } : c)),
-    };
-    return { state: addLog(next, now, `Đã thu ${money(f.amount)} · ${f.contract}`, "staff/reconcile", "ALL"), result: { id, amount: f.amount } };
-  },
+  CONFIRM_FEE_COLLECTION() { fail(NO_RETURN_COLLECTION); },
 
   // M08 · Quản lý xác nhận đã chuyển khoản hoàn tiền cho đơn khách huỷ (D27)
   CONFIRM_RESERVATION_REFUND(state, { id, method, transaction_ref }, now) {

@@ -18,6 +18,7 @@ export const CONTRACT_STATUS = {
 };
 
 export const LEDGER_STATUS = {
+  REFUND_PENDING: ["Chờ hoàn", "amber"],
   RECONCILED: ["Đã thanh toán", "green"],
   PENDING_VERIFICATION: ["Chờ thanh toán tại cửa hàng", "amber"],
   DEPOSIT_HELD: ["Đang giữ cọc", "blue"],

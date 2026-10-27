@@ -1,15 +1,15 @@
 # BACKEND-TODO — việc backend (StorageProject.Api) còn thiếu cho giao diện SafeSpace
 
-Cập nhật 01/10/2026, đối chiếu với `main` (commit `5177812`). Bổ sung 26/10/2026: mục "D31" ngay dưới đây là danh sách việc hiện hành. Giao diện đã gọi hết các endpoint backend đang có.
+Cập nhật 01/10/2026, đối chiếu với `main` (commit `5177812`). Bổ sung 26/10/2026: mục "D32" ngay dưới đây là danh sách việc hiện hành. Giao diện đã gọi hết các endpoint backend đang có.
 Phần nào backend chưa có thì giao diện **tạm lưu trong trình duyệt** (mất khi đổi máy / xoá dữ liệu) và sẽ tự dùng
 API ngay khi backend có — không cần sửa giao diện nếu làm đúng hợp đồng dưới đây.
 
 Chạy thử hợp đồng không cần .NET: `MOCK_OPS=1 npm run dev:mock` (máy chủ giả lập `mock/mock-api.mjs` đã làm đủ các
 endpoint mục A–B; `tests/ops-api.test.mjs` kiểm tra từng endpoint). Backend làm đúng như mock là giao diện chạy.
 
-## D31 — Việc BE/FE theo chính sách chốt 26/10/2026 (ưu tiên cao nhất)
+## D32 — Việc BE/FE theo chính sách chốt 26/10/2026 (ưu tiên cao nhất)
 
-Nguồn: `DECISIONS.md` D31. Áp dụng cho mọi hợp đồng. Mục nào dưới đây mâu thuẫn với phần cũ của tài liệu này thì theo D31.
+Nguồn: `DECISIONS.md` D32. Áp dụng cho mọi hợp đồng. Mục nào dưới đây mâu thuẫn với phần cũ của tài liệu này thì theo D32.
 Mã việc khớp kế hoạch "SafeSpace — Kế hoạch hoàn thiện cập nhật 26–31/10/2026".
 
 | Mã | Việc | Endpoint / chỗ sửa | Người | Mức |
@@ -34,6 +34,16 @@ Mã việc khớp kế hoạch "SafeSpace — Kế hoạch hoàn thiện cập n
 | T10 | FE đồng bộ: phí quá hạn và số hoàn lấy từ BE; bỏ chữ "5% giá thuê tháng"; ẩn luồng trả phí/công nợ sau trả kho (C11d, C11fq, C11fc, C11e, S09f…); hiện "Chờ hoàn"/"Đã hoàn" | FE | Thắng | P0 |
 
 Không làm: thu hồi QR/PIN thủ công; công nợ sau trả kho; thanh toán phí phát sinh sau trả kho qua PayOS hoặc tại quầy (`POST /api/payments/{id}/at-facility`, `feeCollections`, `POST /api/ops/fees/{id}/confirm`).
+
+### Bàn giao FE T10 / T15 — 26/10
+
+FE đã ẩn phí trả kho đang chờ thu ở C11, bỏ route S09f/queue/badge và adapter thu phí, gỡ adapter `REVOKE_CREDENTIAL`; vẫn giữ luồng tiền thuê/gia hạn và cấp lại mã.
+
+**Điều kiện mở M07:** `GET /api/ops/board` (và board staff/manager nếu dùng) bổ sung `returnPolicyVersion: "D32"` chỉ sau khi T05–T09 được triển khai/kiểm chứng: lưu phí kiểm kê, cap cọc, không debt, chốt `REFUND PENDING`, không ghi `PAID` và giữ kho `MAINTENANCE` khi cần vệ sinh/sửa. Thiếu marker thì FE không gọi POST chốt trả kho; đây là hợp đồng tích hợp bổ sung của bản vá, BE hiện tại chưa có. Không dùng marker để thay kiểm tra nghiệp vụ ở server.
+
+POST refund tiếp tục trả số `refund` do BE tính. FE không lấy ước tính demo thay tiền hoàn của API. Tiến trình chuyển tiền đọc riêng API deposit-refunds; không tự báo đã hoàn từ thao tác chốt. S04 gửi `cleaningRequired` và `cleaningFee` cố định 10% để tương thích adapter hiện có, BE phải tự tính lại từ cọc chứ không tin số FE. API hiện tại chưa đảm bảo lưu đủ phí: T05 vẫn cần Mai hoàn thiện.
+
+Phần T08 (ảnh trống/ngân hàng), T20 (bằng chứng đồng ý), sự cố/khắc phục và BE T15 vẫn chưa làm trong gói này. Không đánh dấu toàn bộ D32 hoàn thành.
 
 ## Mới 16/10/2026 — API cho các màn đồng bộ Figma (PayOS, thanh toán tại kho, QR mở cửa, F12)
 
