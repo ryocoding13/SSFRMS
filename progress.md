@@ -8,7 +8,9 @@
 - Database: Thêm migration `20261027165711_AddRenewalSettlementAndPolicyConsent` tạo bảng `payment_checkouts`, `rental_policy_versions`, `policy_consents`, bổ sung cột và check constraint cho `contract_renewals`. `dotnet ef migrations has-pending-model-changes` báo 0 changes.
 - Kiểm chứng:
   - `dotnet build StorageProject.slnx -c Release --no-restore -m:1`: PASS, 0 Error.
-  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release`: PASS 96/96 tests (toàn bộ 88 tests cũ + 8 tests mới trong `RenewalPolicyD32Tests.cs` kiểm tra T02, T03, T04, T20, Expiry).
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release`: PASS 97/97 tests (bao gồm toàn bộ tests nghiệp vụ của T09, T15, T17 và 8 tests mới trong `RenewalPolicyD32Tests.cs` kiểm tra T02, T03, T04, T20, Expiry).
+  - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release`: PASS 9/9 tests trên SQL Server thật; cập nhật `SqlServerMigrationAndReadinessTests.ExpectedMigrations` nhận diện đủ 8 migrations sau khi gộp.
+  - `dotnet ef migrations has-pending-model-changes`: PASS, 0 pending changes.
   - `git diff --check`: PASS, không có trailing whitespace.
   - Tạo sprint contract `docs/sprints/dat-renewal-policy-d32.md` và tài liệu nghiệm thu chi tiết `docs/verification/dat-renewal-policy-2026-10.md`.
 - Giới hạn: Đã kiểm chứng toàn diện trên in-memory SQLite, fake clock và fake gateway; chưa chạy trên SQL Server thật của nhóm (`REQUIRE_SQLSERVER=true`) và tài khoản PayOS thật.
