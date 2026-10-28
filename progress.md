@@ -926,3 +926,11 @@
 - Sửa hướng dẫn .NET 10/Node >=22.12, bản đồ apiMappers.js và cấu trúc FE; bỏ số test cũ và khẳng định fallback/API badge đã lỗi thời.
 - Không sửa code/config/migration, không đổi trạng thái tính năng hoặc ghi đè nhật ký cũ. Ghi quy tắc thay thế tại PROCESS-2026-10-24, không sửa quyết định lịch sử.
 - Kiểm chứng gói tài liệu: đọc diff, kiểm đường dẫn/lệnh với nguồn, kiểm whitespace, áp dụng bản vá vào bản nguồn sạch và so byte đầu ra; kiểm tính toàn vẹn ZIP. Không chạy ứng dụng, npm/dotnet build/test hoặc SQL Server vì không đổi code; không nhận kết quả từ PR khác làm bằng chứng.
+
+## 2026-10-28 — Bỏ hạn chế ngân hàng/PayOS trong quy định agent
+
+- Theo yêu cầu người dùng: sửa AGENTS.md quy tắc 6 và checklist, cho phép thông tin ngân hàng nhận tiền và cấu hình PayOS backend nhóm cung cấp, kể cả khóa thật trong appsettings.json. CLAUDE.md tham chiếu AGENTS.md nên dùng cùng quy định.
+- Thêm PROCESS-2026-10-28-PAYOS, giữ lịch sử và các bảo vệ ngoài phạm vi yêu cầu.
+- Đã đọc StorageProject.Api/appsettings.json: không có cờ bảo mật chặn ngân hàng; PayOS chỉ có ba placeholder YOUR_PAYOS_*. Không thay file config, không tự khôi phục/bịa khóa.
+- Kiểm chứng: JSON config hợp lệ; diff chỉ ba file tài liệu; git apply --check và áp dụng patch trên bản nguồn đã đọc, đối chiếu byte PASS; ZIP kiểm tra toàn vẹn PASS. Không chạy build/test ứng dụng, SQL Server hay giao dịch PayOS thật vì chỉ đổi tài liệu.
+- Bàn giao ZIP/patch để thành viên kiểm và tự áp dụng; không commit/push/PR/merge, không đổi trạng thái feature.

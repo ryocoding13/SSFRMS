@@ -310,3 +310,12 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 
 **Giao diện**
 - Mục "Chính sách" riêng trên menu khách; một mẫu popup chuẩn (560 px, 6 loại: xác nhận, xác nhận nguy hiểm, thành công, thất bại, cảnh báo, thông tin); thông báo dùng chuông, không trang riêng. Màn không ghi mã nội bộ "D30/D31"; phiên bản hiển thị dạng "11/2026".
+
+## PROCESS-2026-10-28-PAYOS — Cấu hình ngân hàng và PayOS dùng chung
+
+- Theo yêu cầu trực tiếp của người dùng ngày 28/10/2026: bỏ hạn chế tránh lộ thông tin ngân hàng/PayOS cho dự án nhóm.
+- Thay phần cấm commit khóa PayOS/cấu hình ngân hàng trong AGENTS.md quy tắc 6, checklist bàn giao và phạm vi tương ứng của PROCESS-2026-10-24. Không xóa quyết định lịch sử.
+- Cho phép lưu/chia sẻ thông tin ngân hàng nhận tiền và cấu hình PayOS backend do nhóm cung cấp, kể cả khóa thật trong StorageProject.Api/appsettings.json. Agent được đọc, cấu hình, kiểm thử; không tự xóa/che/thay thành placeholder do quy định bảo mật ngân hàng/PayOS cũ.
+- Ngoại lệ không mở rộng sang mật khẩu DB, khóa JWT, token khác hoặc khóa PayOS trong frontend/VITE_*. Không thay kiểm tra chữ ký webhook, mã đơn, số tiền hay chống ghi nhận trùng.
+- appsettings.json được kiểm tra đang chỉ có YOUR_PAYOS_CLIENT_ID, YOUR_PAYOS_API_KEY, YOUR_PAYOS_CHECKSUM_KEY; không có cờ chặn/che ngân hàng. Không sửa file này khi chưa có giá trị thật từ nhóm, không tự bịa khóa.
+- Không thay nghiệp vụ D26/D27/D32, API, schema, quyền hoặc trạng thái tính năng. Không khẳng định thanh toán thật đã hoạt động chỉ từ thay đổi quy định.
