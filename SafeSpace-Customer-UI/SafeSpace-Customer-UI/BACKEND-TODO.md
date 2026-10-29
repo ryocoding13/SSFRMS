@@ -35,6 +35,21 @@ Mã việc khớp kế hoạch "SafeSpace — Kế hoạch hoàn thiện cập n
 
 Không làm: thu hồi QR/PIN thủ công; công nợ sau trả kho; thanh toán phí phát sinh sau trả kho qua PayOS hoặc tại quầy (`POST /api/payments/{id}/at-facility`, `feeCollections`, `POST /api/ops/fees/{id}/confirm`).
 
+### Cập nhật BE 29/10 — nhánh `feature/be-t05-t07-t08-t13-flags` (xếp chồng trên PR #53)
+
+Đã viết code BE, **chưa build / chưa chạy test / chưa tạo migration** (môi trường AI không có .NET), chưa kiểm SQL Server. Người nhận chạy `dotnet ef migrations add AddRefundEvidenceAndIncidents`, `dotnet build`, `dotnet test` rồi kiểm tích hợp với FE PR #53.
+
+| Mã | Đã có trên nhánh | Còn lại |
+|---|---|---|
+| T05 | `POST /api/ops/returns/{id}/inspection` lưu `damageFee`, `cleaningRequired` (vệ sinh = 10% cọc do server tính), `damageItem`, `feeReason`, ảnh (`photos[]` JSON base64, bắt buộc khi có hư hỏng); board trả `report` đủ phí/ảnh, `requestedAt`, `overdueFee` | Route cũ `/api/staff/returns/{id}/inspection` chưa nhận phí/ảnh |
+| T07 | M07 chỉ tạo `REFUND` `PENDING` (trả `{refund, refundStatus}`), ô cần vệ sinh/sửa giữ `MAINTENANCE`; `GET /api/ops/deposit-refunds`, `POST /api/ops/deposit-refunds/actions` (`CONFIRM_DEPOSIT_REFUND`, `expectedVersion` cũ → 409); khách `GET /api/deposit-refunds` | Khoản `DAMAGE_FEE/OVERDUE_FEE` cũ còn PENDING trên dữ liệu cũ (T06) chưa dọn |
+| T08 | Huỷ đơn đã thanh toán bắt buộc tài khoản chính chủ (kể cả đơn `UNIT_ASSIGNED` trước StartDate, mã QR/PIN hết hiệu lực); gửi trả kho bắt buộc ảnh kho trống + tài khoản + `emptied`, nhận cả hợp đồng `OVERDUE`, chặn gửi trùng; M08 lưu `transactionRef`/`transferredAt`; `GET /api/rental-policy` trả `cancellationBankSupported`, `returnRequestSupported` | — |
+| S02 | `POST /api/ops/verifications/{id}` nhận checklist 4 mục, không cần số giấy tờ; `POST /api/ops/keys/{id}/receipt` nhận checklist 3 mục | — |
+| Cờ | Board trả `verificationChecklistSupported`, `inspectionEvidenceSupported`, `refundEvidenceSupported`, `returnPolicyVersion: "D32"`, `returns[].damageWorkflowResolved`, `refunds[]` (M08) | `damageWorkflowResolved` luôn `true` vì BE chưa có luồng phản hồi hư hỏng Batch06 (không hồ sơ nào đang mở) |
+| T13 | Toàn bộ hợp đồng Batch07: `GET /api/ops/incidents`, `POST /api/ops/incidents`, `/complete-transfer`, `/terminate`, khách `GET /api/incidents`, `POST /api/contracts/{contractId}/incident-choice`; khoản hoàn sự cố xác nhận chuyển tiền ở màn hoàn cọc | Chưa có idempotency key riêng (dựa `expectedVersion` + khoá giao dịch) |
+
+Ảnh lưu trong bảng `evidence_photos` (riêng tư), đọc qua `GET /api/evidence-photos/{id}?exp=&sig=` (chữ ký HMAC, hết hạn 1 giờ). Dev FE :5173 + API :5151: link ảnh dùng `EvidencePhotos:PublicBaseUrl` (mặc định `http://localhost:5151` khi Development). Nginx `/api/` nâng `client_max_body_size 40m`.
+
 ### Bàn giao FE T10 / T15 — 26/10
 
 FE đã ẩn phí trả kho đang chờ thu ở C11, bỏ route S09f/queue/badge và adapter thu phí, gỡ adapter `REVOKE_CREDENTIAL`; vẫn giữ luồng tiền thuê/gia hạn và cấp lại mã.
@@ -62,7 +77,7 @@ tên route + tên trường JSON là giao diện chạy ngay, không phải sử
 | Q2 | `POST /api/access/scan` `{ code }` → `ScanResultDto` (cho phép không đăng nhập — máy quét ở cửa) | Tiến | Màn `#/door` báo "Máy quét chưa kết nối được hệ thống" |
 | R1 | `GET /api/tickets/{id}` trả thêm `responses[]` | Ngọc Mai | C12 không hiện dòng phản hồi |
 | H1 | **Đã viết (D27)** `GET /api/reservations/{id}/cancel-preview` → `CancelPreviewDto`; `ReservationDto` thêm `refundAmount`, `refundStatus` (`PENDING` / `COMPLETED`). Chờ nhóm build và kiểm thử | Ngọc Mai, Đạt, Thắng | C14a ghi "Theo chính sách hiện hành / Cơ sở xác nhận sau khi huỷ" |
-| U1 | **Đã nối** `PUT /api/staff/units/{mã}/status` `{ status, reason }` có sẵn trên main (nhân viên + quản lý). Còn thiếu: kiểm chuyển tiếp hợp lệ, bắt buộc lý do, trạng thái `INSPECTION` | Thắng | — |
+| U1 | **Đã nối** `PUT /api/staff/units/{mã}/status` `{ status, reason }` có sẵn trên main (nhân viên + quản lý). Cập nhật 29/10: main đã kiểm chuyển tiếp qua `UnitStatusRules.Validate`, bắt buộc lý do, chặn ô đang giữ/có hợp đồng và ghi `unit_status_history` — dòng "còn thiếu" cũ không còn đúng | Thắng | Đã có |
 
 ### P · PayOS (D19) và thanh toán tại cửa hàng
 ```json
@@ -512,6 +527,8 @@ Khi cho khắc phục vẫn giữ deduction đến inspection PASS; bỏ đúng 
 
 ## Batch07 — T13 sự cố cơ sở: API ĐỀ XUẤT, chưa có trên main c1a9b05
 
+> 29/10: đã viết BE theo đúng hợp đồng dưới đây trên nhánh `feature/be-t05-t07-t08-t13-flags` (xem "Cập nhật BE 29/10" ở đầu tệp); chưa build/kiểm SQL Server.
+
 FE có D30-10/16/16b; không triển khai BE/schema và chưa chứng minh tích hợp thật. Cần BE owner thống nhất contract dưới đây; giữ các đường T13 đề xuất trước, bổ sung GET/save/send/terminate/version/evidence.
 
 ### Đọc và khởi tạo nháp
@@ -543,6 +560,8 @@ Contract đã ENDED/RETURN_PENDING/OVERDUE hoặc đang có xử lý xung đột
 
 
 ## Batch08 — T05–T08/T11–T12, S02/M07/M08: contract FE bổ sung, chưa có đầy đủ trên main c1a9b05
+
+> 29/10: S02, S04/T05, M07/T07, M08/T08 và các cờ đã viết BE trên nhánh `feature/be-t05-t07-t08-t13-flags`; T11/T12 (quá hạn ngày 20) **chưa làm**. Cờ chỉ được giữ `true` sau khi nhóm build và kiểm luồng trên SQL Server.
 
 Không sửa BE/schema trong task này. Các marker bên dưới là đề xuất tích hợp, **server chỉ công bố sau khi đã triển khai và kiểm chứng**; không bật từ FE/env hoặc mock để giả hỗ trợ. Cờ không thay server authorization/validation/transaction.
 

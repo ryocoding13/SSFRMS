@@ -2,6 +2,7 @@ using System.Security.Claims;
 using StorageProject.Api.Extensions;
 using StorageProject.Core.DTOs.FacilityOps;
 using StorageProject.Core.Interfaces;
+using StorageProject.Infrastructure.Services;
 
 namespace StorageProject.Api.Endpoints;
 
@@ -35,13 +36,14 @@ public static class FacilityOpsEndpoints
             Run(async () => { await ops.VerifyCustomerAsync(Actor(user), id, request, ct); return Done(); }))
             .WithSummary("S02 · Xác minh khách nhận kho; chỉ lưu 4 số cuối giấy tờ");
 
-        group.MapPost("/keys/{id}/receipt", (string id, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
-            Run(async () => { await ops.RecordKeyReceiptAsync(Actor(user), id, ct); return Done(); }))
-            .WithSummary("Ghi nhận khách nhận chìa khóa vật lý; không kích hoạt hợp đồng");
+        group.MapPost("/keys/{id}/receipt", (string id, OpsKeyReceiptRequest? request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => { await ops.RecordKeyReceiptAsync(Actor(user), id, request, ct); return Done(); }))
+            .WithSummary("Ghi nhận khách nhận chìa khóa vật lý (checklist 3 mục nếu gửi); không kích hoạt hợp đồng");
 
         group.MapPost("/returns/{id}/inspection", (string id, OpsReturnInspectionRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
             Run(async () => { await ops.SubmitReturnInspectionAsync(Actor(user), id, request, ct); return Done(); }))
-            .WithSummary("S04 · Biên bản kiểm tra trả kho; ô → INSPECTION, chờ quản lý hoàn cọc");
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(EvidencePhotos.RequestBodyLimit))
+            .WithSummary("S04 · Biên bản kiểm kê trả kho: 4 mục, phí hư hỏng, vệ sinh 10% cọc, lý do, ảnh (D32 / T05)");
 
         group.MapPost("/tickets/{id}/responses", (string id, OpsTicketResponseRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
             Run(async () => { await ops.RespondTicketAsync(Actor(user), id, request, ct); return Done(); }))
@@ -68,21 +70,68 @@ public static class FacilityOpsEndpoints
             Run(async () => { await ops.RemindAsync(Actor(user), id, request, ct); return Done(); }))
             .WithSummary("M07 · Ghi lần nhắc khách (quá hạn / còn nợ)");
 
-        group.MapPost("/contracts/{id}/refund", (string id, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+        group.MapPost("/contracts/{id}/refund", (string id, OpsNoteRequest? request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
             Run(async () =>
             {
-                var refund = await ops.ConfirmRefundAsync(Actor(user), id, ct);
-                return Results.Ok(new { message = "Đã cập nhật.", refund });
+                var result = await ops.ConfirmRefundAsync(Actor(user), id, request?.Note, ct);
+                return Results.Ok(new { message = "Đã cập nhật.", refund = result.Refund, refundStatus = result.RefundStatus });
             }))
-            .WithSummary("M07 · Xác nhận hoàn cọc sau biên bản trả kho theo chính sách D27, đóng hợp đồng, ô trống lại");
+            .WithSummary("M07 · Chốt quyết toán trả kho (D32): tạo khoản hoàn PENDING, đóng hợp đồng; ô cần vệ sinh giữ MAINTENANCE");
 
-        group.MapPost("/reservations/{id}/refund", (string id, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+        group.MapPost("/reservations/{id}/refund", (string id, OpsReservationRefundRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
             Run(async () =>
             {
-                var refund = await ops.ConfirmReservationRefundAsync(Actor(user), id, ct);
+                var refund = await ops.ConfirmReservationRefundAsync(Actor(user), id, request, ct);
                 return Results.Ok(new { message = "Đã cập nhật.", refund });
             }))
-            .WithSummary("M07 · Xác nhận đã chuyển khoản hoàn tiền cho đơn đã huỷ (D27)");
+            .WithSummary("M08 · Ghi bằng chứng đã chuyển khoản hoàn cho đơn huỷ: mã giao dịch, thời điểm chuyển, xác nhận (D32)");
+
+        // ---- Hoàn cọc sau trả kho (D32 / T07)
+        group.MapGet("/deposit-refunds", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(await ops.GetDepositRefundsAsync(Actor(user), ct))))
+            .WithSummary("Danh sách khoản hoàn cọc của cơ sở: chờ hoàn và đã hoàn gần đây");
+
+        group.MapPost("/deposit-refunds/actions", (DepositRefundActionRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(new { item = await ops.ConfirmDepositRefundAsync(Actor(user), request, ct) })))
+            .WithSummary("CONFIRM_DEPOSIT_REFUND: quản lý ghi mã giao dịch → PAID; expectedVersion cũ trả 409");
+
+        // ---- T13 · Sự cố do cơ sở (quản lý)
+        group.MapGet("/incidents", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(await ops.GetIncidentsAsync(Actor(user), ct))))
+            .WithSummary("Hồ sơ sự cố của cơ sở + nháp cho hợp đồng đủ điều kiện (mã/phiên bản do server cấp) và ô tương đương");
+
+        group.MapPost("/incidents", (IncidentActionRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(await ops.SaveIncidentAsync(Actor(user), request, ct))))
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(EvidencePhotos.RequestBodyLimit))
+            .WithSummary("SAVE_INCIDENT (giữ nháp) / SEND_INCIDENT_PROPOSAL (gửi khách, giữ ô thay thế); expectedVersion cũ trả 409");
+
+        group.MapPost("/incidents/{id}/complete-transfer", (string id, IncidentActionRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(await ops.CompleteIncidentTransferAsync(Actor(user), id, request, ct))))
+            .WithSummary("Hoàn tất chuyển ô: ô cũ MAINTENANCE, ô mới OCCUPIED, mã ô cũ hết hiệu lực, cấp QR/PIN ô mới, không phụ phí");
+
+        group.MapPost("/incidents/{id}/terminate", (string id, IncidentActionRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(await ops.FinalizeIncidentTerminationAsync(Actor(user), id, request, ct))))
+            .WithSummary("Chốt kết thúc theo lựa chọn khách: hợp đồng kết thúc, khoản hoàn PENDING = tháng đang thuê + tháng chưa dùng + 100% cọc");
+
+        // ---- T13 · Khách xem và tự chọn phương án
+        routes.MapGet("/api/incidents", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+                Run(async () => Results.Ok(await ops.GetCustomerIncidentsAsync(user.GetUserId(), ct))))
+            .WithTags("Facility Operations")
+            .RequireAuthorization(policy => policy.RequireRole("CUSTOMER"))
+            .WithSummary("Khách xem hồ sơ sự cố đã gửi của hợp đồng mình");
+
+        routes.MapPost("/api/contracts/{contractId}/incident-choice", (string contractId, IncidentActionRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+                Run(async () => Results.Ok(await ops.ChooseIncidentOptionAsync(user.GetUserId(), contractId, request, ct))))
+            .WithTags("Facility Operations")
+            .RequireAuthorization(policy => policy.RequireRole("CUSTOMER"))
+            .WithSummary("CHOOSE_INCIDENT_OPTION: khách tự chọn đổi ô (TRANSFER) hoặc kết thúc + tài khoản chính chủ (TERMINATE)");
+
+        // ---- Khách xem khoản hoàn cọc của chính mình
+        routes.MapGet("/api/deposit-refunds", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+                Run(async () => Results.Ok(await ops.GetCustomerDepositRefundsAsync(user.GetUserId(), ct))))
+            .WithTags("Facility Operations")
+            .RequireAuthorization(policy => policy.RequireRole("CUSTOMER"))
+            .WithSummary("Khách theo dõi hoàn cọc sau trả kho (chỉ hồ sơ của mình)");
     }
 
     private static OpsActor Actor(ClaimsPrincipal user) => new(user.GetUserId(), user.IsInRole("MANAGER"));
@@ -112,6 +161,13 @@ public static class FacilityOpsEndpoints
         if (b.Contracts != null) json["contracts"] = b.Contracts;
         if (b.Assignments != null) json["assignments"] = b.Assignments;
         if (b.Revenue != null) json["revenue"] = b.Revenue;
+        if (b.Refunds != null) json["refunds"] = b.Refunds;
+
+        // Khả năng server đã triển khai thật (BACKEND-TODO Batch08). Giao diện chỉ mở thao tác khi cờ = true.
+        json["verificationChecklistSupported"] = true; // S02: lưu checklist 4 mục, không cần số giấy tờ
+        json["inspectionEvidenceSupported"] = true;    // S04: lưu phí, vệ sinh 10% cọc, lý do, hạng mục, ảnh (T05)
+        json["refundEvidenceSupported"] = true;        // M08: tài khoản chính chủ + mã giao dịch/thời điểm chuyển (T08)
+        json["returnPolicyVersion"] = "D32";           // M07: khấu trừ tối đa bằng cọc, hoàn hai bước (T06, T07, T09)
         return json;
     }
 
@@ -128,6 +184,10 @@ public static class FacilityOpsEndpoints
         catch (KeyNotFoundException ex)
         {
             return Results.NotFound(new { error = ex.Message });
+        }
+        catch (OpsConflictException ex)
+        {
+            return Results.Conflict(new { error = ex.Message });
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {

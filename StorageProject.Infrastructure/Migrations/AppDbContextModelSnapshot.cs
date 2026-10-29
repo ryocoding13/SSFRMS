@@ -206,6 +206,63 @@ namespace StorageProject.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("StorageProject.Core.Entities.EvidencePhoto", b =>
+                {
+                    b.Property<long>("PhotoId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("PhotoId"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<long>("OwnerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("OwnerType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<int>("SizeBytes")
+                        .HasColumnType("int");
+
+                    b.Property<long>("UploadedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("PhotoId");
+
+                    b.HasIndex("UploadedBy");
+
+                    b.HasIndex("OwnerType", "OwnerId");
+
+                    b.ToTable("evidence_photos", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_evidence_photos_content_type", "[ContentType] IN ('image/jpeg','image/png')");
+
+                            t.HasCheckConstraint("CK_evidence_photos_owner_type", "[OwnerType] IN ('MOVE_OUT','RETURN_INSPECTION','INCIDENT')");
+
+                            t.HasCheckConstraint("CK_evidence_photos_size", "[SizeBytes] > 0 AND [SizeBytes] <= 5242880");
+                        });
+                });
+
             modelBuilder.Entity("StorageProject.Core.Entities.Facility", b =>
                 {
                     b.Property<long>("FacilityId")
@@ -262,6 +319,132 @@ namespace StorageProject.Infrastructure.Migrations
                             t.HasCheckConstraint("CK_facilities_coordinates", "([Latitude] IS NULL AND [Longitude] IS NULL) OR ([Latitude] BETWEEN -90 AND 90 AND [Longitude] BETWEEN -180 AND 180)");
 
                             t.HasCheckConstraint("CK_facilities_status", "[Status] IN ('ACTIVE','INACTIVE','TEMPORARILY_CLOSED')");
+                        });
+                });
+
+            modelBuilder.Entity("StorageProject.Core.Entities.FacilityIncident", b =>
+                {
+                    b.Property<long>("IncidentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("IncidentId"));
+
+                    b.Property<DateTime?>("AffectedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CaseCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<DateTime?>("ChoiceAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ChoiceNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ChoiceOption")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool>("Confirmed")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("ContractId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal?>("CurrentMonthRent")
+                        .HasColumnType("decimal(15,2)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<long>("FacilityId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("MovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("OldUnitId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Proposal")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("RefundAccountHolder")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("RefundAccountNumber")
+                        .HasMaxLength(19)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(19)");
+
+                    b.Property<string>("RefundBankName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long?>("RefundPaymentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("DRAFT");
+
+                    b.Property<long?>("TargetUnitId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal?>("UnusedRent")
+                        .HasColumnType("decimal(15,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Version")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
+                    b.HasKey("IncidentId");
+
+                    b.HasIndex("CaseCode")
+                        .IsUnique();
+
+                    b.HasIndex("ContractId")
+                        .IsUnique()
+                        .HasFilter("[Status] IN ('DRAFT','PROPOSED','TRANSFER_PENDING','TERMINATION_PENDING')");
+
+                    b.HasIndex("OldUnitId");
+
+                    b.HasIndex("TargetUnitId")
+                        .IsUnique()
+                        .HasFilter("[TargetUnitId] IS NOT NULL AND [Status] IN ('PROPOSED','TRANSFER_PENDING')");
+
+                    b.HasIndex("FacilityId", "Status");
+
+                    b.ToTable("facility_incidents", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_facility_incidents_choice", "[ChoiceOption] IS NULL OR [ChoiceOption] IN ('TRANSFER','TERMINATE')");
+
+                            t.HasCheckConstraint("CK_facility_incidents_proposal", "[Proposal] IS NULL OR [Proposal] IN ('TRANSFER','TERMINATE')");
+
+                            t.HasCheckConstraint("CK_facility_incidents_status", "[Status] IN ('DRAFT','PROPOSED','TRANSFER_PENDING','TRANSFERRED','TERMINATION_PENDING','TERMINATED')");
+
+                            t.HasCheckConstraint("CK_facility_incidents_version", "[Version] > 0");
                         });
                 });
 
@@ -1050,6 +1233,19 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Property<decimal>("QuotedMonthlyRate")
                         .HasColumnType("decimal(15,2)");
 
+                    b.Property<string>("RefundAccountHolder")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("RefundAccountNumber")
+                        .HasMaxLength(19)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(19)");
+
+                    b.Property<string>("RefundBankName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<int>("RentalPeriodMonths")
                         .HasColumnType("int");
 
@@ -1131,6 +1327,14 @@ namespace StorageProject.Infrastructure.Migrations
                         .HasColumnType("decimal(15,2)")
                         .HasDefaultValue(0m);
 
+                    b.Property<string>("DamageItem")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("FeeReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<DateTime?>("InspectedAt")
                         .HasColumnType("datetime2");
 
@@ -1141,6 +1345,19 @@ namespace StorageProject.Infrastructure.Migrations
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RefundAccountHolder")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("RefundAccountNumber")
+                        .HasMaxLength(19)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(19)");
+
+                    b.Property<string>("RefundBankName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime?>("ScheduledAt")
                         .HasColumnType("datetime2");
@@ -1679,6 +1896,43 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Navigation("ApprovedByUser");
 
                     b.Navigation("Contract");
+                });
+
+            modelBuilder.Entity("StorageProject.Core.Entities.EvidencePhoto", b =>
+                {
+                    b.HasOne("StorageProject.Core.Entities.User", "UploadedByUser")
+                        .WithMany()
+                        .HasForeignKey("UploadedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("UploadedByUser");
+                });
+
+            modelBuilder.Entity("StorageProject.Core.Entities.FacilityIncident", b =>
+                {
+                    b.HasOne("StorageProject.Core.Entities.RentalContract", "Contract")
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("StorageProject.Core.Entities.StorageUnit", "OldUnit")
+                        .WithMany()
+                        .HasForeignKey("OldUnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("StorageProject.Core.Entities.StorageUnit", "TargetUnit")
+                        .WithMany()
+                        .HasForeignKey("TargetUnitId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Contract");
+
+                    b.Navigation("OldUnit");
+
+                    b.Navigation("TargetUnit");
                 });
 
             modelBuilder.Entity("StorageProject.Core.Entities.HandoverRecord", b =>

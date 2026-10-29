@@ -14,6 +14,13 @@ public class ReturnInspection
     public decimal DamageFee { get; set; } = 0;
     public decimal CleaningFee { get; set; } = 0;
     public string? Notes { get; set; }
+    // D32 / T05: hạng mục hư hỏng và lý do khấu trừ trên biên bản kiểm kê
+    public string? DamageItem { get; set; }
+    public string? FeeReason { get; set; }
+    // D32 / T08: tài khoản chính chủ nhận hoàn cọc, khách khai khi gửi trả kho
+    public string? RefundBankName { get; set; }
+    public string? RefundAccountNumber { get; set; }
+    public string? RefundAccountHolder { get; set; }
     public string Status { get; set; } = "SCHEDULED"; // SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED
     public DateTime CreatedAt { get; set; }
 

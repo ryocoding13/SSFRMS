@@ -93,3 +93,52 @@ Authorization: Bearer {{managerToken}}
 Content-Type: application/json
 
 { "status": "MAINTENANCE", "reason": "Sửa cửa kho" }
+
+### ==== D32 / T05, T07, T08, T13 (29/10) — thay token, mã và ảnh base64 thật trước khi chạy ====
+@contractId = 1
+@contractCode = HĐ-2026-0001
+@returnCode = TK-0001
+@jpegBase64 = /9j/4AAQSkZJRgABAQ==
+
+### Khách gửi trả kho: ảnh kho trống + tài khoản chính chủ (bắt buộc)
+POST {{StorageProject.Api_HostAddress}}/api/contracts/{{contractId}}/move-out
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{ "date": "2026-10-30", "slot": "09:00–09:30", "note": "Đã dọn sạch", "bankName": "Vietcombank", "accountNumber": "0123456789", "accountHolder": "NGUYEN VAN AN", "emptied": true, "photos": [ { "fileName": "kho-trong.jpg", "contentType": "image/jpeg", "dataBase64": "{{jpegBase64}}" } ] }
+
+### Nhân viên kiểm kê (vệ sinh = 10% cọc do server tính)
+POST {{StorageProject.Api_HostAddress}}/api/ops/returns/{{returnCode}}/inspection
+Authorization: Bearer {{staffToken}}
+Content-Type: application/json
+
+{ "items": "Trống", "walls": "Trầy cửa", "keys": "Đã nhận", "proposal": "Cần bảo trì trước khi cho thuê lại", "damageFee": 200000, "cleaningRequired": true, "damageItem": "Cửa cuốn", "feeReason": "Trầy sơn", "photos": [ { "fileName": "cua.jpg", "contentType": "image/jpeg", "dataBase64": "{{jpegBase64}}" } ] }
+
+### Quản lý chốt quyết toán → khoản hoàn PENDING
+POST {{StorageProject.Api_HostAddress}}/api/ops/contracts/{{contractCode}}/refund
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{ "note": "Đối chiếu đủ ảnh" }
+
+### Danh sách hoàn cọc / ghi đã chuyển (expectedVersion lấy từ danh sách)
+GET {{StorageProject.Api_HostAddress}}/api/ops/deposit-refunds
+Authorization: Bearer {{managerToken}}
+
+###
+POST {{StorageProject.Api_HostAddress}}/api/ops/deposit-refunds/actions
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{ "action": "CONFIRM_DEPOSIT_REFUND", "id": "HC-0001", "expectedVersion": 1, "transactionRef": "FT26302000001", "transferredAt": "2026-10-29T03:00:00.000Z", "confirmed": true }
+
+### T13 · Sự cố: danh sách (có nháp + ô tương đương) và gửi phương án
+GET {{StorageProject.Api_HostAddress}}/api/ops/incidents
+Authorization: Bearer {{managerToken}}
+
+###
+POST {{StorageProject.Api_HostAddress}}/api/ops/incidents
+Authorization: Bearer {{managerToken}}
+Content-Type: application/json
+
+{ "action": "SEND_INCIDENT_PROPOSAL", "id": "SC-0001-1", "expectedVersion": 1, "description": "Thấm nước mái kho", "affectedAt": "2026-10-29T01:00:00.000Z", "confirmed": true, "proposal": "TERMINATE" }

@@ -1,3 +1,11 @@
+## 2026-10-29 — F42: BE T05/T07/T08/T13 + cờ khả năng Batch08 (nhánh feature/be-t05-t07-t08-t13-flags)
+
+- Yêu cầu của thành viên FE: gỡ chỗ FE PR #53 khoá luồng khi API thật thiếu cờ (xác minh khách, kiểm kê, hoàn tiền, huỷ đơn đã thanh toán, gửi trả kho) và làm T13. Nhánh xếp chồng trên PR #53 (`fd61df1`) để không xung đột tài liệu; merge PR #53 trước.
+- BE mới: ảnh bằng chứng (bảng `evidence_photos`, URL có chữ ký), tài khoản chính chủ (cột trên `reservations`, `return_inspections`, `facility_incidents`), kiểm kê lưu phí/ảnh, hoàn cọc hai bước + API `deposit-refunds`, M08 lưu bằng chứng chuyển khoản, checklist S02, cờ trên board và rental-policy, toàn bộ API T13. Chi tiết: BACKEND-TODO "Cập nhật BE 29/10", DECISIONS D34, docs/facility-ops-api.md mục 4b.
+- Sửa lệch tài liệu: feature_list F22/F23/F28 từ `not_started` → `active` kèm bằng chứng (chờ thành viên xác nhận để `passing`), thêm F42; BACKEND-TODO dòng U1 (main đã kiểm chuyển trạng thái ô).
+- Test mới: `StorageProject.Tests/D32RefundEvidenceTests.cs`, `IncidentT13Tests.cs` (SQLite trong bộ nhớ).
+- **Chưa kiểm chứng:** môi trường AI không có .NET SDK/NuGet nên chưa build, chưa chạy test, chưa tạo migration. Người nhận chạy `dotnet ef migrations add AddRefundEvidenceAndIncidents --project StorageProject.Infrastructure --startup-project StorageProject.Api`, thêm tên migration vào `StorageProject.IntegrationTests/Tests/SqlServerMigrationAndReadinessTests.cs`, rồi `dotnet build` + `dotnet test`, kiểm luồng trên SQL Server với FE PR #53. Còn thiếu T11/T12 (quá hạn ngày 20), T19, route cũ `/api/staff/returns` chưa nhận phí/ảnh.
+
 ## 2026-10-29 — F40 Batch10: browser và kiểm giới hạn tích hợp (phiên 7)
 
 - Khôi phục đúng Batch09 từ gói chỉ định; SHA256 45698710691ba1348db454770a132b25754082ce88524ea1727149e6dedd688e,143 file khớp source. Giữ main c1a9b05/F40 active/F41 blocked; không sửa BE/schema/Figma, không commit/push/PR/merge.

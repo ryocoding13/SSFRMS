@@ -7,7 +7,7 @@ using StorageProject.Core.Interfaces;
 
 namespace StorageProject.Api.Endpoints;
 
-public record CancelReservationRequest(string Reason);
+public record CancelReservationRequest(string Reason, string? BankName = null, string? AccountNumber = null, string? AccountHolder = null);
 
 public static class ReservationEndpoints
 {
@@ -66,10 +66,13 @@ public static class ReservationEndpoints
             try
             {
                 var customerId = user.GetUserId();
-                await reservationService.CancelReservationAsync(customerId, id, request.Reason, ct);
+                var bank = request.BankName != null || request.AccountNumber != null || request.AccountHolder != null
+                    ? new StorageProject.Core.DTOs.Evidence.RefundBankInput(request.BankName, request.AccountNumber, request.AccountHolder)
+                    : null;
+                await reservationService.CancelReservationAsync(customerId, id, request.Reason, bank, ct);
                 return Results.Ok(new { message = "Đã hủy đơn đặt chỗ thành công." });
             }
-            catch (InvalidOperationException ex)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
                 return Results.BadRequest(new { error = ex.Message });
             }

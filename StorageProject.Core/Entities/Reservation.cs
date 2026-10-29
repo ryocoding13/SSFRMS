@@ -24,6 +24,10 @@ public class Reservation
     public DateTime CreatedAt { get; set; }
     public DateTime? ExpiresAt { get; set; }
     public DateTime? CancelledAt { get; set; }
+    // D32 / T08: tài khoản chính chủ nhận hoàn khi huỷ đơn đã thanh toán
+    public string? RefundBankName { get; set; }
+    public string? RefundAccountNumber { get; set; }
+    public string? RefundAccountHolder { get; set; }
 
     public User Customer { get; set; } = null!;
     public Facility Facility { get; set; } = null!;

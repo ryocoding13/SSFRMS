@@ -52,11 +52,12 @@ public static class ContractEndpoints
             {
                 return Results.NotFound(new { error = ex.Message });
             }
-            catch (InvalidOperationException ex)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
                 return Results.BadRequest(new { error = ex.Message });
             }
-        });
+        })
+        .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(StorageProject.Infrastructure.Services.EvidencePhotos.RequestBodyLimit));
 
         return group;
     }

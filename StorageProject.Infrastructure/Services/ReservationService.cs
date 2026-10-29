@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using StorageProject.Core.DTOs.Evidence;
 using StorageProject.Core.DTOs.Reservation;
 using StorageProject.Core.Entities;
 using StorageProject.Core.Exceptions;
@@ -225,40 +226,92 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         return (rent + deposit, result.FixedDeduction, result.Total);
     }
 
-    public async Task CancelReservationAsync(long customerId, long reservationId, string reason, CancellationToken ct = default)
+    public async Task CancelReservationAsync(long customerId, long reservationId, string reason, CancellationToken ct = default) =>
+        await CancelReservationAsync(customerId, reservationId, reason, null, ct);
+
+    /// <summary>
+    /// Huỷ đơn trước ngày bắt đầu thuê (D27/D32): phí 10% cọc, hoàn 100% tiền thuê + 90% cọc vào tài khoản chính chủ.
+    /// Đơn đã thanh toán bắt buộc khai tài khoản nhận hoàn (T08). Đơn đã được tự cấp hợp đồng sau thanh toán (D26,
+    /// trạng thái UNIT_ASSIGNED) vẫn huỷ được khi chưa đến StartDate và khách chưa nhận chìa khóa; mã QR/PIN của hợp đồng
+    /// huỷ tự hết hiệu lực (hệ thống vô hiệu, không phải thu hồi thủ công).
+    /// </summary>
+    public async Task CancelReservationAsync(long customerId, long reservationId, string reason, RefundBankInput? bank, CancellationToken ct = default)
     {
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"reservation:{reservationId}", ct);
         var reservation = await dbContext.Reservations
+            .Include(r => r.Customer)
             .Where(r => r.ReservationId == reservationId && r.CustomerId == customerId)
             .FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("Không tìm thấy đơn đặt chỗ hợp lệ.");
 
-        if (reservation.Status != "PENDING_PAYMENT" && reservation.Status != "CONFIRMED" && reservation.Status != "PENDING_AT_FACILITY")
+        var contract = await dbContext.RentalContracts
+            .Include(c => c.Unit)
+            .Include(c => c.HandoverRecord)
+            .Include(c => c.AccessCredentials)
+            .SingleOrDefaultAsync(c => c.ReservationId == reservationId, ct);
+        var assignedBeforeStart = reservation.Status == "UNIT_ASSIGNED"
+                                  && OpsRules.TodayLocal < reservation.StartDate
+                                  && contract is { Status: "DRAFT" or "ACTIVE" }
+                                  && contract.HandoverRecord?.Status != "HANDED_OVER";
+        if (reservation.Status != "PENDING_PAYMENT" && reservation.Status != "CONFIRMED" && reservation.Status != "PENDING_AT_FACILITY"
+            && !assignedBeforeStart)
         {
-            throw new InvalidOperationException($"Không thể hủy đơn đặt chỗ ở trạng thái '{reservation.Status}'.");
+            throw new InvalidOperationException(reservation.Status == "UNIT_ASSIGNED"
+                ? "Đã đến ngày bắt đầu thuê hoặc đã nhận chìa khóa nên không huỷ đặt chỗ được. Vui lòng đăng ký trả kho."
+                : $"Không thể hủy đơn đặt chỗ ở trạng thái '{reservation.Status}'.");
         }
 
         var quote = await QuoteCancelAsync(reservation, ct);
+        RefundBank.Account? account = null;
+        if (quote.Refund > 0)
+        {
+            // D32: mọi khoản hoàn chuyển vào tài khoản chính chủ, kể cả khi khách đã trả tiền mặt.
+            account = RefundBank.Validate(bank, reservation.Customer.FullName);
+        }
+
         var now = DateTime.UtcNow;
         reservation.Status = "CANCELLED";
         reservation.CancelledAt = now;
-        reservation.CancellationReason = reason;
+        reservation.CancellationReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim()[..Math.Min(reason.Trim().Length, 500)];
+        if (account != null)
+        {
+            reservation.RefundBankName = account.BankName;
+            reservation.RefundAccountNumber = account.AccountNumber;
+            reservation.RefundAccountHolder = account.AccountHolder;
+        }
         foreach (var a in await dbContext.UnitAssignments.Include(a => a.Unit).Where(a => a.ReservationId == reservationId && a.Status == "ACTIVE").ToListAsync(ct))
         {
             a.Status = "CANCELLED";
-            if (a.Unit.Status == "RESERVED") a.Unit.Status = "AVAILABLE";
+            if (a.Unit.Status == "RESERVED")
+            {
+                dbContext.UnitStatusHistories.Add(new UnitStatusHistory { UnitId = a.Unit.UnitId, ChangedBy = customerId,
+                    OldStatus = a.Unit.Status, NewStatus = "AVAILABLE", ChangedAt = now, Reason = $"Khách huỷ đơn #{reservationId} trước ngày thuê" });
+                a.Unit.Status = "AVAILABLE";
+                a.Unit.UpdatedAt = now;
+            }
         }
-        var draft = await dbContext.RentalContracts.SingleOrDefaultAsync(c => c.ReservationId == reservationId && c.Status == "DRAFT", ct);
-        if (draft != null) draft.Status = "CANCELLED";
+        var draft = contract is { Status: "DRAFT" or "ACTIVE" } ? contract : null;
+        if (draft != null)
+        {
+            draft.Status = "CANCELLED";
+            draft.TerminationReason = "Khách huỷ đặt chỗ trước ngày bắt đầu thuê";
+            if (draft.HandoverRecord is { Status: not "HANDED_OVER" }) draft.HandoverRecord.Status = "CANCELLED";
+            foreach (var cred in draft.AccessCredentials.Where(c => c.Status == "ACTIVE"))
+            {
+                cred.Status = "REVOKED"; // hệ thống vô hiệu mã của hợp đồng đã huỷ; AccessService cũng chặn hợp đồng CANCELLED
+                cred.ReturnedAt = now;
+            }
+        }
 
-        // Ghi khoản hoàn đúng một lần; quản lý xác nhận đã chuyển khoản ở M07 (3–5 ngày làm việc).
+        // Ghi khoản hoàn đúng một lần; quản lý ghi bằng chứng đã chuyển khoản ở M08 (3–5 ngày làm việc).
         if (quote.Refund > 0 && !await dbContext.Payments.AnyAsync(p => p.ReservationId == reservationId && p.PaymentType == "REFUND", ct))
         {
             dbContext.Payments.Add(new Payment
             {
                 ReservationId = reservationId, ContractId = draft?.ContractId, PaymentType = "REFUND", Amount = quote.Refund,
+                // Mã giao dịch chỉ ghi khi quản lý xác nhận đã chuyển (M08), không dùng chuỗi mô tả thay mã thật.
                 Currency = "VND", PaymentMethod = "BANK_TRANSFER", Status = "PENDING",
-                TransactionReference = $"Hoàn huỷ đơn #{reservationId}", CreatedAt = now, UpdatedAt = now
+                CreatedAt = now, UpdatedAt = now
             });
             ReservationSettlement.Audit(dbContext, customerId, "RESERVATION_REFUND_RECORDED", reservationId,
                 new { paid = quote.Paid, fee = quote.Fee, refund = quote.Refund });
