@@ -154,7 +154,7 @@ export function createOpsData(t = today()) {
     ],
 
     // M08 · Hoàn tiền đơn khách huỷ trước ngày bắt đầu thuê (D27: phí 10% cọc, hoàn 100% tiền thuê + 90% cọc)
-    deposit_refunds:[{id:"HC-0098",facilityId:1,ownerId:3,contractId:"HĐ-0098",unit:"K04",customer:"Nguyễn Văn An",deposit:1150000,overdue:172500,cleaning:115000,damage:200000,amount:662500,status:"PENDING",version:1,bankName:"Ngân hàng mô phỏng",accountNumber:"0000123456",accountHolder:"NGUYEN VAN AN",inspectedAt:at(t,"08:00")}],
+    deposit_refunds:[{id:"HC-0098",facilityId:1,ownerId:3,contractId:"HĐ-0098",unit:"K04",customer:"Nguyễn Văn An",deposit:1150000,overdue:172500,cleaning:115000,damage:200000,amount:662500,status:"PENDING",version:1,bankName:"Ngân hàng mô phỏng",accountNumber:"0000123456",accountHolder:"NGUYEN VAN AN",inspectedAt:new Date(`${t}T08:00:00+07:00`).toISOString()}],
     refunds: [
       { id: "SS-20260918-0151", customer: "Nguyễn Hoàng Yến",bankName:"Ngân hàng mô phỏng",accountNumber:"0000123456",accountHolder:"NGUYEN HOANG YEN", cancelled_at: at(addDays(t, -1), "08:40"), rent: 3450000, deposit: 1150000, paid: 4600000, fee: 115000, amount: 4485000, status: "PENDING" },
       { id: "SS-20260916-0149", customer: "Phạm Gia Hân",bankName:"Ngân hàng mô phỏng",accountNumber:"0000654321",accountHolder:"PHAM GIA HAN", cancelled_at: at(addDays(t, -3), "16:15"), rent: 1140000, deposit: 1140000, paid: 2280000, fee: 114000, amount: 2166000, status: "PENDING" },
