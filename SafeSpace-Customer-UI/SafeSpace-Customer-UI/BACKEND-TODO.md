@@ -508,3 +508,35 @@ FE đã dựng ba màn D30-13/18/18b; không sửa BE/schema và không chứng 
 `photos` đề xuất là `[{fileName,contentType,dataBase64}]`, tối đa 5 ảnh JPEG/PNG, 5MiB/ảnh: validate signature/size/type và giới hạn request phía server; lưu private, trả URL có quyền. Note tối đa 1000 ký tự. Server lấy actor/time/deadline theo clock có thẩm quyền (FE nhập giờ VN +07:00), kiểm owner/facility/role, stage/version và settlement OPEN trong cùng transaction. 409 khi version cũ; không tạo duplicate khi retry; cần idempotency/receipt có thể đọc lại khi mạng lỗi. FE buộc reload khi không xác minh acknowledgement, chưa có idempotency key riêng.
 
 Khi cho khắc phục vẫn giữ deduction đến inspection PASS; bỏ đúng khoản rồi tính lại refund cap trong tiền cọc, không tạo nợ/thu thêm. Không tự đánh dấu refund PAID hoặc mở QR/PIN. Cần nối T05/T06/M07: chặn chốt trong giai đoạn phản hồi/khắc phục/kiểm tra đang mở, xử lý quá hạn minh bạch trước chốt; không tự chốt chỉ vì client hết hạn. Lưu audit/history, không cho sửa sau FINALIZED. Luồng chuyển tiền hoàn vẫn xác nhận riêng hai bước theo D32. Cần kiểm API .NET/SQL Server thật với đồng thời/retry/quyền và nhiều hạng mục.
+
+
+## Batch07 — T13 sự cố cơ sở: API ĐỀ XUẤT, chưa có trên main c1a9b05
+
+FE có D30-10/16/16b; không triển khai BE/schema và chưa chứng minh tích hợp thật. Cần BE owner thống nhất contract dưới đây; giữ các đường T13 đề xuất trước, bổ sung GET/save/send/terminate/version/evidence.
+
+### Đọc và khởi tạo nháp
+
+- GET `/api/incidents` (CUSTOMER owner, chỉ hồ sơ đã gửi) và GET `/api/ops/incidents` (MANAGER/FACILITY_MANAGER đúng cơ sở) → `{items:[IncidentCase]}`. Manager response cần gồm descriptor `DRAFT` có ID/version từ server cho hợp đồng đủ điều kiện và các candidates đúng cơ sở. FE không tự tạo ID hoặc dựng hợp đồng API. SAVE/SEND tại POST incidents mới persist ghi nhận; server phải tái kiểm điều kiện. Nếu chọn endpoint tạo draft riêng thì điều chỉnh adapter/UI chọn hợp đồng tương ứng trước tích hợp.
+- IncidentCase: chuỗi `id,contractId,oldUnitId,oldUnit,unitType,customer,startDate,endDate`; số nguyên dương `ownerId,facilityId,version,sizeM2`; `contractStatus` (`ACTIVE|EXPIRING` mới cho mutation); `monthlyRate` số VND nguyên dương, `deposit,currentMonthRent,unusedRent` số VND nguyên >=0. Số hoàn = toàn bộ tháng đang thuê + tháng nguyên chưa dùng + 100% cọc, không chia theo ngày và không phạt 30% cọc.
+- `status: DRAFT|PROPOSED|TRANSFER_PENDING|TRANSFERRED|TERMINATION_PENDING|TERMINATED`; `description,affectedAt` ISO UTC, `confirmed:true`, `proposal:TRANSFER|TERMINATE`; `photos:[{url,caption?}]`, `files:[{fileName,contentType?,size?}]`; ảnh URL private HTTPS/root-relative kiểm owner/cơ sở.
+- `candidates:[Unit]`, `targetUnit:Unit|null`; Unit `{id,code,facilityId,type,sizeM2,status,version,reservedFor?}`. Tương đương = cùng cơ sở/loại/diện tích; AVAILABLE hoặc RESERVED cho đúng incident. Dùng ID/version, không chỉ code hiển thị. Server tái kiểm tại send/choice/complete. Không phụ phí hoặc đổi kỳ/giá/cọc hợp đồng.
+- `choice:{choice:TRANSFER|TERMINATE,note,at}` do **khách tự xác nhận**, server timestamp/audit; `refundBank:{bankName,accountNumber,accountHolder}` cho TERMINATE, validate chính chủ. Không cho manager gửi thay. Note/description tối đa1000 ký tự. Ngày FE nhập theo VN +07:00, độ chính xác phút; server dùng timestamp có thẩm quyền.
+
+### Ghi, acknowledgement và transaction
+
+Payload chung có `action,id,expectedVersion`, response `{incident:IncidentCase}` version mới; client không gửi tiền/owner/facility/giá để server tin theo.
+
+| Endpoint đề xuất | Action / payload bổ sung | Stage / tác động server |
+|---|---|---|
+| POST `/api/ops/incidents` | SAVE_INCIDENT / SEND_INCIDENT_PROPOSAL; description, affectedAt, confirmed:true, proposal, targetUnitId?, expectedTargetVersion?, photos? | DRAFT→DRAFT hoặc PROPOSED. Chỉ send mới gửi khách; giữ target, chống hai hợp đồng giữ cùng ô. Không đổi credential/contract/payment |
+| POST `/api/contracts/{contractId}/incident-choice` | CHOOSE_INCIDENT_OPTION; choice, note, targetUnitId/expectedTargetVersion (TRANSFER) hoặc refundBank (TERMINATE) | PROPOSED→TRANSFER_PENDING/TERMINATION_PENDING. Đúng owner, incident và contract. Không để manager chọn thay. Chọn kết thúc giải phóng ô đề xuất đã giữ |
+| POST `/api/ops/incidents/{id}/complete-transfer` | COMPLETE_INCIDENT_TRANSFER; targetUnitId, expectedTargetVersion, movedAt, confirmed:true | TRANSFER_PENDING→TRANSFERRED sau đã chuyển đồ thực tế; currentUnit=target.code, movedAt; oldUnitStatus=MAINTENANCE; target OCCUPIED; access={oldUnit:INVALID,newUnit:ISSUED}; surcharge=0. Giữ nguyên kỳ/giá/cọc |
+| POST `/api/ops/incidents/{id}/terminate` | FINALIZE_INCIDENT_TERMINATION; confirmed:true | TERMINATION_PENDING→TERMINATED, contractStatus=ENDED, oldUnitStatus=MAINTENANCE, access.oldUnit=INVALID, tạo refund={id,amount,status:PENDING}. Không ghi PAID ở bước này |
+
+Nhánh manager đối chiếu trước khi chốt kết thúc là contract FE đề xuất, cần thống nhất với BE owner; nếu server kết thúc nguyên tử ngay khi khách chọn thì phải đổi adapter/state/receipt tương ứng, không ép receipt sai thành thành công. GET sau này được trả refund PAID với `transactionRef,paidAt` khi chuyển tiền đã được ghi nhận ở nghiệp vụ riêng; FE không tự tạo mã giao dịch.
+
+`photos` đề xuất `[{fileName,contentType,dataBase64}]`, tối đa5 JPG/PNG, mỗi ảnh5MiB; server kiểm signature/type/size/quota và lưu thật, trả metadata/URL có quyền. Lưu bổ sung ảnh không được xoá ảnh cũ khi payload không có ảnh; dedupe khi retry/save rồi send. Demo chỉ metadata, không làm bằng chứng đã lưu ảnh thật.
+
+Khóa SQL Server/transaction theo contract+incident+unit+credential/refund: ngăn gửi/chọn/complete lặp, staleversion trả409, target thay đổi trả conflict, retry idempotent không tạo 2 refund/cấp mã 2 lần. Bảo đảm chỉ xác nhận complete mới đổi mã, mã mới gắn đúng ô; server/máy quét kiểm thật. Không API thu hồi mã thủ công. Không tự set AVAILABLE cho ô bị sự cố/không đủ an toàn. Phải lưu choice, actor, timestamp, evidence và audit, GET đọc lại đúng sau mất mạng; cần idempotency key/receipt độc lập cho retry, FE hiện mới có expectedVersion và reload khi không xác minh kết quả.
+
+Contract đã ENDED/RETURN_PENDING/OVERDUE hoặc đang có xử lý xung đột không được mutation qua luồng này; backend tái kiểm chứ không dựa guard FE. Xử lý renewal/return/settlement đồng thời cần cùng khóa và quy tắc ưu tiên nghiệp vụ. Contract/list lịch sử cần còn đọc được sau kết thúc để khách theo dõi; board/map/access/cọc/refund cập nhật đồng bộ. API .NET/SQL Server/thiết bị cửa và nhiều khách/cơ sở/ô cạnh tranh chưa kiểm. Blocker BE của các batch trước giữ nguyên.

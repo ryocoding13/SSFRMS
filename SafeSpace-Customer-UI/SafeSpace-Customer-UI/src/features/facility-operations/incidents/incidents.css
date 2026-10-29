@@ -1,0 +1,12 @@
+@import "../../../shared/styles/customer-detail.css";
+.incident-options { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.incident-options legend { font-size: 14px; font-weight: 600; margin-bottom: 14px; }
+.incident-option { padding: 24px; border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 16px; align-content: start; min-width: 0; }
+.incident-option.is-selected { background: var(--soft); border-color: var(--blue); }
+.incident-option .detail-list > div { grid-template-columns: minmax(70px, .8fr) minmax(0, 1fr); gap: 8px; }
+.incident-option .detail-list dd { text-align: right; }
+.incident-refund { background: var(--soft); padding: 16px; border-radius: 10px; display: grid; gap: 14px; }
+.incident-page textarea { resize: vertical; }
+.incident-list { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.incident-list .btn { flex-shrink: 0; }
+@media(max-width:700px){.incident-options { grid-template-columns: minmax(0,1fr); }.incident-list{align-items:stretch;flex-direction:column;}}

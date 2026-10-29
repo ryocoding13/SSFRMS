@@ -94,3 +94,8 @@ C04a và C15/C15b đã có FE/adapter, xem `../sprints/FE-figma-sync-05.md`. C15
 ## Checkpoint Batch06 — phiên 3
 
 D30-13/18/18b đã có FE và adapter đề xuất, xem `../sprints/FE-figma-sync-06.md`. API chưa có trên main: lỗi báo rõ, demo tách riêng không thay quyết toán thật. Bỏ deduction chỉ khi inspection PASS, không xác nhận chuyển tiền/mở QR/PIN. Chưa browser/visual hoặc API thật; F40 active/F41 blocked giữ nguyên. Còn 3 màn/nhánh chưa có FE trong danh mục ban đầu: D30-10/16/16b; còn 4 phiên tiếp theo. Các số liệu/tables Batch04–05 phía trên là lịch sử kiểm kê, CSV đã cập nhật Batch06.
+
+
+## Checkpoint Batch07 — phiên 4
+
+D30-10/16/16b có FE/state qua manager/incidents và units/:id/incident; xem sprint07. Cả 8 màn/nhánh thiếu FE ở thời điểm Batch04 đã có triển khai tương ứng qua Batch05–07. Đây không phải xác nhận khớp pixel hoặc tích hợp hoàn tất: T13, evidence và các API khác còn chờ, chưa browser/SQL Server/thiết bị cửa thật. F40 active/F41 blocked giữ nguyên. Còn 3 phiên theo kế hoạch (Batch08–10). CSV đã cập nhật trạng thái; các bảng/số đếm cũ ở trên là lịch sử kiểm kê.

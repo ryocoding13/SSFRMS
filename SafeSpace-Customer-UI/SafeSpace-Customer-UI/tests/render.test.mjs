@@ -21,7 +21,7 @@ try {
   const seed = (authed, opsUser = null) => memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed, data: createSeedData(), opsUser }));
 
   const publicRoutes = ["reset-password","home", "login", "register", "pricing", "guide", "find", "find?type=climate&band=M", "find/map", "find/map?type=climate", "find/map?area=Kh%C3%B4ng%20c%C3%B3", "find/1", "find/1?view=map&unit=K02", "find/8?type=climate&view=map", "find/999", "nope", "door", "door?unit=B-015"];
-  const privateRoutes = ["units/HĐ-2026-0086/damage", "units/HĐ-2026-0086/damage?case=missing", "units/unknown/damage","reservations/SS-20260914-0142/cancel", "reservations/missing/cancel","refunds","policies", "payments/check/SS-0086-REN", "payments/check/missing", "payments/history", "inquiries", "inquiries/HT-0091", "units/HĐ-2026-0142/deposit", "units/HĐ-2026-0086/progress", "units/HĐ-2026-0086/renewal-status",
+  const privateRoutes = ["units/HĐ-2026-0086/incident", "units/HĐ-2026-0086/incident?incident=missing", "units/unknown/incident","units/HĐ-2026-0086/damage", "units/HĐ-2026-0086/damage?case=missing", "units/unknown/damage","reservations/SS-20260914-0142/cancel", "reservations/missing/cancel","refunds","policies", "payments/check/SS-0086-REN", "payments/check/missing", "payments/history", "inquiries", "inquiries/HT-0091", "units/HĐ-2026-0142/deposit", "units/HĐ-2026-0086/progress", "units/HĐ-2026-0086/renewal-status",
     "overview", "units", "units/HĐ-2026-0142", "units/HĐ-2026-0086", "units/HĐ-2026-0086/renew", "units/HĐ-2026-0142/return", "units/unknown",
     "sent?type=renew&contract=HĐ-2026-0086", "reservations", "reservations/SS-20260914-0142", "reservations/none",
     "confirmation/SS-20260914-0142", "checkout/SS-20260914-0142", "checkout/SS-20260914-0142/confirm", "policies?tab=contract", "policies?tab=contract&contract=unknown", "payments", "support", "support/HT-0082", "support/unknown", "support?contract=HĐ-2026-0142&topic=SCHEDULE", "profile",
@@ -156,12 +156,12 @@ try {
   assert.equal((await context.dispatch("PAY_AT_FACILITY",{reservation_id:reviewReservation.reservation_id})).ok,true);
   // Khu vận hành: nhân viên (S01–S09) và quản lý cơ sở (M01–M08)
   const opsRoutes = {
-    STAFF: ["staff/mismatch", "staff/renewal-payments", "staff/overdue", "staff/inquiries",
+    STAFF: ["staff/incidents","staff/mismatch", "staff/renewal-payments", "staff/overdue", "staff/inquiries",
       "staff", "staff?page=2", "staff/reconcile", "staff/fees", "staff/fees?id=PHI-0086", "staff/verify", "staff/handover", "staff/return", "staff/support",
       "staff/reconcile?id=SS-20260914-0142", "staff/verify?id=XM-0142", "staff/handover?id=BG-0115", "staff/return?id=TK-0098",
       "staff/support?id=HT-0082", "staff/done?kind=payment", "staff/nope",
     ],
-    MANAGER: ["manager/damage-responses", "manager/damage-responses?id=HH-local-0086", "manager/damage-responses?id=missing", "manager/damage-inspections", "manager/damage-inspections?id=HH-inspect-0086","manager/discrepancies", "manager/discrepancy-detail?id=SL-0001", "manager/overdue", "manager/deposit-refunds","manager", "manager/units", "manager/units?tab=OVERDUE", "manager/units?tab=MAINTENANCE", "manager/allocate", "manager/assign", "manager/renewals", "manager/contracts", "manager/refunds", "manager/report", "manager/done", "staff"],
+    MANAGER: ["manager/incidents", "manager/incidents?id=SC-local-0086", "manager/incidents?id=missing","manager/damage-responses", "manager/damage-responses?id=HH-local-0086", "manager/damage-responses?id=missing", "manager/damage-inspections", "manager/damage-inspections?id=HH-inspect-0086","manager/discrepancies", "manager/discrepancy-detail?id=SL-0001", "manager/overdue", "manager/deposit-refunds","manager", "manager/units", "manager/units?tab=OVERDUE", "manager/units?tab=MAINTENANCE", "manager/allocate", "manager/assign", "manager/renewals", "manager/contracts", "manager/refunds", "manager/report", "manager/done", "staff"],
   };
   for (const acc of OPS_ACCOUNTS) {
     seed(true, acc);
@@ -262,6 +262,37 @@ try {
   assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Không tìm thấy hồ sơ"),"Không lộ hồ sơ cơ sở khác");
   memory.delete(DAMAGE_DEMO_KEY);
   count+=6;
+
+  const { createIncidentSeed, applyIncidentAction } = await vite.ssrLoadModule("/src/features/facility-operations/incidents/incidentModel.js");
+  const { INCIDENT_DEMO_KEY } = await vite.ssrLoadModule("/src/features/facility-operations/incidents/useIncidents.js");
+  const incidentNow=new Date(),incidentActor={id:manager.user_id,roles:["MANAGER"],facilityId:1};
+  let incidentCases=createIncidentSeed(incidentNow);
+  const storeIncidents=()=>memory.set(INCIDENT_DEMO_KEY,JSON.stringify({version:1,cases:incidentCases}));
+  storeIncidents();seed(true,manager);
+  window.location.hash="#/manager/incidents?id=SC-local-0086";
+  let incidentHtml=renderToStaticMarkup(React.createElement(App));
+  for(const text of ["Gửi phương án cho khách","Lưu ghi nhận sự cố","datetime-local","Ảnh bằng chứng sự cố"])assert.ok(incidentHtml.includes(text),text);
+  assert.ok(!/type="radio"[^>]*checked/.test(incidentHtml));
+  const sendIncident={id:incidentCases[0].id,expectedVersion:1,description:"Mái kho thấm nước",affectedAt:"2026-10-01T12:00",confirmed:true,proposal:"TRANSFER",targetUnitId:"unit-b016"};
+  incidentCases=applyIncidentAction(incidentCases,"SEND_INCIDENT_PROPOSAL",sendIncident,incidentActor,incidentNow);storeIncidents();seed(true);
+  window.location.hash="#/units/HĐ-2026-0086/incident?incident=SC-local-0086";
+  incidentHtml=renderToStaticMarkup(React.createElement(App));
+  for(const text of ["Xác nhận lựa chọn","Chuyển sang kho B-016","Kết thúc hợp đồng"])assert.ok(incidentHtml.includes(text),text);
+  assert.ok(!/type="radio"[^>]*checked/.test(incidentHtml),"Khách tự chọn phương án");
+  window.location.hash="#/units/HĐ-2026-0086/incident?incident=SC-other-0001";
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Không tìm thấy hồ sơ"));
+  const who={id:101,roles:["CUSTOMER"]};
+  incidentCases=applyIncidentAction(incidentCases,"CHOOSE_INCIDENT_OPTION",{id:incidentCases[0].id,expectedVersion:2,choice:"TRANSFER"},who,new Date(incidentNow.getTime()-120000));storeIncidents();
+  seed(true,manager);window.location.hash="#/manager/incidents?id=SC-local-0086";
+  incidentHtml=renderToStaticMarkup(React.createElement(App));assert.ok(incidentHtml.includes("Xác nhận hoàn tất chuyển"));
+  incidentCases=applyIncidentAction(incidentCases,"COMPLETE_INCIDENT_TRANSFER",{id:incidentCases[0].id,expectedVersion:3,confirmed:true,movedAt:new Intl.DateTimeFormat("sv-SE",{timeZone:"Asia/Ho_Chi_Minh",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(incidentNow).replace(" ","T")},incidentActor,incidentNow);storeIncidents();seed(true);
+  window.location.hash="#/units/HĐ-2026-0086/incident?incident=SC-local-0086";
+  incidentHtml=renderToStaticMarkup(React.createElement(App));
+  for(const text of ["Đã chuyển sang kho B-016","B-015 · đang bảo trì","mã của B-015 đã hết hiệu lực"])assert.ok(incidentHtml.includes(text),text);
+  assert.ok(!incidentHtml.includes("Xác nhận lựa chọn"));assert.match(incidentHtml,/<button[^>]*disabled[^>]*>Mở QR kho B-016<\/button>/);
+  incidentCases.forEach(i=>i.facilityId=9999);storeIncidents();seed(true,manager);window.location.hash="#/manager/incidents?id=SC-local-0086";
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Không tìm thấy hồ sơ"));
+  memory.delete(INCIDENT_DEMO_KEY);count+=6;
 
   seed(true);
   window.location.hash = "#/overview";

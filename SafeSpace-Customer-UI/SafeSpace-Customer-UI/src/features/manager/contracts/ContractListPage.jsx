@@ -51,7 +51,7 @@ export function ContractListPage({ query }) {
   return (
     <main className="container page">
       <PageHeaderBlock title="Hợp đồng & xử lý quá hạn" text="Theo dõi hạn thuê, khoản chưa thanh toán và lịch sử nhắc tại cơ sở." />
-      <div className="workflow-links"><LinkButton to="manager/damage-responses" variant="outline">Phản hồi hư hỏng</LinkButton><LinkButton to="manager/damage-inspections" variant="outline">Kiểm tra khắc phục</LinkButton></div>
+      <div className="workflow-links"><LinkButton to="manager/incidents" variant="outline">Sự cố cơ sở</LinkButton><LinkButton to="manager/damage-responses" variant="outline">Phản hồi hư hỏng</LinkButton><LinkButton to="manager/damage-inspections" variant="outline">Kiểm tra khắc phục</LinkButton></div>
       {mismatch.map((p) => (
         <Notice tone="error" key={p.id}>Nhân viên báo sai lệch thanh toán đơn {p.id} ({p.customer}): {p.note}</Notice>
       ))}

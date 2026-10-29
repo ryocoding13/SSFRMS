@@ -246,3 +246,13 @@ API/LocalProvider có service `rentalPolicy(version?)`, action `ACCEPT_RESERVATI
 | `manager/damage-inspections[?id=:caseId]` | `features/manager/damage/DamageInspectionPage.jsx` | Manager đúng cơ sở; từ Hợp đồng/Phản hồi hư hỏng |
 
 Shared model/API/hook/components ở `features/facility-operations/damage/`. API mới là đề xuất, không có trên main c1a9b05; 404 báo lỗi, không giả thành công. Demo opt-in lưu riêng, ảnh chỉ metadata; không ghi quyết toán hoàn cọc. Xem sprint 06 và BACKEND-TODO.
+
+
+## Batch07 — sự cố cơ sở (T13 chưa có BE)
+
+| Route | File | Điểm vào |
+|---|---|---|
+| `#/units/:id/incident?incident=:incidentId` | `src/features/customer/contracts/IncidentChoicePage.jsx` | Chi tiết kho → Hỗ trợ do sự cố cơ sở; chỉ owner, không hiện DRAFT |
+| `#/manager/incidents[?id=:incidentId]` | `src/features/manager/incidents/IncidentManagementPage.jsx` | Hợp đồng → Sự cố cơ sở; scope cơ sở manager |
+
+D30-16b là trạng thái TRANSFERRED của trang khách. Model/adapter/hook/components ở `features/facility-operations/incidents/`. Dùng UI/ConfirmDialog/bank/photo chung. API đề xuất, không có trên main c1a9b05; demo opt-in lưu riêng, không đổi hợp đồng/ledger/QR thật. GET manager cần trả draft descriptor/candidates/version từ server; không tạo fake ID trong API mode. Chi tiết sprint07 và BACKEND-TODO.

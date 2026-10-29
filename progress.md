@@ -1,3 +1,12 @@
+## 2026-10-28 — F40 Batch07: sự cố cơ sở (phiên 4)
+
+- Tiếp source Batch06 trên main c1a9b05 đọc lại qua GitHub; giữ F40 active/F41 blocked. Không sửa BE/schema/Figma, không commit/push/PR/merge.
+- D30-10/16/16b: manager ghi nhận/lưu nháp/gửi phương án → khách tự chọn → manager hoàn tất chuyển thực tế hoặc kết thúc theo lựa chọn. Chuyển giữ kỳ/giá/cọc, không phụ phí; chỉ hoàn tất mới đổi mã, ô cũ bảo trì. Kết thúc hoàn tháng đang thuê + tháng chưa dùng +100% cọc, tạo PENDING, không tự PAID.
+- Scope/owner/version/stage/equivalent-unit guards; ngân hàng chính chủ, ảnh, giờ VN; popup giữ kết quả sau đổi stage. 404 báo chưa hỗ trợ; 409/network/5xx/ack sai cần tải lại. Demo tách contract/ledger/QR thật; không cấp QR demo.
+- FE 137/137; business 9/9; workflows 12/12; SSR149 lượt + assertions; structure/build/init --fe-only/diff PASS. Patch after-batch06/main apply + byte-match PASS.
+- Chromium launch thiếu executable; chưa browser/visual thao tác hay API .NET/SQL Server/PayOS/thiết bị cửa thật. T13 còn chờ GET draft/candidate và các mutation/transaction/evidence/idempotency; xem BACKEND-TODO và docs/sprints/FE-figma-sync-07.md.
+- Cả 8 màn/nhánh thiếu FE ở danh mục Batch04 đã có triển khai, không đồng nghĩa tích hợp xong. Còn 3 phiên, tiếp Batch08 nhân viên/manager.
+
 ## 2026-10-28 — F40 Batch06: phản hồi hư hỏng và khắc phục (phiên 3)
 
 - Tiếp source Batch05 trên main c1a9b05. Giữ F40 active/F41 blocked; không sửa BE/schema/Figma, không commit/push/PR/merge.

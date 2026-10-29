@@ -6,6 +6,7 @@ import { StaffInquiryPage } from "../staff/support/StaffInquiryPage.jsx";
 import { DiscrepancyListPage } from "../manager/discrepancies/DiscrepancyListPage.jsx";
 import { DiscrepancyDetailPage } from "../manager/discrepancies/DiscrepancyDetailPage.jsx";
 import { OverdueCasePage } from "../manager/overdue/OverdueCasePage.jsx";
+import { IncidentManagementPage } from "../manager/incidents/IncidentManagementPage.jsx";
 import { DamageReviewPage } from "../manager/damage/DamageReviewPage.jsx";
 import { DamageInspectionPage } from "../manager/damage/DamageInspectionPage.jsx";
 import { DepositRefundPage } from "../manager/refunds/DepositRefundPage.jsx";
@@ -54,6 +55,7 @@ const STAFF = {
   done: [StaffResultPage, "staff"],
 };
 const MANAGER = {
+  incidents: [IncidentManagementPage, "manager/contracts"],
   "damage-responses": [DamageReviewPage, "manager/contracts"],
   "damage-inspections": [DamageInspectionPage, "manager/contracts"],
   discrepancies: [DiscrepancyListPage, "manager/contracts"],
