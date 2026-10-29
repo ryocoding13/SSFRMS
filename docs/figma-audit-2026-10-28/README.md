@@ -104,3 +104,8 @@ D30-10/16/16b có FE/state qua manager/incidents và units/:id/incident; xem spr
 ## Checkpoint Batch08 — phiên 5
 
 Đồng bộ bảy màn S02/D30-14/D30-08/M07/D30-09/M08/D30-11, giữ URL và sửa guard/evidence/thiếu dữ liệu. S02 bỏ nhập giấy tờ theo Figma mới nhất; API cũ bị chặn thay vì nhập giả. Các màn có FE không đồng nghĩa backend tích hợp; đọc sprint08/BACKEND-TODO. Còn2 phiên (Batch09–10), F40 active/F41 blocked giữ nguyên. Chưa browser/SQL Server/API thật; CSV đã cập nhật checkpoint, số đếm lịch sử phía trên giữ nguyên.
+
+
+## Checkpoint Batch09 — phiên 6
+
+Admin: A03 chỉ xem; A02/A05 panel chọn cơ sở/đổi/cấp lại role, readback và partial create. Vận hành: B05/status policy/publication/export được sửa, B01/B04 đối chiếu và giữ chức năng hiện có. Atomic role-change còn thiếu BE, không ghép assign/revoke; công bố lịch tương lai chưa có DTO nên không dựng trường giả. Còn Batch10 browser và tích hợp; F40 active/F41 blocked giữ nguyên. Chưa browser/SQL Server/API thật. Xem sprint09/BACKEND-TODO; CSV cập nhật checkpoint, các bảng/số đếm cũ là lịch sử.

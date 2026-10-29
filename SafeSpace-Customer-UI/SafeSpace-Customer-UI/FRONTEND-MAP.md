@@ -263,3 +263,15 @@ D30-16b là trạng thái TRANSFERRED của trang khách. Model/adapter/hook/com
 URL giữ nguyên: staff/verify?id, staff/keys?id, staff/return?id, staff/overdue, manager/contracts[?id], manager/refunds, manager/deposit-refunds[?id]. M07 dùng thẻ từng hợp đồng, ID lạ không fallback. Page route được key theo ID để không mang form hồ sơ trước sang hồ sơ mới.
 
 Shared validation/summary ở `src/features/facility-operations/settlements/{settlementModel.js,SettlementComponents.jsx,settlements.css}`. Provider kiểm guard/readback và dùng ConfirmDialog6tone. S02 checklist4 không nhập giấy tờ; API cũ chưa hỗ trợ nên bị chặn, không điền giấy tờ giả. S04/M08 cũng có marker server riêng (BACKEND-TODO). Chốt/hoàn demo dùng `ops.deposit_refunds`, customerRefunds đọc cùng queue khi có; bank/owner thiếu không tự suy đoán. Chi tiết nguồn Figma/test/giới hạn ở docs/sprints/FE-figma-sync-08.md.
+
+
+## Batch09 — vận hành/admin và popup
+
+- `admin/permissions`: RoleAccessTable chỉ xem, không gọi assignPermission/revokePermission.
+- `admin/new`, `admin/users/:id`: SelectionPanel/AccountAssignmentCards ở `features/admin/components/`; helper readback/partial create ở `features/admin/utils/accountActions.js`. Atomic role-change API mới là đề xuất, không fallback hai bước.
+- `business/facilities`: ID lạ không fallback, readback tại `facilities/facilityMutation.js`.
+- `business/policy-content`: layout phiên bản/thông số/phạm vi +7 nhóm, T20 publication verify helper `policies/policyPublication.js`; metadata lên lịch chưa có API nên không dựng trường giả.
+- `business/export`: helper `reports/reportScope.js`, đúng scope/date/catalog/summary, CSV chống formula. B04 giữ XLSX, export tab bị khóa lúc tải. B01/B04 thiếu số liệu hiện rõ.
+- `shared/components/ChangeFlowDialog.jsx` và business useConfirm: guard/lifecycle/cleanup và ConfirmDialog chuẩn. UI Modal có placement drawer tùy chọn, không đổi placement callsite cũ.
+
+Giới hạn/test/node Figma ở docs/sprints/FE-figma-sync-09.md; endpoint/marker các batch trước vẫn blocked như ghi trong BACKEND-TODO.

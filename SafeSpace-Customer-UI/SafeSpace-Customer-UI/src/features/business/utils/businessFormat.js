@@ -5,14 +5,15 @@ const comma = (n, digits = 1) => Number(n).toFixed(digits).replace(".", ",");
 
 /** Tiền rút gọn cho thẻ số liệu / bảng: 1.080.000.000 → "1,08 tỷ đ", 92.400.000 → "92,4 triệu đ". */
 export function shortMoney(n) {
-  const v = Number(n) || 0;
+  if(n==null||n===""||!Number.isFinite(Number(n)))return "Chưa có dữ liệu";
+  const v = Number(n);
   if (Math.abs(v) >= 1e9) return `${comma(v / 1e9, 2)} tỷ đ`;
   if (Math.abs(v) >= 1e6) return `${comma(v / 1e6, 1)} triệu đ`;
   return money(v);
 }
 
 /** Tỷ lệ sử dụng: null = "Không áp dụng" (cơ sở không có kho khai thác được — docs/operations-api.md). */
-export const rateLabel = (rate) => (rate === null || rate === undefined ? "Không áp dụng" : `${Number.isInteger(+rate) ? rate : comma(rate)}%`);
+export const rateLabel = (rate) => (rate === undefined ? "Chưa có dữ liệu" : rate === null ? "Không áp dụng" : !Number.isFinite(Number(rate))?"Chưa có dữ liệu": `${Number.isInteger(+rate) ? rate : comma(rate)}%`);
 
 /** Tăng trưởng so với kỳ trước: "+4,8%" / "−2,0%"; kỳ trước bằng 0 thì không so được. */
 export function growthLabel(prev, cur) {

@@ -1,3 +1,11 @@
+## 2026-10-28 — F40 Batch09: vận hành/admin/popup (phiên 6)
+
+- Tiếp Batch08 trên main c1a9b05 đọc lại qua GitHub; giữ F40 active/F41 blocked. Không sửa BE/schema/Figma, không commit/push/PR/merge.
+- A03 chỉ xem; A02/A05 panel chọn cơ sở/đổi/cấp lại vai trò. Đổi role cần endpoint atomic đề xuất, 404 không fallback gán/gỡ. Create+assign vẫn hai request; partial tạo xong/phân công lỗi báo rõ, không tạo lần hai. Role/assignment readback, stale loader và popup guard được sửa.
+- B05 ID lạ không fallback, status không chọn sẵn/readback; policy ngừng/xóa đúng stage, publication T20 đúng version/rate/7 nội dung. Không sao chép wording Figma đảo D32. Xuất CSV đúng scope/summary, escape formula, reject non-CSV; B01/B04 không giả0 khi thiếu tiền, giữ XLSX hiện có.
+- FE155/155; business9/9; workflows12/12; SSR173 lượt + assertions; structure/build/init --fe-only/diff PASS. Hai patch incremental/main apply + byte-match PASS. Chromium thiếu executable; chưa browser/visual/API .NET/SQL Server thật. Bundle>500KB còn.
+- Chi tiết docs/sprints/FE-figma-sync-09.md; BACKEND-TODO bổ sung atomic role-change/permission legacy/assignment/report scope. Còn Batch10 browser và tích hợp, không tuyên bố hệ thống đã hoàn tất.
+
 ## 2026-10-28 — F40 Batch08: nhân viên/quản lý, đối soát và hoàn tiền (phiên 5)
 
 - Tiếp Batch07, main đọc lại c1a9b05. Giữ F40 active/F41 blocked; không sửa BE/schema/Figma, không commit/push/PR/merge.

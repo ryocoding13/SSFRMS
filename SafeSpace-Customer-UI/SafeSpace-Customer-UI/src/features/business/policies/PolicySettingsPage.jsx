@@ -28,8 +28,9 @@ export default function PolicySettingsPage() {
     try {
       const out = await runChange({
         action: 'Lưu chính sách cho thuê', scope: 'Toàn hệ thống', content: `${jobs.length} giá trị chính sách trên biểu mẫu`,
-        perform: async () => {
+        perform: async isCurrent => {
           for (const { keys, p, body } of jobs) {
+            if(!isCurrent())return false;
             const applied = p ? await replacePolicy(p, body, ask) : (await createPolicy(body, true, ask)).active;
             if (!applied) { notify('Đã giữ bản nháp; các ô chưa áp dụng vẫn được giữ lại.'); return false; }
             setDrafts(d => { const next = { ...d }; for (const key of keys) delete next[key]; return next; });

@@ -313,6 +313,21 @@ try {
   b8ops.verifications=[{id:"XM-check",status:"TODO",customer:"Mai",reservation_id:"SS-check"}];memory.set(OPS_KEY,JSON.stringify(b8ops));seed(true,OPS_ACCOUNTS.find(a=>a.role==="STAFF"));window.location.hash="#/staff/verify?id=XM-check";b8html=renderToStaticMarkup(React.createElement(App));assert.equal((b8html.match(/type="checkbox"/g)||[]).length,4);assert.ok(!b8html.includes("Số giấy tờ"));assert.ok(!/type="checkbox"[^>]*checked/.test(b8html));
   memory.delete(OPS_KEY);count+=9;
 
+  // Batch09: readonly access table and selection panels are rendered with actual metadata props.
+  const {RoleAccessTable}=await vite.ssrLoadModule("/src/features/admin/permissions/PermissionListPage.jsx");
+  const {default:SelectionPanel}=await vite.ssrLoadModule("/src/features/admin/components/SelectionPanel.jsx");
+  let b9html=renderToStaticMarkup(React.createElement(RoleAccessTable,{roles:[{roleId:1,roleName:"ADMIN"},{roleId:2,roleName:"STAFF"}]}));
+  assert.ok(b9html.includes("Cố định"));assert.ok(!b9html.includes('type="checkbox"')&&!b9html.includes("Lưu cấu hình"));
+  b9html=renderToStaticMarkup(React.createElement(SelectionPanel,{title:"Chọn cơ sở phụ trách",description:"Chọn từ danh sách",items:[{id:1,label:"Cơ sở A"},{id:2,label:"Cơ sở B"}],value:2,onClose(){},onSelect(){},confirmLabel:"Dùng cơ sở này"}));
+  assert.ok(b9html.includes("overlay--drawer")&&b9html.includes('role="dialog"')&&b9html.includes("Cơ sở B"));assert.match(b9html,/aria-pressed="true"/);assert.ok(!b9html.includes("<input"));
+  b9html=renderToStaticMarkup(React.createElement(SelectionPanel,{title:"Đổi vai trò",items:[{id:1,label:"Quản trị",disabled:true},{id:2,label:"Nhân viên"}],onClose(){},onSelect(){}}));
+  assert.match(b9html,/<button[^>]*disabled[^>]*>Dùng lựa chọn này<\/button>/);
+  b9html=renderToStaticMarkup(React.createElement(SelectionPanel,{title:"Cấp lại vai trò",items:[],onClose(){},onSelect(){}}));assert.ok(b9html.includes("Chưa có lựa chọn phù hợp"));count+=4;
+  for(const [role,routes] of [["ADMIN",["admin","admin/new","admin/users/3","admin/permissions","admin/logs"]],["OPERATIONS",["business","business/facilities","business/policy-status","business/policy-content","business/reports","business/export"]]]) {
+   seed(true,{user_id:991,username:"qa",full_name:"QA vận hành",role});
+   for(const route of routes){window.location.hash=`#/${route}`;const html=renderToStaticMarkup(React.createElement(App));assert.ok(html.includes("QA vận hành"),route);assert.ok(!html.includes("NaN")&&!html.includes("undefined"),route);count++;}
+  }
+
   seed(true);
   window.location.hash = "#/overview";
   const overview = renderToStaticMarkup(React.createElement(App));

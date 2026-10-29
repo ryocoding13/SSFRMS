@@ -148,7 +148,7 @@ export function DetailList({ items }) {
 }
 
 // Hộp thoại: dùng cho thông báo kết quả (C13 "Đã lưu tên", "Đổi mật khẩu thành công") và xác nhận
-export function Modal({ title, children, onClose, size = "sm", label, tone }) {
+export function Modal({ title, children, onClose, size = "sm", label, tone, placement }) {
   const ref = useRef(null);
   const titleId = useId();
   useEffect(() => {
@@ -180,7 +180,7 @@ export function Modal({ title, children, onClose, size = "sm", label, tone }) {
     };
   }, [onClose]);
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
+    <div className={placement === "drawer" ? "overlay overlay--drawer" : "overlay"} onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
       <section ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-label={label} className={`modal modal--${size}${tone ? ` modal--${tone}` : ""}`}>
         <h2 id={titleId}>{title}</h2>
         {children}

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect,useRef,useState } from "react";
 import { businessApi } from "../api/businessApi.js";
 import { Button, LinkButton } from "../../../shared/components/UI.jsx";
 import { useLoad } from "../../admin/utils/adminUtils.js";
@@ -152,7 +152,8 @@ export default function BusinessReportPage({ query }) {
   const set = (patch) => go(`business/reports${qs({ view, month: month === now.slice(0, 7) ? "" : month, facility, ...patch })}`, { replace: true });
   const period = monthPeriod(month, now);
   const filter = { ...period, facilityId: facility };
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState(false),exportGuard=useRef(false),alive=useRef(true);
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
 
   // Giữ kèm tên view để không vẽ số liệu cũ của view khác trong lúc đang tải view mới
   const load = useLoad(
@@ -168,6 +169,7 @@ export default function BusinessReportPage({ query }) {
 
   const exportView = view === "unit-types" ? "unit-types" : view === "revenue" ? "revenue-trend" : view === "facilities" ? "facilities" : null;
   const doExport = async () => {
+    if(exportGuard.current)return;exportGuard.current=true;
     setExporting(true);
     try {
       if (view === "status") {
@@ -181,12 +183,13 @@ export default function BusinessReportPage({ query }) {
       }
       const params = exportView === "revenue-trend" ? { view: exportView, from: new Date(Date.UTC(Number(now.slice(0, 4)), Number(now.slice(5, 7)) - 6, 1)).toISOString().slice(0, 10), to: now } : { view: exportView, ...filter };
       const { blob } = await businessApi.exportReport(params, `bao-cao-${exportView}-${month}.csv`);
-      downloadWorkbook(parseCsv(await blob.text()), `bao-cao-${exportView}-${month}.xlsx`);
+      const csv=await blob.text();if(!alive.current)return;
+      downloadWorkbook(parseCsv(csv), `bao-cao-${exportView}-${month}.xlsx`);
       notify("Đã xuất báo cáo.");
     } catch (e) {
-      onApiError(e);
+      if(!alive.current)return;onApiError(e);
       notify(e.message, "error");
-    } finally { setExporting(false); }
+    } finally { exportGuard.current=false;if(alive.current)setExporting(false); }
   };
 
   const [y, m] = month.split("-");
@@ -201,7 +204,7 @@ export default function BusinessReportPage({ query }) {
       <div className="admin-toolbar biz-toolbar">
         <div className="chips" role="group" aria-label="Xem báo cáo theo">
           {VIEWS.map(([k, label]) => (
-            <button type="button" key={k} className={`chip chip--dark${view === k ? " is-on" : ""}`} aria-pressed={view === k} onClick={() => set({ view: k })}>
+            <button type="button" disabled={exporting} key={k} className={`chip chip--dark${view === k ? " is-on" : ""}`} aria-pressed={view === k} onClick={() => set({ view: k })}>
               {label}
             </button>
           ))}

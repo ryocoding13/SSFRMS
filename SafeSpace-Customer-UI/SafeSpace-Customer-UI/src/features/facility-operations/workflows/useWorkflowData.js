@@ -1,3 +1,4 @@
+import { requirePublication,verifyPublishedPolicy } from "../../business/policies/policyPublication.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { transferProof, validateRemoval, actualVnTime } from "../settlements/settlementModel.js";
 import { useOps } from "../state/FacilityOperationsProvider.jsx";
@@ -45,6 +46,7 @@ export function useWorkflowData(resource) {
     if (guard.current) return { ok: false, error: "Đang lưu, vui lòng chờ." };
     guard.current = true; setBusy(true); setError("");
     try {
+      if(action==="SAVE_RENTAL_POLICY")requirePublication(payload);
       if(!demo&&action==="RECORD_REMOVAL"&&!Number.isSafeInteger(data.find(r=>r.id===payload.id)?.removalDay))throw new Error("Máy chủ chưa trả mốc xử lý quá hạn hợp lệ.");
       if(!demo&&action==="RECORD_REMOVAL"&&roles?.includes("STAFF")&&(user?.user_id==null||String(data.find(r=>r.id===payload.id)?.assigneeId)!==String(user.user_id)))throw new Error("Chưa có phân công nhân viên hợp lệ từ máy chủ.");
       if(action==="RECORD_REMOVAL")validateRemoval((data||[]).find(r=>r.id===payload.id),payload,demo?readDemo().policy:{removalDay:data.find(r=>r.id===payload.id)?.removalDay},{id:user?.user_id,name:user?.full_name,roles:roles||[],facilityId});
@@ -65,6 +67,7 @@ export function useWorkflowData(resource) {
         if(activeActor.current!==actorKey)throw new Error("Tài khoản đã thay đổi. Tải lại để xem kết quả.");
         if(action==="CONFIRM_DEPOSIT_REFUND") {const item=result?.item;if(item?.id!==payload.id||item.status!=="PAID"||item.transactionRef!==payload.transactionRef.trim()||!Number.isFinite(Date.parse(item.paidAt))||item.amount!==data.find(r=>r.id===payload.id)?.amount||item.facilityId!==facilityId||!Number.isSafeInteger(item.version)||item.version<=data.find(r=>r.id===payload.id)?.version||["contractId","ownerId","customer","bankName","accountNumber","accountHolder"].some(k=>item[k]!==data.find(r=>r.id===payload.id)?.[k])){const error=new Error("Máy chủ chưa xác nhận bằng chứng chuyển tiền; tải lại trước khi gửi tiếp.");error.uncertain=true;throw error;}setData(previous=>previous.map(r=>r.id===item.id?item:r));}
         else if(action==="RECORD_REMOVAL") {if(result?.item?.id!==payload.id||result.item.status!=="DONE"||!result.item.record?.savedAt||result.item.facilityId!==facilityId||!result.item.record?.beforePhotos?.length||!result.item.record?.afterPhotos?.length){const error=new Error("Máy chủ chưa xác nhận biên bản và bằng chứng xử lý.");error.uncertain=true;throw error;}setData(previous=>previous.map(r=>r.id===result.item.id?result.item:r));}
+        else if(action==="SAVE_RENTAL_POLICY")setData(verifyPublishedPolicy(result,payload));
         else await reload();
       }
       return { ok: true };

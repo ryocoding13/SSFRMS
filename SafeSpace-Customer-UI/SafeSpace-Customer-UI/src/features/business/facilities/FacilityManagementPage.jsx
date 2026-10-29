@@ -1,6 +1,7 @@
+import {checkedFacilityWrite} from "./facilityMutation.js";
 import React, { useState } from "react";
 import { businessApi } from "../api/businessApi.js";
-import { Button, Field, Modal, Notice } from "../../../shared/components/UI.jsx";
+import { Button, Empty, Field, Modal, Notice } from "../../../shared/components/UI.jsx";
 import { useLoad } from "../../admin/utils/adminUtils.js";
 import { go, href, qs } from "../../../app/router.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
@@ -16,6 +17,7 @@ function EditFacilityDialog({ facility, onClose, onSaved, runChange }) {
   const [form, setForm] = useState(() => facilityToForm(facility || EMPTY_FACILITY));
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
+  const [uncertain,setUncertain]=useState(false);
   const set = (k) => (e) => {
     setForm((f) => ({ ...f, [k]: e.target.value }));
     setErrors({});
@@ -25,11 +27,13 @@ function EditFacilityDialog({ facility, onClose, onSaved, runChange }) {
     const pair = splitCoordinates(e.clipboardData?.getData("text"));
     if (!pair) return;
     e.preventDefault();
+    if(busy||uncertain)return;
     setForm((f) => ({ ...f, ...pair }));
     setErrors({});
   };
   const save = async (e) => {
     e.preventDefault();
+    if(busy||uncertain)return;
     const { errors: errs, body } = formToRequest(form);
     if (errs) return setErrors(errs);
     // Figma kết quả B05: "Đã thêm cơ sở …" / "Đã lưu thông tin cơ sở"
@@ -40,17 +44,18 @@ function EditFacilityDialog({ facility, onClose, onSaved, runChange }) {
       successTitle: creating ? `Đã thêm cơ sở ${body.name}` : "Đã lưu thông tin cơ sở",
       successText: creating ? "Cơ sở chưa có bảng giá, ô kho và nhân sự nên khách chưa đặt được." : "Bản đồ Tìm kho dùng vị trí mới ngay.",
       perform: async () => {
-        const res = creating ? await businessApi.createFacility(body) : await businessApi.updateFacility(facility.facilityId, body);
+        const res=await checkedFacilityWrite(businessApi,()=>creating?businessApi.createFacility(body):businessApi.updateFacility(facility.facilityId,body),body,facility?.facilityId);
         warnings = res?.warnings || [];
         return res;
       },
     });
     setBusy(false);
     if (out.ok) onSaved(warnings);
-    else if (out.error) setErrors({ form: out.error.message });
+    else if (out.error) {setErrors({form:out.error.message});if(out.uncertain)setUncertain(true);}
   };
   return (
-    <Modal title={creating ? "Thêm cơ sở" : "Sửa thông tin cơ sở"} size="md" onClose={onClose}>
+    <Modal title={creating ? "Thêm cơ sở" : "Sửa thông tin cơ sở"} size="confirm" onClose={busy?undefined:onClose}>
+      {uncertain&&<Notice tone="error">Cần tải lại danh sách để kiểm tra kết quả. <Button onClick={()=>window.location.reload()}>Tải lại</Button></Notice>}
       <form className="biz-form" onSubmit={save} noValidate>
         <p className="muted">{creating ? "Cơ sở mới cần có bảng giá, ô kho và nhân sự trước khi khách đặt được." : facility.name}</p>
         <Field label="Tên cơ sở" error={errors.name}>
@@ -79,8 +84,8 @@ function EditFacilityDialog({ facility, onClose, onSaved, runChange }) {
         <a href="https://www.google.com/maps" target="_blank" rel="noreferrer">Mở Google Maps ↗</a>
         {errors.form && <Notice tone="error">{errors.form}</Notice>}
         <div className="modal__actions">
-          <Button variant="outline" onClick={onClose}>Huỷ</Button>
-          <Button type="submit" disabled={busy}>{busy ? "Đang lưu…" : creating ? "Thêm cơ sở" : "Lưu thay đổi"}</Button>
+          <Button variant="outline" disabled={busy} onClick={onClose}>Huỷ</Button>
+          <Button type="submit" disabled={busy||uncertain}>{busy ? "Đang lưu…" : creating ? "Thêm cơ sở" : "Lưu thay đổi"}</Button>
         </div>
       </form>
     </Modal>
@@ -100,25 +105,29 @@ const STATUS_RESULT = {
 };
 function FacilityStatusDialog({ facility, onClose, onSaved, runChange }) {
   const options = Object.keys(FACILITY_STATUS).filter((k) => k !== facility.status);
-  const [status, setStatus] = useState(options[0]);
+  const [status, setStatus] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [uncertain,setUncertain]=useState(false);
   const submit = async () => {
+    if(busy||uncertain)return;
+    if(!status)return setError("Chọn trạng thái mới.");
     if (!reason.trim()) return setError("Nhập lý do đổi trạng thái.");
     setBusy(true);
     const label = FACILITY_STATUS[status][0];
     const out = await runChange({
       action: "Đổi trạng thái cơ sở", scope: facility.name, confirm: false, successAction: "Đã hiểu",
       successTitle: `Đã chuyển cơ sở sang ${label}`, successText: STATUS_RESULT[status](facility.name),
-      perform: () => businessApi.setFacilityStatus(facility.facilityId, status, reason.trim()),
+      perform: () => checkedFacilityWrite(businessApi,()=>businessApi.setFacilityStatus(facility.facilityId,status,reason.trim()),{status},facility.facilityId),
     });
     setBusy(false);
     if (out.ok) onSaved();
-    else if (out.error) setError(out.error.message);
+    else if (out.error) {setError(out.error.message);if(out.uncertain)setUncertain(true);}
   };
   return (
-    <Modal title="Đổi trạng thái cơ sở" size="md" onClose={onClose}>
+    <Modal title="Đổi trạng thái cơ sở" size="confirm" onClose={busy?undefined:onClose}>
+      {uncertain&&<Notice tone="error">Cần tải lại trước khi gửi tiếp. <Button onClick={()=>window.location.reload()}>Tải lại</Button></Notice>}
       <p className="modal__text modal__text--sub">{facility.name} · Hiện tại: {FACILITY_STATUS[facility.status]?.[0] || facility.status}</p>
       <fieldset className="radio-list">
         <legend className="field__label">Trạng thái mới</legend>
@@ -135,8 +144,8 @@ function FacilityStatusDialog({ facility, onClose, onSaved, runChange }) {
       </Field>
       <p className="hint">Lần đổi được ghi vào nhật ký hoạt động; khách và quản lý cơ sở nhận thông báo.</p>
       <div className="modal__actions">
-        <Button variant="outline" onClick={onClose}>Huỷ</Button>
-        <Button disabled={busy} onClick={submit}>{busy ? "Đang lưu…" : "Xác nhận"}</Button>
+        <Button variant="outline" disabled={busy} onClick={onClose}>Huỷ</Button>
+        <Button disabled={busy||uncertain||!status} onClick={submit}>{busy ? "Đang lưu…" : "Xác nhận"}</Button>
       </div>
     </Modal>
   );
@@ -161,7 +170,7 @@ export default function FacilityManagementPage({ query }) {
     </div></header>
     <Button className="btn--fit" onClick={() => setEditing({ new: true })}>+ Thêm cơ sở</Button>
     <LoadState load={load}>{({ facilities, rates }) => {
-      const current = facilities.find(f => f.facilityId === selectedId) || facilities[0];
+      const current = query.has("id")?facilities.find(f=>f.facilityId===selectedId):facilities[0];
       const typeNames = [...new Set(rates.filter(r => r.facilityId === current?.facilityId && r.isCurrent).map(r => r.unitTypeName).filter(Boolean))];
       return <>
         <div className="table-wrap"><table className="table table--hover">
@@ -172,6 +181,7 @@ export default function FacilityManagementPage({ query }) {
             <td>{f.managerName || ('managerName' in f ? 'Chưa phân công' : 'Chưa có thông tin')}</td><td>{f.totalUnits} kho · {rateLabel(f.occupancyRate)}</td><td>{FACILITY_STATUS[f.status]?.[0] || f.status}</td>
           </tr>)}{!facilities.length && <tr><td colSpan={4}>Chưa có cơ sở nào.</td></tr>}</tbody>
         </table></div>
+        {query.has("id")&&!current&&<Empty title="Không tìm thấy cơ sở" text="Chọn đúng cơ sở trong danh sách."/>}
         {current && <section className="panel biz-detail" aria-label={`Chi tiết ${current.name}`}>
           <h2>{current.name}</h2>
           <div className="muted"><p>{[areaOf(current.address).district, areaOf(current.address).city].filter(Boolean).join(', ')}{current.openingTime && ` · Giờ ra vào ${current.openingTime}–${current.closingTime}`}</p>
