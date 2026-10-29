@@ -56,8 +56,8 @@ export function RentedUnitDetailPage({ id }) {
           </section>
           <section className="panel customer-detail__card">
             <h2>Chính sách áp dụng</h2>
-            <p className="hint">Thông tin phiên bản và thời điểm đồng ý trên hợp đồng đang chờ máy chủ cung cấp. Bạn có thể đọc chính sách cho thuê hiện hành.</p>
-            <div className="customer-detail__actions"><LinkButton to="policies" variant="outline">Xem chính sách cho thuê</LinkButton></div>
+            <p className="hint">Xem phiên bản và bằng chứng đồng ý theo hợp đồng hoặc từng yêu cầu gia hạn. Hồ sơ chưa có dữ liệu sẽ được thông báo rõ.</p>
+            <div className="customer-detail__actions"><LinkButton to={`policies?tab=contract&contract=${encodeURIComponent(id)}`} variant="outline">Xem chính sách đã đồng ý</LinkButton></div>
           </section>
         </div>
         <aside className="panel customer-detail__card customer-detail__sidebar">

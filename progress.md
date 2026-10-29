@@ -1,3 +1,12 @@
+## 2026-10-28 — F40 Batch05: chính sách trước thanh toán và xem bản đã đồng ý
+
+- Tiếp Batch04 trên main c1a9b05; không sửa Figma/BE/schema, không commit/push/PR/merge. F40 active/F41 blocked giữ nguyên.
+- Thêm C04a checkout/:id/confirm, khách tự tick và lưu server acknowledgement trước QR/quầy; guard provider cho direct URL/service/action. Lỗi/đổi policy chưa mở thanh toán; chống bấm lặp và điều hướng muộn.
+- C15/C15b 2 tab, hợp đồng/gia hạn, đọc đúng version server; thiếu evidence gốc báo rõ, không fallback bản hiện hành. Mốc áp dụng D32 giữ nguyên, không chép câu Figma mâu thuẫn.
+- T20 DTO đang có đã nối; BE vẫn cần trả consent gốc và chặn giao dịch server/thu tiền mặt, xử lý retry/idempotency. Cache client không thay bảo mật server. Xem BACKEND-TODO mục Batch05.
+- FE 110/110; business 9/9; workflows 12/12; SSR 122 route + assertions/LocalProvider guards; structure/build/init --fe-only/diff PASS. 7 test mới có HTTP mock, không phải API .NET/SQL Server/PayOS thật. Chưa browser/visual thực thi; chunk >500KB còn.
+- Patch after-batch04 và gộp main kiểm apply/byte-match. Source, route/checklist/blocker ở docs/sprints/FE-figma-sync-05.md. Còn 5 phiên tiếp theo theo kế hoạch, Batch06 hư hỏng/khắc phục.
+
 ## 2026-10-28 — F40: Batch04 đối chiếu ba ZIP và Figma hiện tại
 
 - Nền main c1a9b05; giữ nhật ký mới, ghép code cộng dồn Batch03 từ 816209d. Không sửa Figma/BE/schema, không commit/push/PR/merge.

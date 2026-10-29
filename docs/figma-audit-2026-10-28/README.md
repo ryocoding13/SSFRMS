@@ -84,3 +84,8 @@ CSV `screens.csv` liệt kê từng frame trong 163 frame và file/route tương
 - Bản vá bàn giao được kiểm trên 4 nền: main, main+Batch01, main+Batch02, main+Batch03 (giữ progress mới), áp dụng và so byte toàn bộ file tác động.
 
 F40 giữ active, F41 giữ blocked. Không tự nhận feature passing hoặc tuyên bố kiểm thử backend thật.
+
+
+## Checkpoint Batch05 — phiên 2
+
+C04a và C15/C15b đã có FE/adapter, xem `../sprints/FE-figma-sync-05.md`. C15b evidence ban đầu và server enforcement vẫn chờ BE; không coi T20 tích hợp xong. Còn 6 màn/nhánh chưa có FE (D30-13/18/18b, D30-10/16/16b), cùng các màn có code vẫn cần kiểm visual/API. CSV được cập nhật trạng thái mới; phần 8 màn phía trên là kết quả ở thời điểm Batch04. Còn 5 phiên tiếp theo.

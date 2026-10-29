@@ -1,0 +1,30 @@
+.policy-review, .rental-policy { padding-top: 40px; padding-bottom: 64px; }
+.policy-review .page-header h1, .rental-policy .page-header h1 { font: 700 30px/1.5 "SafeSpace Manrope", sans-serif; }
+.policy-review .page-header p, .rental-policy .page-header p { font-size: 16px; line-height: 1.5; margin-top: 6px; }
+.policy-review__grid, .rental-policy__grid { display: grid; grid-template-columns: minmax(0, 804fr) minmax(0, 432fr); gap: 24px; align-items: start; }
+.policy-review__gallery, .rental-policy__content, .rental-policy__aside { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.policy-review__cover { height: 535px; width: 100%; border-radius: 8px; overflow: hidden; }
+.policy-review__thumbs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.policy-review__thumbs .photo { height: 170px; border-radius: 8px; overflow: hidden; }
+.policy-review__card, .rental-policy__card { padding: 24px; display: flex; flex-direction: column; gap: 14px; min-width: 0; border-color: var(--line); box-shadow: none; }
+.policy-review__card h2, .rental-policy__card h2 { font-size: 18px; line-height: 1.5; font-weight: 600; }
+.policy-review__card h3 { font-size: 16px; }
+.policy-review__card p, .rental-policy__card p { line-height: 1.65; white-space: pre-line; }
+.policy-review__summary .detail-list > div { display: flex; gap: 12px; justify-content: space-between; }
+.policy-review__total { color: var(--blue); font-size: 23px; }
+.policy-review__read { border-top: 1px solid var(--line); padding-top: 14px; font-weight: 600; }
+.policy-review__consent { display: flex; gap: 10px; align-items: flex-start; }
+.policy-review__consent input { margin-top: 5px; flex: none; accent-color: var(--blue); }
+.rental-policy__breadcrumb { color: var(--muted); font-size: 14px; }
+.rental-policy__toolbar { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; }
+.rental-policy__toolbar .field { margin: 0; min-width: min(100%, 320px); }
+.rental-policy__tabs { display: flex; gap: 6px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); }
+.rental-policy__tabs .btn { min-width: 0; padding: 8px 12px; font-size: 14px; }
+.rental-policy__aside .detail-list > div { display: grid; grid-template-columns: 110px minmax(0, 1fr); }
+.rental-policy__aside .detail-list dd { overflow-wrap: anywhere; }
+.rental-policy__milestones { display: flex; flex-direction: column; gap: 16px; }
+.rental-policy__milestones li { border-left: 2px solid var(--line); padding-left: 16px; }
+.rental-policy__milestones strong, .rental-policy__milestones span { display: block; }
+.rental-policy__milestones span { color: var(--muted); font-size: 13px; margin-top: 4px; }
+@media (max-width: 900px) { .policy-review__grid, .rental-policy__grid { grid-template-columns: 1fr; } .policy-review__cover { height: 360px; } .policy-review__thumbs .photo { height: 120px; } }
+@media (max-width: 480px) { .policy-review__cover { height: 260px; } .policy-review__thumbs { gap: 10px; } .policy-review__thumbs .photo { height: 90px; } .policy-review__card, .rental-policy__card { padding: 20px; } .rental-policy__toolbar { align-items: stretch; flex-direction: column; } .rental-policy__tabs { flex-wrap: wrap; } }

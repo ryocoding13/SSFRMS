@@ -222,3 +222,16 @@ RefundTracking/ReturnProgress đọc resource `customerRefunds` → `/api/deposi
 - B03 `#/business/pricing`: thẻ chọn cơ sở; B03a `#/business/rates?facility=:id`: 4 thẻ loại kho và form sửa giá. `facilityRates.js` chọn đúng giá hiệu lực, không lấy nhầm cơ sở hoặc mức giá tương lai.
 - C08 nối T20 theo DTO main; `RenewalStatusPage.jsx` giữ hết hạn/đã trả, hạn thanh toán và lựa chọn tại quầy. Xem BACKEND-TODO mục C08 mới.
 - Danh mục 163 frame Main, 8 màn/nhánh còn thiếu và kế hoạch 7 phiên: `docs/figma-audit-2026-10-28/README.md` ở gốc repo; CSV cùng thư mục. Danh mục route không chứng minh mọi màn đã khớp pixel/API.
+
+
+## Figma–FE Batch05 — 28/10/2026
+
+| Route/chức năng | File |
+|---|---|
+| `#/checkout/:id/confirm` — C04a tóm tắt đơn/khách tự đồng ý | `src/features/customer/payments/ReservationReviewPage.jsx` |
+| `#/checkout/:id` — C04, mở thẳng URL vẫn phải qua xác nhận | `src/features/customer/payments/CheckoutPage.jsx` |
+| `#/policies` / `?tab=contract&contract=:id&renewal=:id` — C15/C15b | `src/features/customer/policies/RentalPolicyPage.jsx` |
+| Lấy đúng phiên bản, chống response cũ/đổi nguồn | `src/shared/hooks/useRentalPolicy.js` |
+| Validate policy/evidence, DTO và adapter xác nhận | `src/shared/utils/rentalPolicy.js`, `src/shared/api/reservationConsentApi.js` |
+
+API/LocalProvider có service `rentalPolicy(version?)`, action `ACCEPT_RESERVATION_POLICY`; chặn QR/quầy khi thiếu consent. API chỉ cache response thực từ server theo user/đơn; local opt-in giữ snapshot riêng và gắn demo. C15b không lấy cache đơn thay consent hợp đồng. Giới hạn backend và kiểm chứng: `docs/sprints/FE-figma-sync-05.md` ở gốc repo.

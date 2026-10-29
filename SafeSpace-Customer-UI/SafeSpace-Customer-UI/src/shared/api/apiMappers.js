@@ -1,3 +1,4 @@
+import { normalizePolicyConsent } from "../utils/rentalPolicy.js";
 // Chuyển dữ liệu backend (DTO camelCase, id số, trạng thái BE) sang dạng dữ liệu các trang đang dùng,
 // rồi ghép với phần lưu trong trình duyệt ("overlay") cho những luồng backend chưa có API.
 import { bandOfArea, SIZE_BANDS } from "../utils/catalog.js";
@@ -137,6 +138,7 @@ function offerOfType(unitTypes, id, name) {
 const FEE_KINDS = new Set(["EXTRA_FEE", "OVERDUE_FEE", "DAMAGE_FEE", "CLEANING_FEE", "LOST_KEY_FEE", "ACCESS_CARD_FEE"]);
 
 const EMPTY_OVERLAY = {
+  policyConsents: {},
   holds: {}, // reservationId → thời điểm tạo trong trình duyệt này (ms), dùng cho đồng hồ giữ chỗ
   transfers: {}, // reservationId → thời điểm khách gửi đơn chờ thu tiền (bản cũ: "Tôi đã chuyển khoản")
   atFacility: {}, // reservationId → khách chọn "Thanh toán tại cửa hàng" (khi backend chưa trả paymentMethod)
@@ -213,6 +215,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
     return {
       reservation_id: code,
       api_id: id,
+      policy_consent: normalizePolicyConsent(remote.reservationDetails?.[id]?.policyConsent || overlay.policyConsents?.[id]),
       facility_id: r.facilityId,
       facility_name: r.facilityName,
       type: offer.type,
@@ -258,6 +261,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       contract_id: code,
       api_id: c.contractId,
       customer_name: c.customerName || null,
+      policy_consent: normalizePolicyConsent(c.policyConsent),
       reservation_id: codeByReservation.get(c.reservationId) || null,
       facility_id: facility?.facility_id ?? null,
       facility_name: c.facilityName,

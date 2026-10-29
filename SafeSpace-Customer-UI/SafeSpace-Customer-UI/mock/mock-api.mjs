@@ -1,3 +1,4 @@
+import { defaultRentalPolicy } from "../src/features/facility-operations/workflows/workflowModel.js";
 // Máy chủ API giả lập theo đúng StorageProject.Api (endpoint, JSON camelCase, luật kiểm tra, dữ liệu DbSeeder).
 // Dùng để chạy / kiểm thử giao diện khi máy chưa có .NET và SQL Server:  npm run dev:mock
 // Dữ liệu nằm trong bộ nhớ, tắt là mất. Không thay thế backend thật.
@@ -111,7 +112,7 @@ export function createState() {
   const renewEnd = addMonths(contracts[0].endDate, 3);
   const renewals = [{ renewalId: 1, contractId: 1, oldEndDate: contracts[0].endDate, newEndDate: renewEnd, renewalPeriodMonths: 3, oldMonthlyRate: 1500000, newMonthlyRate: 1500000, renewalAmount: 4500000, status: "APPROVED", requestedAt: days(-2) }];
   payments.push({ paymentId: 3, contractId: 1, renewalId: 1, paymentType: "RENEWAL", amount: 4500000, currency: "VND", paymentMethod: "PAYOS", transactionReference: "SS-0001-REN", dueDate: contracts[0].endDate, paidAt: null, status: "PENDING", createdAt: days(-1) });
-  return { users, facilities, unitTypes, rates, units, reservations, contracts, handovers, payments, renewals, tickets, payos: new Map(), accessLogs: [], tokens: new Map(), down: false, roles, permissions, rolePermissions, userRoles, userFacilities: [], loginHistory: [], activityLogs: [] };
+  return { policyVersions: { 1: { ...defaultRentalPolicy(), displayVersion: "10/2026" } }, rentalPolicy: { ...defaultRentalPolicy(), displayVersion: "10/2026" }, policyConsents: [], users, facilities, unitTypes, rates, units, reservations, contracts, handovers, payments, renewals, tickets, payos: new Map(), accessLogs: [], tokens: new Map(), down: false, roles, permissions, rolePermissions, userRoles, userFacilities: [], loginHistory: [], activityLogs: [] };
 }
 
 // ---- Khu vận hành (Nhân viên / Quản lý cơ sở): chỉ bật khi { ops: true } hoặc MOCK_OPS=1.
@@ -347,6 +348,12 @@ export function startMockApi(
       return send(200, { message: "Đổi mật khẩu thành công." });
     }
 
+    // T20 fixture: endpoint/DTO mirrors main; this remains an opt-in mock server.
+    if (req.method === "GET" && path === "/api/rental-policy") return send(200, S.rentalPolicy);
+    if (req.method === "GET" && (m = path.match(/^\/api\/rental-policy\/versions\/(\d+)$/))) {
+      const historical = S.policyVersions[Number(m[1])] || (Number(m[1]) === S.rentalPolicy.version ? S.rentalPolicy : null);
+      return historical ? send(200, historical) : send(404, {error:"Không tìm thấy phiên bản chính sách."});
+    }
     // ---- Công khai
     if (req.method === "GET" && path === "/api/facilities") return send(200, S.facilities);
     if (req.method === "GET" && path === "/api/unit-types") return send(200, S.unitTypes);
@@ -572,6 +579,14 @@ export function startMockApi(
       return send(404, { message: "Not found" });
     }
 
+    if (req.method === "POST" && (m = path.match(/^\/api\/reservations\/(\d+)\/policy-consent$/))) {
+      const reservation = S.reservations.find(r => r.reservationId === Number(m[1]) && r.customerId === me);
+      if (!reservation) return send(404, {error:"Không tìm thấy đơn đặt chỗ của bạn."});
+      if (body?.accepted !== true || Number(body.policyVersion) !== S.rentalPolicy.version) return bad("Vui lòng đọc và đồng ý phiên bản chính sách hiện hành.");
+      const consent={consentId:S.policyConsents.length+1,customerId:me,policyVersion:S.rentalPolicy.version,displayVersion:S.rentalPolicy.displayVersion,acceptedAt:new Date().toISOString(),channel:"WEB"};
+      S.policyConsents.push({...consent,reservationId:reservation.reservationId});
+      return send(200,consent);
+    }
     // ---- Đặt chỗ
     if (req.method === "GET" && path === "/api/reservations") return send(200, S.reservations.filter((r) => r.customerId === me).sort((a, b) => b.createdAt - a.createdAt).map(resDto));
     if (req.method === "GET" && (m = path.match(/^\/api\/reservations\/(\d+)$/))) {
@@ -682,6 +697,10 @@ export function startMockApi(
       if (c.status !== "ACTIVE") return bad(`Chỉ hợp đồng ở trạng thái 'ACTIVE' mới có thể gia hạn. Trạng thái hiện tại: ${c.status}`);
       if (S.renewals.some((r) => r.contractId === c.contractId && ["PENDING_PAYMENT", "PENDING_APPROVAL"].includes(r.status))) return bad("Hợp đồng đã có yêu cầu gia hạn đang chờ xử lý.");
       const r = { renewalId: S.renewals.length + 1, contractId: c.contractId, oldEndDate: c.endDate, newEndDate: addMonths(c.endDate, body.renewalPeriodMonths), renewalPeriodMonths: body.renewalPeriodMonths, oldMonthlyRate: c.agreedMonthlyRate, newMonthlyRate: c.agreedMonthlyRate, renewalAmount: c.agreedMonthlyRate * body.renewalPeriodMonths, status: "PENDING_PAYMENT", requestedAt: new Date() };
+      if (body.policyVersion != null) {
+        if (body.accepted !== true || Number(body.policyVersion) !== S.rentalPolicy.version) return bad("Vui lòng đọc và đồng ý phiên bản chính sách hiện hành.");
+        r.policyVersion = S.rentalPolicy.version; r.acceptedAt = new Date().toISOString();
+      }
       S.renewals.push(r);
       return send(201, { ...r, requestedAt: iso(r.requestedAt), approvedAt: null });
     }

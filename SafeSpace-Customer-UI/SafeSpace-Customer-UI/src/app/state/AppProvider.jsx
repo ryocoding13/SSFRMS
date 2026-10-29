@@ -1,3 +1,6 @@
+import { requireRentalPolicy, hasReservationConsent, POLICY_REQUIRED } from "../../shared/utils/rentalPolicy.js";
+import { recordReservationConsent } from "../../shared/api/reservationConsentApi.js";
+import { defaultRentalPolicy } from "../../features/facility-operations/workflows/workflowModel.js";
 import { isReturnFee, NO_RETURN_COLLECTION } from "../../shared/utils/returnPolicy.js";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { customerNotifications } from "../../features/customer/notifications/customerNotifications.js";
@@ -28,6 +31,10 @@ export const STORAGE_KEY = "safespace.customer.v5";
 const SESSION_KEY = "safespace.customer.session";
 const overlayKey = (userId) => `safespace.customer.overlay.${userId}`;
 const VERSION = 5;
+const readLocalPolicy = () => {
+  try { const policy = JSON.parse(localStorage.getItem("safespace.approved-workflows.demo.v1"))?.policy; if (policy) return requireRentalPolicy(policy); } catch { /* local demo may not have a saved policy */ }
+  return defaultRentalPolicy();
+};
 
 const readJson = (key) => {
   try {
@@ -103,6 +110,11 @@ function LocalProvider({ children }) {
 
   const dispatch = useCallback(
     async (type, payload) => {
+      if (type === "ACCEPT_RESERVATION_POLICY") payload = { ...payload, policy_snapshot: readLocalPolicy() };
+      if (["PAY_AT_FACILITY", "CONFIRM_TRANSFER"].includes(type)) {
+        const reservation = ref.current.data.reservations.find(r => r.reservation_id === payload.reservation_id);
+        if (!hasReservationConsent(reservation, ref.current.data.user.user_id, readLocalPolicy().version)) return { ok: false, error: POLICY_REQUIRED, code: "POLICY_REQUIRED" };
+      }
       const out = reduce(ref.current.data, { type, payload }, { now: new Date(), timeoutSeconds: paymentTimeoutSeconds });
       if (out.state !== ref.current.data) commit({ ...ref.current, data: out.state });
       return out.error ? { ok: false, error: out.error.message, code: out.error.code } : { ok: true, ...out.result };
@@ -163,7 +175,17 @@ function LocalProvider({ children }) {
   const simulated = useRef(new Set());
   const services = useMemo(
     () => ({
+      async rentalPolicy(version) {
+        try {
+          const policy = version == null ? readLocalPolicy() : ref.current.data.policy_versions?.[version] || (Number(readLocalPolicy().version) === Number(version) ? readLocalPolicy() : null);
+          return { ok: true, policy: requireRentalPolicy(policy, version) };
+        } catch (e) { return { ok: false, error: e.message }; }
+      },
       async startPayos({ kind, item }) {
+        if (kind !== "payment") {
+          const reservation = ref.current.data.reservations.find(r => r.reservation_id === item.reservation_id);
+          if (!hasReservationConsent(reservation, ref.current.data.user.user_id, readLocalPolicy().version)) return { ok: false, error: POLICY_REQUIRED, code: "POLICY_REQUIRED" };
+        }
         if (kind === "payment" && isReturnFee(item)) return { ok: false, error: NO_RETURN_COLLECTION };
         const content = kind === "payment" ? item.ref.replaceAll("-", "") : item.reservation_id.replaceAll("-", "");
         const key = kind === "payment" ? `p:${item.ref}` : `r:${item.reservation_id}`;
@@ -280,6 +302,7 @@ function ApiProvider({ children }) {
   refs.current.overlay = overlay;
   refs.current.remote = remote;
   const cancelling = useRef(new Set());
+  const acceptingPolicy = useRef(new Set());
 
   const data = useMemo(
     () => composeData({ catalog, remote, overlay, session, timeoutSeconds: paymentTimeoutSeconds, now }),
@@ -534,6 +557,21 @@ function ApiProvider({ children }) {
       const d = refs.current.data;
       try {
         switch (type) {
+          case "ACCEPT_RESERVATION_POLICY": {
+            if (p.accepted !== true) return fail(POLICY_REQUIRED, "POLICY_REQUIRED");
+            const reservation = d.reservations.find(r => r.reservation_id === p.reservation_id);
+            const active = refs.current.session;
+            if (!reservation || !active) return fail("Không tìm thấy đơn đặt chỗ.");
+            if (!["PENDING_PAYMENT", "PENDING_VERIFICATION"].includes(reservation.status)) return fail("Đơn không còn chờ thanh toán.");
+            if (acceptingPolicy.current.has(reservation.api_id)) return fail("Đang lưu xác nhận. Vui lòng chờ.");
+            acceptingPolicy.current.add(reservation.api_id);
+            try {
+              const consent = await recordReservationConsent(api, reservation.api_id, active.user.userId, p.policy_version);
+              if (refs.current.session?.token !== active.token) return fail("Phiên tài khoản đã thay đổi. Vui lòng mở lại đơn.");
+              updateOverlay(o => ({ ...o, policyConsents: { ...(o.policyConsents || {}), [reservation.api_id]: consent } }));
+              return { ok: true, consent };
+            } finally { acceptingPolicy.current.delete(reservation.api_id); }
+          }
           case "CREATE_RESERVATION": {
             const facility = d.facilities.find((f) => f.facility_id === Number(p.facility_id));
             const offer = offerByKey(facility, p.offer_key);
@@ -551,6 +589,9 @@ function ApiProvider({ children }) {
             const r = d.reservations.find((x) => x.reservation_id === p.reservation_id);
             if (!r) return fail("Không tìm thấy đơn đặt chỗ.", "NOT_FOUND");
             if (r.status === "CANCELLED") return fail("Đơn đặt chỗ đã hết thời gian giữ chỗ.", "EXPIRED");
+            const currentPolicy = requireRentalPolicy(await api.currentRentalPolicy());
+            const consent = refs.current.overlay.policyConsents?.[r.api_id] || r.policy_consent;
+            if (!hasReservationConsent({ policy_consent: consent }, refs.current.session?.user.userId, currentPolicy.version)) return fail(POLICY_REQUIRED, "POLICY_REQUIRED");
             if (r.status !== "PENDING_PAYMENT") return { ok: true, reservation_id: r.reservation_id };
             const expired = async (e) => {
               if (e instanceof ApiError && e.data?.code === "EXPIRED") {
@@ -736,10 +777,17 @@ function ApiProvider({ children }) {
       }
     };
     return {
+      rentalPolicy: version => guard(async () => ({ ok: true, policy: requireRentalPolicy(version == null ? await api.currentRentalPolicy() : await api.rentalPolicyVersion(version), version) })),
       startPayos: ({ kind, item }) =>
         guard(async () => {
           if (kind === "payment" && isReturnFee(item)) return { ok: false, error: NO_RETURN_COLLECTION };
-          const dto = kind === "payment" ? await api.paymentPayos(item.api_id) : await api.reservationPayos(item.api_id);
+          const reservation = kind !== "payment" ? refs.current.data.reservations.find(r => r.reservation_id === item.reservation_id) : null;
+          if (kind !== "payment") {
+            const policy = requireRentalPolicy(await api.currentRentalPolicy());
+            const consent = refs.current.overlay.policyConsents?.[reservation?.api_id] || reservation?.policy_consent;
+            if (!hasReservationConsent({ policy_consent: consent }, refs.current.session?.user.userId, policy.version)) return fail(POLICY_REQUIRED, "POLICY_REQUIRED");
+          }
+          const dto = kind === "payment" ? await api.paymentPayos(item.api_id) : await api.reservationPayos(reservation.api_id);
           const checkout = normPayos(dto);
           if (!checkout) return fail("Máy chủ chưa trả mã QR thanh toán. Vui lòng thử lại.");
           if (checkout.paid) await loadCustomer().catch(() => {});

@@ -464,3 +464,25 @@ Ngày 27/10/2026. **Chỉ FE đã làm; các endpoint/field bổ sung dưới đ
 - Danh sách đơn huỷ vẫn theo refunds của reservations; màn này chỉ hoàn cọc sau trả kho. Không trộn hai nguồn để tự báo đã chuyển.
 
 Chưa kiểm API/SQL Server/PayOS thật. T08 và các điều kiện T05–T09 vẫn cần owner BE triển khai và nhóm kiểm tích hợp.
+
+
+## Batch05 — C04a, C15/C15b và giới hạn T20 (28/10/2026)
+
+### FE đã nối đúng endpoint đang có
+
+- `GET /api/rental-policy`: kiểm đủ 7 sections và version số dương; không dùng policy mẫu khi API lỗi.
+- `POST /api/reservations/{id}/policy-consent`: `{policyVersion: number, accepted: true}`; FE đọc lại policy trước POST, kiểm `consentId`, `customerId`, `policyVersion`, `acceptedAt`, `channel` từ server. Khách tự tích checkbox, chưa lưu được thì không mở QR hoặc chọn trả tại quầy.
+- FE kiểm consent ở cả UI và provider khi gọi PayOS/chọn quầy; không chỉ dựa vào nút disabled. Đồng ý cũ khác version hiện hành sẽ yêu cầu đọc lại.
+- Response xác nhận được cache trong overlay đúng user/đơn để tiếp tục thanh toán và reload trên cùng thiết bị. **Cache không phải cơ chế bảo mật của backend**. Không tự biến cache thành bằng chứng gốc theo hợp đồng.
+- `GET /api/rental-policy/versions/{version}`: tải đúng bản trong bằng chứng, kiểm version trả về; không fallback sang bản hiện hành nếu version cũ lỗi/404.
+- C15b đọc bằng chứng gia hạn đã có trong `RenewalDto`. Phân biệt rõ hồ sơ gia hạn với lần đặt chỗ/ký hợp đồng ban đầu.
+
+### BE còn thiếu / cần tích hợp trước nghiệm thu toàn luồng
+
+1. **Đọc lại bằng chứng ban đầu:** hiện `ReservationDetailDto` và `ContractDetailDto` chưa trả `policyConsent`. Đề nghị bổ sung DTO (không phải khẳng định endpoint đã có): `{consentId, customerId, policyVersion, displayVersion, acceptedAt, channel}` lấy từ dữ liệu đã lưu theo ReservationId/ContractId, lọc quyền chủ sở hữu ở server. FE đã đọc optional `policyConsent`; thiếu thì C15b hiện “Chưa có bằng chứng đồng ý”, không giả version/timestamp. Thiết bị mới mất cache checkout sẽ phải xác nhận lại có chủ ý, không tự POST khi mở trang.
+2. **Chặn giao dịch ở server:** trước tạo checkout PayOS, thu tiền mặt/thu tại quầy, phải kiểm bằng chứng khách đã đồng ý theo đơn và quy tắc version đã chốt. Không lấy cache FE, `acceptedAt` client hoặc tick từ nhân viên làm bằng chứng. FE mới chỉ chặn các lời gọi từ ứng dụng khách; API trực tiếp và màn nhân viên vẫn cần server bảo vệ. Không sửa BE trong Batch05.
+3. **Idempotency/retry:** RecordReservationConsentAsync hiện thêm một bản ghi mỗi POST; cần BE owner kiểm retry khi mạng mất phản hồi, trùng người dùng/đơn/version và lựa chọn bằng chứng được hiển thị. FE chống bấm lặp nhưng không thể bảo đảm exactly-once trên mạng.
+4. Kiểm dữ liệu policy seed/version tồn tại, foreign key của consent, owner khác, token hết hạn, đổi policy giữa GET/POST, SQL Server và cả PayOS/thu quầy thật.
+5. C15b chỉ xem lại nội dung đã đồng ý; không tự thay phạm vi D32 đang áp dụng cho hợp đồng hiện hữu. Không dùng câu “bản mới không thay đổi hợp đồng cũ” để đảo D32. Nội dung policy do backend cung cấp cần được nhóm publish nhất quán với DECISIONS.
+
+Không đánh dấu T20 toàn hệ thống đã đạt chỉ từ kiểm FE hoặc HTTP mock. Mock T20 trong `mock/mock-api.mjs` chỉ dùng môi trường opt-in, không chứng minh BE thật đã có các điều kiện trên.

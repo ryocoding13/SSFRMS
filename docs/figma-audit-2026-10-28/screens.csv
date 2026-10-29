@@ -34,18 +34,18 @@
 436:10885,C03c-4 · SafeSpace / Xem ảnh cơ sở / 4 trên 4,Main · 02 · Khách hàng,find/:id (lightbox),src/features/customer/facilities/FacilityDetailPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 436:10977,C04 · SafeSpace / Đặt chỗ & Thanh toán,Main · 02 · Khách hàng,checkout/:id,src/features/customer/payments/CheckoutPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 436:11083,C04c · SafeSpace / Đặt chỗ & Thanh toán tại cửa hàng,Main · 02 · Khách hàng,checkout/:id,src/features/customer/payments/CheckoutPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
-1095:12148,C04a · SafeSpace / Xác nhận đơn & chính sách,Main · 02 · Khách hàng,,,Thiếu nhánh/màn: C04a
-1095:12284,C04a-chưa tích · Xác nhận đơn & chính sách / Chưa đồng ý,Main · 02 · Khách hàng,,,Thiếu nhánh/màn: C04a
+1095:12148,C04a · SafeSpace / Xác nhận đơn & chính sách,Main · 02 · Khách hàng,checkout/:id/confirm,src/features/customer/payments/ReservationReviewPage.jsx,Batch05 có FE và adapter T20; chưa browser/API thật; cần server enforcement
+1095:12284,C04a-chưa tích · Xác nhận đơn & chính sách / Chưa đồng ý,Main · 02 · Khách hàng,checkout/:id/confirm,src/features/customer/payments/ReservationReviewPage.jsx,Batch05 có FE và adapter T20; chưa browser/API thật; cần server enforcement
 436:11172,C03b · SafeSpace / Chi tiết cơ sở / Him Lam,Main · 02 · Khách hàng,find/:id / checkout/:id,src/features/customer/facilities/FacilityDetailPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 436:11237,C03b-sđ · Chi tiết cơ sở / Sơ đồ tình trạng kho / Him Lam,Main · 02 · Khách hàng,find/:id / checkout/:id,src/features/customer/facilities/FacilityDetailPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 436:11248,C04 · SafeSpace / Đặt chỗ & Thanh toán / Him Lam,Main · 02 · Khách hàng,find/:id / checkout/:id,src/features/customer/facilities/FacilityDetailPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 436:11333,C04c · SafeSpace / Đặt chỗ & Thanh toán tại cửa hàng / Him Lam,Main · 02 · Khách hàng,find/:id / checkout/:id,src/features/customer/facilities/FacilityDetailPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
-1095:12401,C04a · SafeSpace / Xác nhận đơn & chính sách / Him Lam,Main · 02 · Khách hàng,,,Thiếu nhánh/màn: C04a
+1095:12401,C04a · SafeSpace / Xác nhận đơn & chính sách / Him Lam,Main · 02 · Khách hàng,checkout/:id/confirm,src/features/customer/payments/ReservationReviewPage.jsx,Batch05 có FE và adapter T20; chưa browser/API thật; cần server enforcement
 436:11423,C03b · SafeSpace / Chi tiết cơ sở / Phú Xuân,Main · 02 · Khách hàng,find/:id / checkout/:id,src/features/customer/facilities/FacilityDetailPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 436:11486,C03b-sđ · Chi tiết cơ sở / Sơ đồ tình trạng kho / Phú Xuân,Main · 02 · Khách hàng,find/:id / checkout/:id,src/features/customer/facilities/FacilityDetailPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 436:11497,C04 · SafeSpace / Đặt chỗ & Thanh toán / Phú Xuân,Main · 02 · Khách hàng,find/:id / checkout/:id,src/features/customer/facilities/FacilityDetailPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 436:11581,C04c · SafeSpace / Đặt chỗ & Thanh toán tại cửa hàng / Phú Xuân,Main · 02 · Khách hàng,find/:id / checkout/:id,src/features/customer/facilities/FacilityDetailPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
-1095:12568,C04a · SafeSpace / Xác nhận đơn & chính sách / Phú Xuân,Main · 02 · Khách hàng,,,Thiếu nhánh/màn: C04a
+1095:12568,C04a · SafeSpace / Xác nhận đơn & chính sách / Phú Xuân,Main · 02 · Khách hàng,checkout/:id/confirm,src/features/customer/payments/ReservationReviewPage.jsx,Batch05 có FE và adapter T20; chưa browser/API thật; cần server enforcement
 436:12381,C03b · SafeSpace / Chi tiết cơ sở / Tân Thuận,Main · 02 · Khách hàng,find/:id,src/features/customer/facilities/FacilityDetailPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 436:12449,C03b-sđ · Chi tiết cơ sở / Sơ đồ tình trạng kho / Tân Thuận,Main · 02 · Khách hàng,find/:id,src/features/customer/facilities/FacilityDetailPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 436:12460,C03b · SafeSpace / Chi tiết cơ sở / Phú Mỹ Hưng,Main · 02 · Khách hàng,find/:id,src/features/customer/facilities/FacilityDetailPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
@@ -94,8 +94,8 @@
 436:12197,C13b · Tài khoản / Mật khẩu đã nhập,Main · 02 · Khách hàng,profile,src/features/customer/profile/CustomerProfilePage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 436:12242,C13c · Tài khoản / Xác nhận không khớp,Main · 02 · Khách hàng,profile,src/features/customer/profile/CustomerProfilePage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 436:12287,C13d · Tài khoản / Thiếu mật khẩu,Main · 02 · Khách hàng,profile,src/features/customer/profile/CustomerProfilePage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
-1047:12344,C15 · Chính sách / Bản hiện hành,Main · 02 · Khách hàng,policies,src/features/customer/policies/RentalPolicyPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
-1079:12031,C15b · Chính sách / Theo hợp đồng của tôi,Main · 02 · Khách hàng,,,Thiếu nhánh/màn: C15b
+1047:12344,C15 · Chính sách / Bản hiện hành,Main · 02 · Khách hàng,policies,src/features/customer/policies/RentalPolicyPage.jsx,"Batch05 có FE; C15b evidence ban đầu còn chờ BE, không giả dữ liệu"
+1079:12031,C15b · Chính sách / Theo hợp đồng của tôi,Main · 02 · Khách hàng,policies?tab=contract,src/features/customer/policies/RentalPolicyPage.jsx,"Batch05 có FE; C15b evidence ban đầu còn chờ BE, không giả dữ liệu"
 979:11194,C02-khong-ket-qua · Chưa tìm thấy kho phù hợp,Main · 02 · Khách hàng,find,src/features/customer/facilities/FacilityListPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 1102:12220,HT0091-cho · Yêu cầu hỗ trợ HT-0091,Main · 02 · Khách hàng,inquiries/:id,src/features/customer/support/InquiryDetailPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 1102:12397,HT0091-phan-hoi · Cơ sở đã phản hồi HT-0091,Main · 02 · Khách hàng,inquiries/:id,src/features/customer/support/InquiryDetailPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist

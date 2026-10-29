@@ -34,6 +34,8 @@ export const api = {
   // Hợp đồng, thanh toán, gia hạn, bàn giao, trả kho
   contracts: () => request("/api/contracts"),
   contract: (id) => request(`/api/contracts/${id}`),
+  acceptReservationPolicy: (id, policyVersion) => request(`/api/reservations/${encodeURIComponent(id)}/policy-consent`, { method: "POST", body: { policyVersion: Number(policyVersion), accepted: true } }),
+  rentalPolicyVersion: version => request(`/api/rental-policy/versions/${encodeURIComponent(version)}`, { auth: false }),
   currentRentalPolicy: () => request("/api/rental-policy", { auth: false }),
   requestRenewal: (contractId, months, consent) =>
     request(`/api/contracts/${contractId}/renewals`, { method: "POST", body: { renewalPeriodMonths: months, ...(consent ? { policyVersion: Number(consent.version), accepted: true } : {}) } }),

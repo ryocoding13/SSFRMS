@@ -1,3 +1,4 @@
+import { requireRentalPolicy } from "../../shared/utils/rentalPolicy.js";
 import { cleanRefundBank, validateRefundBank, validateReturnPhotos, RETURN_SLOTS } from "../../shared/utils/refundRequest.js";
 import { isReturnFee, NO_RETURN_COLLECTION } from "../../shared/utils/returnPolicy.js";
 import { RENTAL_PLANS, SIZE_BANDS, offerByKey, quote } from "../../shared/utils/catalog.js";
@@ -81,6 +82,17 @@ export function cancelPreviewOf(r) {
 }
 
 const handlers = {
+  ACCEPT_RESERVATION_POLICY(state, p, ctx) {
+    if (p.accepted !== true) fail("Vui lòng đọc và đồng ý với chính sách.");
+    const reservation = state.reservations.find(r => r.reservation_id === p.reservation_id);
+    if (!reservation) fail("Không tìm thấy đơn đặt chỗ.");
+    if (!["PENDING_PAYMENT", "PENDING_VERIFICATION"].includes(reservation.status)) fail("Đơn không còn chờ thanh toán.");
+    let policy;
+    try { policy = requireRentalPolicy(p.policy_snapshot, p.policy_version); } catch (e) { fail(e.message); }
+    const consent = { version: policy.version, accepted_at: ctx.now.toISOString(), channel: "WEB", customer_id: state.user.user_id, consent_id: null, displayVersion: policy.displayVersion || null, demo: true };
+    return { state: { ...state, policy_versions: { ...(state.policy_versions || {}), [policy.version]: structuredClone(policy) }, reservations: state.reservations.map(r => r === reservation ? { ...r, policy_consent: consent } : r) }, result: { consent } };
+  },
+
   CREATE_RESERVATION(state, p, ctx) {
     const facility = state.facilities.find((f) => f.facility_id === Number(p.facility_id));
     if (!facility) fail("Không tìm thấy cơ sở.");

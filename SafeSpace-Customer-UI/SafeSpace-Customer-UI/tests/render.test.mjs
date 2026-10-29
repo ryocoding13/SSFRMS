@@ -24,7 +24,7 @@ try {
   const privateRoutes = ["reservations/SS-20260914-0142/cancel", "reservations/missing/cancel","refunds","policies", "payments/check/SS-0086-REN", "payments/check/missing", "payments/history", "inquiries", "inquiries/HT-0091", "units/HĐ-2026-0142/deposit", "units/HĐ-2026-0086/progress", "units/HĐ-2026-0086/renewal-status",
     "overview", "units", "units/HĐ-2026-0142", "units/HĐ-2026-0086", "units/HĐ-2026-0086/renew", "units/HĐ-2026-0142/return", "units/unknown",
     "sent?type=renew&contract=HĐ-2026-0086", "reservations", "reservations/SS-20260914-0142", "reservations/none",
-    "confirmation/SS-20260914-0142", "checkout/SS-20260914-0142", "payments", "support", "support/HT-0082", "support/unknown", "support?contract=HĐ-2026-0142&topic=SCHEDULE", "profile",
+    "confirmation/SS-20260914-0142", "checkout/SS-20260914-0142", "checkout/SS-20260914-0142/confirm", "policies?tab=contract", "policies?tab=contract&contract=unknown", "payments", "support", "support/HT-0082", "support/unknown", "support?contract=HĐ-2026-0142&topic=SCHEDULE", "profile",
   ];
   let count = 0;
   for (const authed of [false, true]) {
@@ -122,6 +122,38 @@ try {
   window.location.hash = "#/register";
   seed(false);
   assert.match(renderToStaticMarkup(React.createElement(App)), /autoComplete="username"/i);
+  seed(true);
+  const reviewData = createSeedData();
+  const reviewReservation = reviewData.reservations[0];
+  reviewReservation.status = "PENDING_PAYMENT";
+  reviewReservation.expires_at = new Date(Date.now() + 600000).toISOString();
+  memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: reviewData }));
+  window.location.hash = `#/checkout/${reviewReservation.reservation_id}/confirm`;
+  const reviewHtml = renderToStaticMarkup(React.createElement(App));
+  for (const text of ["Bước 2/3", "Tóm tắt đơn", "Chính sách thuê kho", "Tiếp tục thanh toán", 'type="checkbox"']) assert.ok(reviewHtml.includes(text),text);
+  assert.ok(!reviewHtml.includes("Mã QR thanh toán"));
+  window.location.hash = `#/checkout/${reviewReservation.reservation_id}`;
+  const guardedCheckout = renderToStaticMarkup(React.createElement(App));
+  assert.ok(guardedCheckout.includes("xác nhận chính sách"));
+  assert.ok(!guardedCheckout.includes("Mã QR thanh toán"));
+  window.location.hash = "#/policies?tab=contract";
+  const contractPolicyHtml = renderToStaticMarkup(React.createElement(App));
+  assert.ok(contractPolicyHtml.includes("Chưa có bằng chứng đồng ý"));
+  assert.ok(!contractPolicyHtml.includes("100% tiền thuê và 90% cọc"));
+  // Exercise actual LocalProvider services: guards also apply to direct calls, not only disabled buttons.
+  const { AppProvider, useApp } = await vite.ssrLoadModule("/src/app/state/AppProvider.jsx");
+  const { defaultRentalPolicy } = await vite.ssrLoadModule("/src/features/facility-operations/workflows/workflowModel.js");
+  let context;
+  function Probe() { context = useApp(); return null; }
+  renderToStaticMarkup(React.createElement(AppProvider, null, React.createElement(Probe)));
+  assert.equal((await context.services.startPayos({kind:"reservation",item:reviewReservation})).code,"POLICY_REQUIRED");
+  assert.equal((await context.dispatch("PAY_AT_FACILITY",{reservation_id:reviewReservation.reservation_id})).code,"POLICY_REQUIRED");
+  const savedConsent = await context.dispatch("ACCEPT_RESERVATION_POLICY",{reservation_id:reviewReservation.reservation_id,policy_version:1,accepted:true});
+  assert.equal(savedConsent.ok,true);
+  memory.set("safespace.approved-workflows.demo.v1", JSON.stringify({policy:{...defaultRentalPolicy(),version:2}}));
+  assert.equal((await context.services.startPayos({kind:"reservation",item:reviewReservation})).code,"POLICY_REQUIRED");
+  memory.delete("safespace.approved-workflows.demo.v1");
+  assert.equal((await context.dispatch("PAY_AT_FACILITY",{reservation_id:reviewReservation.reservation_id})).ok,true);
   // Khu vận hành: nhân viên (S01–S09) và quản lý cơ sở (M01–M08)
   const opsRoutes = {
     STAFF: ["staff/mismatch", "staff/renewal-payments", "staff/overdue", "staff/inquiries",

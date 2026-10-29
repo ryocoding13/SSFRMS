@@ -27,6 +27,7 @@ import { go, parseRoute, useRoute } from "./router.js";
 import { PasswordResetPage } from "../features/auth/PasswordResetPage.jsx";
 import { LoginPage } from "../features/auth/LoginPage.jsx";
 import { RegisterPage } from "../features/auth/RegisterPage.jsx";
+import { ReservationReviewPage } from "../features/customer/payments/ReservationReviewPage.jsx";
 import { CheckoutPage } from "../features/customer/payments/CheckoutPage.jsx";
 import { CheckoutFailedPage } from "../features/customer/payments/CheckoutFailedPage.jsx";
 import { ReservationDetailPage } from "../features/customer/reservations/ReservationDetailPage.jsx";
@@ -88,7 +89,7 @@ function renderPage({ page, parts, query }) {
   switch (page) {
     case "home": return <HomePage />;
     case "refunds": return <RefundTrackingPage />;
-    case "policies": return <RentalPolicyPage />;
+    case "policies": return <RentalPolicyPage key={query.toString()} query={query} />;
     case "inquiries": return a ? <InquiryDetailPage id={a} /> : <InquiryListPage />;
     case "reset-password": return <PasswordResetPage />;
     case "login": return <LoginPage query={query} />;
@@ -96,7 +97,7 @@ function renderPage({ page, parts, query }) {
     case "pricing": return <PublicPricingPage />;
     case "guide": return <HelpPage />;
     case "find": return a === "map" ? <FacilityMapPage query={query} /> : a ? <FacilityDetailPage id={a} query={query} /> : <FacilityListPage query={query} />;
-    case "checkout": return b === "failed" ? <CheckoutFailedPage id={a} /> : <CheckoutPage id={a} />;
+    case "checkout": return b === "failed" ? <CheckoutFailedPage id={a} /> : b === "confirm" ? <ReservationReviewPage key={a} id={a} /> : <CheckoutPage key={a} id={a} />;
     case "confirmation": return <ReservationDetailPage id={a} />;
     case "overview": return <CustomerDashboardPage />;
     case "reservations": return a && b === "cancel" ? <CancelReservationPage key={a} id={a} /> : a ? <ReservationDetailPage id={a} mode="detail" /> : <ReservationListPage />;
