@@ -1,12 +1,15 @@
 import { isReturnFee, NO_RETURN_COLLECTION } from "../../shared/utils/returnPolicy.js";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { customerNotifications } from "../../features/customer/notifications/customerNotifications.js";
+import { submitCancellation, submitReturnRequest } from "../../shared/api/refundRequestApi.js";
+import { RETURN_SLOTS } from "../../shared/utils/refundRequest.js";
+import { submitRenewalWithConsent } from "../../shared/api/renewalConsentApi.js";
 import { api } from "../../shared/api/customerApi.js";
 import { ApiError, setToken } from "../../shared/api/httpClient.js";
 import { isUnsupported, localAccessCode, normAccess, normCancelPreview, normPayos, normScan } from "../../features/customer/access/accessApi.js";
 import { bankAccount } from "../config/payment.js";
 import { vietQrPayload } from "../../shared/utils/vietqr.js";
-import { composeData, emptyOverlay, mapCatalog, reservationCode, reservationsToExpire, ticketCode, usernameFromEmail } from "../../shared/api/apiMappers.js";
+import { composeData, emptyOverlay, mapCatalog, reservationCode, reservationsToExpire, ticketCode } from "../../shared/api/apiMappers.js";
 import { API_URL, USE_API } from "../config/api.js";
 import { paymentTimeoutSeconds } from "../config/media.js";
 import { createEmptyData, createSeedData } from "../data/appSeed.js";
@@ -112,7 +115,7 @@ function LocalProvider({ children }) {
       const id = String(identifier || "").trim().toLowerCase();
       if (!id || !password) return { ok: false, error: "Vui lòng nhập tên đăng nhập hoặc email và mật khẩu." };
       const { user } = ref.current.data;
-      const username = user.email.split("@")[0].toLowerCase();
+      const username = (user.username || user.email.split("@")[0]).toLowerCase();
       if ((id === user.email.toLowerCase() || id === username) && password === user.password) {
         commit({ ...ref.current, authed: true, opsUser: null });
         return { ok: true, roles: ["CUSTOMER"] };
@@ -135,7 +138,11 @@ function LocalProvider({ children }) {
       const { user } = ref.current.data;
       if (isEmail(form.email) && form.email.trim().toLowerCase() === user.email.toLowerCase())
         return { ok: false, errors: { email: "Email này đã có tài khoản. Vui lòng đăng nhập." } };
+      const username = form.username.trim();
+      if ([user.username, ...OPS_ACCOUNTS.flatMap(a => [a.username, a.email])].filter(Boolean).some(x => x.toLowerCase() === username.toLowerCase()))
+        return { ok: false, errors: { username: "Tên đăng nhập này đã được sử dụng." } };
       const next = {
+        username,
         user_id: Date.now(),
         full_name: form.name.trim(),
         email: form.email.trim(),
@@ -465,12 +472,12 @@ function ApiProvider({ children }) {
       const errors = validateRegister(form);
       if (Object.keys(errors).length) return { ok: false, errors };
       const email = form.email.trim().toLowerCase();
-      const username = usernameFromEmail(email);
+      const username = form.username.trim();
       const phone = form.phone.replace(/[\s.-]/g, "");
       try {
         await api.register({ username, email, password: form.password, fullName: form.name.trim(), phone });
       } catch (e) {
-        if (/tồn tại/i.test(e.message)) return { ok: false, errors: { email: "Email này đã có tài khoản. Vui lòng đăng nhập." } };
+        if (/tồn tại/i.test(e.message)) return { ok: false, errors: { form: "Tên đăng nhập hoặc email đã tồn tại. Vui lòng kiểm tra lại hoặc đăng nhập." } };
         return { ok: false, errors: { form: e.message } };
       }
       try {
@@ -582,7 +589,11 @@ function ApiProvider({ children }) {
           case "CANCEL_RESERVATION": {
             const r = d.reservations.find((x) => x.reservation_id === p.reservation_id);
             if (!r) return fail("Không tìm thấy đơn đặt chỗ.", "NOT_FOUND");
-            await api.cancelReservation(r.api_id, p.reason || "Khách hàng huỷ đặt chỗ");
+            const paid = r.status === "CONFIRMED";
+            if (paid && r.start_date && r.start_date <= localDate(new Date())) return fail("Đã đến ngày bắt đầu thuê. Vui lòng sử dụng quy trình trả kho.");
+            if (paid && p.bankConfirmed !== true) return fail("Vui lòng xác nhận tài khoản chính chủ.");
+            const contract = d.contracts.find(c => c.reservation_id === r.reservation_id);
+            await submitCancellation(api, r.api_id, p.reason || "Khách hàng huỷ đặt chỗ", p.bank, paid, contract?.customer_name || r.customer_name);
             await loadCustomer();
             return { ok: true, reservation_id: r.reservation_id };
           }
@@ -593,7 +604,12 @@ function ApiProvider({ children }) {
             if (!RENTAL_PLANS.includes(months)) return fail("Gói gia hạn chỉ gồm 1, 3 hoặc 6 tháng.");
             if (pendingRenewal(d, c.contract_id)) return fail("Đã có yêu cầu gia hạn đang chờ cơ sở duyệt.");
             if (pendingReturn(d, c.contract_id)) return fail("Hợp đồng đang có yêu cầu trả kho.");
-            const dto = await api.requestRenewal(c.api_id, months);
+            if (c.status === "ENDED" || c.end_date <= localDate(new Date())) return fail("Hợp đồng đã hết hạn, không thể gửi gia hạn.");
+            const { dto, acknowledged } = await submitRenewalWithConsent(api, c.api_id, months, p.policy_consent);
+            if (!acknowledged) {
+              await loadCustomer();
+              return fail("Máy chủ đã nhận yêu cầu nhưng chưa xác nhận bằng chứng đồng ý. Kiểm tra Theo dõi gia hạn hoặc liên hệ cơ sở trước khi gửi lại.");
+            }
             remember("Đã gửi yêu cầu gia hạn", `Kho ${c.unit_number} · chờ cơ sở duyệt.`, `units/${c.contract_id}`, `Yêu cầu gia hạn ${c.unit_number} đã gửi — chờ duyệt`);
             await loadCustomer();
             return { ok: true, renewal_id: `GH-${String(dto.renewalId).padStart(4, "0")}` };
@@ -656,8 +672,11 @@ function ApiProvider({ children }) {
             const c = d.contracts.find((x) => x.contract_id === p.contract_id);
             if (!c) return fail("Không tìm thấy hợp đồng.");
             if (pendingRenewal(d, c.contract_id)) return fail("Hợp đồng đang có yêu cầu gia hạn.");
-            if (p.date < localDate(new Date())) return fail("Ngày hẹn không được ở quá khứ.");
-            await api.requestMoveOut(c.api_id, { date: p.date, slot: p.slot, note: p.notes });
+            if (["ENDED", "RETURN_PENDING"].includes(c.status) || c.start_date > localDate(new Date())) return fail("Hợp đồng chưa thể đăng ký trả kho.");
+            if (d.returns.some(r => r.contract_id === c.contract_id && !["CANCELLED", "REJECTED"].includes(r.status))) return fail("Đã có yêu cầu trả kho.");
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(p.date || "") || p.date < localDate(new Date())) return fail("Ngày hẹn không được ở quá khứ.");
+            if (!RETURN_SLOTS.includes(p.slot)) return fail("Vui lòng chọn khung giờ hợp lệ.");
+            await submitReturnRequest(api, c.api_id, p, c.customer_name);
             updateOverlay(o => ({ ...o, returns: [{ return_id: `TK-${c.api_id}`, contract_id: c.contract_id, date: p.date, slot: p.slot, notes: p.notes, status: "PENDING" }, ...o.returns.filter(r => r.contract_id !== c.contract_id)] }));
             remember("Đã đặt lịch trả kho", `Kho ${c.unit_number} · ${p.date} (${p.slot || "giờ hành chính"})`, `units/${c.contract_id}`, `Lịch trả kho ${c.unit_number} đã được ghi nhận`);
             await loadCustomer();

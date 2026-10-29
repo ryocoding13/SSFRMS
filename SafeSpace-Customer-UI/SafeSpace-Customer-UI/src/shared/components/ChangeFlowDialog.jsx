@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from "react";
-import { Button, Modal } from "./UI.jsx";
+import ConfirmDialog from "./ConfirmDialog.jsx";
 
 // Chuỗi hộp thoại thay đổi dữ liệu theo Figma 885:* (Admin, Vận hành KD, Quản lý cơ sở):
 //   Xác nhận "<Thao tác>?" → Thành công "Đã <thao tác>" → hoặc Thất bại "Không <thao tác> được".
@@ -46,32 +46,15 @@ export function useChangeFlow() {
     }
   }, []);
 
-  const element = state && (
-    <Modal title={state.title} size="confirm" onClose={() => answer(false)}>
-      {state.kind === "confirm" ? (
-        <>
-          <p className="modal__text">Kiểm tra thông tin trước khi xác nhận. Chọn Quay lại để giữ nguyên dữ liệu.</p>
-          <dl className="confirm-summary">
-            {state.rows.map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{value || "—"}</dd></div>)}
-          </dl>
-          <p className="hint">Chỉ lưu thay đổi sau khi bạn bấm Xác nhận.</p>
-          <div className="modal__actions">
-            <Button variant="outline" onClick={() => answer(false)}>Quay lại</Button>
-            <Button onClick={() => answer(true)}>Xác nhận</Button>
-          </div>
-        </>
-      ) : (
-        <>
-          <span className={`modal__state modal__state--${state.kind}`} aria-hidden="true" />
-          <p className="modal__text">{state.text}</p>
-          {state.detail && <p className="hint">{state.detail}</p>}
-          <Button variant={state.kind === "success" ? "primary" : "outline"} block onClick={() => answer(true)}>
-            {state.kind === "success" ? state.action : "Quay lại kiểm tra"}
-          </Button>
-        </>
-      )}
-    </Modal>
-  );
+  const element = state && <ConfirmDialog
+    title={state.title} tone={state.kind}
+    text={state.kind === "confirm" ? "Kiểm tra thông tin trước khi xác nhận. Chọn Quay lại để giữ nguyên dữ liệu." : state.text}
+    rows={state.kind === "confirm" ? state.rows : []}
+    hint={state.kind === "confirm" ? "Chỉ lưu thay đổi sau khi bạn bấm Xác nhận." : state.detail}
+    cancelLabel={state.kind === "confirm" ? "Quay lại" : null}
+    label={state.kind === "confirm" ? "Xác nhận" : state.kind === "success" ? state.action : "Quay lại kiểm tra"}
+    onCancel={() => answer(false)} onConfirm={() => answer(true)}
+  />;
   return [element, runChange];
 }
 

@@ -423,3 +423,44 @@ Giao diện đã làm theo Figma; backend cần bổ sung:
 - Khách trả phí qua PayOS: `POST /api/payments/{paymentId}/payos` cho khoản phí `PENDING` (cùng endpoint giao diện đang dùng cho gia hạn; hiện backend chưa có nên popup báo "tạm gián đoạn").
 - Khách chọn trả tại quầy (C11fc): API ghi nhận lựa chọn, ví dụ `POST /api/payments/{paymentId}/at-facility`. Giao diện tạm lưu trong trình duyệt (`overlay.feesAtCounter`).
 - Nhân viên thu tại quầy (S09f): `GET /api/ops/board` trả `feeCollections[]` `{ id, contract, customer, unit, items: [[nhãn, số tiền]], amount, due, status, requestedAt }` và `POST /api/ops/fees/{id}/confirm` chuyển các khoản sang `PAID`.
+
+## C08 / T20 — hợp đồng đã merge trên main, FE sửa trong Batch04 (28/10/2026)
+
+Thay đề xuất của Batch02: đã đối chiếu `RentalPolicyDtos.cs`, `RenewalDtos.cs`, `RenewalService.cs` trên main `c1a9b05`.
+
+- `GET /api/rental-policy` trả `{rate, sections, version, displayVersion, updatedAt}`; **không có** `renewalConsentSupported`. FE kiểm phiên bản hợp lệ và đọc lại trước POST.
+- `POST /api/contracts/{id}/renewals`: `{renewalPeriodMonths, policyVersion: number, accepted: true}`. Không gửi thời điểm client làm bằng chứng. Response `RenewalDto` có `policyVersion` và `acceptedAt` ở cấp ngoài cùng, không phải `policyConsent` lồng.
+- FE chỉ báo thành công khi version và timestamp server hợp lệ. Nếu server nhận yêu cầu nhưng thiếu evidence, refresh và yêu cầu kiểm tra hồ sơ; không tự POST lại.
+- Mapper giữ `PAID` / `EXPIRED`, `paymentDeadlineAt`, `appliedAt`, `expiredAt`; không biến hết hạn thành chờ duyệt. Gia hạn quá hạn không có nút thanh toán; backend vẫn quyết định trạng thái cuối cùng.
+- Mã BE đã có không đồng nghĩa tích hợp thật đã đạt: cần kiểm SQL Server/PayOS của nhóm, mutation khi policy đổi, yêu cầu trùng và atomicity của ghi renewal + consent. Hiện service có hai SaveChanges, chưa bọc giao dịch chung trong task FE này.
+- C04a xác nhận chính sách trước thanh toán chưa có luồng FE; C15b xem phiên bản theo hợp đồng còn thiếu mapping/DTO evidence. Không gán giả bản hiện hành thành bản khách đã đồng ý.
+- C11k dùng GET payment qua services.checkPaid, không tự xác nhận khách đã chuyển tiền.
+
+## Figma–FE đợt03 — hợp đồng tích hợp đề xuất T08 / ảnh trả kho / theo dõi hoàn
+
+Ngày 27/10/2026. **Chỉ FE đã làm; các endpoint/field bổ sung dưới đây chưa được xác nhận có trên BE.** Không bật capability trước khi server thực hiện toàn bộ điều kiện. Không thay đổi DTO/migration BE trong patch này.
+
+### Huỷ đơn đã thanh toán
+
+- `GET /api/rental-policy` bổ sung `cancellationBankSupported: true` khi endpoint huỷ hỗ trợ ngân hàng chính chủ. FE kiểm lại trước POST. Đơn chưa thanh toán vẫn dùng API cũ, không bắt buộc ngân hàng.
+- `POST /api/reservations/{id}/cancel` giữ `reason`, thêm `bankName`, `accountNumber` (chuỗi 6–19 chữ số, giữ số 0 đầu), `accountHolder`.
+- Server kiểm quyền sở hữu, ngày bắt đầu, tên tài khoản với tên lưu trên hợp đồng, trạng thái tiền thật và chống huỷ trùng. Huỷ trước StartDate hoàn 100% tiền thuê +90% cọc; không coi response preview là kết quả chuyển tiền.
+- GET reservations tiếp tục trả `refundAmount`, `refundStatus` sau khi huỷ; server lưu ngân hàng cho hồ sơ hoàn, không chỉ nhận rồi bỏ qua. UI thành công dùng số từ bản ghi đọc lại, không dùng preview để khẳng định số thực tế.
+
+### Gửi trả kho
+
+- `GET /api/rental-policy` bổ sung `returnRequestSupported: true` chỉ khi server lưu ảnh/ngân hàng và đảm bảo QR/PIN hết hiệu lực, dừng phí ngay lúc nhận thành công, không cho huỷ yêu cầu, chống gửi trùng. FE chặn server cũ.
+- `POST /api/contracts/{id}/move-out`: giữ `{date, slot, note}`; thêm `{bankName, accountNumber, accountHolder, emptied:true, photos:[{fileName,contentType,dataBase64}]}`.
+- Đây là JSON contract đề xuất để dùng HTTP client hiện tại; tối đa5 ảnh JPG/PNG, mỗi ảnh giải mã ≤5MiB. Nếu BE chọn upload riêng/signed URL, phải đổi adapter FE và kiểm tích hợp trước bật capability. Với JSON, cần giới hạn request phù hợp (khoảng35MiB), kiểm kích thước trước/sau giải mã, định dạng ảnh thực, xử lý tên tệp an toàn, lưu ảnh và yêu cầu nguyên tử; không tin MIME/đuôi tệp hoặc validation FE.
+- Không nhận hợp đồng kết thúc/chưa bắt đầu/đang gia hạn hoặc đã có yêu cầu trả; phải cho xử lý hợp đồng quá hạn. Gửi thành công dừng phí theo thời điểm server, không theo ngày kiểm tra khách chọn. Server kiểm ngày giờ Việt Nam, slot và quyền sở hữu, không phụ thuộc múi giờ thiết bị.
+- GET contracts nên trả `customerName` là tên trên hợp đồng để FE đối chiếu; thiếu snapshot FE chỉ kiểm đủ trường, server vẫn phải kiểm chính chủ. Mapper giữ trạng thái `RETURN_PENDING`, không mở gửi lại trên thiết bị khác.
+- Demo lưu ngân hàng + metadata ảnh vào trình duyệt, không lưu bytes ảnh vào localStorage. Preview dùng object URL và được thu hồi khi xoá/rời màn. Demo có thông báo rõ, không phải chứng cứ ảnh đã gửi cơ sở.
+
+### Khách xem hoàn cọc
+
+- Đề xuất `GET /api/deposit-refunds`, chỉ trả hồ sơ thuộc khách đang đăng nhập; FE không dùng `/api/ops/deposit-refunds` cho khách nữa. Staff/Manager giữ endpoint `/api/ops/*`. Không dựa vào lọc ownerId ở FE để bảo vệ dữ liệu.
+- Schema mỗi dòng: `{id, ownerId, contractId, unit, deposit, overdue, cleaning, damage, amount, status, bankName, accountNumber, requestedAt, inspectedAt, approvedAt, paidAt, refundDueDate, transactionRef, inspectionNote, photos:[{url}]}`. `PENDING` là chờ hoàn, `PAID` chỉ sau ghi nhận chuyển tiền. `amount` do server tính; không tin phép tính FE.
+- Timestamp/ảnh/ngân hàng thiếu hiển thị "Chưa có thông tin", không lấy ngày trong Figma để điền. `unpaid` legacy chỉ hiện "Khấu trừ khác (dữ liệu cũ)", không tạo nút thu hoặc công nợ; BE cần chuyển sang phân rã D32 chính xác. URL ảnh phải thuộc quyền khách, server cấp URL HTTPS có thời hạn; không trả ảnh hồ sơ khác.
+- Danh sách đơn huỷ vẫn theo refunds của reservations; màn này chỉ hoàn cọc sau trả kho. Không trộn hai nguồn để tự báo đã chuyển.
+
+Chưa kiểm API/SQL Server/PayOS thật. T08 và các điều kiện T05–T09 vẫn cần owner BE triển khai và nhóm kiểm tích hợp.

@@ -1,3 +1,4 @@
+import { cleanRefundBank, validateRefundBank, validateReturnPhotos, RETURN_SLOTS } from "../../shared/utils/refundRequest.js";
 import { isReturnFee, NO_RETURN_COLLECTION } from "../../shared/utils/returnPolicy.js";
 import { RENTAL_PLANS, SIZE_BANDS, offerByKey, quote } from "../../shared/utils/catalog.js";
 import {
@@ -246,7 +247,13 @@ const handlers = {
     // Giống backend: huỷ được đơn chờ thanh toán hoặc đã thanh toán nhưng chưa nhận kho (C14a)
     if (r.status !== "PENDING_PAYMENT" && !(r.status === "CONFIRMED" && !contract?.handed_over))
       fail(r.status === "PENDING_VERIFICATION" ? "Đơn chờ thanh toán tại cửa hàng, vui lòng liên hệ cơ sở để huỷ." : "Đơn đã nhận kho, không huỷ được.");
+    if (r.status === "CONFIRMED" && r.start_date && r.start_date <= localDate(ctx.now)) fail("Đã đến ngày bắt đầu thuê. Vui lòng sử dụng quy trình trả kho.");
     const preview = r.status === "CONFIRMED" ? cancelPreviewOf(r) : null;
+    if (preview) {
+      const error = validateRefundBank(p.bank, contract?.customer_name || r.customer_name || state.user?.full_name);
+      if (error) fail(error);
+      if (p.bankConfirmed !== true) fail("Vui lòng xác nhận tài khoản chính chủ.");
+    }
     let next = {
       ...state,
       reservations: state.reservations.map((x) =>
@@ -254,6 +261,7 @@ const handlers = {
           ? {
               ...x,
               status: "CANCELLED",
+              refund_bank: preview ? cleanRefundBank(p.bank) : null,
               cancel_reason: p.reason || "Khách hàng huỷ đặt chỗ",
               cancelled_at: iso(ctx.now),
               refund_amount: preview?.refund ?? null,
@@ -273,7 +281,7 @@ const handlers = {
 
   REQUEST_RENEWAL(state, p, ctx) {
     const c = contractOf(state, p.contract_id);
-    if (!c || c.status === "ENDED") fail("Hợp đồng chưa thể gia hạn.");
+    if (!c || c.status === "ENDED" || c.end_date <= localDate(ctx.now)) fail("Hợp đồng chưa thể gia hạn.");
     const months = Number(p.months);
     if (!RENTAL_PLANS.includes(months)) fail("Gói gia hạn chỉ gồm 1, 3 hoặc 6 tháng.");
     const pending = hasPending(state, c.contract_id);
@@ -288,6 +296,7 @@ const handlers = {
       amount: months * c.monthly_rate,
       status: "PENDING",
       requested_at: iso(ctx.now),
+      ...(p.policy_consent ? { policy_consent: { ...p.policy_consent } } : {}),
     };
     const base = refBase(c.contract_id);
     const n = state.renewals.filter((r) => r.contract_id === c.contract_id).length;
@@ -312,14 +321,20 @@ const handlers = {
 
   REQUEST_RETURN(state, p, ctx) {
     const c = contractOf(state, p.contract_id);
-    if (!c || c.status === "ENDED") fail("Hợp đồng chưa thể đăng ký trả kho.");
+    if (!c || ["ENDED", "RETURN_PENDING"].includes(c.status) || c.start_date > localDate(ctx.now)) fail("Hợp đồng chưa thể đăng ký trả kho.");
     const pending = hasPending(state, c.contract_id);
-    if (pending.ret) fail("Đã có yêu cầu trả kho đang chờ xử lý.");
+    if (state.returns.some(r => r.contract_id === c.contract_id && !["CANCELLED", "REJECTED"].includes(r.status))) fail("Đã có yêu cầu trả kho đang chờ xử lý.");
     if (pending.renewal) fail("Hợp đồng đang có yêu cầu gia hạn chờ duyệt.");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(p.date || "") || p.date < localDate(ctx.now))
       fail("Ngày trả kho không được ở quá khứ.");
-    if (!p.slot) fail("Vui lòng chọn khung giờ.");
+    if (!RETURN_SLOTS.includes(p.slot)) fail("Vui lòng chọn khung giờ hợp lệ.");
+    const invalid = validateRefundBank(p.bank, c.customer_name || state.user?.full_name) || validateReturnPhotos(p.photos);
+    if (invalid) fail(invalid);
+    if (p.emptied !== true) fail("Vui lòng xác nhận đã chuyển hết đồ ra khỏi kho.");
     const ret = {
+      refund_bank: cleanRefundBank(p.bank),
+      photos: p.photos.map(({name, type, size}) => ({name, type, size})),
+      emptied: true,
       return_id: `TK-${pad(nextSeq(state.returns, "return_id"))}`,
       contract_id: c.contract_id,
       date: p.date,
@@ -489,9 +504,11 @@ export function reduce(state, action, ctx = {}) {
   }
 }
 
-export const validateRegister = ({ name, email, phone, password, confirm }) => {
+export const validateRegister = ({ name, username, email, phone, password, confirm }) => {
   const e = {};
   if (!name?.trim()) e.name = "Vui lòng nhập họ và tên.";
+  if (!String(username || "").trim()) e.username = "Vui lòng nhập tên đăng nhập.";
+  else if (String(username).trim().length > 50 || /\s|@/.test(String(username).trim())) e.username = "Tên đăng nhập tối đa 50 ký tự, không chứa khoảng trắng hoặc @.";
   if (!isEmail(email)) e.email = "Nhập email hợp lệ, ví dụ ban@vidu.com.";
   if (!/^(0\d{9}|\+84\d{9})$/.test(String(phone || "").replace(/[\s.-]/g, "")))
     e.phone = "Nhập số điện thoại hợp lệ, ví dụ 0901 234 567.";

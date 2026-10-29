@@ -13,8 +13,9 @@ function readDemo() {
 
 export function useWorkflowData(resource) {
   const { mode, user, roles, onApiError } = useApp();
+  const storageResource = resource === "customerRefunds" ? "depositRefunds" : resource;
   const demo = WORKFLOW_DEMO || mode === "local";
-  const [data, setData] = useState(() => demo ? readDemo()[resource] : resource === "policy" ? null : []);
+  const [data, setData] = useState(() => demo ? readDemo()[storageResource] : resource === "policy" ? null : []);
   const [loading, setLoading] = useState(!demo);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -22,17 +23,17 @@ export function useWorkflowData(resource) {
   const reload = useCallback(async () => {
     const seq = ++generation.current;
     setLoading(true); setError("");
-    try { const result = demo ? readDemo()[resource] : await loadWorkflow(resource); if (seq === generation.current) setData(result); }
+    try { const result = demo ? readDemo()[storageResource] : await loadWorkflow(resource); if (seq === generation.current) setData(result); }
     catch (e) { if (seq === generation.current) setError(e.message); onApiError?.(e); }
     finally { if (seq === generation.current) setLoading(false); }
-  }, [demo, resource, onApiError]);
+  }, [demo, resource, storageResource, onApiError]);
   useEffect(() => { reload(); return () => { generation.current++; }; }, [reload]);
   useEffect(() => {
     if (!demo) return undefined;
-    const update = () => setData(readDemo()[resource]);
+    const update = () => setData(readDemo()[storageResource]);
     window.addEventListener("storage", update); window.addEventListener("safespace-workflows", update);
     return () => { window.removeEventListener("storage", update); window.removeEventListener("safespace-workflows", update); };
-  }, [demo, resource]);
+  }, [demo, resource, storageResource]);
   const run = useCallback(async (action, payload) => {
     if (guard.current) return { ok: false, error: "Đang lưu, vui lòng chờ." };
     guard.current = true; setBusy(true); setError("");
@@ -41,11 +42,11 @@ export function useWorkflowData(resource) {
         const next = applyWorkflowAction(readDemo(), action, payload, { id: user?.user_id, name: user?.full_name, roles: roles || [] });
         memory = next;
         try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* retained only in memory */ }
-        setData(next[resource]); window.dispatchEvent(new Event("safespace-workflows"));
+        setData(next[storageResource]); window.dispatchEvent(new Event("safespace-workflows"));
       } else { await saveWorkflow(resource, action, payload); await reload(); }
       return { ok: true };
     } catch (e) { setError(e.message); onApiError?.(e); return { ok: false, error: e.message }; }
     finally { guard.current = false; setBusy(false); }
-  }, [demo, resource, user, roles, onApiError, reload]);
+  }, [demo, resource, storageResource, user, roles, onApiError, reload]);
   return { data, loading, error, busy, reload, run, demo };
 }

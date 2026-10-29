@@ -75,12 +75,15 @@ export default function CustomerProfilePage() {
 
   return (
     <main className="container page">
-      <PageHeader title="Tài khoản của tôi" description="Quản lý tên hiển thị, thông tin liên hệ và mật khẩu đăng nhập." />
+      <PageHeader title="Tài khoản của tôi" description="Quản lý tên đăng nhập, tên hiển thị, thông tin liên hệ và mật khẩu." />
       <div className="grid grid--2">
         <form className="panel form-card" onSubmit={saveName} noValidate>
           <h2>Thông tin cá nhân</h2>
           <Field label="Tên tài khoản (hiển thị)" error={nameError}>
             <input autoComplete="name" maxLength={100} disabled={savingName} value={name} onChange={(e) => { setName(e.target.value); setNameError(""); }} />
+          </Field>
+          <Field label="Tên đăng nhập">
+            <input readOnly value={user.username || ""} />
           </Field>
           <Field label="Email">
             <input readOnly value={user.email} />

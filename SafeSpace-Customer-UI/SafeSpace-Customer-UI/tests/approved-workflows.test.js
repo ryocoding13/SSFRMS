@@ -82,3 +82,11 @@ test("mốc xử lý đồ quá hạn theo tỷ lệ chính sách đang lưu, kh
   s.policy.rate = 5;
   assert.throws(() => applyWorkflowAction(s, "RECORD_REMOVAL", payload, actor(["STAFF"])), /mốc 20 ngày/);
 });
+
+test("khách đọc hoàn cọc qua endpoint riêng, không gọi board vận hành", async () => {
+  const previous = globalThis.fetch;
+  let url;
+  globalThis.fetch = async path => { url = String(path); return new Response("[]", {status:200}); };
+  try { assert.deepEqual(await loadWorkflow("customerRefunds"), []); assert.ok(url.endsWith("/api/deposit-refunds")); assert.ok(!url.includes("/ops/")); }
+  finally { globalThis.fetch = previous; }
+});

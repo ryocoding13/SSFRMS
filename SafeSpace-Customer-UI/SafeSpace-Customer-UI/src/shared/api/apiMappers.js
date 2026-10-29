@@ -110,7 +110,7 @@ const RESERVATION = {
   CANCELLED: "CANCELLED",
   EXPIRED: "CANCELLED",
 };
-const CONTRACT = { ACTIVE: "ACTIVE", ENDED: "ENDED", COMPLETED: "ENDED", TERMINATED: "ENDED", CANCELLED: "ENDED" };
+const CONTRACT = { RETURN_PENDING: "RETURN_PENDING", ACTIVE: "ACTIVE", ENDED: "ENDED", COMPLETED: "ENDED", TERMINATED: "ENDED", CANCELLED: "ENDED" };
 const TICKET = { OPEN: "OPEN", ASSIGNED: "IN_PROGRESS", IN_PROGRESS: "IN_PROGRESS", RESOLVED: "RESOLVED", CLOSED: "RESOLVED", CANCELLED: "CANCELLED" };
 const TICKET_NOTE = {
   OPEN: "Cơ sở sẽ tiếp nhận và phản hồi qua thông báo.",
@@ -118,7 +118,7 @@ const TICKET_NOTE = {
   RESOLVED: "Yêu cầu đã được xử lý.",
   CANCELLED: "Bạn đã huỷ yêu cầu này.",
 };
-const RENEWAL = { PENDING: "PENDING", PENDING_PAYMENT: "PENDING", PENDING_APPROVAL: "PENDING", PAID: "APPROVED", APPROVED: "APPROVED", COMPLETED: "APPROVED", REJECTED: "REJECTED", CANCELLED: "REJECTED" };
+const RENEWAL = { PENDING: "PENDING", PENDING_PAYMENT: "PENDING", PENDING_APPROVAL: "PENDING", PAID: "PAID", APPROVED: "APPROVED", COMPLETED: "PAID", REJECTED: "REJECTED", CANCELLED: "REJECTED", EXPIRED: "EXPIRED" };
 
 function offerOfType(unitTypes, id, name) {
   const t = unitTypes.find((x) => x.unitTypeId === id) || unitTypes.find((x) => x.typeName === name);
@@ -257,6 +257,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
     contracts.push({
       contract_id: code,
       api_id: c.contractId,
+      customer_name: c.customerName || null,
       reservation_id: codeByReservation.get(c.reservationId) || null,
       facility_id: facility?.facility_id ?? null,
       facility_name: c.facilityName,
@@ -297,8 +298,10 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
                   : `Khoản thu kho ${c.unitNumber}`;
       const fee = FEE_KINDS.has(kind);
       const paid = p.status === "PAID";
+      const deadline = parseUtc(p.paymentDeadlineAt || ren?.paymentDeadlineAt);
+      const expiredRenewal = kind === "RENEWAL" && !paid && (ren?.status === "EXPIRED" || p.status === "FAILED" || (deadline && deadline <= now));
       const open = !paid && !["CANCELLED", "REFUNDED", "FAILED"].includes(p.status);
-      const status = kind === "REFUND" ? (paid ? "REFUNDED" : p.status === "PENDING" ? "REFUND_PENDING" : p.status) : paid
+      const status = expiredRenewal ? "EXPIRED" : kind === "REFUND" ? (paid ? "REFUNDED" : p.status === "PENDING" ? "REFUND_PENDING" : p.status) : paid
         ? kind === "DEPOSIT" ? "DEPOSIT_HELD" : "RECONCILED"
         : p.status === "REFUNDED" || kind === "REFUND"
           ? "REFUNDED"
@@ -314,7 +317,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
         status,
         // C11: khoản gia hạn đã duyệt nhưng chưa trả → nút "Thanh toán" (QR PayOS)
         // D32: khoản phí trả kho không được mở thanh toán ngoài cọc.
-        payable: p.status === "PENDING" && kind === "RENEWAL",
+        payable: p.status === "PENDING" && kind === "RENEWAL" && !expiredRenewal,
         fee,
         period: ren ? { from: dateOnly(ren.oldEndDate), to: dateOnly(ren.newEndDate), months: ren.renewalPeriodMonths } : null,
       });
@@ -331,7 +334,11 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
         amount: Number(r.renewalAmount),
         status,
         reason: r.rejectionReason || r.reason || null,
-        at_counter: Boolean(r.atCounter),
+        at_counter: Boolean(r.atCounter || (c.payments || []).some(p => p.renewalId === r.renewalId && p.paymentMethod === "CASH")),
+        payment_deadline_at: isoOf(r.paymentDeadlineAt),
+        applied_at: isoOf(r.appliedAt),
+        expired_at: isoOf(r.expiredAt),
+        policy_consent: r.policyVersion != null && r.acceptedAt ? { version: String(r.policyVersion), acceptedAt: isoOf(r.acceptedAt), channel: "WEB_CUSTOMER" } : null,
         requested_at: isoOf(r.requestedAt),
       });
       if (status === "PENDING" && !paidRenewals.has(r.renewalId)) {

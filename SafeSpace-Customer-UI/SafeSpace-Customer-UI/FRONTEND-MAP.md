@@ -188,3 +188,37 @@ Xem `SafeSpace-Customer-UI/SafeSpace-Customer-UI/APPROVED-FE-README.md` để c�
 ## D32 — 26/10/2026
 
 `#/staff/fees` ngừng phục vụ (404 nội bộ); không có nút/queue thu phí trả kho. C11 giữ gia hạn, ẩn phí trả kho chờ thu. Quy tắc FE nằm ở `src/shared/utils/returnPolicy.js`; test `tests/return-policy.test.js`, browser `node scripts/check-return-policy.mjs`. M07 có điều kiện mở theo capability máy chủ, xem BACKEND-TODO T10.
+
+## Đồng bộ Figma đợt 01 — 27/10/2026
+
+- C06 `#/units` và C14 `#/reservations` dùng `src/shared/components/RecordSummaryCard.jsx`; kiểu thẻ ngang và responsive ở `src/shared/styles/customer-records.css`.
+- `ConfirmDialog.jsx` giữ mẫu xác nhận 560 px; điều chỉnh chi tiết trong `ss.css`. Chưa chuyển mọi popup sang đủ 6 loại.
+- Phạm vi, node Figma, kết quả kiểm tra và điểm tiếp tục: `../../docs/sprints/FE-figma-sync-01.md`.
+
+## Đồng bộ Figma đợt 02 — 27/10/2026
+
+- C07/C08/C11 dùng `src/shared/styles/customer-detail.css` (cột 804/432 responsive); giữ token/font và UI primitives.
+- C11h `#/payments/history` lọc hợp đồng/loại khoản, chỉ liệt kê trạng thái đã ghi nhận. Chưa có bộ lọc thời gian vì mapper chưa cung cấp thời điểm giao dịch.
+- C11k mới: `#/payments/check/:ref` → `src/features/customer/payments/PaymentStatusPage.jsx`, truy cập từ khoản gia hạn C11. Dùng service checkPaid/startPayos, không gọi fetch trong Page.
+- `ConfirmDialog.jsx`: tone confirm/danger/success/failure/warning/info cùng Modal 560px. ChangeFlowDialog dùng lại; C11/C11h dùng info. QR/PayOS là modal chuyên biệt giữ nội dung hiện có, chưa migrate toàn bộ callsite ứng dụng.
+- `src/shared/api/renewalConsentApi.js`: kiểm T20 trước gửi và kiểm evidence response; tests/renewal-consent.test.js.
+- Điểm tiếp tục: `../../docs/sprints/FE-figma-sync-02.md`.
+
+## Figma–FE đợt03 (27/10/2026)
+
+| Route/chức năng | File |
+|---|---|
+| `#/units/:id/return` — ảnh trống + tài khoản hoàn, xác nhận khoá QR/PIN | `src/features/customer/contracts/ReturnRequestPage.jsx` |
+| `#/reservations/:id/cancel` — huỷ đơn riêng, ngân hàng chính chủ | `src/features/customer/reservations/CancelReservationPage.jsx` |
+| `#/refunds` — tiến độ, đối soát, trạng thái chuyển tiền | `src/features/customer/payments/RefundTrackingPage.jsx` |
+| Tài khoản, ảnh và phân rã khoản hoàn dùng chung | `src/shared/components/RefundBankFields.jsx`, `ReturnPhotoInput.jsx`, `RefundSummary.jsx` |
+| Validation/adapter chặn API cũ | `src/shared/utils/refundRequest.js`, `src/shared/api/refundRequestApi.js`, `src/shared/hooks/useRefundSupport.js` |
+
+RefundTracking/ReturnProgress đọc resource `customerRefunds` → `/api/deposit-refunds` (hợp đồng BE đề xuất), demo dùng cùng bộ hồ sơ cục bộ. Chưa kiểm browser/API thật. Chi tiết `docs/sprints/FE-figma-sync-03.md` ở gốc repo.
+
+## Figma–FE Batch04 — 28/10/2026
+
+- A02 `#/register`: username riêng; C13 `#/profile`: username chỉ đọc; D33.
+- B03 `#/business/pricing`: thẻ chọn cơ sở; B03a `#/business/rates?facility=:id`: 4 thẻ loại kho và form sửa giá. `facilityRates.js` chọn đúng giá hiệu lực, không lấy nhầm cơ sở hoặc mức giá tương lai.
+- C08 nối T20 theo DTO main; `RenewalStatusPage.jsx` giữ hết hạn/đã trả, hạn thanh toán và lựa chọn tại quầy. Xem BACKEND-TODO mục C08 mới.
+- Danh mục 163 frame Main, 8 màn/nhánh còn thiếu và kế hoạch 7 phiên: `docs/figma-audit-2026-10-28/README.md` ở gốc repo; CSV cùng thư mục. Danh mục route không chứng minh mọi màn đã khớp pixel/API.

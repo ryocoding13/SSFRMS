@@ -1,3 +1,14 @@
+## 2026-10-28 — F40: Batch04 đối chiếu ba ZIP và Figma hiện tại
+
+- Nền main c1a9b05; giữ nhật ký mới, ghép code cộng dồn Batch03 từ 816209d. Không sửa Figma/BE/schema, không commit/push/PR/merge.
+- Sửa A02 username riêng/C13 theo Figma 28/10, ghi D33; B03 chọn cơ sở → B03a bốn loại kho, sửa giá đúng cơ sở/ngày hiệu lực và giữ form khi lỗi.
+- Sửa C08 theo DTO T20 đã merge: policyVersion số + accepted true, acknowledgement cấp ngoài cùng; giữ timestamp server. Mapper giữ PAID/EXPIRED và deadline; chặn thanh toán quá hạn, không tạo thêm gia hạn khi còn khoản đã duyệt chưa trả.
+- Giữ bank/ảnh/capability T08 của Batch03: backend cũ bị chặn, không âm thầm bỏ field. Chưa hoàn tất C04a/C15b/sự cố/khắc phục và các màn role khác.
+- Kiểm: FE 103/103; business 9/9; workflows 12/12; SSR 119 route + assertions; structure/build/init --fe-only/diff đạt. Asset kho riêng JPEG 180x228 đủ 4 file. Cảnh báo bundle >500KB còn. Chromium tải lỗi ZIP nên chưa browser; chưa API thật/SQL Server/PayOS/thiết bị cửa. Giữ F40 active/F41 blocked.
+- Kiểm kê trực tiếp Figma 163 frame Main (có trạng thái/lặp cơ sở), 8 màn/nhánh chưa có triển khai tương ứng trong 11 frame; không gọi tất cả là màn mới. Xem docs/figma-audit-2026-10-28/README.md và CSV; 7 phiên gồm phiên này.
+- Điểm cần nhóm chốt/BE review: wording C15b so với phạm vi D32; T08; atomicity T20 (RenewalService ghi renewal và consent qua hai SaveChanges). Không tự sửa nghiệp vụ phía BE.
+- ZIP có 4 đường patch cho main hiện hành có/chưa có Batch01/02/03; git apply --check, áp dụng trên bản sạch và đối chiếu byte. Thành viên tự review/commit/push/PR/merge.
+
 ## 2026-10-28 — T02, T03, T04, T20 BE: Gia hạn, PayOS, thu tại quầy & chính sách cho thuê theo D32 (Đạt)
 
 - Nền `origin/main` 0f0194b, làm trên nhánh `feature/dat-renewal-policy-d32`. Không commit/push/PR/merge; không tự ý nâng feature passing khi chưa có SQL Server/PayOS thật và thành viên phụ trách xác nhận.

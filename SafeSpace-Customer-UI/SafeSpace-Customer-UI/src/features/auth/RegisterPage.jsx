@@ -1,6 +1,6 @@
 // useState: lưu dữ liệu thay đổi trên giao diện.
 // useEffect: thực hiện tác vụ sau khi render và khi dependency thay đổi.
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 // Các thành phần giao diện dùng chung:
 // Button: nút bấm; Field: nhãn, ô nhập và thông báo lỗi; Icon: biểu tượng.
@@ -41,7 +41,7 @@ export function RegisterPage({ query }) {
   // form chứa giá trị hiện tại của các ô nhập.
   // setForm cập nhật dữ liệu và yêu cầu React render lại giao diện.
   // confirm là ô nhập lại mật khẩu để kiểm tra xác nhận.
-  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", confirm: "" });
+  const [form, setForm] = useState({ name: "", username: "", email: "", phone: "", password: "", confirm: "" });
 
   // errors chứa thông báo lỗi theo từng trường, ví dụ:
   // { email: "Email không hợp lệ", form: "Không thể đăng ký" }.
@@ -52,6 +52,7 @@ export function RegisterPage({ query }) {
   // Giao diện dùng giá trị này để khóa nút và đổi nội dung nút.
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState(false);
+  const pending = useRef(false);
 
   // Nếu người dùng đã đăng nhập thì chuyển khỏi trang đăng ký.
   // Effect chạy sau lần render đầu và khi authed hoặc next thay đổi.
@@ -84,6 +85,8 @@ export function RegisterPage({ query }) {
   const submit = async (e) => {
     // Ngăn hành vi gửi form mặc định làm tải lại trang.
     e.preventDefault();
+    if (pending.current) return;
+    pending.current = true;
 
     // Bật trạng thái đang xử lý trước khi bắt đầu đăng ký.
     setBusy(true);
@@ -91,7 +94,10 @@ export function RegisterPage({ query }) {
     // Chuyển toàn bộ dữ liệu form cho AppProvider xử lý.
     // register kiểm tra dữ liệu; cách lưu/gọi API tùy chế độ provider.
     // await chờ kết quả nhưng không chặn toàn bộ giao diện trình duyệt.
-    const res = await register(form);
+    let res;
+    try { res = await register(form); }
+    catch { res = { ok: false, errors: { form: "Chưa tạo được tài khoản. Vui lòng thử lại." } }; }
+    finally { pending.current = false; }
 
     // Tắt trạng thái đang xử lý sau khi register trả về kết quả.
     setBusy(false);
@@ -113,7 +119,7 @@ export function RegisterPage({ query }) {
       */}
       <form className="panel auth__card" onSubmit={submit} noValidate>
         <h1>Tạo tài khoản khách hàng</h1>
-        <p className="lead">Điền thông tin bên dưới để bắt đầu thuê kho cùng SafeSpace.</p>
+        <p className="lead">Tạo tên đăng nhập và mật khẩu để truy cập tài khoản SafeSpace.</p>
 
         {/*
           Chỉ hiện lỗi chung nếu errors.form có nội dung.
@@ -133,6 +139,10 @@ export function RegisterPage({ query }) {
         */}
         <Field label="Họ và tên" error={errors.name}>
           <input autoComplete="name" placeholder="Nhập họ và tên của bạn" value={form.name} onChange={(e) => set("name", e.target.value)} />
+        </Field>
+
+        <Field label="Tên đăng nhập" error={errors.username}>
+          <input autoComplete="username" maxLength={50} placeholder="Nhập tên đăng nhập của bạn" disabled={busy} value={form.username} onChange={(e) => set("username", e.target.value)} />
         </Field>
 
         <Field label="Email" error={errors.email}>

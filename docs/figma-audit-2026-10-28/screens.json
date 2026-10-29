@@ -1,0 +1,1650 @@
+[
+  {
+    "id": "436:8991",
+    "name": "START · SafeSpace / Trang chủ",
+    "width": 1440.0,
+    "height": "3928",
+    "section": [
+      "Main · 01 · Trang chủ & tài khoản",
+      "Công khai · 01 · Trang chủ"
+    ]
+  },
+  {
+    "id": "436:9149",
+    "name": "A01 · SafeSpace / Đăng nhập",
+    "width": 1440.0,
+    "height": "825",
+    "section": [
+      "Main · 01 · Trang chủ & tài khoản",
+      "Công khai · 02 · Đăng nhập & tài khoản"
+    ]
+  },
+  {
+    "id": "436:9113",
+    "name": "A02 · SafeSpace / Đăng ký",
+    "width": 1440.0,
+    "height": "1048",
+    "section": [
+      "Main · 01 · Trang chủ & tài khoản",
+      "Công khai · 02 · Đăng nhập & tài khoản"
+    ]
+  },
+  {
+    "id": "635:8831",
+    "name": "A01b · SafeSpace / Quên mật khẩu",
+    "width": 1440.0,
+    "height": "685",
+    "section": [
+      "Main · 01 · Trang chủ & tài khoản",
+      "Công khai · 02 · Đăng nhập & tài khoản"
+    ]
+  },
+  {
+    "id": "635:8882",
+    "name": "A01c · SafeSpace / Đặt lại mật khẩu",
+    "width": 1440.0,
+    "height": "773",
+    "section": [
+      "Main · 01 · Trang chủ & tài khoản",
+      "Công khai · 02 · Đăng nhập & tài khoản"
+    ]
+  },
+  {
+    "id": "436:9173",
+    "name": "P01 · SafeSpace / Bảng giá",
+    "width": 1440.0,
+    "height": "692",
+    "section": [
+      "Main · 01 · Trang chủ & tài khoản",
+      "Công khai · 03 · Bảng giá & hướng dẫn"
+    ]
+  },
+  {
+    "id": "436:9206",
+    "name": "P02 · SafeSpace / Hướng dẫn & hỗ trợ",
+    "width": 1440.0,
+    "height": "877",
+    "section": [
+      "Main · 01 · Trang chủ & tài khoản",
+      "Công khai · 03 · Bảng giá & hướng dẫn"
+    ]
+  },
+  {
+    "id": "979:12418",
+    "name": "A01-sai-mat-khau · Tên đăng nhập hoặc mật khẩu chưa đúng. Vui lòng kiểm tra lại.",
+    "width": 1440.0,
+    "height": "881",
+    "section": [
+      "Main · 01 · Trang chủ & tài khoản",
+      "Bổ sung · Tài khoản và lỗi xác thực"
+    ]
+  },
+  {
+    "id": "979:12464",
+    "name": "A02-email-trung · Email này đã được đăng ký. Dùng email khác hoặc đăng nhập.",
+    "width": 1440.0,
+    "height": "1104",
+    "section": [
+      "Main · 01 · Trang chủ & tài khoản",
+      "Bổ sung · Tài khoản và lỗi xác thực"
+    ]
+  },
+  {
+    "id": "994:12212",
+    "name": "A02-mat-khau-khong-khop · Xác nhận mật khẩu chưa khớp",
+    "width": 1440.0,
+    "height": "989",
+    "section": [
+      "Main · 01 · Trang chủ & tài khoản",
+      "Bổ sung · Tài khoản và lỗi xác thực"
+    ]
+  },
+  {
+    "id": "436:9219",
+    "name": "C01 · SafeSpace / Dashboard khách hàng",
+    "width": 1440.0,
+    "height": "1242",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 01 · Tổng quan khách hàng"
+    ]
+  },
+  {
+    "id": "1101:11998",
+    "name": "C01-trống · SafeSpace / Tổng quan / Khách hàng mới",
+    "width": 1440.0,
+    "height": "1016",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 01 · Tổng quan khách hàng"
+    ]
+  },
+  {
+    "id": "436:9376",
+    "name": "C02 · SafeSpace / Tìm & đặt kho (tất cả cơ sở)",
+    "width": 1440.0,
+    "height": "2561",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 02 · Tìm & đặt kho (danh sách + bộ lọc)"
+    ]
+  },
+  {
+    "id": "436:9545",
+    "name": "C02a · SafeSpace / Tìm & đặt kho / Chọn loại kho",
+    "width": 1440.0,
+    "height": "1132",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 02 · Tìm & đặt kho (danh sách + bộ lọc)"
+    ]
+  },
+  {
+    "id": "436:9644",
+    "name": "C02b · SafeSpace / Tìm & đặt kho / Chọn diện tích",
+    "width": 1440.0,
+    "height": "1132",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 02 · Tìm & đặt kho (danh sách + bộ lọc)"
+    ]
+  },
+  {
+    "id": "436:9755",
+    "name": "C02c · SafeSpace / Tìm & đặt kho / Chọn khu vực",
+    "width": 1440.0,
+    "height": "1132",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 02 · Tìm & đặt kho (danh sách + bộ lọc)"
+    ]
+  },
+  {
+    "id": "436:9872",
+    "name": "C02f · SafeSpace / Tìm & đặt kho / Đã chọn xong — sẵn sàng tìm",
+    "width": 1440.0,
+    "height": "1129",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 02 · Tìm & đặt kho (danh sách + bộ lọc)"
+    ]
+  },
+  {
+    "id": "533:9892",
+    "name": "C02-vị trí · SafeSpace / Kết quả gần bạn nhất",
+    "width": 1440.0,
+    "height": "1243",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 02 · Tìm & đặt kho (danh sách + bộ lọc)"
+    ]
+  },
+  {
+    "id": "635:8950",
+    "name": "C02-không vị trí · SafeSpace / Chưa cho phép vị trí",
+    "width": 1440.0,
+    "height": "1243",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 02 · Tìm & đặt kho (danh sách + bộ lọc)"
+    ]
+  },
+  {
+    "id": "994:11538",
+    "name": "C02-loi-tai · Không tải được kết quả tìm kho",
+    "width": 1440.0,
+    "height": "531",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 02 · Tìm & đặt kho (danh sách + bộ lọc)"
+    ]
+  },
+  {
+    "id": "436:9960",
+    "name": "C02m · Tìm kho / Tất cả cơ sở TP.HCM",
+    "width": 1440.0,
+    "height": "905",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 03 · Tìm kho trên bản đồ"
+    ]
+  },
+  {
+    "id": "436:10018",
+    "name": "C02m-1 · Tìm kho / Zoom Quận 7",
+    "width": 1440.0,
+    "height": "905",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 03 · Tìm kho trên bản đồ"
+    ]
+  },
+  {
+    "id": "436:10066",
+    "name": "C02m-2 · Tìm kho / Chọn Phú Xuân",
+    "width": 1440.0,
+    "height": "905",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 03 · Tìm kho trên bản đồ"
+    ]
+  },
+  {
+    "id": "436:10142",
+    "name": "C03 · SafeSpace / Cơ sở phù hợp",
+    "width": 1440.0,
+    "height": "1148",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 04 · Cơ sở phù hợp"
+    ]
+  },
+  {
+    "id": "436:10224",
+    "name": "C03b · SafeSpace / Chi tiết cơ sở",
+    "width": 1440.0,
+    "height": "1476",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 05 · Chi tiết cơ sở · Nguyễn Lương Bằng"
+    ]
+  },
+  {
+    "id": "436:10292",
+    "name": "C03b-1 · SafeSpace / Chi tiết cơ sở / Chọn loại kho",
+    "width": 1440.0,
+    "height": "1470",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 05 · Chi tiết cơ sở · Nguyễn Lương Bằng"
+    ]
+  },
+  {
+    "id": "436:10366",
+    "name": "C03b-2 · SafeSpace / Chi tiết cơ sở / Chọn diện tích",
+    "width": 1440.0,
+    "height": "1424",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 05 · Chi tiết cơ sở · Nguyễn Lương Bằng"
+    ]
+  },
+  {
+    "id": "436:10455",
+    "name": "C03b-3 · SafeSpace / Chi tiết cơ sở / Chọn ngày bắt đầu",
+    "width": 1440.0,
+    "height": "1424",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 05 · Chi tiết cơ sở · Nguyễn Lương Bằng"
+    ]
+  },
+  {
+    "id": "436:10618",
+    "name": "C03b-sđ · Chi tiết cơ sở / Sơ đồ tình trạng kho / Nguyễn Lương Bằng",
+    "width": 1440.0,
+    "height": "1583",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 05 · Chi tiết cơ sở · Nguyễn Lương Bằng"
+    ]
+  },
+  {
+    "id": "436:10630",
+    "name": "C03c-1 · SafeSpace / Xem ảnh cơ sở / 1 trên 4",
+    "width": 1440.0,
+    "height": "1316",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 06 · Xem ảnh cơ sở"
+    ]
+  },
+  {
+    "id": "436:10721",
+    "name": "C03c-2 · SafeSpace / Xem ảnh cơ sở / 2 trên 4",
+    "width": 1440.0,
+    "height": "1316",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 06 · Xem ảnh cơ sở"
+    ]
+  },
+  {
+    "id": "436:10806",
+    "name": "C03c-3 · SafeSpace / Xem ảnh cơ sở / 3 trên 4",
+    "width": 1440.0,
+    "height": "1316",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 06 · Xem ảnh cơ sở"
+    ]
+  },
+  {
+    "id": "436:10885",
+    "name": "C03c-4 · SafeSpace / Xem ảnh cơ sở / 4 trên 4",
+    "width": 1440.0,
+    "height": "1316",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 06 · Xem ảnh cơ sở"
+    ]
+  },
+  {
+    "id": "436:10977",
+    "name": "C04 · SafeSpace / Đặt chỗ & Thanh toán",
+    "width": 1440.0,
+    "height": "1292",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 07 · Đặt chỗ & xác nhận · Nguyễn Lương Bằng"
+    ]
+  },
+  {
+    "id": "436:11083",
+    "name": "C04c · SafeSpace / Đặt chỗ & Thanh toán tại cửa hàng",
+    "width": 1440.0,
+    "height": "1292",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 07 · Đặt chỗ & xác nhận · Nguyễn Lương Bằng"
+    ]
+  },
+  {
+    "id": "1095:12148",
+    "name": "C04a · SafeSpace / Xác nhận đơn & chính sách",
+    "width": 1440.0,
+    "height": "1380",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 07 · Đặt chỗ & xác nhận · Nguyễn Lương Bằng"
+    ]
+  },
+  {
+    "id": "1095:12284",
+    "name": "C04a-chưa tích · Xác nhận đơn & chính sách / Chưa đồng ý",
+    "width": 1440.0,
+    "height": "1380",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 07 · Đặt chỗ & xác nhận · Nguyễn Lương Bằng"
+    ]
+  },
+  {
+    "id": "436:11172",
+    "name": "C03b · SafeSpace / Chi tiết cơ sở / Him Lam",
+    "width": 1440.0,
+    "height": "1516",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 08 · Luồng cơ sở Him Lam"
+    ]
+  },
+  {
+    "id": "436:11237",
+    "name": "C03b-sđ · Chi tiết cơ sở / Sơ đồ tình trạng kho / Him Lam",
+    "width": 1440.0,
+    "height": "1583",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 08 · Luồng cơ sở Him Lam"
+    ]
+  },
+  {
+    "id": "436:11248",
+    "name": "C04 · SafeSpace / Đặt chỗ & Thanh toán / Him Lam",
+    "width": 1440.0,
+    "height": "1292",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 08 · Luồng cơ sở Him Lam"
+    ]
+  },
+  {
+    "id": "436:11333",
+    "name": "C04c · SafeSpace / Đặt chỗ & Thanh toán tại cửa hàng / Him Lam",
+    "width": 1440.0,
+    "height": "1292",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 08 · Luồng cơ sở Him Lam"
+    ]
+  },
+  {
+    "id": "1095:12401",
+    "name": "C04a · SafeSpace / Xác nhận đơn & chính sách / Him Lam",
+    "width": 1440.0,
+    "height": "1380",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 08 · Luồng cơ sở Him Lam"
+    ]
+  },
+  {
+    "id": "436:11423",
+    "name": "C03b · SafeSpace / Chi tiết cơ sở / Phú Xuân",
+    "width": 1440.0,
+    "height": "1516",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 09 · Luồng cơ sở Phú Xuân"
+    ]
+  },
+  {
+    "id": "436:11486",
+    "name": "C03b-sđ · Chi tiết cơ sở / Sơ đồ tình trạng kho / Phú Xuân",
+    "width": 1440.0,
+    "height": "1525",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 09 · Luồng cơ sở Phú Xuân"
+    ]
+  },
+  {
+    "id": "436:11497",
+    "name": "C04 · SafeSpace / Đặt chỗ & Thanh toán / Phú Xuân",
+    "width": 1440.0,
+    "height": "1292",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 09 · Luồng cơ sở Phú Xuân"
+    ]
+  },
+  {
+    "id": "436:11581",
+    "name": "C04c · SafeSpace / Đặt chỗ & Thanh toán tại cửa hàng / Phú Xuân",
+    "width": 1440.0,
+    "height": "1292",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 09 · Luồng cơ sở Phú Xuân"
+    ]
+  },
+  {
+    "id": "1095:12568",
+    "name": "C04a · SafeSpace / Xác nhận đơn & chính sách / Phú Xuân",
+    "width": 1440.0,
+    "height": "1380",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 09 · Luồng cơ sở Phú Xuân"
+    ]
+  },
+  {
+    "id": "436:12381",
+    "name": "C03b · SafeSpace / Chi tiết cơ sở / Tân Thuận",
+    "width": 1440.0,
+    "height": "1476",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:12449",
+    "name": "C03b-sđ · Chi tiết cơ sở / Sơ đồ tình trạng kho / Tân Thuận",
+    "width": 1440.0,
+    "height": "1583",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:12460",
+    "name": "C03b · SafeSpace / Chi tiết cơ sở / Phú Mỹ Hưng",
+    "width": 1440.0,
+    "height": "1476",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:12528",
+    "name": "C03b-sđ · Chi tiết cơ sở / Sơ đồ tình trạng kho / Phú Mỹ Hưng",
+    "width": 1440.0,
+    "height": "1583",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:12539",
+    "name": "C03b · SafeSpace / Chi tiết cơ sở / Bình Thạnh",
+    "width": 1440.0,
+    "height": "1476",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:12607",
+    "name": "C03b-sđ · Chi tiết cơ sở / Sơ đồ tình trạng kho / Bình Thạnh",
+    "width": 1440.0,
+    "height": "1583",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:12618",
+    "name": "C03b · SafeSpace / Chi tiết cơ sở / Nhà Bè",
+    "width": 1440.0,
+    "height": "1476",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:12686",
+    "name": "C03b-sđ · Chi tiết cơ sở / Sơ đồ tình trạng kho / Nhà Bè",
+    "width": 1440.0,
+    "height": "1583",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:12697",
+    "name": "C03b · SafeSpace / Chi tiết cơ sở / Bình Chánh",
+    "width": 1440.0,
+    "height": "1476",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:12765",
+    "name": "C03b-sđ · Chi tiết cơ sở / Sơ đồ tình trạng kho / Bình Chánh",
+    "width": 1440.0,
+    "height": "1583",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:12776",
+    "name": "C03b · SafeSpace / Chi tiết cơ sở / Thủ Đức",
+    "width": 1440.0,
+    "height": "1476",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:12844",
+    "name": "C03b-sđ · Chi tiết cơ sở / Sơ đồ tình trạng kho / Thủ Đức",
+    "width": 1440.0,
+    "height": "1583",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:12855",
+    "name": "C03b · SafeSpace / Chi tiết cơ sở / Gò Vấp",
+    "width": 1440.0,
+    "height": "1476",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:12923",
+    "name": "C03b-sđ · Chi tiết cơ sở / Sơ đồ tình trạng kho / Gò Vấp",
+    "width": 1440.0,
+    "height": "1583",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:12934",
+    "name": "C03b · SafeSpace / Chi tiết cơ sở / Tân Bình",
+    "width": 1440.0,
+    "height": "1476",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:13002",
+    "name": "C03b-sđ · Chi tiết cơ sở / Sơ đồ tình trạng kho / Tân Bình",
+    "width": 1440.0,
+    "height": "1583",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:13013",
+    "name": "C03b · SafeSpace / Chi tiết cơ sở / Bình Tân",
+    "width": 1440.0,
+    "height": "1476",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "436:13081",
+    "name": "C03b-sđ · Chi tiết cơ sở / Sơ đồ tình trạng kho / Bình Tân",
+    "width": 1440.0,
+    "height": "1583",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 10 · Chi tiết các cơ sở khác (mở từ bản đồ)"
+    ]
+  },
+  {
+    "id": "1050:12699",
+    "name": "D30-07 · Hủy đơn & tài khoản nhận hoàn",
+    "width": 1440.0,
+    "height": "993",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 11 · Đơn đặt chỗ"
+    ]
+  },
+  {
+    "id": "1085:12208",
+    "name": "C14 · SafeSpace / Đơn đặt chỗ",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 11 · Đơn đặt chỗ"
+    ]
+  },
+  {
+    "id": "1085:12364",
+    "name": "C14b · SafeSpace / Đơn đặt chỗ / Đã huỷ đơn",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 11 · Đơn đặt chỗ"
+    ]
+  },
+  {
+    "id": "1085:12518",
+    "name": "C14c · SafeSpace / Đơn đặt chỗ / Đã hoàn tiền",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 11 · Đơn đặt chỗ"
+    ]
+  },
+  {
+    "id": "1085:12655",
+    "name": "C14-trống · SafeSpace / Đơn đặt chỗ / Chưa có đơn",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 11 · Đơn đặt chỗ"
+    ]
+  },
+  {
+    "id": "436:11914",
+    "name": "C06-trống · SafeSpace / Kho của tôi / Chưa có kho",
+    "width": 1440.0,
+    "height": "407",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 12 · Kho của tôi & hợp đồng"
+    ]
+  },
+  {
+    "id": "1050:12559",
+    "name": "D30-06 · Hợp đồng đã hết hạn",
+    "width": 1440.0,
+    "height": "1006",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 12 · Kho của tôi & hợp đồng",
+      "03 · Khách theo dõi cọc và QR"
+    ]
+  },
+  {
+    "id": "1084:12160",
+    "name": "C06 · SafeSpace / Kho của tôi",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 12 · Kho của tôi & hợp đồng"
+    ]
+  },
+  {
+    "id": "1084:12363",
+    "name": "C07 · SafeSpace / Hợp đồng & quản lý kho",
+    "width": 1440.0,
+    "height": "1074",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 12 · Kho của tôi & hợp đồng"
+    ]
+  },
+  {
+    "id": "1084:12566",
+    "name": "C07b · SafeSpace / Hợp đồng B-015",
+    "width": 1440.0,
+    "height": "1074",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 12 · Kho của tôi & hợp đồng"
+    ]
+  },
+  {
+    "id": "1048:12694",
+    "name": "D30-05 · Gia hạn đã duyệt · Chờ thanh toán",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 13 · Gia hạn kho",
+      "Khách hàng · Gia hạn tại quầy và kết quả"
+    ]
+  },
+  {
+    "id": "1084:12741",
+    "name": "C08 · SafeSpace / Yêu cầu gia hạn",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 13 · Gia hạn kho"
+    ]
+  },
+  {
+    "id": "1048:12519",
+    "name": "D30-03 · Yêu cầu trả kho A-102 (gộp D30-04 thành popup)",
+    "width": 1440.0,
+    "height": "1231",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 14 · Trả kho",
+      "Bổ sung · Trả kho và QR hết hiệu lực"
+    ]
+  },
+  {
+    "id": "1079:12222",
+    "name": "D30-03-lỗi · Yêu cầu trả kho / Trạng thái lỗi trên form",
+    "width": 1440.0,
+    "height": "1553",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 14 · Trả kho",
+      "Bổ sung · Trả kho và QR hết hiệu lực"
+    ]
+  },
+  {
+    "id": "1053:13123",
+    "name": "D30-15 · Theo dõi đối soát & khoản hoàn (khách)",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 14 · Trả kho",
+      "07 · Khách theo dõi trả kho và hoàn cọc"
+    ]
+  },
+  {
+    "id": "1052:13092",
+    "name": "D30-13 · Đối chiếu hư hỏng & đề nghị khắc phục (khách)",
+    "width": 1440.0,
+    "height": "1204",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 14 · Trả kho",
+      "Bổ sung · Đối chiếu hư hỏng sau trả kho"
+    ]
+  },
+  {
+    "id": "1101:12569",
+    "name": "C11h · Lịch sử thanh toán hợp đồng",
+    "width": 1440.0,
+    "height": "967",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 15 · Thanh toán & lịch hẹn",
+      "Bổ sung · Lịch sử thanh toán hợp đồng"
+    ]
+  },
+  {
+    "id": "1101:12732",
+    "name": "C11k · Kiểm tra trạng thái thanh toán",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 15 · Thanh toán & lịch hẹn",
+      "09 · Thanh toán hết phiên và tiền về muộn"
+    ]
+  },
+  {
+    "id": "1101:12197",
+    "name": "C11 · SafeSpace / Thanh toán & lịch hẹn",
+    "width": 1440.0,
+    "height": "1036",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 15 · Thanh toán & lịch hẹn"
+    ]
+  },
+  {
+    "id": "1101:12396",
+    "name": "C11b · SafeSpace / Thanh toán & lịch hẹn / Đã thanh toán gia hạn",
+    "width": 1440.0,
+    "height": "1092",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 15 · Thanh toán & lịch hẹn"
+    ]
+  },
+  {
+    "id": "1069:12231",
+    "name": "C12-0 · SafeSpace / Yêu cầu hỗ trợ / Chưa có hợp đồng",
+    "width": 1440.0,
+    "height": "1127",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 16 · Hỗ trợ",
+      "Bổ sung · Hỗ trợ chưa có hợp đồng"
+    ]
+  },
+  {
+    "id": "1053:13267",
+    "name": "D30-16 · Phương án hỗ trợ do sự cố cơ sở (khách)",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 16 · Hỗ trợ",
+      "Bổ sung · Sự cố cơ sở · Chọn phương án hỗ trợ"
+    ]
+  },
+  {
+    "id": "1077:11925",
+    "name": "D30-16b · Đã chuyển sang kho A-108 (khách)",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 16 · Hỗ trợ",
+      "Bổ sung · Sự cố cơ sở · Chọn phương án hỗ trợ"
+    ]
+  },
+  {
+    "id": "1069:12060",
+    "name": "C12 · SafeSpace / Yêu cầu hỗ trợ",
+    "width": 1440.0,
+    "height": "1104",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 16 · Hỗ trợ"
+    ]
+  },
+  {
+    "id": "1102:12051",
+    "name": "C12b · SafeSpace / Chi tiết yêu cầu hỗ trợ HT-0082",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 16 · Hỗ trợ"
+    ]
+  },
+  {
+    "id": "436:12107",
+    "name": "C13 · SafeSpace / Tài khoản",
+    "width": 1440.0,
+    "height": "922",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 17 · Tài khoản"
+    ]
+  },
+  {
+    "id": "436:12152",
+    "name": "C13a · Tài khoản / Sửa tên",
+    "width": 1440.0,
+    "height": "922",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 17 · Tài khoản"
+    ]
+  },
+  {
+    "id": "436:12197",
+    "name": "C13b · Tài khoản / Mật khẩu đã nhập",
+    "width": 1440.0,
+    "height": "922",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 17 · Tài khoản"
+    ]
+  },
+  {
+    "id": "436:12242",
+    "name": "C13c · Tài khoản / Xác nhận không khớp",
+    "width": 1440.0,
+    "height": "922",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 17 · Tài khoản"
+    ]
+  },
+  {
+    "id": "436:12287",
+    "name": "C13d · Tài khoản / Thiếu mật khẩu",
+    "width": 1440.0,
+    "height": "922",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 17 · Tài khoản"
+    ]
+  },
+  {
+    "id": "1047:12344",
+    "name": "C15 · Chính sách / Bản hiện hành",
+    "width": 1440.0,
+    "height": "1757",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 18 · Chính sách dịch vụ"
+    ]
+  },
+  {
+    "id": "1079:12031",
+    "name": "C15b · Chính sách / Theo hợp đồng của tôi",
+    "width": 1440.0,
+    "height": "1757",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Khách hàng · 18 · Chính sách dịch vụ"
+    ]
+  },
+  {
+    "id": "979:11194",
+    "name": "C02-khong-ket-qua · Chưa tìm thấy kho phù hợp",
+    "width": 1440.0,
+    "height": "765",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Bổ sung · Tìm kho và theo dõi hỗ trợ"
+    ]
+  },
+  {
+    "id": "1102:12220",
+    "name": "HT0091-cho · Yêu cầu hỗ trợ HT-0091",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Bổ sung · Tìm kho và theo dõi hỗ trợ"
+    ]
+  },
+  {
+    "id": "1102:12397",
+    "name": "HT0091-phan-hoi · Cơ sở đã phản hồi HT-0091",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Bổ sung · Tìm kho và theo dõi hỗ trợ"
+    ]
+  },
+  {
+    "id": "1102:12572",
+    "name": "HT0091-tra-loi · Khách trả lời cơ sở",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Bổ sung · Tìm kho và theo dõi hỗ trợ"
+    ]
+  },
+  {
+    "id": "1102:12748",
+    "name": "HT0091-thieu-noi-dung · Chưa nhập nội dung trả lời",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 02 · Khách hàng",
+      "Bổ sung · Tìm kho và theo dõi hỗ trợ"
+    ]
+  },
+  {
+    "id": "436:13093",
+    "name": "S01 · SafeSpace / Công việc trong ngày",
+    "width": 1440.0,
+    "height": "1379",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 01 · Tổng quan công việc"
+    ]
+  },
+  {
+    "id": "436:13355",
+    "name": "S01-trống · SafeSpace / Công việc trong ngày / Chưa có việc",
+    "width": 1440.0,
+    "height": "779",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 01 · Tổng quan công việc"
+    ]
+  },
+  {
+    "id": "436:13296",
+    "name": "S09a · SafeSpace / Thu tiền tại kho / Danh sách",
+    "width": 1440.0,
+    "height": "795",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 02 · Thu tiền tại quầy"
+    ]
+  },
+  {
+    "id": "436:13133",
+    "name": "S09 · SafeSpace / Thu tiền tại kho",
+    "width": 1440.0,
+    "height": "1049",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 02 · Thu tiền tại quầy"
+    ]
+  },
+  {
+    "id": "436:13378",
+    "name": "S09a-trống · SafeSpace / Thu tiền tại kho / Chưa có đơn",
+    "width": 1440.0,
+    "height": "653",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 02 · Thu tiền tại quầy"
+    ]
+  },
+  {
+    "id": "916:10453",
+    "name": "Báo sai lệch thanh toán",
+    "width": 1440.0,
+    "height": "1174",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 02 · Thu tiền tại quầy",
+      "Bổ sung · Báo sai lệch thanh toán"
+    ]
+  },
+  {
+    "id": "933:10886",
+    "name": "Thu tiền gia hạn tại quầy",
+    "width": 1440.0,
+    "height": "914",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 02 · Thu tiền tại quầy",
+      "Nhân viên · Gia hạn và thu tiền tại quầy"
+    ]
+  },
+  {
+    "id": "436:13307",
+    "name": "S02a · SafeSpace / Xác minh / Danh sách",
+    "width": 1440.0,
+    "height": "667",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 03 · Nhận chìa khóa vật lý / Xác minh"
+    ]
+  },
+  {
+    "id": "436:13163",
+    "name": "S02 · SafeSpace / Xác minh khách hàng",
+    "width": 1440.0,
+    "height": "924",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 03 · Nhận chìa khóa vật lý / Xác minh"
+    ]
+  },
+  {
+    "id": "1052:13237",
+    "name": "D30-14 · Xác minh & nhận chìa khóa (nhân viên)",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 03 · Nhận chìa khóa vật lý / Xác minh"
+    ]
+  },
+  {
+    "id": "1085:12969",
+    "name": "S03a · Danh sách chờ nhận chìa khóa",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 03 · Nhận chìa khóa vật lý / Xác minh"
+    ]
+  },
+  {
+    "id": "1050:12843",
+    "name": "D30-08 · Kiểm tra trả kho & khấu trừ (nhân viên)",
+    "width": 1440.0,
+    "height": "1156",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 04 · Kiểm tra trả kho"
+    ]
+  },
+  {
+    "id": "1085:12805",
+    "name": "S04a · SafeSpace / Kiểm tra trả kho / Danh sách",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 04 · Kiểm tra trả kho"
+    ]
+  },
+  {
+    "id": "436:13344",
+    "name": "S05a · SafeSpace / Hỗ trợ / Danh sách",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 05 · Hỗ trợ khách hàng"
+    ]
+  },
+  {
+    "id": "436:13262",
+    "name": "S05 · SafeSpace / Xử lý hỗ trợ",
+    "width": 1440.0,
+    "height": "958",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 05 · Hỗ trợ khách hàng"
+    ]
+  },
+  {
+    "id": "827:10177",
+    "name": "S05r · SafeSpace / Xử lý hỗ trợ / Cấp lại quyền mở kho",
+    "width": 1440.0,
+    "height": "1044",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 05 · Hỗ trợ khách hàng"
+    ]
+  },
+  {
+    "id": "933:11261",
+    "name": "Hỗ trợ khách chưa có hợp đồng",
+    "width": 1440.0,
+    "height": "1153",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "Nhân viên · 05 · Hỗ trợ khách hàng",
+      "08 · Nhân viên hỗ trợ chưa có hợp đồng"
+    ]
+  },
+  {
+    "id": "1051:13091",
+    "name": "D30-11 · Biên bản xử lý đồ · Quá hạn ngày 20 (nhân viên)",
+    "width": 1440.0,
+    "height": "994",
+    "section": [
+      "Main · 03 · Nhân viên cơ sở",
+      "02 · Nhân viên xử lý đồ quá hạn"
+    ]
+  },
+  {
+    "id": "436:13392",
+    "name": "M01 · SafeSpace / Tổng quan cơ sở",
+    "width": 1440.0,
+    "height": "835",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 01 · Tổng quan"
+    ]
+  },
+  {
+    "id": "436:13431",
+    "name": "M02 · SafeSpace / Danh sách kho",
+    "width": 1440.0,
+    "height": "820",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 02 · Danh sách & tình trạng kho"
+    ]
+  },
+  {
+    "id": "748:10113",
+    "name": "M05 · Còn 2 yêu cầu chờ",
+    "width": 1440.0,
+    "height": "820",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 03 · Phân bổ kho / Yêu cầu đang chờ"
+    ]
+  },
+  {
+    "id": "436:13637",
+    "name": "M05 · SafeSpace / Phân bổ kho",
+    "width": 1440.0,
+    "height": "873",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 03 · Phân bổ kho / Yêu cầu đang chờ"
+    ]
+  },
+  {
+    "id": "748:10199",
+    "name": "M05 · Còn 1 yêu cầu chờ",
+    "width": 1440.0,
+    "height": "820",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 03 · Phân bổ kho / Yêu cầu đang chờ"
+    ]
+  },
+  {
+    "id": "748:10279",
+    "name": "M05 · Đã xử lý hết · Ẩn huy hiệu",
+    "width": 1440.0,
+    "height": "820",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 03 · Phân bổ kho / Yêu cầu đang chờ"
+    ]
+  },
+  {
+    "id": "848:10909",
+    "name": "M05-không ô · Đã thu tiền / Chưa có ô phù hợp",
+    "width": 1440.0,
+    "height": "773",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 03 · Phân bổ kho / Yêu cầu đang chờ"
+    ]
+  },
+  {
+    "id": "436:13684",
+    "name": "M06 · SafeSpace / Phân công nhân viên",
+    "width": 1440.0,
+    "height": "868",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 04 · Phân công nhân viên"
+    ]
+  },
+  {
+    "id": "1053:13402",
+    "name": "D30-17 · Duyệt gia hạn & chốt giá (quản lý)",
+    "width": 1440.0,
+    "height": "1055",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 05 · Duyệt gia hạn"
+    ]
+  },
+  {
+    "id": "916:10708",
+    "name": "Chi tiết hồ sơ quá hạn",
+    "width": 1440.0,
+    "height": "1224",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 06 · Hợp đồng & quá hạn",
+      "Bổ sung · Chi tiết quá hạn và nhắc khách"
+    ]
+  },
+  {
+    "id": "924:10607",
+    "name": "Đối soát báo cáo sai lệch",
+    "width": 1440.0,
+    "height": "1159",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 06 · Hợp đồng & quá hạn",
+      "Bổ sung · Đối soát báo cáo sai lệch"
+    ]
+  },
+  {
+    "id": "1051:12926",
+    "name": "D30-10 · Xử lý hợp đồng do sự cố cơ sở (quản lý)",
+    "width": 1440.0,
+    "height": "1241",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 06 · Hợp đồng & quá hạn",
+      "Bổ sung · Sự cố cơ sở ảnh hưởng hợp đồng"
+    ]
+  },
+  {
+    "id": "1076:11700",
+    "name": "D30-18 · Xử lý phản hồi hư hỏng (quản lý)",
+    "width": 1440.0,
+    "height": "1125",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 06 · Hợp đồng & quá hạn",
+      "Bổ sung · Xử lý phản hồi hư hỏng sau trả kho"
+    ]
+  },
+  {
+    "id": "1076:11827",
+    "name": "D30-18b · Kiểm tra khắc phục hư hỏng (quản lý)",
+    "width": 1440.0,
+    "height": "1027",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 06 · Hợp đồng & quá hạn",
+      "Bổ sung · Xử lý phản hồi hư hỏng sau trả kho"
+    ]
+  },
+  {
+    "id": "1085:13132",
+    "name": "M07 · SafeSpace / Hợp đồng & quá hạn",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 06 · Hợp đồng & quá hạn"
+    ]
+  },
+  {
+    "id": "436:13553",
+    "name": "M04 · SafeSpace / Báo cáo doanh thu",
+    "width": 1440.0,
+    "height": "927",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 07 · Báo cáo"
+    ]
+  },
+  {
+    "id": "828:10212",
+    "name": "M08 · SafeSpace / Hoàn tiền đơn huỷ",
+    "width": 1440.0,
+    "height": "887",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 08 · Hoàn tiền đơn huỷ"
+    ]
+  },
+  {
+    "id": "828:10296",
+    "name": "Kết quả · Đã xác nhận hoàn 4.485.000 đ (trên M08)",
+    "width": 1440.0,
+    "height": "860",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 08 · Hoàn tiền đơn huỷ"
+    ]
+  },
+  {
+    "id": "848:10824",
+    "name": "M08-kết thúc · Đã hoàn các yêu cầu",
+    "width": 1440.0,
+    "height": "833",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 08 · Hoàn tiền đơn huỷ"
+    ]
+  },
+  {
+    "id": "994:12270",
+    "name": "M08-trong · Chưa có đơn huỷ cần hoàn tiền",
+    "width": 1440.0,
+    "height": "563",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 08 · Hoàn tiền đơn huỷ"
+    ]
+  },
+  {
+    "id": "994:12427",
+    "name": "M08-loi-tai · Không tải được danh sách hoàn tiền",
+    "width": 1440.0,
+    "height": "586",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Quản lý cơ sở · 08 · Hoàn tiền đơn huỷ"
+    ]
+  },
+  {
+    "id": "928:10755",
+    "name": "Báo cáo sai lệch thanh toán",
+    "width": 1440.0,
+    "height": "1029",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "01 · Danh sách báo cáo sai lệch"
+    ]
+  },
+  {
+    "id": "1051:12752",
+    "name": "D30-09 · Duyệt đối soát & thực hiện hoàn tiền (quản lý)",
+    "width": 1440.0,
+    "height": "995",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "06 · Quản lý hoàn cọc sau trả kho"
+    ]
+  },
+  {
+    "id": "979:12075",
+    "name": "M08-Han · Hoàn tiền · Phạm Gia Hân",
+    "width": 1440.0,
+    "height": "867",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Bổ sung · Hoàn tiền từng khách và gia hạn thay đổi"
+    ]
+  },
+  {
+    "id": "979:12236",
+    "name": "M08-Tung · Hoàn tiền · Võ Thanh Tùng",
+    "width": 1440.0,
+    "height": "764",
+    "section": [
+      "Main · 04 · Quản lý cơ sở",
+      "Bổ sung · Hoàn tiền từng khách và gia hạn thay đổi"
+    ]
+  },
+  {
+    "id": "436:13804",
+    "name": "B01 · SafeSpace / Tổng quan hệ thống",
+    "width": 1440.0,
+    "height": "952",
+    "section": [
+      "Main · 05 · Quản lý vận hành KD",
+      "Vận hành KD · 01 · Tổng quan hệ thống"
+    ]
+  },
+  {
+    "id": "436:14109",
+    "name": "B05 · SafeSpace / Quản lý cơ sở",
+    "width": 1440.0,
+    "height": "868",
+    "section": [
+      "Main · 05 · Quản lý vận hành KD",
+      "Vận hành KD · 02 · Quản lý các cơ sở"
+    ]
+  },
+  {
+    "id": "923:10626",
+    "name": "Quản lý trạng thái chính sách",
+    "width": 1440.0,
+    "height": "709",
+    "section": [
+      "Main · 05 · Quản lý vận hành KD",
+      "Vận hành KD · 03 · Chính sách",
+      "Bổ sung · Ngừng và xoá quy tắc"
+    ]
+  },
+  {
+    "id": "1052:12950",
+    "name": "D30-12 · Phiên bản chính sách thuê kho (vận hành KD)",
+    "width": 1440.0,
+    "height": "1057",
+    "section": [
+      "Main · 05 · Quản lý vận hành KD",
+      "Vận hành KD · 03 · Chính sách"
+    ]
+  },
+  {
+    "id": "436:13951",
+    "name": "B03 · Giá & phí / Chọn cơ sở",
+    "width": 1440.0,
+    "height": "1100",
+    "section": [
+      "Main · 05 · Quản lý vận hành KD",
+      "Vận hành KD · 04 · Giá & phí"
+    ]
+  },
+  {
+    "id": "923:10522",
+    "name": "B03a · Giá & phí / Chi tiết cơ sở",
+    "width": 1440.0,
+    "height": "1000",
+    "section": [
+      "Main · 05 · Quản lý vận hành KD",
+      "Vận hành KD · 04 · Giá & phí",
+      "Bổ sung · Giá thuê theo cơ sở"
+    ]
+  },
+  {
+    "id": "928:11093",
+    "name": "Bảng giá cơ sở · Chưa có mức giá",
+    "width": 1440.0,
+    "height": "690",
+    "section": [
+      "Main · 05 · Quản lý vận hành KD",
+      "Vận hành KD · 04 · Giá & phí",
+      "04 · Bảng giá chưa có dữ liệu"
+    ]
+  },
+  {
+    "id": "436:14019",
+    "name": "B04 · SafeSpace / Báo cáo toàn hệ thống",
+    "width": 1440.0,
+    "height": "1073",
+    "section": [
+      "Main · 05 · Quản lý vận hành KD",
+      "Vận hành KD · 05 · Báo cáo hệ thống"
+    ]
+  },
+  {
+    "id": "938:11028",
+    "name": "Xuất dữ liệu báo cáo",
+    "width": 1440.0,
+    "height": "783",
+    "section": [
+      "Main · 05 · Quản lý vận hành KD",
+      "Vận hành KD · 05 · Báo cáo hệ thống",
+      "10 · Báo cáo và xuất CSV"
+    ]
+  },
+  {
+    "id": "436:14158",
+    "name": "A01 · SafeSpace / Quản lý tài khoản",
+    "width": 1440.0,
+    "height": "931",
+    "section": [
+      "Main · 06 · Quản trị hệ thống"
+    ]
+  },
+  {
+    "id": "436:14276",
+    "name": "A02 · SafeSpace / Thêm tài khoản / Chọn cơ sở",
+    "width": 1440.0,
+    "height": "1089",
+    "section": [
+      "Main · 06 · Quản trị hệ thống"
+    ]
+  },
+  {
+    "id": "436:14317",
+    "name": "A03 · SafeSpace / Vai trò & quyền truy cập / Chỉ xem",
+    "width": 1440.0,
+    "height": "900",
+    "section": [
+      "Main · 06 · Quản trị hệ thống"
+    ]
+  },
+  {
+    "id": "436:14422",
+    "name": "A04 · SafeSpace / Nhật ký hoạt động",
+    "width": 1440.0,
+    "height": "673",
+    "section": [
+      "Main · 06 · Quản trị hệ thống"
+    ]
+  },
+  {
+    "id": "436:14503",
+    "name": "A05 · SafeSpace / Chi tiết tài khoản",
+    "width": 1440.0,
+    "height": "1308",
+    "section": [
+      "Main · 06 · Quản trị hệ thống"
+    ]
+  },
+  {
+    "id": "1171:12048",
+    "name": "A02a · Thêm tài khoản / Chọn cơ sở",
+    "width": 1440.0,
+    "height": "1000",
+    "section": [
+      "Main · 06 · Quản trị hệ thống",
+      "Admin · Chọn cơ sở & thao tác vai trò"
+    ]
+  },
+  {
+    "id": "1171:12176",
+    "name": "A05a · Chi tiết tài khoản / Chọn cơ sở",
+    "width": 1440.0,
+    "height": "1000",
+    "section": [
+      "Main · 06 · Quản trị hệ thống",
+      "Admin · Chọn cơ sở & thao tác vai trò"
+    ]
+  },
+  {
+    "id": "1171:12701",
+    "name": "A05b · Chi tiết tài khoản / Đổi vai trò",
+    "width": 1440.0,
+    "height": "1000",
+    "section": [
+      "Main · 06 · Quản trị hệ thống",
+      "Admin · Chọn cơ sở & thao tác vai trò"
+    ]
+  },
+  {
+    "id": "1171:12904",
+    "name": "A05c · Chi tiết tài khoản / Cấp lại vai trò",
+    "width": 1440.0,
+    "height": "1000",
+    "section": [
+      "Main · 06 · Quản trị hệ thống",
+      "Admin · Chọn cơ sở & thao tác vai trò"
+    ]
+  }
+]

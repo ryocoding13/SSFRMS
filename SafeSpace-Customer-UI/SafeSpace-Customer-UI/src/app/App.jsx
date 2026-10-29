@@ -36,6 +36,7 @@ import FacilityMapPage from "../features/customer/facilities/FacilityMapPage.jsx
 import HomePage from "../features/customer/home/HomePage.jsx";
 import CustomerDashboardPage from "../features/customer/dashboard/CustomerDashboardPage.jsx";
 import DoorScannerPage from "../features/customer/access/DoorScannerPage.jsx";
+import { PaymentStatusPage } from "../features/customer/payments/PaymentStatusPage.jsx";
 import PaymentListPage from "../features/customer/payments/PaymentListPage.jsx";
 import CustomerProfilePage from "../features/customer/profile/CustomerProfilePage.jsx";
 import { HelpPage } from "../features/customer/help/HelpPage.jsx";
@@ -45,6 +46,7 @@ import BusinessRoutes from "../features/business/BusinessRoutes.jsx";
 import { homeFor, isBusinessRoles, isManagerRoles, isOpsRoles, isStaffRoles } from "../shared/utils/roles.js";
 import FacilityOperationsRoutes from "../features/facility-operations/FacilityOperationsRoutes.jsx";
 import { OpsProvider } from "../features/facility-operations/state/FacilityOperationsProvider.jsx";
+import { CancelReservationPage } from "../features/customer/reservations/CancelReservationPage.jsx";
 import ReservationListPage from "../features/customer/reservations/ReservationListPage.jsx";
 import SupportPage from "../features/customer/support/SupportPage.jsx";
 import SupportTicketDetailPage from "../features/customer/support/SupportTicketDetailPage.jsx";
@@ -97,16 +99,16 @@ function renderPage({ page, parts, query }) {
     case "checkout": return b === "failed" ? <CheckoutFailedPage id={a} /> : <CheckoutPage id={a} />;
     case "confirmation": return <ReservationDetailPage id={a} />;
     case "overview": return <CustomerDashboardPage />;
-    case "reservations": return a ? <ReservationDetailPage id={a} mode="detail" /> : <ReservationListPage />;
+    case "reservations": return a && b === "cancel" ? <CancelReservationPage key={a} id={a} /> : a ? <ReservationDetailPage id={a} mode="detail" /> : <ReservationListPage />;
     case "units":
       if (a && b === "renewal-status") return <RenewalStatusPage id={a} />;
       if (a && b === "deposit") return <DepositLedgerPage id={a} />;
       if (a && b === "progress") return <ReturnProgressPage id={a} />;
       if (a && b === "renew") return <RenewalRequestPage id={a} />;
-      if (a && b === "return") return <ReturnRequestPage id={a} />;
+      if (a && b === "return") return <ReturnRequestPage key={a} id={a} />;
       return a ? <RentedUnitDetailPage id={a} /> : <RentedUnitListPage />;
     case "sent": return <RequestSentPage query={query} />;
-    case "payments": return a === "history" ? <PaymentHistoryPage /> : <PaymentListPage />;
+    case "payments": return a === "history" ? <PaymentHistoryPage /> : a === "check" ? <PaymentStatusPage key={b} id={b} /> : <PaymentListPage />;
     case "support": return a ? <SupportTicketDetailPage id={a} /> : <SupportPage query={query} />;
     case "profile": return <CustomerProfilePage />;
     // C07r: máy quét ở cửa kho (mô phỏng), không cần đăng nhập như thiết bị gắn tại cơ sở

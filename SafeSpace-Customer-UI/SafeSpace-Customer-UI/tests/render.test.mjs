@@ -21,7 +21,7 @@ try {
   const seed = (authed, opsUser = null) => memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed, data: createSeedData(), opsUser }));
 
   const publicRoutes = ["reset-password","home", "login", "register", "pricing", "guide", "find", "find?type=climate&band=M", "find/map", "find/map?type=climate", "find/map?area=Kh%C3%B4ng%20c%C3%B3", "find/1", "find/1?view=map&unit=K02", "find/8?type=climate&view=map", "find/999", "nope", "door", "door?unit=B-015"];
-  const privateRoutes = ["refunds","policies", "payments/history", "inquiries", "inquiries/HT-0091", "units/HĐ-2026-0142/deposit", "units/HĐ-2026-0086/progress", "units/HĐ-2026-0086/renewal-status",
+  const privateRoutes = ["reservations/SS-20260914-0142/cancel", "reservations/missing/cancel","refunds","policies", "payments/check/SS-0086-REN", "payments/check/missing", "payments/history", "inquiries", "inquiries/HT-0091", "units/HĐ-2026-0142/deposit", "units/HĐ-2026-0086/progress", "units/HĐ-2026-0086/renewal-status",
     "overview", "units", "units/HĐ-2026-0142", "units/HĐ-2026-0086", "units/HĐ-2026-0086/renew", "units/HĐ-2026-0142/return", "units/unknown",
     "sent?type=renew&contract=HĐ-2026-0086", "reservations", "reservations/SS-20260914-0142", "reservations/none",
     "confirmation/SS-20260914-0142", "checkout/SS-20260914-0142", "payments", "support", "support/HT-0082", "support/unknown", "support?contract=HĐ-2026-0142&topic=SCHEDULE", "profile",
@@ -37,6 +37,56 @@ try {
       count++;
     }
   }
+  seed(true);
+  window.location.hash = "#/units/HĐ-2026-0142/return";
+  const returnHtml = renderToStaticMarkup(React.createElement(App));
+  for (const text of ["Hiện trạng kho", "Tải ảnh kho trống", "Tài khoản nhận hoàn", "Không thể huỷ yêu cầu", "QR/PIN khoá ngay"]) assert.ok(returnHtml.includes(text), text);
+  window.location.hash = "#/reservations/SS-20260914-0142/cancel";
+  const cancelHtml = renderToStaticMarkup(React.createElement(App));
+  for (const text of ["Tài khoản nhận hoàn", "Số tài khoản", "Chủ tài khoản", "Khoản hoàn dự kiến"]) assert.ok(cancelHtml.includes(text), text);
+  const { createWorkflowSeed } = await vite.ssrLoadModule("/src/features/facility-operations/workflows/workflowModel.js");
+  const workflowFixture = createWorkflowSeed();
+  const owner = createSeedData().user.user_id;
+  workflowFixture.depositRefunds = [{id:"HC-test",ownerId:owner,unit:"A-102",contractId:"HĐ-test",amount:662500,deposit:1150000,overdue:172500,cleaning:115000,damage:200000,status:"PENDING",bankName:"VCB",accountNumber:"0123456789",transactionRef:"SHOULD-NOT-SHOW"}, {id:"HC-other",ownerId:999999,unit:"SECRET-UNIT",amount:10,status:"PAID"}];
+  memory.set("safespace.approved-workflows.demo.v1", JSON.stringify(workflowFixture));
+  window.location.hash = "#/refunds";
+  const pendingRefundHtml = renderToStaticMarkup(React.createElement(App));
+  for (const text of ["Chờ hoàn", "662.500", "Phí quá hạn", "••••6789", "Chưa có thông tin"]) assert.ok(pendingRefundHtml.includes(text),text);
+  for (const text of ["SHOULD-NOT-SHOW", "SECRET-UNIT", "0123456789", "Khoản chưa thanh toán"]) assert.ok(!pendingRefundHtml.includes(text),text);
+  workflowFixture.depositRefunds[0].status = "PAID";
+  memory.set("safespace.approved-workflows.demo.v1", JSON.stringify(workflowFixture));
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Đã hoàn"));
+  delete workflowFixture.depositRefunds[0].amount;
+  workflowFixture.depositRefunds[0].status = "PENDING";
+  memory.set("safespace.approved-workflows.demo.v1", JSON.stringify(workflowFixture));
+  const incompleteRefundHtml = renderToStaticMarkup(React.createElement(App));
+  assert.ok(incompleteRefundHtml.includes("Chưa có dữ liệu"));
+  assert.ok(!incompleteRefundHtml.includes("Không còn cọc hoàn"));
+  memory.delete("safespace.approved-workflows.demo.v1");
+  // C06: thao tác nhanh không mở QR cho hợp đồng đã kết thúc / đã gửi trả kho.
+  const recordData = createSeedData();
+  recordData.contracts = [{ ...recordData.contracts[0], status: "ENDED" }];
+  memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: recordData }));
+  window.location.hash = "#/units";
+  const endedUnits = renderToStaticMarkup(React.createElement(App));
+  assert.ok(endedUnits.includes("Xem hợp đồng") && !endedUnits.includes("Xem QR &amp; PIN"));
+  recordData.contracts[0].status = "ACTIVE";
+  recordData.contracts[0].end_date = "2099-12-31";
+  recordData.returns = [{ contract_id: recordData.contracts[0].contract_id, status: "PENDING" }];
+  memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: recordData }));
+  const returningUnits = renderToStaticMarkup(React.createElement(App));
+  assert.match(returningUnits, /<button[^>]*disabled[^>]*>Xem QR &amp; PIN<\/button>/);
+  recordData.contracts = [];
+  recordData.reservations = [];
+  memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: recordData }));
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Bạn chưa thuê kho nào"));
+  window.location.hash = "#/reservations";
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Bạn chưa có đơn đặt chỗ nào"));
+  const { default: ConfirmDialog } = await vite.ssrLoadModule("/src/shared/components/ConfirmDialog.jsx");
+  const zeroSummary = renderToStaticMarkup(React.createElement(ConfirmDialog, { title: "Xác nhận", rows: [["Số tiền", 0]], onCancel() {}, onConfirm() {} }));
+  assert.ok(zeroSummary.includes("<dd>0</dd>"), "Số 0 phải được giữ trong popup");
+  const noSummary = renderToStaticMarkup(React.createElement(ConfirmDialog, { title: "Xác nhận", rows: [], onCancel() {}, onConfirm() {} }));
+  assert.ok(!noSummary.includes("confirm-summary"), "Không dựng khung thông tin rỗng");
   const d32Data = createSeedData();
   d32Data.ledger.push({ref:"LEGACY-FEE",kind:"DAMAGE_FEE",fee:true,amount:999999,payable:true,status:"UNPAID",label:"LEGACY-FEE-NOT-COLLECTIBLE"});
   d32Data.ledger.push({ref:"REFUND-WAIT",kind:"REFUND",amount:100,status:"REFUND_PENDING",label:"Khoản hoàn mới"});
@@ -46,6 +96,32 @@ try {
   assert.ok(!paymentsHtml.includes("LEGACY-FEE-NOT-COLLECTIBLE"));
   assert.ok(!paymentsHtml.includes("Thanh toán phí tại quầy"));
   assert.ok(paymentsHtml.includes("Chờ hoàn") && paymentsHtml.includes("Gia hạn"));
+  window.location.hash = "#/payments/history";
+  const historyHtml = renderToStaticMarkup(React.createElement(App));
+  assert.ok(!historyHtml.includes("Khoản hoàn mới"), "History không biến khoản chờ hoàn thành giao dịch hoàn tất");
+  for (const tone of ["confirm", "danger", "success", "failure", "warning", "info"]) {
+    const html = renderToStaticMarkup(React.createElement(ConfirmDialog, {tone, title:"Thông báo", rows:[], onCancel() {}, onConfirm() {}}));
+    assert.ok(html.includes(`modal--${tone}`) && html.includes('role="dialog"'));
+  }
+  seed(true);
+  window.location.hash = "#/payments/check/SS-0086-REN";
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Kiểm tra trạng thái thanh toán"));
+  window.location.hash = "#/units/HĐ-2026-0142/renew";
+  const renewalHtml = renderToStaticMarkup(React.createElement(App));
+  assert.ok(renewalHtml.includes('type="radio"') && renewalHtml.includes('type="checkbox"') && renewalHtml.includes("Chi phí dự kiến"));
+  seed(true);
+  const lifecycleData = createSeedData();
+  lifecycleData.renewals = [{renewal_id:"GH-expired",contract_id:"HĐ-2026-0086",months:3,status:"EXPIRED",old_end:"2026-09-01",new_end:"2026-12-01",amount:1000000,payment_deadline_at:"2026-09-01T03:00:00Z"}];
+  memory.set(STORAGE_KEY, JSON.stringify({version:5,authed:true,data:lifecycleData}));
+  window.location.hash = "#/units/HĐ-2026-0086/renewal-status";
+  const expiredRenewalHtml = renderToStaticMarkup(React.createElement(App));
+  assert.ok(expiredRenewalHtml.includes("Đã hết hạn thanh toán"));
+  assert.ok(!expiredRenewalHtml.includes("Thanh toán PayOS") && !expiredRenewalHtml.includes("Chọn thanh toán tại quầy"));
+  window.location.hash = "#/profile";
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Tên đăng nhập"));
+  window.location.hash = "#/register";
+  seed(false);
+  assert.match(renderToStaticMarkup(React.createElement(App)), /autoComplete="username"/i);
   // Khu vận hành: nhân viên (S01–S09) và quản lý cơ sở (M01–M08)
   const opsRoutes = {
     STAFF: ["staff/mismatch", "staff/renewal-payments", "staff/overdue", "staff/inquiries",
