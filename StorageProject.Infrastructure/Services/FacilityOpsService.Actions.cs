@@ -114,22 +114,39 @@ public partial class FacilityOpsService
         if (h.Contract.Status is not ("ACTIVE" or "EXPIRING")) throw new InvalidOperationException("Cần thanh toán và được cấp hợp đồng trước khi nhận chìa khóa.");
         if (h.Status != "SCHEDULED") throw new InvalidOperationException("Khách hàng này đã được xác minh.");
 
-        var docNumber = (request.DocNumber ?? string.Empty).Trim();
-        if (!DocNumberPattern.IsMatch(docNumber))
+        var docType = Clip(request.DocType, 50);
+        object evidence;
+        if (request.OriginalDocumentValid.HasValue || request.BookingMatched.HasValue)
         {
-            throw new ArgumentException("Số giấy tờ gồm 9 hoặc 12 chữ số (CCCD/CMND) hoặc 1 chữ + 7 số (hộ chiếu).");
+            // S02 mới (Figma 436:13163): nhân viên tích 4 mục trên giấy tờ gốc, không nhập lại số giấy tờ.
+            if (request.OriginalDocumentValid != true || !request.PhotoMatched || !request.InfoMatched || request.BookingMatched != true)
+            {
+                throw new ArgumentException("Đánh dấu đủ bốn mục đối chiếu trước khi xác minh.");
+            }
+            evidence = new
+            {
+                checklist = true, originalDocumentValid = true, photoMatched = true, infoMatched = true, bookingMatched = true,
+                docType = docType.Length > 0 ? docType : null, staff = StaffCode(actor.UserId)
+            };
         }
-        if (!request.PhotoMatched || !request.InfoMatched)
+        else
         {
-            throw new ArgumentException("Đánh dấu cả hai mục đối chiếu trước khi xác minh.");
+            var docNumber = (request.DocNumber ?? string.Empty).Trim();
+            if (!DocNumberPattern.IsMatch(docNumber))
+            {
+                throw new ArgumentException("Số giấy tờ gồm 9 hoặc 12 chữ số (CCCD/CMND) hoặc 1 chữ + 7 số (hộ chiếu).");
+            }
+            if (!request.PhotoMatched || !request.InfoMatched)
+            {
+                throw new ArgumentException("Đánh dấu cả hai mục đối chiếu trước khi xác minh.");
+            }
+            evidence = new { docType = docType.Length > 0 ? docType : "Căn cước công dân", docLast4 = docNumber[^4..] };
         }
 
-        var docType = Clip(request.DocType, 50);
         h.Status = "VERIFIED";
         h.VerifiedAt = NowUtc;
         if (!actor.IsManager) h.StaffId = actor.UserId;
-        Log(actor.UserId, LogAction.CustomerVerified, LogEntity.Handover, h.HandoverId,
-            new { docType = docType.Length > 0 ? docType : "Căn cước công dân", docLast4 = docNumber[^4..] });
+        Log(actor.UserId, LogAction.CustomerVerified, LogEntity.Handover, h.HandoverId, evidence);
         await dbContext.SaveChangesAsync(ct);
     }
 
@@ -139,8 +156,16 @@ public partial class FacilityOpsService
     public Task CompleteHandoverAsync(OpsActor actor, string id, OpsHandoverRequest request, CancellationToken ct = default) =>
         RecordKeyReceiptAsync(actor, id, ct);
 
-    public async Task RecordKeyReceiptAsync(OpsActor actor, string id, CancellationToken ct = default)
+    public Task RecordKeyReceiptAsync(OpsActor actor, string id, CancellationToken ct = default) =>
+        RecordKeyReceiptAsync(actor, id, null, ct);
+
+    public async Task RecordKeyReceiptAsync(OpsActor actor, string id, OpsKeyReceiptRequest? request, CancellationToken ct = default)
     {
+        // Màn mới gửi checklist: chỉ ghi nhận khi nhân viên đã đối chiếu và thực sự giao chìa khóa.
+        if (request != null && (request.IdentityChecked != true || request.ConditionChecked != true || request.KeyDelivered != true))
+        {
+            throw new ArgumentException("Đánh dấu đủ ba mục đối chiếu và chỉ xác nhận sau khi đã giao chìa khóa.");
+        }
         var facility = await FacilityOfAsync(actor, ct);
         // Serialize repeated receipt requests without changing credentials or contract dates/status.
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"key-receipt:{facility.FacilityId}:{id}", ct);
@@ -159,7 +184,7 @@ public partial class FacilityOpsService
         if (!h.Contract.AccessCredentials.Any(c => c.CredentialType == "KEY" && c.Status == "ACTIVE"))
             h.Contract.AccessCredentials.Add(new AccessCredential { UnitId = h.Contract.UnitId, IssuedBy = actor.UserId,
                 CredentialType = "KEY", CredentialReference = $"KEY-{h.HandoverId}-{Guid.NewGuid():N}", IssuedAt = NowUtc, Status = "ACTIVE" });
-        Log(actor.UserId, "PHYSICAL_KEY_RECEIVED", LogEntity.Handover, h.HandoverId, new { quantity = 1 });
+        Log(actor.UserId, "PHYSICAL_KEY_RECEIVED", LogEntity.Handover, h.HandoverId, new { quantity = 1, checklist = request != null });
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
     }
@@ -167,12 +192,12 @@ public partial class FacilityOpsService
     // =====================================================================
     // S04 · Kiểm tra trả kho → chờ quản lý xác nhận hoàn cọc
     // =====================================================================
+    /// <summary>Đề xuất "cho thuê lại ngay" trên màn S04 — chỉ được chọn khi không có hư hỏng và không cần vệ sinh.</summary>
+    internal const string ReadyToRelet = "Sẵn sàng cho thuê lại";
+
     public async Task SubmitReturnInspectionAsync(OpsActor actor, string id, OpsReturnInspectionRequest request, CancellationToken ct = default)
     {
         var facility = await FacilityOfAsync(actor, ct);
-        var i = await InspectionAsync(facility.FacilityId, id, ct);
-        if (i.Status == "COMPLETED") throw new InvalidOperationException("Biên bản trả kho đã được gửi.");
-        if (i.Status == "CANCELLED") throw new InvalidOperationException("Lịch trả kho đã huỷ.");
 
         var items = Clip(request.Items, 500);
         var walls = Clip(request.Walls, 500);
@@ -183,14 +208,50 @@ public partial class FacilityOpsService
             throw new ArgumentException("Điền đủ 4 mục kiểm tra trước khi gửi biên bản.");
         }
 
+        // D32 / T05: phí hư hỏng do nhân viên nhập (số nguyên VNĐ, không âm); vệ sinh = 10% cọc cố định do server tính.
+        var damageFee = request.DamageFee ?? 0m;
+        if (damageFee < 0 || damageFee != decimal.Truncate(damageFee) || damageFee > 1_000_000_000m)
+        {
+            throw new ArgumentException("Khấu trừ hư hỏng phải là số tiền nguyên không âm.");
+        }
+        var cleaningRequired = request.CleaningRequired == true;
+        var damageItem = (request.DamageItem ?? string.Empty).Trim();
+        var feeReason = (request.FeeReason ?? string.Empty).Trim();
+        if (damageItem.Length > 200) throw new ArgumentException("Hạng mục hư hỏng tối đa 200 ký tự.");
+        if (feeReason.Length > 500) throw new ArgumentException("Lý do khấu trừ tối đa 500 ký tự.");
+        if (damageFee > 0 && damageItem.Length == 0) throw new ArgumentException("Hư hỏng cần ghi rõ hạng mục.");
+        if ((damageFee > 0 || cleaningRequired) && feeReason.Length == 0) throw new ArgumentException("Nhập lý do khấu trừ.");
+        if ((damageFee > 0 || cleaningRequired) && proposal == ReadyToRelet)
+        {
+            throw new ArgumentException("Kho cần vệ sinh hoặc sửa phải chờ kiểm tra/bảo trì, không chọn cho thuê lại ngay.");
+        }
+        // Kiểm toàn bộ ảnh trước khi ghi; hư hỏng bắt buộc có ảnh bằng chứng.
+        var photos = EvidencePhotos.Decode(request.Photos, required: damageFee > 0, what: "bằng chứng hư hỏng");
+
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"return-inspection:{facility.FacilityId}:{id}", ct);
+        var i = await InspectionAsync(facility.FacilityId, id, ct);
+        if (i.Status == "COMPLETED") throw new InvalidOperationException("Biên bản trả kho đã được gửi.");
+        if (i.Status == "CANCELLED") throw new InvalidOperationException("Lịch trả kho đã huỷ.");
+        var contract = i.Contract;
+        if (contract.Status is "COMPLETED" or "TERMINATED" or "CANCELLED")
+        {
+            throw new InvalidOperationException("Hợp đồng đã kết thúc, không gửi được biên bản trả kho.");
+        }
+
         var now = NowUtc;
         i.Status = "COMPLETED";
         i.InspectedAt = now;
         i.DamageDescription = walls;
         i.Notes = $"Đồ đạc còn lại: {items}\nTường, sàn, cửa: {walls}\nChìa khoá, thẻ: {keys}\nĐề xuất: {proposal}";
+        i.DamageFee = damageFee;
+        i.CleaningRequired = cleaningRequired;
+        i.CleaningFee = cleaningRequired ? CleaningFeeFor(contract.DepositAmount) : 0m;
+        i.MaintenanceRequired = damageFee > 0 || proposal != ReadyToRelet;
+        i.ConditionStatus = damageFee > 0 ? "DAMAGED" : cleaningRequired ? "DIRTY" : proposal != ReadyToRelet ? "MAINTENANCE_REQUIRED" : "GOOD";
+        i.DamageItem = damageItem.Length > 0 ? damageItem : null;
+        i.FeeReason = feeReason.Length > 0 ? feeReason : null;
         if (!actor.IsManager) i.StaffId = actor.UserId;
 
-        var contract = i.Contract;
         if (contract.Status is "ACTIVE" or "EXPIRING" or "OVERDUE") contract.Status = "RETURN_PENDING";
         SetUnitStatus(contract.Unit, "INSPECTION", actor.UserId, $"Khách trả kho · {ReturnCode(i.InspectionId)}");
         foreach (var cred in contract.AccessCredentials.Where(a => a.Status == "ACTIVE"))
@@ -198,9 +259,19 @@ public partial class FacilityOpsService
             cred.Status = "RETURNED";
             cred.ReturnedAt = now;
         }
-        Log(actor.UserId, LogAction.ReturnInspected, LogEntity.Return, i.InspectionId, new { items, walls, keys, proposal });
+        EvidencePhotos.Attach(dbContext, photos, EvidencePhotos.ReturnInspection, i.InspectionId, actor.UserId, now);
+        Log(actor.UserId, LogAction.ReturnInspected, LogEntity.Return, i.InspectionId, new
+        {
+            items, walls, keys, proposal, damageFee, cleaningRequired, cleaningFee = i.CleaningFee,
+            damageItem, feeReason, photos = photos.Count
+        });
         await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
+
+    /// <summary>Vệ sinh cơ bản: 10% tiền cọc cố định (D27, giữ trong D32).</summary>
+    internal static decimal CleaningFeeFor(decimal deposit) =>
+        Math.Round(deposit * RefundPolicy.HygieneFeeRate, 0, MidpointRounding.AwayFromZero);
 
     // =====================================================================
     // S05 · Phản hồi yêu cầu hỗ trợ
@@ -425,14 +496,15 @@ public partial class FacilityOpsService
     }
 
     /// <summary>
-    /// M07 · Hoàn cọc sau biên bản trả kho theo chính sách D27 (xem <see cref="RefundPolicy"/>).
-    /// Ghi đúng một khoản REFUND; khoản hư hỏng / quá hạn chỉ được trừ trong phạm vi tiền cọc còn lại,
-    /// phần thiếu giữ nguyên trạng thái chưa thanh toán (công nợ của khách).
+    /// M07 · Chốt quyết toán trả kho theo D32 (xem <see cref="RefundPolicy"/>): tổng khấu trừ tối đa bằng cọc.
+    /// Hoàn tiền hai bước (T07): bước này chỉ tạo khoản REFUND PENDING ("Chờ hoàn"); quản lý ghi mã giao dịch
+    /// ở màn hoàn cọc mới chuyển PAID. Ô cần vệ sinh / sửa giữ MAINTENANCE, không tự về AVAILABLE.
     /// </summary>
-    public async Task<decimal> ConfirmRefundAsync(OpsActor actor, string id, CancellationToken ct = default)
+    public async Task<OpsSettlementResult> ConfirmRefundAsync(OpsActor actor, string id, string? note = null, CancellationToken ct = default)
     {
         RequireManager(actor);
         var facility = await FacilityOfAsync(actor, ct);
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract-settlement:{facility.FacilityId}:{id}", ct);
         var contract = await ContractAsync(facility.FacilityId, id, ct);
         var inspection = contract.ReturnInspections.Where(i => i.Status == "COMPLETED")
             .OrderByDescending(i => i.InspectedAt ?? i.CreatedAt).FirstOrDefault();
@@ -470,13 +542,15 @@ public partial class FacilityOpsService
         if (result.FixedDeduction > 0) SettleFromDeposit(contract, "CLEANING_FEE", decimal.MaxValue, now);
 
         var refund = result.Total;
+        var refundStatus = refund > 0 ? "PENDING" : "NO_REFUND";
         if (refund > 0)
         {
+            // Chưa ghi mã giao dịch / thời điểm chuyển: chỉ có khi quản lý xác nhận ở màn hoàn cọc (CONFIRM_DEPOSIT_REFUND).
             dbContext.Payments.Add(new Payment
             {
                 ContractId = contract.ContractId, PaymentType = "REFUND", Amount = refund, Currency = "VND",
-                PaymentMethod = "BANK_TRANSFER", TransactionReference = $"Hoàn cọc {ContractCode(contract)}",
-                PaidAt = now, Status = "PAID", CreatedAt = now, UpdatedAt = now
+                PaymentMethod = "BANK_TRANSFER", DueDate = RefundDueDate(now),
+                Status = "PENDING", CreatedAt = now, UpdatedAt = now
             });
         }
         contract.Status = "COMPLETED";
@@ -486,15 +560,30 @@ public partial class FacilityOpsService
             oc.Status = "RESOLVED";
             oc.ResolvedAt = now;
         }
-        SetUnitStatus(contract.Unit, "AVAILABLE", actor.UserId, $"Đã trả kho, hoàn cọc · {ContractCode(contract)}");
+        var needsWork = inspection.CleaningRequired || inspection.MaintenanceRequired || inspection.DamageFee > 0;
+        SetUnitStatus(contract.Unit, needsWork ? "MAINTENANCE" : "AVAILABLE", actor.UserId,
+            needsWork ? $"Cần vệ sinh / sửa sau trả kho · {ContractCode(contract)}" : $"Đã trả kho, chốt hoàn cọc · {ContractCode(contract)}");
         Log(actor.UserId, LogAction.DepositRefunded, LogEntity.Contract, contract.ContractId, new
         {
-            refund, scenario = scenario.ToString(), rentRefund = result.RentRefund, depositRefund = result.DepositRefund,
+            refund, refundStatus, scenario = scenario.ToString(), rentRefund = result.RentRefund, depositRefund = result.DepositRefund,
             fixedDeduction = result.FixedDeduction, damage = result.DamageDeduction, overdue = result.OverdueDeduction,
-            debt = result.Debt, overdueDays
+            overdueDays, note = Clip(note, 500)
         });
         await dbContext.SaveChangesAsync(ct);
-        return refund;
+        await tx.CommitAsync(ct);
+        return new OpsSettlementResult(refund, refundStatus);
+    }
+
+    /// <summary>Hạn hoàn: 5 ngày làm việc (thứ 2–6) sau ngày chốt theo giờ Việt Nam (D32: 3–5 ngày làm việc).</summary>
+    internal static DateOnly RefundDueDate(DateTime settledUtc)
+    {
+        var day = DateOnly.FromDateTime(settledUtc + VnOffset);
+        for (var added = 0; added < 5;)
+        {
+            day = day.AddDays(1);
+            if (day.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday)) added++;
+        }
+        return day;
     }
 
     // Đánh dấu khoản chưa thanh toán loại `type` là đã trừ vào cọc tới tối đa `budget`; khoản trả một phần được tách đôi.
@@ -521,21 +610,77 @@ public partial class FacilityOpsService
         }
     }
 
-    /// <summary>M07 · Quản lý xác nhận đã chuyển khoản hoàn tiền cho đơn đã huỷ (khoản REFUND ghi lúc khách huỷ).</summary>
-    public async Task<decimal> ConfirmReservationRefundAsync(OpsActor actor, string id, CancellationToken ct = default)
+    /// <summary>
+    /// M08 · Quản lý ghi bằng chứng đã chuyển khoản hoàn cho đơn đã huỷ (khoản REFUND ghi lúc khách huỷ).
+    /// D32: chỉ hoàn vào tài khoản chính chủ khách khai khi huỷ; cần mã giao dịch, thời điểm chuyển thực tế và xác nhận.
+    /// </summary>
+    public async Task<decimal> ConfirmReservationRefundAsync(OpsActor actor, string id, OpsReservationRefundRequest request, CancellationToken ct = default)
     {
         RequireManager(actor);
         var facility = await FacilityOfAsync(actor, ct);
+        var method = (request.Method ?? "BANK_TRANSFER").Trim().ToUpperInvariant();
+        if (method != "BANK_TRANSFER") throw new ArgumentException("Hoàn tiền chỉ chuyển khoản vào tài khoản chính chủ của khách.");
+        if (!request.Confirmed) throw new ArgumentException("Cần xác nhận đã chuyển đúng số tiền vào đúng tài khoản.");
+        var reference = TransactionRefOf(request.TransactionRef);
+
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"reservation-refund:{facility.FacilityId}:{id}", ct);
         var r = await ReservationAsync(facility.FacilityId, id, ct);
         if (r.Status != "CANCELLED") throw new InvalidOperationException("Đơn chưa bị huỷ nên không có khoản hoàn tiền.");
         var refunds = await dbContext.Payments.Where(p => p.ReservationId == r.ReservationId && p.PaymentType == "REFUND").ToListAsync(ct);
         if (refunds.Count == 0) throw new InvalidOperationException("Đơn này không có khoản hoàn tiền.");
         var pending = refunds.FirstOrDefault(p => p.Status == "PENDING")
             ?? throw new InvalidOperationException("Khoản hoàn tiền này đã được xác nhận.");
-        var now = NowUtc;
-        pending.Status = "PAID"; pending.PaidAt = now; pending.UpdatedAt = now;
-        Log(actor.UserId, LogAction.DepositRefunded, LogEntity.Reservation, r.ReservationId, new { refund = pending.Amount, reservation = true });
+        if (!RefundBank.IsComplete(r.RefundBankName, r.RefundAccountNumber, r.RefundAccountHolder))
+        {
+            throw new InvalidOperationException("Đơn huỷ chưa có tài khoản nhận hoàn chính chủ. Liên hệ khách bổ sung trước khi chuyển tiền.");
+        }
+        var paidAt = TransferTimeOf(request.TransferredAt, r.CancelledAt ?? pending.CreatedAt, "huỷ đơn");
+        await EnsureUniqueTransactionRefAsync(reference, pending.PaymentId, ct);
+
+        pending.Status = "PAID"; pending.PaidAt = paidAt; pending.UpdatedAt = NowUtc;
+        pending.TransactionReference = reference;
+        Log(actor.UserId, LogAction.DepositRefunded, LogEntity.Reservation, r.ReservationId,
+            new { refund = pending.Amount, reservation = true, transactionRef = reference, transferredAt = paidAt });
         await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return pending.Amount;
+    }
+
+    // ------------------------------------------------------------------
+    // Bằng chứng chuyển tiền dùng chung cho M08 (đơn huỷ) và hoàn cọc sau trả kho
+    // ------------------------------------------------------------------
+    internal static string TransactionRefOf(string? value)
+    {
+        var reference = (value ?? string.Empty).Trim();
+        if (reference.Length == 0 || reference.Length > 100) throw new ArgumentException("Nhập mã giao dịch không quá 100 ký tự.");
+        return reference;
+    }
+
+    /// <summary>
+    /// Thời điểm chuyển tiền thực tế (UTC). JSON có "Z"/offset được đổi về UTC; không có múi giờ thì coi là UTC (D10).
+    /// Không ở tương lai và không trước thời điểm chốt (so theo phút).
+    /// </summary>
+    internal static DateTime TransferTimeOf(DateTime? value, DateTime notBeforeUtc, string what)
+    {
+        if (value is not DateTime t || t == default) throw new ArgumentException("Nhập thời gian chuyển tiền thực tế.");
+        var utc = t.Kind switch
+        {
+            DateTimeKind.Local => t.ToUniversalTime(),
+            DateTimeKind.Unspecified => DateTime.SpecifyKind(t, DateTimeKind.Utc),
+            _ => t
+        };
+        if (utc > NowUtc.AddMinutes(1)) throw new ArgumentException("Thời gian thực tế không được ở tương lai.");
+        var floor = DateTime.SpecifyKind(notBeforeUtc, DateTimeKind.Utc);
+        floor = floor.AddTicks(-(floor.Ticks % TimeSpan.TicksPerMinute));
+        if (utc < floor) throw new ArgumentException($"Thời gian chuyển không được trước khi {what}.");
+        return utc;
+    }
+
+    private async Task EnsureUniqueTransactionRefAsync(string reference, long paymentId, CancellationToken ct)
+    {
+        if (await dbContext.Payments.AnyAsync(p => p.TransactionReference == reference && p.PaymentId != paymentId, ct))
+        {
+            throw new InvalidOperationException("Mã giao dịch này đã được ghi cho khoản khác. Kiểm tra lại mã giao dịch.");
+        }
     }
 }

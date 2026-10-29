@@ -50,6 +50,11 @@ if (string.IsNullOrWhiteSpace(jwtSecret) ||
     jwtSecret = defaultDevSecret;
 }
 
+// Ảnh bằng chứng (D32 / T05, T08): khoá ký URL dẫn từ JWT secret. EvidencePhotos:PublicBaseUrl để trống khi FE và API
+// cùng origin (nginx /api); khi chạy dev FE :5173 + API :5151 thì đặt "http://localhost:5151" để link ảnh mở đúng API.
+StorageProject.Infrastructure.Services.EvidencePhotos.Configure(jwtSecret,
+    builder.Configuration["EvidencePhotos:PublicBaseUrl"] ?? (builder.Environment.IsDevelopment() ? "http://localhost:5151" : ""));
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -231,6 +236,7 @@ app.MapFacilityOpsEndpoints();
 app.MapStaffEndpoints();
 app.MapManagerEndpoints();
 app.MapAccessEndpoints();
+app.MapEvidenceEndpoints();
 
 // 8. Health & Readiness Endpoints
 // Liveness endpoint (lightweight check, no external DB dependencies)

@@ -68,6 +68,25 @@ returns, tickets`. Quản lý nhận thêm: `allocations, renewals, contracts, a
 - Quá `expiresAt` → đơn `EXPIRED`, trả `400 { error, code: "EXPIRED" }`.
 - Đơn chờ đối soát vẫn giữ chỗ khi tính số ô trống (`/api/availability/check`, tạo đơn mới).
 
+## 4b. D32 · Hoàn cọc, ảnh trả kho, sự cố cơ sở (29/10, nhánh `feature/be-t05-t07-t08-t13-flags`)
+
+Chi tiết hợp đồng JSON: `BACKEND-TODO.md` mục "Cập nhật BE 29/10", Batch07, Batch08; quyết định kỹ thuật: `DECISIONS.md` D34.
+
+| Endpoint | Vai trò | Ghi chú |
+|---|---|---|
+| `POST /api/ops/verifications/{id}` | STAFF, MANAGER | Checklist 4 mục (`originalDocumentValid`, `photoMatched`, `infoMatched`, `bookingMatched`) |
+| `POST /api/ops/keys/{id}/receipt` | STAFF, MANAGER | Checklist 3 mục nếu gửi |
+| `POST /api/ops/returns/{id}/inspection` | STAFF, MANAGER | Phí hư hỏng, vệ sinh 10% cọc, lý do, hạng mục, ảnh |
+| `POST /api/ops/contracts/{id}/refund` | MANAGER | Trả `{refund, refundStatus: PENDING \| NO_REFUND}` |
+| `GET /api/ops/deposit-refunds`, `POST /api/ops/deposit-refunds/actions` | MANAGER (GET cả STAFF) | `CONFIRM_DEPOSIT_REFUND`; 409 khi `expectedVersion` cũ |
+| `POST /api/ops/reservations/{id}/refund` | MANAGER | `{method, transactionRef, transferredAt, confirmed}` |
+| `GET /api/deposit-refunds` | CUSTOMER | Chỉ hồ sơ của mình |
+| `GET/POST /api/ops/incidents`, `POST /api/ops/incidents/{id}/complete-transfer`, `/terminate` | MANAGER | T13 |
+| `GET /api/incidents`, `POST /api/contracts/{contractId}/incident-choice` | CUSTOMER | T13, khách tự chọn |
+| `GET /api/evidence-photos/{id}?exp=&sig=` | URL có chữ ký | Ảnh bằng chứng, hết hạn 1 giờ |
+
+Board bổ sung `verificationChecklistSupported`, `inspectionEvidenceSupported`, `refundEvidenceSupported`, `returnPolicyVersion`, `refunds[]`, `returns[].requestedAt/overdueFee/damageWorkflowResolved/report.photos`.
+
 ## 5. Chạy thử nhanh
 
 1. Xoá database cũ cho sạch (seed D17 chỉ thêm phần thiếu, không xoá dữ liệu cũ): trong SSMS xoá database

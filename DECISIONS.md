@@ -327,3 +327,15 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Tên đăng nhập bắt buộc, tối đa 50 ký tự theo cột User.Username, không chứa khoảng trắng hoặc @ để tránh nhầm định danh email; trùng username/email trả đúng lỗi từ backend. Tài khoản cũ giữ nguyên.
 - B03 chọn cơ sở trước → B03a bốn loại kho (15/30 m², thường/lạnh), có ảnh và sửa giá cho đúng cơ sở/loại kho/ngày áp dụng. Giá đọc API; không chép số minh họa Figma. Không sửa ngược giá hợp đồng. B02 giữ quản lý chính sách/phí toàn hệ thống theo D32.
 - Chỉ sửa FE, ghi nhận hợp đồng T20 backend đã merge trên main c1a9b05. Không xác nhận tích hợp SQL Server/PayOS thật và không đổi trạng thái feature.
+
+## D34 — 29/10/2026: Cách backend triển khai T05/T07/T08/T13 và cờ khả năng — Chờ nhóm xác nhận
+
+> Người dùng (FE) yêu cầu ngày 29/10 làm hộ phần BE: sự cố cơ sở (T13, kế hoạch giao Tiến) và cờ hỗ trợ Batch08 kèm T05/T07/T08 (giao Ngọc Mai). Không đổi quy tắc tiền của D27/D32; chỉ ghi các lựa chọn kỹ thuật cần nhóm biết. Nhánh `feature/be-t05-t07-t08-t13-flags`, chưa build/kiểm SQL Server.
+
+- **Ảnh bằng chứng** (trả kho, kiểm kê, sự cố): gửi JSON base64 theo hợp đồng FE, tối đa 5 ảnh JPG/PNG mỗi lần, ≤ 5 MiB/ảnh, server tự kiểm chữ ký tệp. Lưu trong bảng `evidence_photos` của SQL Server (không để thư mục web công khai). Đọc qua URL có chữ ký HMAC hết hạn 1 giờ (khoá dẫn từ `JwtSettings:Secret`).
+- **Tài khoản chính chủ** lưu cột riêng trên `reservations` (huỷ đơn), `return_inspections` (gửi trả kho) và `facility_incidents` (kết thúc do sự cố) — không ghi vào nhật ký vì admin đọc được nhật ký.
+- **Huỷ đơn đã thanh toán trước StartDate** áp dụng cả đơn đã được tự cấp hợp đồng sau thanh toán (D26, `UNIT_ASSIGNED`) khi khách chưa nhận chìa khóa: hợp đồng chuyển `CANCELLED`, ô `RESERVED` về `AVAILABLE`, mã QR/PIN do hệ thống vô hiệu (`REVOKED`) — không phải API thu hồi thủ công (giữ D32).
+- **Hoàn tiền hai bước**: khoản hoàn cọc sau trả kho và khoản hoàn do sự cố cơ sở dùng chung màn/API hoàn cọc (`/api/ops/deposit-refunds`); phiên bản khoản hoàn = 1 khi chờ hoàn, 2 khi đã hoàn. Mã giao dịch không được trùng giữa các khoản.
+- **Cờ khả năng** được bật cố định trên `GET /api/ops/board` và `GET /api/rental-policy` của nhánh này vì server đã lưu đủ dữ liệu tương ứng. `returns[].damageWorkflowResolved = true` vì BE chưa có luồng phản hồi/khắc phục hư hỏng (Batch06) nên không hồ sơ nào có thể đang mở; khi làm Batch06 phải tính lại cờ này.
+- **Sự cố cơ sở (T13)**: mã hồ sơ `SC-{mã hợp đồng}-{lần}` cấp từ lúc còn nháp; ô tương đương = cùng cơ sở + cùng loại kho (loại và diện tích), trống, không bảo trì, không trùng hợp đồng khác; ô được giữ (`RESERVED`) từ lúc gửi phương án tới khi khách chọn. Khoản hoàn khi kết thúc = tiền tháng đang thuê + các tháng nguyên chưa bắt đầu (theo giá `AgreedMonthlyRate`) + 100% cọc, chốt tại ngày quản lý xác nhận kết thúc.
+- Cần nhóm xác nhận: (1) Tiến / Ngọc Mai review vì chạm phần việc đã giao; (2) giá dùng cho tháng chưa dùng khi hợp đồng đã gia hạn với giá khác; (3) giữ ảnh trong DB hay chuyển sang lưu trữ tệp riêng sau 31/10.

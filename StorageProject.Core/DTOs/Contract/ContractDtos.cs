@@ -49,10 +49,19 @@ public record HandoverSummaryDto(
     bool StaffConfirmed
 );
 
+/// <summary>
+/// Gửi trả kho (D32 / T08). Bắt buộc: ảnh kho trống (1–5 ảnh JPG/PNG), xác nhận đã chuyển hết đồ,
+/// tài khoản ngân hàng chính chủ nhận hoàn cọc. Gửi thành công thì QR/PIN hết hiệu lực, dừng tính phí quá hạn.
+/// </summary>
 public record MoveOutRequest(
     DateOnly Date,
     string? Slot,
-    string? Note
+    string? Note,
+    string? BankName = null,
+    string? AccountNumber = null,
+    string? AccountHolder = null,
+    bool? Emptied = null,
+    IReadOnlyList<StorageProject.Core.DTOs.Evidence.EvidencePhotoUpload>? Photos = null
 );
 
 public record MoveOutResponseDto(

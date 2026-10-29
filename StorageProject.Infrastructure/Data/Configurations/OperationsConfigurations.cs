@@ -78,6 +78,11 @@ public class ReturnInspectionConfiguration : IEntityTypeConfiguration<ReturnInsp
         b.Property(ri => ri.CleaningFee).IsRequired().HasColumnType("decimal(15,2)").HasDefaultValue(0m);
         b.Property(ri => ri.Status).IsRequired().HasMaxLength(20).HasDefaultValue("SCHEDULED");
         b.Property(ri => ri.CreatedAt).IsRequired();
+        b.Property(ri => ri.DamageItem).HasMaxLength(200);
+        b.Property(ri => ri.FeeReason).HasMaxLength(500);
+        b.Property(ri => ri.RefundBankName).HasMaxLength(100);
+        b.Property(ri => ri.RefundAccountNumber).HasMaxLength(19).IsUnicode(false);
+        b.Property(ri => ri.RefundAccountHolder).HasMaxLength(150);
 
         b.HasOne(ri => ri.Contract).WithMany(rc => rc.ReturnInspections)
             .HasForeignKey(ri => ri.ContractId).OnDelete(DeleteBehavior.Restrict);
