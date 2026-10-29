@@ -486,3 +486,25 @@ Chưa kiểm API/SQL Server/PayOS thật. T08 và các điều kiện T05–T09 
 5. C15b chỉ xem lại nội dung đã đồng ý; không tự thay phạm vi D32 đang áp dụng cho hợp đồng hiện hữu. Không dùng câu “bản mới không thay đổi hợp đồng cũ” để đảo D32. Nội dung policy do backend cung cấp cần được nhóm publish nhất quán với DECISIONS.
 
 Không đánh dấu T20 toàn hệ thống đã đạt chỉ từ kiểm FE hoặc HTTP mock. Mock T20 trong `mock/mock-api.mjs` chỉ dùng môi trường opt-in, không chứng minh BE thật đã có các điều kiện trên.
+
+
+## Batch06 — hư hỏng/khắc phục: contract API ĐỀ XUẤT, chưa có trên main c1a9b05
+
+FE đã dựng ba màn D30-13/18/18b; không sửa BE/schema và không chứng minh tích hợp thật. Cần BE owner thống nhất contract trước khi nối/triển khai, không dùng capability hoặc dữ liệu demo để báo đã xử lý.
+
+- GET `/api/damage-cases` (CUSTOMER owner), GET `/api/ops/damage-cases` (MANAGER/FACILITY_MANAGER đúng cơ sở) → `{items:[DamageCase]}`.
+- DamageCase: `id`, `contractId` chuỗi; `ownerId`, `facilityId` số nguyên dương; `version` số nguyên dương; `status`, `settlementStatus: OPEN|FINALIZED`; `damageAmount` số >=0; `unit`, `item`, `customer`, `recordedBy`, `recordedAt`; `photos:[{url,caption?}]`. URL ảnh HTTPS hoặc root-relative có kiểm quyền truy cập. Không public ảnh khách trái owner/cơ sở.
+- `response:{choice:AGREE|REMEDIATE|DISPUTE,note,at,files:[{fileName}],photos?}`; `decision:{decision:ALLOW|REJECT,note,at}`, `deadline` ISO server; `remediation:{note,at,files,photos?}`; `inspection:{result:PASS|FAIL,note,at}`. Metadata và evidence được server lưu/đọc lại, không chỉ tên tệp.
+- Finance preview từ server: `deposit`, `otherDeductions`, `damageDeduction`, `refundPreview`, `refundIfRemedied` số >=0; thiếu hiện chưa có dữ liệu. Nếu nhiều hạng mục, cần định nghĩa preview đúng cấp hợp đồng, không cộng hoặc trừ lặp. Không tin số tiền/owner/facility do client gửi.
+- POST `/api/damage-cases/actions` hoặc `/api/ops/damage-cases/actions` → `{case:DamageCase}` với **version mới** và stage đúng; payload chung `{action,id,expectedVersion}`.
+
+| Action | Bổ sung | Quy tắc server |
+|---|---|---|
+| RESPOND_DAMAGE | choice, note, photos? | AWAITING_RESPONSE → AGREE: CUSTOMER_ACCEPTED; REMEDIATE/DISPUTE: RESPONSE_SUBMITTED. Note bắt buộc với 2 lựa chọn sau |
+| DECIDE_DAMAGE_RESPONSE | decision, deadline?, note | RESPONSE_SUBMITTED → ALLOW: REMEDIATION_ALLOWED + deadline tương lai; REJECT: REJECTED + lý do bắt buộc |
+| REPORT_DAMAGE_REMEDIATION | note, photos? | REMEDIATION_ALLOWED trước hạn → AWAITING_INSPECTION, note bắt buộc |
+| INSPECT_DAMAGE_REMEDIATION | result, note | AWAITING_INSPECTION → PASS: REMEDIATED + damageDeduction=0 đúng hạng mục; FAIL: REMEDIATION_FAILED giữ khoản trừ. Note bắt buộc |
+
+`photos` đề xuất là `[{fileName,contentType,dataBase64}]`, tối đa 5 ảnh JPEG/PNG, 5MiB/ảnh: validate signature/size/type và giới hạn request phía server; lưu private, trả URL có quyền. Note tối đa 1000 ký tự. Server lấy actor/time/deadline theo clock có thẩm quyền (FE nhập giờ VN +07:00), kiểm owner/facility/role, stage/version và settlement OPEN trong cùng transaction. 409 khi version cũ; không tạo duplicate khi retry; cần idempotency/receipt có thể đọc lại khi mạng lỗi. FE buộc reload khi không xác minh acknowledgement, chưa có idempotency key riêng.
+
+Khi cho khắc phục vẫn giữ deduction đến inspection PASS; bỏ đúng khoản rồi tính lại refund cap trong tiền cọc, không tạo nợ/thu thêm. Không tự đánh dấu refund PAID hoặc mở QR/PIN. Cần nối T05/T06/M07: chặn chốt trong giai đoạn phản hồi/khắc phục/kiểm tra đang mở, xử lý quá hạn minh bạch trước chốt; không tự chốt chỉ vì client hết hạn. Lưu audit/history, không cho sửa sau FINALIZED. Luồng chuyển tiền hoàn vẫn xác nhận riêng hai bước theo D32. Cần kiểm API .NET/SQL Server thật với đồng thời/retry/quyền và nhiều hạng mục.

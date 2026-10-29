@@ -79,7 +79,7 @@
 1048:12519,D30-03 · Yêu cầu trả kho A-102 (gộp D30-04 thành popup),Main · 02 · Khách hàng,units/:id/return,src/features/customer/contracts/ReturnRequestPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 1079:12222,D30-03-lỗi · Yêu cầu trả kho / Trạng thái lỗi trên form,Main · 02 · Khách hàng,units/:id/return,src/features/customer/contracts/ReturnRequestPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 1053:13123,D30-15 · Theo dõi đối soát & khoản hoàn (khách),Main · 02 · Khách hàng,refunds,src/features/customer/payments/RefundTrackingPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
-1052:13092,D30-13 · Đối chiếu hư hỏng & đề nghị khắc phục (khách),Main · 02 · Khách hàng,,,Thiếu nhánh/màn: D30-13
+1052:13092,D30-13 · Đối chiếu hư hỏng & đề nghị khắc phục (khách),Main · 02 · Khách hàng,units/:id/damage?case=:caseId,src/features/customer/contracts/DamageResponsePage.jsx,Batch06 có FE/adapter đề xuất; API chưa có; chưa kiểm browser/tích hợp thật
 1101:12569,C11h · Lịch sử thanh toán hợp đồng,Main · 02 · Khách hàng,payments/history,src/features/customer/history/PaymentHistoryPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 1101:12732,C11k · Kiểm tra trạng thái thanh toán,Main · 02 · Khách hàng,payments/check/:ref,src/features/customer/payments/PaymentStatusPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 1101:12197,C11 · SafeSpace / Thanh toán & lịch hẹn,Main · 02 · Khách hàng,payments,src/features/customer/payments/PaymentListPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
@@ -131,8 +131,8 @@
 916:10708,Chi tiết hồ sơ quá hạn,Main · 04 · Quản lý cơ sở,manager/overdue,src/features/manager/overdue/OverdueCasePage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 924:10607,Đối soát báo cáo sai lệch,Main · 04 · Quản lý cơ sở,manager/discrepancy-detail?id=:id,src/features/manager/discrepancies/DiscrepancyDetailPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 1051:12926,D30-10 · Xử lý hợp đồng do sự cố cơ sở (quản lý),Main · 04 · Quản lý cơ sở,,,Thiếu nhánh/màn: D30-10
-1076:11700,D30-18 · Xử lý phản hồi hư hỏng (quản lý),Main · 04 · Quản lý cơ sở,,,Thiếu nhánh/màn: D30-18
-1076:11827,D30-18b · Kiểm tra khắc phục hư hỏng (quản lý),Main · 04 · Quản lý cơ sở,,,Thiếu nhánh/màn: D30-18b
+1076:11700,D30-18 · Xử lý phản hồi hư hỏng (quản lý),Main · 04 · Quản lý cơ sở,manager/damage-responses?id=:caseId,src/features/manager/damage/DamageReviewPage.jsx,Batch06 có FE/adapter đề xuất; API chưa có; chưa kiểm browser/tích hợp thật
+1076:11827,D30-18b · Kiểm tra khắc phục hư hỏng (quản lý),Main · 04 · Quản lý cơ sở,manager/damage-inspections?id=:caseId,src/features/manager/damage/DamageInspectionPage.jsx,Batch06 có FE/adapter đề xuất; API chưa có; chưa kiểm browser/tích hợp thật
 1085:13132,M07 · SafeSpace / Hợp đồng & quá hạn,Main · 04 · Quản lý cơ sở,manager/contracts,src/features/manager/contracts/ContractListPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 436:13553,M04 · SafeSpace / Báo cáo doanh thu,Main · 04 · Quản lý cơ sở,manager/report,src/features/manager/reports/FacilityReportPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist
 828:10212,M08 · SafeSpace / Hoàn tiền đơn huỷ,Main · 04 · Quản lý cơ sở,manager/refunds,src/features/manager/refunds/CancellationRefundPage.jsx,Có code/route; còn cần kiểm visual và tích hợp theo checklist

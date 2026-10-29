@@ -235,3 +235,14 @@ RefundTracking/ReturnProgress đọc resource `customerRefunds` → `/api/deposi
 | Validate policy/evidence, DTO và adapter xác nhận | `src/shared/utils/rentalPolicy.js`, `src/shared/api/reservationConsentApi.js` |
 
 API/LocalProvider có service `rentalPolicy(version?)`, action `ACCEPT_RESERVATION_POLICY`; chặn QR/quầy khi thiếu consent. API chỉ cache response thực từ server theo user/đơn; local opt-in giữ snapshot riêng và gắn demo. C15b không lấy cache đơn thay consent hợp đồng. Giới hạn backend và kiểm chứng: `docs/sprints/FE-figma-sync-05.md` ở gốc repo.
+
+
+## Batch06 — hư hỏng/khắc phục (FE, API còn chờ)
+
+| Route | Page | Quyền / điểm vào |
+|---|---|---|
+| `units/:id/damage?case=:caseId` | `features/customer/contracts/DamageResponsePage.jsx` | Customer owner; từ chi tiết kho/tiến độ trả kho |
+| `manager/damage-responses[?id=:caseId]` | `features/manager/damage/DamageReviewPage.jsx` | Manager đúng cơ sở; từ Hợp đồng |
+| `manager/damage-inspections[?id=:caseId]` | `features/manager/damage/DamageInspectionPage.jsx` | Manager đúng cơ sở; từ Hợp đồng/Phản hồi hư hỏng |
+
+Shared model/API/hook/components ở `features/facility-operations/damage/`. API mới là đề xuất, không có trên main c1a9b05; 404 báo lỗi, không giả thành công. Demo opt-in lưu riêng, ảnh chỉ metadata; không ghi quyết toán hoàn cọc. Xem sprint 06 và BACKEND-TODO.

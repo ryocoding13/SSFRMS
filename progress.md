@@ -1,3 +1,12 @@
+## 2026-10-28 — F40 Batch06: phản hồi hư hỏng và khắc phục (phiên 3)
+
+- Tiếp source Batch05 trên main c1a9b05. Giữ F40 active/F41 blocked; không sửa BE/schema/Figma, không commit/push/PR/merge.
+- D30-13/18/18b có FE: khách phản hồi/ảnh → manager đồng ý có hạn hoặc từ chối có lý do → khách báo xong → manager kiểm đạt/chưa đạt. Đạt bỏ đúng khoản hư hỏng; không chuyển tiền/mở QR/PIN.
+- Role/owner/facility/version/stage/OPEN guards; giờ VN; giữ form khi lỗi, chống gửi lặp; acknowledgement sai/mất mạng/409 cần tải lại. Demo opt-in tách khỏi quyết toán thật; API đề xuất chưa có, lỗi không fallback.
+- FE 122/122; business 9/9; workflows 12/12; SSR 136 lượt + assertions; structure/build/init --fe-only/diff PASS. Patch incremental/cộng dồn apply + byte-match PASS.
+- Chưa browser/visual thực thi hoặc API .NET/SQL Server thật. BACKEND-TODO ghi endpoint/state machine/atomic deduction và chặn chốt khi hồ sơ còn mở; không tuyên bố toàn luồng tích hợp hoàn tất.
+- Chi tiết docs/sprints/FE-figma-sync-06.md. Còn 3 màn/nhánh sự cố chưa có FE trong danh mục đầu; còn 4 phiên, tiếp Batch07.
+
 ## 2026-10-28 — F40 Batch05: chính sách trước thanh toán và xem bản đã đồng ý
 
 - Tiếp Batch04 trên main c1a9b05; không sửa Figma/BE/schema, không commit/push/PR/merge. F40 active/F41 blocked giữ nguyên.

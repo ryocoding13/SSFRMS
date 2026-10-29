@@ -6,6 +6,8 @@ import { StaffInquiryPage } from "../staff/support/StaffInquiryPage.jsx";
 import { DiscrepancyListPage } from "../manager/discrepancies/DiscrepancyListPage.jsx";
 import { DiscrepancyDetailPage } from "../manager/discrepancies/DiscrepancyDetailPage.jsx";
 import { OverdueCasePage } from "../manager/overdue/OverdueCasePage.jsx";
+import { DamageReviewPage } from "../manager/damage/DamageReviewPage.jsx";
+import { DamageInspectionPage } from "../manager/damage/DamageInspectionPage.jsx";
 import { DepositRefundPage } from "../manager/refunds/DepositRefundPage.jsx";
 
 import { Empty, LinkButton } from "../../shared/components/UI.jsx";
@@ -52,6 +54,8 @@ const STAFF = {
   done: [StaffResultPage, "staff"],
 };
 const MANAGER = {
+  "damage-responses": [DamageReviewPage, "manager/contracts"],
+  "damage-inspections": [DamageInspectionPage, "manager/contracts"],
   discrepancies: [DiscrepancyListPage, "manager/contracts"],
   "discrepancy-detail": [DiscrepancyDetailPage, "manager/contracts"],
   overdue: [OverdueCasePage, "manager/contracts"],

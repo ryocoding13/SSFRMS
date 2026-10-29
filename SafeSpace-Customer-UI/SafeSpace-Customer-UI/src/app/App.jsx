@@ -17,6 +17,7 @@ import { RefundTrackingPage } from "../features/customer/payments/RefundTracking
 import { PaymentHistoryPage } from "../features/customer/history/PaymentHistoryPage.jsx";
 import { DepositLedgerPage } from "../features/customer/contracts/DepositLedgerPage.jsx";
 import { RenewalStatusPage } from "../features/customer/contracts/RenewalStatusPage.jsx";
+import { DamageResponsePage } from "../features/customer/contracts/DamageResponsePage.jsx";
 import { ReturnProgressPage } from "../features/customer/contracts/ReturnProgressPage.jsx";
 import { InquiryListPage } from "../features/customer/support/InquiryListPage.jsx";
 import { InquiryDetailPage } from "../features/customer/support/InquiryDetailPage.jsx";
@@ -102,6 +103,7 @@ function renderPage({ page, parts, query }) {
     case "overview": return <CustomerDashboardPage />;
     case "reservations": return a && b === "cancel" ? <CancelReservationPage key={a} id={a} /> : a ? <ReservationDetailPage id={a} mode="detail" /> : <ReservationListPage />;
     case "units":
+      if (a && b === "damage") return <DamageResponsePage key={a} id={a} query={query} />;
       if (a && b === "renewal-status") return <RenewalStatusPage id={a} />;
       if (a && b === "deposit") return <DepositLedgerPage id={a} />;
       if (a && b === "progress") return <ReturnProgressPage id={a} />;

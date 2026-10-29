@@ -21,7 +21,7 @@ try {
   const seed = (authed, opsUser = null) => memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed, data: createSeedData(), opsUser }));
 
   const publicRoutes = ["reset-password","home", "login", "register", "pricing", "guide", "find", "find?type=climate&band=M", "find/map", "find/map?type=climate", "find/map?area=Kh%C3%B4ng%20c%C3%B3", "find/1", "find/1?view=map&unit=K02", "find/8?type=climate&view=map", "find/999", "nope", "door", "door?unit=B-015"];
-  const privateRoutes = ["reservations/SS-20260914-0142/cancel", "reservations/missing/cancel","refunds","policies", "payments/check/SS-0086-REN", "payments/check/missing", "payments/history", "inquiries", "inquiries/HT-0091", "units/HĐ-2026-0142/deposit", "units/HĐ-2026-0086/progress", "units/HĐ-2026-0086/renewal-status",
+  const privateRoutes = ["units/HĐ-2026-0086/damage", "units/HĐ-2026-0086/damage?case=missing", "units/unknown/damage","reservations/SS-20260914-0142/cancel", "reservations/missing/cancel","refunds","policies", "payments/check/SS-0086-REN", "payments/check/missing", "payments/history", "inquiries", "inquiries/HT-0091", "units/HĐ-2026-0142/deposit", "units/HĐ-2026-0086/progress", "units/HĐ-2026-0086/renewal-status",
     "overview", "units", "units/HĐ-2026-0142", "units/HĐ-2026-0086", "units/HĐ-2026-0086/renew", "units/HĐ-2026-0142/return", "units/unknown",
     "sent?type=renew&contract=HĐ-2026-0086", "reservations", "reservations/SS-20260914-0142", "reservations/none",
     "confirmation/SS-20260914-0142", "checkout/SS-20260914-0142", "checkout/SS-20260914-0142/confirm", "policies?tab=contract", "policies?tab=contract&contract=unknown", "payments", "support", "support/HT-0082", "support/unknown", "support?contract=HĐ-2026-0142&topic=SCHEDULE", "profile",
@@ -161,7 +161,7 @@ try {
       "staff/reconcile?id=SS-20260914-0142", "staff/verify?id=XM-0142", "staff/handover?id=BG-0115", "staff/return?id=TK-0098",
       "staff/support?id=HT-0082", "staff/done?kind=payment", "staff/nope",
     ],
-    MANAGER: ["manager/discrepancies", "manager/discrepancy-detail?id=SL-0001", "manager/overdue", "manager/deposit-refunds","manager", "manager/units", "manager/units?tab=OVERDUE", "manager/units?tab=MAINTENANCE", "manager/allocate", "manager/assign", "manager/renewals", "manager/contracts", "manager/refunds", "manager/report", "manager/done", "staff"],
+    MANAGER: ["manager/damage-responses", "manager/damage-responses?id=HH-local-0086", "manager/damage-responses?id=missing", "manager/damage-inspections", "manager/damage-inspections?id=HH-inspect-0086","manager/discrepancies", "manager/discrepancy-detail?id=SL-0001", "manager/overdue", "manager/deposit-refunds","manager", "manager/units", "manager/units?tab=OVERDUE", "manager/units?tab=MAINTENANCE", "manager/allocate", "manager/assign", "manager/renewals", "manager/contracts", "manager/refunds", "manager/report", "manager/done", "staff"],
   };
   for (const acc of OPS_ACCOUNTS) {
     seed(true, acc);
@@ -232,6 +232,36 @@ try {
   window.location.hash = "#/manager/units";
   assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Đổi trạng thái"), "M02: thiếu nút Đổi trạng thái");
   count++;
+
+  // Damage fixtures are isolated from the settlement store; verify scope and stage UI.
+  const { createDamageSeed } = await vite.ssrLoadModule("/src/features/facility-operations/damage/damageModel.js");
+  const { DAMAGE_DEMO_KEY } = await vite.ssrLoadModule("/src/features/facility-operations/damage/useDamageCases.js");
+  const damageCases = createDamageSeed();
+  const saveDamage = () => memory.set(DAMAGE_DEMO_KEY, JSON.stringify({version:1,cases:damageCases}));
+  saveDamage(); seed(true);
+  window.location.hash = "#/units/HĐ-2026-0086/damage?case=HH-local-0086";
+  let damageHtml = renderToStaticMarkup(React.createElement(App));
+  for (const text of ["Chọn phương án phản hồi", "Đính kèm ảnh / ảnh hoá đơn", "Gửi phản hồi cho cơ sở"]) assert.ok(damageHtml.includes(text),text);
+  assert.ok(!/type="radio"[^>]*checked/.test(damageHtml),"Không tự chọn phản hồi");
+  window.location.hash = "#/units/HĐ-2026-0086/damage?case=HH-api-0001";
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Không tìm thấy hồ sơ"),"Không lộ hồ sơ khách khác");
+  damageCases[0].status="RESPONSE_SUBMITTED";
+  damageCases[0].response={choice:"REMEDIATE",note:"Xin khắc phục",files:[]}; saveDamage();
+  window.location.hash = "#/units/HĐ-2026-0086/damage?case=HH-local-0086";
+  damageHtml=renderToStaticMarkup(React.createElement(App));
+  assert.ok(damageHtml.includes("Đã gửi phản hồi") && !damageHtml.includes("Gửi phản hồi cho cơ sở"));
+  seed(true,manager);
+  window.location.hash = "#/manager/damage-responses?id=HH-local-0086";
+  damageHtml=renderToStaticMarkup(React.createElement(App));
+  for(const text of ["Xin khắc phục","datetime-local","Lý do (bắt buộc khi từ chối)"]) assert.ok(damageHtml.includes(text),text);
+  window.location.hash = "#/manager/damage-inspections?id=HH-inspect-0086";
+  damageHtml=renderToStaticMarkup(React.createElement(App));
+  for(const text of ["Ghi chú kiểm tra","Ghi nhận kết quả","Đạt · bỏ khấu trừ hư hỏng"]) assert.ok(damageHtml.includes(text),text);
+  damageCases.forEach(c=>c.facilityId=999999); saveDamage();
+  window.location.hash = "#/manager/damage-responses?id=HH-local-0086";
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Không tìm thấy hồ sơ"),"Không lộ hồ sơ cơ sở khác");
+  memory.delete(DAMAGE_DEMO_KEY);
+  count+=6;
 
   seed(true);
   window.location.hash = "#/overview";
