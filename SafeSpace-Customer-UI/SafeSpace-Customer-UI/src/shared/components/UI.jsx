@@ -147,40 +147,66 @@ export function DetailList({ items }) {
   );
 }
 
-// Hộp thoại: dùng cho thông báo kết quả (C13 "Đã lưu tên", "Đổi mật khẩu thành công") và xác nhận
+// Chỉ popup trên cùng xử lý bàn phím; khóa cuộn đến khi popup cuối đóng.
+const modalStack = [];
+let modalBodyOverflow;
+// Hộp thoại: dùng cho thông báo kết quả và xác nhận
 export function Modal({ title, children, onClose, size = "sm", label, tone, placement }) {
   const ref = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   const titleId = useId();
   useEffect(() => {
     const previous = document.activeElement;
     const el = ref.current;
-    el?.focus();
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    if (!el) return undefined;
+    if (!modalStack.length) {
+      modalBodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+    }
+    modalStack.push(el);
+    el.focus();
+    const isTop = () => modalStack[modalStack.length - 1] === el;
     const onKey = (e) => {
-      if (e.key === "Escape") onClose?.();
-      if (e.key !== "Tab" || !el) return;
-      const focusables = [...el.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),select,textarea,[tabindex="0"]')];
-      if (!focusables.length) return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (e.shiftKey && (document.activeElement === first || document.activeElement === el)) {
+      if (!isTop()) return;
+      if (e.key === "Escape") {
         e.preventDefault();
-        last.focus();
+        e.stopImmediatePropagation();
+        closeRef.current?.();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const focusables = [...el.querySelectorAll('button,a[href],input,select,textarea,[tabindex]')]
+        .filter(node => !node.matches(':disabled') && node.tabIndex >= 0 && !node.closest('[inert]') && node.getClientRects().length && getComputedStyle(node).visibility !== "hidden");
+      const first = focusables[0], last = focusables[focusables.length - 1];
+      if (!first) { e.preventDefault(); el.focus(); return; }
+      if (!el.contains(document.activeElement) || document.activeElement === el) {
+        e.preventDefault(); (e.shiftKey ? last : first).focus();
+      } else if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last.focus();
       } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
+        e.preventDefault(); first.focus();
       }
     };
+    const onFocus = (e) => { if (isTop() && !el.contains(e.target)) el.focus(); };
     document.addEventListener("keydown", onKey);
+    document.addEventListener("focusin", onFocus);
     return () => {
-      document.body.style.overflow = overflow;
+      const wasTop = isTop();
+      const index = modalStack.indexOf(el);
+      if (index >= 0) modalStack.splice(index, 1);
       document.removeEventListener("keydown", onKey);
-      previous?.focus?.();
+      document.removeEventListener("focusin", onFocus);
+      if (!modalStack.length) document.body.style.overflow = modalBodyOverflow;
+      if (wasTop) {
+        const top = modalStack[modalStack.length - 1];
+        if (previous?.isConnected && (!top || top.contains(previous))) previous.focus?.();
+        else top?.focus();
+      }
     };
-  }, [onClose]);
+  }, []);
   return (
-    <div className={placement === "drawer" ? "overlay overlay--drawer" : "overlay"} onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
+    <div className={placement === "drawer" ? "overlay overlay--drawer" : "overlay"} onMouseDown={(e) => e.target === e.currentTarget && modalStack[modalStack.length - 1] === ref.current && closeRef.current?.()}>
       <section ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-label={label} className={`modal modal--${size}${tone ? ` modal--${tone}` : ""}`}>
         <h2 id={titleId}>{title}</h2>
         {children}

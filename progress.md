@@ -1,3 +1,12 @@
+## 2026-10-29 — F40 Batch10: browser và kiểm giới hạn tích hợp (phiên 7)
+
+- Khôi phục đúng Batch09 từ gói chỉ định; SHA256 45698710691ba1348db454770a132b25754082ce88524ea1727149e6dedd688e,143 file khớp source. Giữ main c1a9b05/F40 active/F41 blocked; không sửa BE/schema/Figma, không commit/push/PR/merge.
+- Sửa Modal mất focus khi onClose thay đổi, stack Escape/Tab/focus/backdrop, disabled/hidden Tab và khóa cuộn; popup dài cuộn được. Sửa overflow input/select Xuất báo cáo tại768px.
+- Chromium Headless Shell156:45/45 Batch10 tại1440/768/390 +14/14 auth-support;59 ca browser demo/stub, không phải tích hợp API thật. Bao phủ25 route/5 role, lỗi/session/scope FE, drawer/popup, file input và tải CSV.2 test code Modal gốc09 tái hiện lỗi, bản sửa PASS.
+- FE155/155, business9/9, workflow12/12, SSR173, structure/build/diff đạt. Bundle>500kB còn. Không chạy init lặp hoặc BE tests khi thiếu môi trường; docs/verification/FE-batch10-browser-2026-10-29.md ghi bằng chứng/giới hạn cụ thể.
+- API5151 connection refused; chưa .NET/SQL Server/PayOS/thiết bị thật. Atomic role-change, scheduled metadata, persistence/evidence và server enforcement ở BACKEND-TODO còn blocked. Chưa coi toàn hệ thống hoàn tất/đủ điều kiện merge.
+- Xác minh chuỗi patch/checkpoint04→09; gói10 có patch nối09/cộng dồn main và chuỗi7 phiên để thành viên tự review/commit/push nhánh riêng. PowerShell chưa chạy trên Windows. Chi tiết docs/sprints/FE-figma-sync-10.md; không tạo lịch sử commit giả.
+
 ## 2026-10-28 — F40 Batch09: vận hành/admin/popup (phiên 6)
 
 - Tiếp Batch08 trên main c1a9b05 đọc lại qua GitHub; giữ F40 active/F41 blocked. Không sửa BE/schema/Figma, không commit/push/PR/merge.

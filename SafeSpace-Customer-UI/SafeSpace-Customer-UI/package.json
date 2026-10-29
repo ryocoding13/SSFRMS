@@ -19,7 +19,8 @@
     "test:approved-ui": "node scripts/check-approved-ui.mjs",
     "test:workflow-actions": "node scripts/check-workflow-actions.mjs",
     "test:api-pending": "node scripts/check-api-pending.mjs",
-    "test:password-reset": "node scripts/check-password-reset.mjs"
+    "test:password-reset": "node scripts/check-password-reset.mjs",
+    "test:batch10": "playwright test --config playwright.batch10.config.js"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",
