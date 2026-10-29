@@ -38,7 +38,11 @@ export function FacilityRatePage({ query }) {
     } finally { guard.current = false; setBusy(false); }
   };
   return <main className="container page facility-pricing">
-    <LoadState load={load}>{({ facility, rates, types }) => !facility ? <Empty title={facilityId ? "Không tìm thấy cơ sở" : "Chọn cơ sở để xem bảng giá"} text="Mỗi cơ sở có mức giá thuê riêng."><LinkButton to="business/pricing">Chọn cơ sở</LinkButton></Empty> : <>
+    <LoadState load={load}>{({ facility, rates, types }) => !facility ? <>
+      <p className="facility-pricing__breadcrumb">SafeSpace / Vận hành kinh doanh / Giá &amp; phí</p>
+      <PageHeader title="Bảng giá thuê" description="Chưa xác định được cơ sở để hiển thị bảng giá." />
+      <Empty title="Không tìm thấy cơ sở" text="Đường dẫn không có cơ sở hoặc cơ sở đã ngừng hoạt động. Chọn lại cơ sở để xem bảng giá thuê."><LinkButton to="business/pricing">Chọn cơ sở</LinkButton></Empty>
+    </> : <>
       <p className="facility-pricing__breadcrumb">SafeSpace / Vận hành kinh doanh / Giá &amp; phí / {shortFacility(facility.name)}</p>
       <PageHeader title="Bảng giá thuê" description={`${facility.name} · Giá thuê theo tháng cho 4 loại kho.`}><LinkButton to="business/pricing" variant="outline">Đổi cơ sở</LinkButton></PageHeader>
       <div className="facility-pricing__rates">{RATE_SLOTS.map(slot => {

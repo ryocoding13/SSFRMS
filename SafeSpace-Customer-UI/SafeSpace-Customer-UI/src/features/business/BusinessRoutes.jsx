@@ -21,7 +21,7 @@ export default function BusinessRoutes({ parts, query }) {
   else if (a === "export") { active = "business/reports"; body = <ReportExportPage />; }
   else if (a === "policy-content") { active = "business/policies"; body = <RentalPolicyEditorPage />; }
   else if (a === "policy-status") { active = "business/policies"; body = <PolicyStatusPage />; }
-  else if (a === "rates") { active = "business/pricing"; body = <FacilityRatePage query={query} />; }
+  else if (a === "rates") { active = "business/pricing"; body = query?.get("facility") ? <FacilityRatePage query={query} /> : <PricingPage />; }
   else if (a === "facilities") {
     active = "business/facilities";
     body = <FacilityManagementPage query={query} />;
