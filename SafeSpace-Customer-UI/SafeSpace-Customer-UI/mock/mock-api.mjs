@@ -128,8 +128,8 @@ const OPS_ROUTES = [
   // [method, regex, role, action, payload(body, id)]
   ["POST", /^\/api\/(?:ops|staff)\/payments\/([^/]+)\/confirm$/, "STAFF", "CONFIRM_PAYMENT", (b, id) => ({ id })],
   ["POST", /^\/api\/(?:ops|staff)\/payments\/([^/]+)\/mismatch$/, "STAFF", "REPORT_MISMATCH", (b, id) => ({ id, note: b?.note })],
-  ["POST", /^\/api\/(?:ops|staff)\/verifications\/([^/]+)$/, "STAFF", "VERIFY_CUSTOMER", (b, id) => ({ id, doc_type: b?.docType, doc_no: b?.docNumber, photo_ok: b?.photoMatched, info_ok: b?.infoMatched })],
-  ["POST", /^\/api\/(?:ops|staff)\/keys\/([^/]+)\/receipt$/, "STAFF", "RECORD_KEY_RECEIPT", (b, id) => ({ id })],
+  ["POST", /^\/api\/(?:ops|staff)\/verifications\/([^/]+)$/, "STAFF", "VERIFY_CUSTOMER", (b, id) => ({ id, doc_type: b?.docType, doc_no: b?.docNumber,original_valid:b?.originalDocumentValid,booking_matched:b?.bookingMatched, photo_ok: b?.photoMatched, info_ok: b?.infoMatched })],
+  ["POST", /^\/api\/(?:ops|staff)\/keys\/([^/]+)\/receipt$/, "STAFF", "RECORD_KEY_RECEIPT", (b, id) => ({ id,identity_checked:b.identityChecked,condition_checked:b.conditionChecked,key_delivered:b.keyDelivered })],
   ["POST", /^\/api\/(?:ops|staff)\/returns\/([^/]+)\/inspection$/, "STAFF", "SUBMIT_RETURN", (b, id) => ({ id, report: mapKeys(b || {}, snake) })],
   ["POST", /^\/api\/(?:ops|staff)\/tickets\/([^/]+)\/responses$/, "STAFF", "TICKET_RESPONSE", (b, id, me) => ({ id, note: b?.note, next: b?.nextStatus, staff: me })],
   ["PUT", /^\/api\/(?:ops|staff)\/units\/([^/]+)\/status$/, "STAFF", "UPDATE_UNIT_STATUS", (b, id) => ({ id, code: id, status: b?.status, reason: b?.reason })],

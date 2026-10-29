@@ -1,74 +1,13 @@
-import React, { useState } from "react";
-import { Select } from "../../../shared/components/Pickers.jsx";
+import React,{useState} from "react";
 import { Button, Empty, Field, LinkButton, Notice } from "../../../shared/components/UI.jsx";
-import { dateTimeLabel } from "../../../shared/utils/format.js";
-import { go, href } from "../../../app/router.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
-import { Facts, slotLabel } from "../../facility-operations/components/FacilityOperationsComponents.jsx";
-
-export const DOC_TYPES = ["Căn cước công dân", "Chứng minh nhân dân", "Hộ chiếu"];
-
-export function CustomerVerificationPage({ query }) {
-  const { ops, run } = useOps();
-  const todo = ops.verifications.filter((v) => v.status === "TODO");
-  const v = query.get("id") ? ops.verifications.find((x) => x.id === query.get("id")) : todo[0];
-  const [form, setForm] = useState({ doc_type: DOC_TYPES[0], doc_no: "", photo_ok: false, info_ok: false });
-  const [err, setErr] = useState("");
-  if (!v)
-    return (
-      <main className="container page">
-        <Empty title="Không có khách cần xác minh" text="Khách đến nhận kho theo lịch hẹn sẽ hiện ở đây.">
-          <LinkButton to="staff">Về công việc trong ngày</LinkButton>
-        </Empty>
-      </main>
-    );
-  const set = (k, val) => {
-    setForm({ ...form, [k]: val });
-    setErr("");
-  };
-  const submit = async (e) => {
-    e.preventDefault();
-    const r = await run("VERIFY_CUSTOMER", { id: v.id, ...form }, `Đã xác minh ${v.customer}`);
-    if (!r.ok) return setErr(r.shown || r.cancelled ? "" : r.error);
-    const h = ops.handovers.find((x) => x.verification_id === v.id);
-    go(h ? `staff/keys?id=${h.id}` : "staff");
-  };
-  const handover = ops.handovers.find((x) => x.verification_id === v.id);
-  return (
-    <main className="container page page--narrow">
-      <a className="back-link" href={href("staff/verify")}>← Danh sách xác minh</a>
-      <form className="panel ops-card" onSubmit={submit} noValidate>
-        <h1>Xác minh khách hàng</h1>
-        <p className="muted">Kiểm tra giấy tờ tuỳ thân trùng khớp với thông tin đặt chỗ khi khách nhận chìa khóa tại quầy.</p>
-        <Facts rows={[["Họ và tên khách hàng", v.customer], ["Mã đặt chỗ", `#${v.reservation_id}`], ["Kho nhận", `#${v.unit} · Hẹn ${slotLabel(v.appointment)}`]]} />
-        {v.status === "DONE" ? (
-          <>
-            <Notice tone="success">Đã xác minh bằng {v.doc_type} (…{v.doc_last4}) lúc {dateTimeLabel(v.verified_at)}.</Notice>
-            {handover && handover.status !== "DONE" && <LinkButton to={`staff/keys?id=${handover.id}`}>Tiếp tục nhận chìa khóa</LinkButton>}
-          </>
-        ) : (
-          <>
-            <Field label="Loại giấy tờ">
-              <Select value={form.doc_type} onChange={(e) => set("doc_type", e.target.value)}>
-                {DOC_TYPES.map((d) => <option key={d}>{d}</option>)}
-              </Select>
-            </Field>
-            <Field label="Số giấy tờ" hint="Chỉ lưu 4 số cuối để đối chiếu.">
-              <input inputMode="text" autoComplete="off" placeholder="Nhập số giấy tờ để đối chiếu" value={form.doc_no} onChange={(e) => set("doc_no", e.target.value)} />
-            </Field>
-            <label className="check-row">
-              <span className="check"><input type="checkbox" checked={form.photo_ok} onChange={(e) => set("photo_ok", e.target.checked)} /><span /></span>
-              Ảnh trên giấy tờ khớp với người đến nhận kho
-            </label>
-            <label className="check-row">
-              <span className="check"><input type="checkbox" checked={form.info_ok} onChange={(e) => set("info_ok", e.target.checked)} /><span /></span>
-              Thông tin giấy tờ trùng khớp với đơn đặt chỗ
-            </label>
-            {err && <Notice tone="error">{err}</Notice>}
-            <Button type="submit" block>Xác nhận giấy tờ</Button>
-          </>
-        )}
-      </form>
-    </main>
-  );
+import { OpsDemo } from "../../facility-operations/settlements/SettlementComponents.jsx";
+import { timeLabel } from "../../facility-operations/damage/DamageComponents.jsx";
+import "../../facility-operations/settlements/settlements.css";
+export const DOC_TYPES=["Căn cước công dân","Chứng minh nhân dân","Hộ chiếu"];
+export function CustomerVerificationPage({query}) {
+ const {ops,run,source,saving,needsRefresh}=useOps(),v=ops.verifications.find(v=>v.id===query.get("id")),[form,setForm]=useState({original_valid:false,photo_ok:false,info_ok:false,booking_matched:false}),[error,setError]=useState("");
+ if(!v)return <main className="container page"><Empty title="Không tìm thấy lịch xác minh"><LinkButton to="staff/verify">Danh sách xác minh</LinkButton></Empty></main>;
+ const done=v.status==="DONE",supported=source!=="api"||ops.verification_checklist_supported===true,disabled=saving||needsRefresh||done||!supported;
+ return <main className="container page ops-verification"><OpsDemo source={source}/><form className="panel customer-detail__card" noValidate onSubmit={async e=>{e.preventDefault();if(disabled||!Object.values(form).every(Boolean))return;const result=await run("VERIFY_CUSTOMER",{id:v.id,...form},`Đã xác minh ${v.customer}`);if(!result.ok)setError(result.shown||result.cancelled?"":result.error);}}><h1>Xác minh khách hàng</h1><p className="hint">Đối chiếu trực tiếp và tích các mục bên dưới khi khách nhận chìa khóa. Không cần nhập thông tin giấy tờ.</p><Field label="Họ và tên khách hàng"><input value={v.customer} readOnly/></Field><Field label="Mã đặt chỗ"><input value={v.reservation_id} readOnly/></Field>{done?<><Notice>Đã xác minh trực tiếp lúc {timeLabel(v.verified_at)}.</Notice>{ops.handovers.filter(h=>h.verification_id===v.id&&h.status!=="DONE").map(h=><LinkButton key={h.id} to={`staff/keys?id=${encodeURIComponent(h.id)}`}>Tiếp tục nhận chìa khóa</LinkButton>)}</>:<>{[["original_valid","Đã kiểm tra giấy tờ bản gốc còn hiệu lực"],["photo_ok","Ảnh trên giấy tờ khớp với người nhận chìa khóa"],["info_ok","Họ tên trên giấy tờ trùng khớp với đơn đặt chỗ"],["booking_matched","Đã đối chiếu đúng đơn đặt chỗ và kho nhận"]].map(([key,label])=><label className="customer-detail__choice" key={key}><input type="checkbox" checked={form[key]} disabled={disabled} onChange={e=>setForm({...form,[key]:e.target.checked})}/><span>{label}</span></label>)}<p className="hint">Tích đủ 4 mục để tiếp tục. Thông tin chưa khớp thì chưa xác nhận.</p>{!supported&&<Notice>Máy chủ chưa hỗ trợ xác minh bằng checklist; chưa gửi xác nhận. Không nhập lại hoặc tự điền giấy tờ thay khách.</Notice>}{error&&<Notice tone="error">{error}</Notice>}<Button type="submit" disabled={disabled||!Object.values(form).every(Boolean)}>Tiếp tục xác nhận</Button></>}</form></main>;
 }

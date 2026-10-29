@@ -294,6 +294,25 @@ try {
   assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Không tìm thấy hồ sơ"));
   memory.delete(INCIDENT_DEMO_KEY);count+=6;
 
+  // Batch08: missing evidence and explicit checklist cannot be treated as completion.
+  const b8ops=createOpsData();
+  const keyTask=b8ops.handovers.find(h=>h.status==="WAITING");
+  seed(true,OPS_ACCOUNTS.find(a=>a.role==="STAFF"));
+  b8ops.verifications=b8ops.verifications.filter(v=>v.id!==keyTask.verification_id);
+  memory.set(OPS_KEY,JSON.stringify(b8ops));window.location.hash=`#/staff/keys?id=${keyTask.id}`;
+  let b8html=renderToStaticMarkup(React.createElement(App));
+  assert.ok(b8html.includes("Thiếu hồ sơ xác minh hợp lệ"));assert.match(b8html,/<button[^>]*disabled[^>]*>Ghi nhận đã giao chìa khóa<\/button>/);
+  b8ops.verifications=[{id:keyTask.verification_id,status:"DONE",doc_last4:"1234",doc_type:"CCCD"}];memory.set(OPS_KEY,JSON.stringify(b8ops));
+  b8html=renderToStaticMarkup(React.createElement(App));assert.equal((b8html.match(/type="checkbox"/g)||[]).length,3);assert.ok(!/type="checkbox"[^>]*checked/.test(b8html));assert.ok(b8html.includes("Chưa có bằng chứng chính sách"));
+  window.location.hash="#/staff/return?id=TK-0098";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Tải ảnh hiện trạng / hư hỏng")&&b8html.includes("Lưu nháp"));assert.ok(!b8html.includes("Đã chuyển hết đồ khỏi kho"),"Không điền sẵn kết luận kiểm kê");
+  seed(true,manager);window.location.hash="#/manager/contracts?id=missing";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Không tìm thấy hợp đồng"));assert.ok(!b8html.includes("Bước tiếp theo"));assert.ok(!b8html.includes('table--hover'));
+  window.location.hash="#/manager/deposit-refunds?id=HC-0098";b8html=renderToStaticMarkup(React.createElement(App));for(const text of ["Mã giao dịch","Thời gian chuyển","đúng tài khoản nhận"])assert.ok(b8html.includes(text),text);assert.match(b8html,/<button[^>]*disabled[^>]*>Ghi nhận đã chuyển tiền<\/button>/);
+  delete b8ops.deposit_refunds[0].amount;memory.set(OPS_KEY,JSON.stringify(b8ops));b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Chưa có dữ liệu"));assert.ok(!b8html.includes("Không còn khoản hoàn;"));
+  b8ops.deposit_refunds[0].amount=0;b8ops.deposit_refunds[0].status="NO_REFUND";memory.set(OPS_KEY,JSON.stringify(b8ops));b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("không tạo giao dịch chuyển tiền"));assert.ok(!b8html.includes('type="datetime-local"'));
+  b8ops.refunds=[{...b8ops.refunds[0],status:"UNKNOWN",amount:undefined}];memory.set(OPS_KEY,JSON.stringify(b8ops));window.location.hash="#/manager/refunds";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Chưa rõ trạng thái")&&b8html.includes("Chưa có dữ liệu"));assert.ok(!b8html.includes("Đã hoàn"));
+  b8ops.verifications=[{id:"XM-check",status:"TODO",customer:"Mai",reservation_id:"SS-check"}];memory.set(OPS_KEY,JSON.stringify(b8ops));seed(true,OPS_ACCOUNTS.find(a=>a.role==="STAFF"));window.location.hash="#/staff/verify?id=XM-check";b8html=renderToStaticMarkup(React.createElement(App));assert.equal((b8html.match(/type="checkbox"/g)||[]).length,4);assert.ok(!b8html.includes("Số giấy tờ"));assert.ok(!/type="checkbox"[^>]*checked/.test(b8html));
+  memory.delete(OPS_KEY);count+=9;
+
   seed(true);
   window.location.hash = "#/overview";
   const overview = renderToStaticMarkup(React.createElement(App));

@@ -1,3 +1,12 @@
+## 2026-10-28 — F40 Batch08: nhân viên/quản lý, đối soát và hoàn tiền (phiên 5)
+
+- Tiếp Batch07, main đọc lại c1a9b05. Giữ F40 active/F41 blocked; không sửa BE/schema/Figma, không commit/push/PR/merge.
+- S02 checklist4 mục không nhập giấy tờ; chìa khóa cần xác minh +3 tick, không kích hoạt; kiểm kê cần bằng chứng hư hỏng và khấu trừ10% vệ sinh, không điền sẵn kết luận. M07 thẻ từng hồ sơ, xem biên bản/ảnh, chặn khắc phục chưa xử lý, chốt chỉ chờ hoàn.
+- Hoàn cọc/M08 cần bank chính chủ, mã/thời gian/checklist; thiếu tiền không giả0, status lạ không giảPAID. Ngày20 cần ảnh trước/sau, đúng phân công/mốc thực tế; cọc hết sớm không được dọn sớm. Demo chốt/hoàn dùng queue ops, không giao dịch thật.
+- API main chưa hỗ trợ đầy đủ; guard marker server và kiểm receipt/readback, lỗi không fallback. BACKEND-TODO mục Batch08 ghi DTO/marker/evidence/transaction. Không tự dựng số giấy tờ/owner/bank thiếu.
+- FE145/145; workflows12/12; business9/9; SSR158 lượt + assertions; structure/build/init --fe-only/diff PASS. Patch incremental/main apply + byte-match PASS. Chromium thiếu executable, chưa browser/visual/API .NET/SQL Server/PayOS thật.
+- docs/sprints/FE-figma-sync-08.md và danh mục CSV đã cập nhật. Còn2 phiên: Batch09 vận hành/admin, Batch10 browser/tích hợp.
+
 ## 2026-10-28 — F40 Batch07: sự cố cơ sở (phiên 4)
 
 - Tiếp source Batch06 trên main c1a9b05 đọc lại qua GitHub; giữ F40 active/F41 blocked. Không sửa BE/schema/Figma, không commit/push/PR/merge.

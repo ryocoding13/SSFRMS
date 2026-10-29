@@ -36,7 +36,7 @@ import { StaffTaskList } from "./components/StaffTasks.jsx";
 const LIST_KIND = { reconcile: "reconcile", verify: "verify", handover: "handover", keys: "handover", return: "return", support: "support" };
 function StaffTab({ kind, Detail, query }) {
   const me = useMe();
-  return query.get("id") ? <Detail query={query} /> : <StaffTaskList kind={kind} query={query} me={me} />;
+  return query.get("id") ? <Detail key={query.get("id")} query={query} /> : <StaffTaskList kind={kind} query={query} me={me} />;
 }
 
 // #/staff/...  (Figma S01–S09)      #/manager/...  (Figma M01–M08)
@@ -81,7 +81,7 @@ export default function FacilityOperationsRoutes({ role, parts, query }) {
   return (
     <FacilityOperationsLayout role={role} active={active}>
       {Page ? (
-        staff && LIST_KIND[parts[0]] ? <StaffTab kind={LIST_KIND[parts[0]]} Detail={Page} query={query} /> : <Page query={query} />
+        staff && LIST_KIND[parts[0]] ? <StaffTab kind={LIST_KIND[parts[0]]} Detail={Page} query={query} /> : <Page key={query.get("id") || "list"} query={query} />
       ) : (
         <main className="container page">
           <Empty title="Không tìm thấy trang" text="Đường dẫn này không tồn tại.">

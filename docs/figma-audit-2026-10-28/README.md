@@ -99,3 +99,8 @@ D30-13/18/18b đã có FE và adapter đề xuất, xem `../sprints/FE-figma-syn
 ## Checkpoint Batch07 — phiên 4
 
 D30-10/16/16b có FE/state qua manager/incidents và units/:id/incident; xem sprint07. Cả 8 màn/nhánh thiếu FE ở thời điểm Batch04 đã có triển khai tương ứng qua Batch05–07. Đây không phải xác nhận khớp pixel hoặc tích hợp hoàn tất: T13, evidence và các API khác còn chờ, chưa browser/SQL Server/thiết bị cửa thật. F40 active/F41 blocked giữ nguyên. Còn 3 phiên theo kế hoạch (Batch08–10). CSV đã cập nhật trạng thái; các bảng/số đếm cũ ở trên là lịch sử kiểm kê.
+
+
+## Checkpoint Batch08 — phiên 5
+
+Đồng bộ bảy màn S02/D30-14/D30-08/M07/D30-09/M08/D30-11, giữ URL và sửa guard/evidence/thiếu dữ liệu. S02 bỏ nhập giấy tờ theo Figma mới nhất; API cũ bị chặn thay vì nhập giả. Các màn có FE không đồng nghĩa backend tích hợp; đọc sprint08/BACKEND-TODO. Còn2 phiên (Batch09–10), F40 active/F41 blocked giữ nguyên. Chưa browser/SQL Server/API thật; CSV đã cập nhật checkpoint, số đếm lịch sử phía trên giữ nguyên.

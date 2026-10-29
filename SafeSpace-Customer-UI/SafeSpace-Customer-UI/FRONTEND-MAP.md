@@ -256,3 +256,10 @@ Shared model/API/hook/components ở `features/facility-operations/damage/`. API
 | `#/manager/incidents[?id=:incidentId]` | `src/features/manager/incidents/IncidentManagementPage.jsx` | Hợp đồng → Sự cố cơ sở; scope cơ sở manager |
 
 D30-16b là trạng thái TRANSFERRED của trang khách. Model/adapter/hook/components ở `features/facility-operations/incidents/`. Dùng UI/ConfirmDialog/bank/photo chung. API đề xuất, không có trên main c1a9b05; demo opt-in lưu riêng, không đổi hợp đồng/ledger/QR thật. GET manager cần trả draft descriptor/candidates/version từ server; không tạo fake ID trong API mode. Chi tiết sprint07 và BACKEND-TODO.
+
+
+## Batch08 — nhân viên/quản lý, đối soát/hoàn tiền
+
+URL giữ nguyên: staff/verify?id, staff/keys?id, staff/return?id, staff/overdue, manager/contracts[?id], manager/refunds, manager/deposit-refunds[?id]. M07 dùng thẻ từng hợp đồng, ID lạ không fallback. Page route được key theo ID để không mang form hồ sơ trước sang hồ sơ mới.
+
+Shared validation/summary ở `src/features/facility-operations/settlements/{settlementModel.js,SettlementComponents.jsx,settlements.css}`. Provider kiểm guard/readback và dùng ConfirmDialog6tone. S02 checklist4 không nhập giấy tờ; API cũ chưa hỗ trợ nên bị chặn, không điền giấy tờ giả. S04/M08 cũng có marker server riêng (BACKEND-TODO). Chốt/hoàn demo dùng `ops.deposit_refunds`, customerRefunds đọc cùng queue khi có; bank/owner thiếu không tự suy đoán. Chi tiết nguồn Figma/test/giới hạn ở docs/sprints/FE-figma-sync-08.md.
