@@ -36,9 +36,9 @@ test('other topic requires and preserves a separate custom subject',()=>{
 test('key receipt is idempotent and never activates a unit',()=>{
   let ops=createOpsData("2026-10-22"); const h=ops.handovers[0]; ops.verifications.find(v=>v.id===h.verification_id).status='DONE';
   const before=JSON.stringify(ops.units);
-  ops=reduceOps(ops,{type:'RECORD_KEY_RECEIPT',payload:{id:h.id}},now).state;
+  ops=reduceOps(ops,{type:'RECORD_KEY_RECEIPT',payload:{id:h.id,identity_checked:true,condition_checked:true,key_delivered:true}},now).state;
   assert.equal(JSON.stringify(ops.units),before);
-  const second=reduceOps(ops,{type:'RECORD_KEY_RECEIPT',payload:{id:h.id}},now);
+  const second=reduceOps(ops,{type:'RECORD_KEY_RECEIPT',payload:{id:h.id,identity_checked:true,condition_checked:true,key_delivered:true}},now);
   assert.equal(second.state,ops);
 });
 

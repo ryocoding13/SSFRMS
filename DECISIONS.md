@@ -319,3 +319,11 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Ngoại lệ không mở rộng sang mật khẩu DB, khóa JWT, token khác hoặc khóa PayOS trong frontend/VITE_*. Không thay kiểm tra chữ ký webhook, mã đơn, số tiền hay chống ghi nhận trùng.
 - appsettings.json được kiểm tra đang chỉ có YOUR_PAYOS_CLIENT_ID, YOUR_PAYOS_API_KEY, YOUR_PAYOS_CHECKSUM_KEY; không có cờ chặn/che ngân hàng. Không sửa file này khi chưa có giá trị thật từ nhóm, không tự bịa khóa.
 - Không thay nghiệp vụ D26/D27/D32, API, schema, quyền hoặc trạng thái tính năng. Không khẳng định thanh toán thật đã hoạt động chỉ từ thay đổi quy định.
+
+
+## D33 — 28/10/2026: Tên đăng nhập riêng và Giá & phí theo cơ sở
+
+- Đồng bộ yêu cầu người dùng đã chốt khi sửa Figma ngày 28/10 và yêu cầu đối chiếu FE lần này: khách tự chọn tên đăng nhập riêng ở A02; C13 hiển thị tên đăng nhập chỉ đọc. Thay phần đăng ký `username = email` của D03/D31; giữ đăng nhập bằng email hoặc username, mật khẩu và kiểm tra quyền. FE gửi trường `Username` đã có của API, không đổi schema.
+- Tên đăng nhập bắt buộc, tối đa 50 ký tự theo cột User.Username, không chứa khoảng trắng hoặc @ để tránh nhầm định danh email; trùng username/email trả đúng lỗi từ backend. Tài khoản cũ giữ nguyên.
+- B03 chọn cơ sở trước → B03a bốn loại kho (15/30 m², thường/lạnh), có ảnh và sửa giá cho đúng cơ sở/loại kho/ngày áp dụng. Giá đọc API; không chép số minh họa Figma. Không sửa ngược giá hợp đồng. B02 giữ quản lý chính sách/phí toàn hệ thống theo D32.
+- Chỉ sửa FE, ghi nhận hợp đồng T20 backend đã merge trên main c1a9b05. Không xác nhận tích hợp SQL Server/PayOS thật và không đổi trạng thái feature.

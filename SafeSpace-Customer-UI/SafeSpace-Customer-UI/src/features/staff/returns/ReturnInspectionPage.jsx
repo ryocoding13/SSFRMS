@@ -1,116 +1,20 @@
-import { cleaningFee } from "../../../shared/utils/returnPolicy.js";
 import React, { useState } from "react";
-import { Select } from "../../../shared/components/Pickers.jsx";
-import { Button, Empty, Field, LinkButton, Notice } from "../../../shared/components/UI.jsx";
-import { dateTimeLabel, money } from "../../../shared/utils/format.js";
-import { go, href } from "../../../app/router.js";
+import { Button, Empty, Field, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
+import ReturnPhotoInput from "../../../shared/components/ReturnPhotoInput.jsx";
+import { cleaningFee } from "../../../shared/utils/returnPolicy.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
-
-// Phí quá hạn không nhập tay: backend tự tính theo số ngày trễ khi quản lý xác nhận trả kho (ConfirmRefundAsync)
-const FEES = [["damage_fee", "Phí hư hỏng"], ["cleaning_fee", "Phí vệ sinh"]];
-const toNumber = (v) => Number(v ?? 0);
-
-export const PROPOSALS = ["Chờ vệ sinh / kiểm tra trước khi cho thuê lại", "Sẵn sàng cho thuê lại", "Cần bảo trì trước khi cho thuê lại"];
-
-export function ReturnInspectionPage({ query }) {
-  const { ops, run, source } = useOps();
-  const list = ops.returns.filter((r) => r.status === "SCHEDULED");
-  const r = query.get("id") ? ops.returns.find((x) => x.id === query.get("id")) : list[0] || ops.returns[0];
-  const [form, setForm] = useState({ items: "Đã chuyển hết đồ khỏi kho", walls: "Không ghi nhận hư hỏng mới", keys: "Đã nhận lại 01 chìa khóa", proposal: PROPOSALS[0], damage_fee: "0", cleaning_fee: "0", cleaning_required: false, fee_reason: "" });
-  const [err, setErr] = useState("");
-  if (!r)
-    return (
-      <main className="container page">
-        <Empty title="Không có lịch trả kho" text="Khách đăng ký trả kho sẽ hiện ở đây theo lịch hẹn.">
-          <LinkButton to="staff">Về công việc trong ngày</LinkButton>
-        </Empty>
-      </main>
-    );
-  const set = (k, v) => {
-    setForm({ ...form, [k]: v });
-    setErr("");
-  };
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!Number.isFinite(Number(r.deposit)) || r.deposit == null || Number(r.deposit) < 0) return setErr("Chưa có tiền cọc hợp lệ từ máy chủ. Tải lại trước khi gửi biên bản.");
-    const fees = Object.fromEntries(FEES.map(([k]) => [k, toNumber(form[k])]));
-    if (Object.values(fees).some((v) => !Number.isFinite(v) || v < 0)) return setErr("Phí phát sinh phải là số tiền không âm.");
-    if ((form.cleaning_required || Object.values(fees).some((v) => v > 0)) && !form.fee_reason.trim()) return setErr("Nhập lý do thu phí.");
-    fees.cleaning_fee = cleaningFee(r.deposit, form.cleaning_required);
-    const report = { ...form, ...fees, cleaning_required: Boolean(form.cleaning_required), fee_reason: form.fee_reason.trim() };
-    const out = await run("SUBMIT_RETURN", { id: r.id, report }, "Đã gửi biên bản trả kho cho quản lý");
-    if (!out.ok) return setErr(out.shown || out.cancelled ? "" : out.error);
-    go("staff/return");
-  };
-  const submitted = r.status === "SUBMITTED";
-  // Biên bản đã gửi: chỉ hiện phí máy chủ trả về, không lấy lại số đang gõ trên form
-  const feesSaved = submitted && FEES.some(([k]) => r.report?.[k] != null);
-  const report = submitted ? { ...form, ...Object.fromEntries(FEES.map(([k]) => [k, "0"])), cleaning_required: false, fee_reason: "", ...r.report } : { ...form };
-  if (!submitted) report.cleaning_fee = cleaningFee(r.deposit, report.cleaning_required);
-  const feeTotal = FEES.reduce((sum, [k]) => sum + (toNumber(report[k]) || 0), 0);
-  const deposit = Number(r.deposit) || 0;
-  const owed = Math.min(deposit, Math.max(0, feeTotal));
-  return (
-    <main className="container page">
-      <a className="back-link" href={href("staff/return")}>← Danh sách trả kho</a>
-      <header className="page-header page-header--tight">
-        <div>
-          <h1>Kiểm tra & tiếp nhận trả kho</h1>
-          <p>{r.unit} · {r.customer} · Lịch hẹn {dateTimeLabel(r.appointment)}</p>
-        </div>
-      </header>
-      <div className="detail-grid">
-        <form className="panel form-card" onSubmit={submit} noValidate>
-          <Field label="Đồ lưu trữ"><input value={report.items} disabled={submitted} onChange={(e) => set("items", e.target.value)} /></Field>
-          <Field label="Tường, sàn & cửa kho"><input value={report.walls} disabled={submitted} onChange={(e) => set("walls", e.target.value)} /></Field>
-          <Field label="Chìa khóa vật lý"><input value={report.keys} disabled={submitted} onChange={(e) => set("keys", e.target.value)} /></Field>
-          <Field label="Đề xuất trạng thái kho">
-            <Select value={report.proposal} disabled={submitted} onChange={(e) => set("proposal", e.target.value)}>
-              {PROPOSALS.map((p) => <option key={p}>{p}</option>)}
-            </Select>
-          </Field>
-          {/* Figma S04 (629:9139): phí phát sinh khi trả kho */}
-          <h3 className="form-card__sub">Phí phát sinh khi trả kho</h3>
-          <div className="form-pair form-pair--3">
-            {FEES.map(([k, label]) => (
-              <Field key={k} label={label}>
-                <input inputMode="numeric" value={submitted ? (feesSaved ? money(toNumber(report[k]) || 0) : "—") : report[k]} disabled={submitted || k === "cleaning_fee"} onChange={(e) => set(k, e.target.value)} />
-              </Field>
-            ))}
-          </div>
-          <label className="check-row">
-            <span className="check"><input type="checkbox" checked={Boolean(report.cleaning_required)} disabled={submitted} onChange={(e) => set("cleaning_required", e.target.checked)} /><span /></span>
-            Kho cần vệ sinh trước khi cho thuê lại
-          </label>
-          <p className="hint">Vệ sinh cố định 10% tiền cọc khi kho cần vệ sinh. Phí quá hạn lấy từ máy chủ và dừng khi khách gửi yêu cầu trả kho thành công.</p>
-          <Field label="Lý do thu phí">
-            <input maxLength={255} value={report.fee_reason || ""} disabled={submitted} placeholder="Ví dụ: Còn rác và vết sơn trên sàn, cần vệ sinh trước khi cho thuê lại." onChange={(e) => set("fee_reason", e.target.value)} />
-          </Field>
-          {submitted && !feesSaved && source === "api" && (
-            <Notice tone="error">Máy chủ chưa lưu phí phát sinh của biên bản này. Báo quản lý cơ sở kiểm tra lại phí trước khi xác nhận trả kho.</Notice>
-          )}
-          {err && <Notice tone="error">{err}</Notice>}
-          {submitted ? <Notice tone="success">Đã gửi biên bản lúc {dateTimeLabel(r.submitted_at)}. Chờ quản lý xác nhận trả kho.</Notice> : <Button type="submit">Gửi biên bản và phí cho quản lý</Button>}
-        </form>
-        <aside className="panel booking">
-          <h2>Khấu trừ tiền cọc khi trả kho</h2>
-          <p className="muted">
-            Tiền cọc: {money(deposit)}
-            {FEES.filter(([k]) => toNumber(report[k]) > 0).map(([k, label]) => (
-              <React.Fragment key={k}><br />{label} đề xuất: {money(toNumber(report[k]))}</React.Fragment>
-            ))}
-          </p>
-          <p className="tone-amber"><strong>Khấu trừ đề xuất (tối đa bằng cọc): {money(owed)}</strong></p>
-          {deposit > 0 && (
-            <p className="muted">
-              Tiền cọc đang giữ: {money(deposit)}
-              <br />
-              Không thu thêm khi phí vượt cọc.
-            </p>
-          )}
-          <p className="muted">Số khấu trừ trên chỉ gồm biên bản kiểm kê. Tiền hoàn chính thức do máy chủ tính theo thời điểm trả kho và chính sách. Chốt số tiền tạo khoản chờ hoàn; chỉ ghi đã hoàn sau khi chuyển tiền. Kho cần vệ sinh hoặc sửa tiếp tục bảo trì.</p>
-        </aside>
-      </div>
-    </main>
-  );
+import { validateInspection } from "../../facility-operations/settlements/settlementModel.js";
+import { OpsDemo, SettlementSummary } from "../../facility-operations/settlements/SettlementComponents.jsx";
+import { DamagePhotos, timeLabel } from "../../facility-operations/damage/DamageComponents.jsx";
+import "../../../shared/styles/customer-detail.css";
+export const PROPOSALS=["Chờ vệ sinh / kiểm tra trước khi cho thuê lại","Sẵn sàng cho thuê lại","Cần bảo trì trước khi cho thuê lại"];
+export function ReturnInspectionPage({query}) {
+ const {ops,run,source,saving,needsRefresh}=useOps(),r=ops.returns.find(x=>x.id===query.get("id"));
+ const [form,setForm]=useState({items:"",walls:"",keys:"",proposal:PROPOSALS[0],damage_fee:"0",damage_item:"",cleaning_required:false,fee_reason:""}),[files,setFiles]=useState([]),[reading,setReading]=useState(false),[error,setError]=useState("");
+ if(!r)return <main className="container page"><Empty title="Không tìm thấy lịch trả kho" text="Chọn đúng hồ sơ trong danh sách."><LinkButton to="staff/return">Danh sách trả kho</LinkButton></Empty></main>;
+ const submitted=r.status==="SUBMITTED",report=submitted?r.report||{}:{...form,damage_fee:form.damage_fee.trim()===""?NaN:Number(form.damage_fee),cleaning_fee:cleaningFee(r.deposit,form.cleaning_required)},blocked=saving||needsRefresh||reading||r.status!=="SCHEDULED",supported=source!=="api"||ops.inspection_evidence_supported===true;
+ const change=(key,value)=>{setForm(f=>({...f,[key]:value}));setError("");};
+ const draftKey=`safespace.inspection-draft:${ops.facility?.facility_id}:${r.id}`;
+ const submit=async e=>{e.preventDefault();if(blocked||!supported)return;try{validateInspection(r,report,files);const result=await run("SUBMIT_RETURN",{id:r.id,report,files},"Đã gửi biên bản cho quản lý");if(!result.ok)setError(result.shown||result.cancelled?"":result.error);else localStorage.removeItem(draftKey);}catch(error){setError(error.message);}};
+ return <main className="container page customer-records customer-detail"><p className="customer-records__breadcrumb">SafeSpace / Nhân viên / Kiểm tra trả kho</p><PageHeader title={`Kiểm tra trả kho ${r.unit}`} description={`${r.customer} · Khách gửi trả kho: ${timeLabel(r.requested_at)}. Phí quá hạn dừng tại thời điểm gửi thành công.`}><Tag tone="amber">{submitted?"Đã gửi biên bản":"Chờ kiểm tra"}</Tag></PageHeader><OpsDemo source={source}/><div className="customer-detail__grid"><form className="panel customer-detail__card" onSubmit={submit} noValidate><h2>Biên bản kiểm tra</h2>{[ ["items","Đồ còn lại *"],["walls","Tường, sàn và cửa kho *"],["keys","Chìa khóa vật lý *"]].map(([key,label])=><Field label={label} key={key}><textarea rows={2} maxLength={500} value={report[key]||""} disabled={blocked} onChange={e=>change(key,e.target.value)}/></Field>)}{submitted?<><DamagePhotos photos={report.photos}/>{Array.isArray(report.photo_files)&&report.photo_files.length>0&&<p className="hint">Tệp đã gửi (mô phỏng chỉ lưu tên): {report.photo_files.map(f=>f.fileName).join(", ")}</p>}</>:<ReturnPhotoInput files={files} onChange={setFiles} onReading={setReading} disabled={blocked} required={report.damage_fee>0} label="Tải ảnh hiện trạng / hư hỏng"/>}<div className="form-row"><Field label="Hạng mục hư hỏng"><input maxLength={500} value={report.damage_item||""} disabled={blocked} onChange={e=>change("damage_item",e.target.value)}/></Field><Field label="Mức khấu trừ đề xuất"><input inputMode="numeric" value={submitted?(report.damage_fee??""):form.damage_fee} disabled={blocked} onChange={e=>change("damage_fee",e.target.value)}/></Field></div><label className="customer-detail__choice"><input type="checkbox" checked={Boolean(report.cleaning_required)} disabled={blocked} onChange={e=>change("cleaning_required",e.target.checked)}/><span>Kho bẩn · khấu trừ cố định 10% cọc</span></label><Field label="Lý do khấu trừ"><textarea rows={2} maxLength={500} value={report.fee_reason||""} disabled={blocked} onChange={e=>change("fee_reason",e.target.value)}/></Field><Field label="Trạng thái ô kho sau kiểm tra *"><select value={report.proposal||PROPOSALS[0]} disabled={blocked} onChange={e=>change("proposal",e.target.value)}>{PROPOSALS.map(p=><option key={p}>{p}</option>)}</select></Field><p className="hint">Chưa chuyển sang Trống nếu còn cần dọn, vệ sinh hoặc bảo trì.</p>{!supported&&<Notice>Máy chủ chưa hỗ trợ lưu đủ ảnh và phí kiểm kê; chưa thể gửi biên bản.</Notice>}{error&&<Notice tone="error">{error}</Notice>}{submitted?<Notice>Đã gửi lúc {timeLabel(r.submitted_at)}. Chờ quản lý duyệt đối soát.</Notice>:<div className="customer-detail__actions"><Button variant="outline" disabled={blocked} onClick={()=>{try{localStorage.setItem(draftKey,JSON.stringify(form));setError("Đã lưu nháp nội dung trên thiết bị này; ảnh cần chọn lại nếu tải trang.");}catch{setError("Không lưu được nháp trên thiết bị này.");}}}>Lưu nháp</Button><Button variant="outline" disabled={blocked} onClick={()=>{try{const draft=JSON.parse(localStorage.getItem(draftKey));if(draft&&typeof draft.items==="string"&&typeof draft.walls==="string"&&typeof draft.keys==="string")setForm({...form,...draft});else setError("Chưa có nháp hợp lệ.");}catch{setError("Không đọc được nháp.");}}}>Mở nháp</Button><Button type="submit" disabled={blocked||!supported}>Gửi biên bản cho quản lý</Button></div>}</form><SettlementSummary deposit={r.deposit} damage={report.damage_fee} cleaning={submitted?report.cleaning_fee:cleaningFee(r.deposit,form.cleaning_required)} overdue={r.overdue_fee}/></div><div className="workflow-links"><LinkButton to="staff/return" variant="outline">Danh sách trả kho</LinkButton></div></main>;
 }

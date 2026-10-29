@@ -1,3 +1,4 @@
+import { validateKeyReceipt, transferProof, canFinalizeReturn } from "../settlements/settlementModel.js";
 import { cleaningFee, NO_RETURN_COLLECTION } from "../../../shared/utils/returnPolicy.js";
 // Nghiệp vụ vận hành tại cơ sở (thuần, có test). Mỗi action trả { state, result } hoặc ném OpsError.
 import { dateLabel, money } from "../../../shared/utils/format.js";
@@ -61,9 +62,14 @@ const ACTIONS = {
   },
 
   // S02
-  VERIFY_CUSTOMER(state, { id, doc_type, doc_no, photo_ok, info_ok }, now) {
+  VERIFY_CUSTOMER(state, { id, doc_type, doc_no, photo_ok, info_ok,original_valid,booking_matched }, now) {
     const v = find(state.verifications, id, "lịch xác minh");
     if (v.status === "DONE") fail("Khách hàng này đã được xác minh.");
+    if(!doc_no) {
+      if(!original_valid||!photo_ok||!info_ok||!booking_matched)fail("Đánh dấu đủ bốn mục đối chiếu.");
+      const next={...state,verifications:patch(state.verifications,id,()=>({status:"DONE",verified_at:iso(now),checklist:{original_valid,photo_ok,info_ok,booking_matched}}))};
+      return {state:next,result:{id}};
+    }
     if (!/^\d{9}$|^\d{12}$|^[A-Z]\d{7}$/i.test(String(doc_no || "").trim())) fail("Số giấy tờ gồm 9 hoặc 12 chữ số (CCCD/CMND) hoặc 1 chữ + 7 số (hộ chiếu).");
     if (!photo_ok || !info_ok) fail("Đánh dấu cả hai mục đối chiếu trước khi xác minh.");
     const last4 = String(doc_no).trim().slice(-4);
@@ -72,9 +78,11 @@ const ACTIONS = {
   },
 
   // S03
-  RECORD_KEY_RECEIPT(state, { id }, now) {
+  RECORD_KEY_RECEIPT(state, payload, now) {
+    const {id}=payload;
     const h = find(state.handovers, id, "lịch nhận chìa khóa");
     if (h.status === "DONE") return { state, result: { id } };
+    try{validateKeyReceipt(state,payload);}catch(error){fail(error.message);}
     const v = state.verifications.find(x => x.id === h.verification_id);
     if (v && v.status !== "DONE") fail("Cần xác minh giấy tờ trước khi nhận chìa khóa.");
     const next = { ...state,
@@ -85,14 +93,14 @@ const ACTIONS = {
   },
 
   // S04
-  SUBMIT_RETURN(state, { id, report }, now) {
+  SUBMIT_RETURN(state, { id, report, files=[] }, now) {
     const r = find(state.returns, id, "lịch trả kho");
     if (r.status === "SUBMITTED") fail("Biên bản trả kho đã được gửi.");
     const need = ["items", "walls", "keys", "proposal"];
     if (need.some((k) => !String(report?.[k] || "").trim())) fail("Điền đủ 4 mục kiểm tra trước khi gửi biên bản.");
     if (!Number.isFinite(Number(report.damage_fee ?? 0)) || Number(report.damage_fee ?? 0) < 0) fail("Phí hư hỏng phải không âm.");
     if ((Number(report.damage_fee) > 0 || report.cleaning_required) && !String(report.fee_reason || "").trim()) fail("Nhập lý do khấu trừ.");
-    report = { ...report, cleaning_fee: cleaningFee(r.deposit, report.cleaning_required) };
+    report = { ...report,photo_files:files.map(f=>({fileName:f.name,contentType:f.type,size:f.size})), cleaning_fee: cleaningFee(r.deposit, report.cleaning_required) };
     const next = {
       ...state,
       returns: patch(state.returns, id, () => ({ status: "SUBMITTED", report, submitted_at: iso(now) })),
@@ -182,22 +190,33 @@ const ACTIONS = {
     const c = find(state.contracts, id, "hợp đồng");
     if (c.state !== "RETURNED") fail("Hợp đồng chưa có biên bản trả kho.");
     const r = state.returns.find((x) => x.contract === id);
+    if(!canFinalizeReturn(state,c,r))fail("Chưa đủ biên bản hoặc phản hồi/khắc phục chưa xử lý xong.");
     const { refund } = settleReturn(r, c);
     const next = {
       ...state,
+      deposit_refunds: [...(state.deposit_refunds||[]), {id:`HC-${id}`,contractId:id,unit:r.unit,customer:r.customer,facilityId:state.facility?.facility_id,ownerId:r.owner_id,deposit:r.deposit,overdue:r.report?.overdue_fee,damage:r.report?.damage_fee,cleaning:r.report?.cleaning_fee,amount:refund,status:refund>0?"PENDING":"NO_REFUND",version:1,bankName:r.bank_name,accountNumber:r.account_number,accountHolder:r.account_holder,inspectedAt:iso(now)}],
       contracts: patch(state.contracts, id, () => ({ state: "CLOSED", due: `Chờ hoàn ${money(refund)}`, refund_status: "PENDING", refund_amount: refund })),
       units: r ? patchUnit(state.units, r.unit, () => ({ status: r.report?.cleaning_required || r.report?.proposal !== "Sẵn sàng cho thuê lại" ? "MAINTENANCE" : "EMPTY", tenant: null, end: null })) : state.units,
     };
     return { state: addLog(next, now, `Chờ hoàn cọc ${money(refund)} · ${id}`, "manager/contracts", "MANAGER"), result: { id, refund, refundStatus: "PENDING" } };
   },
 
+  CONFIRM_DEPOSIT_REFUND(state,payload,now) {
+    const r=find(state.deposit_refunds||[],payload.id,"khoản hoàn cọc");
+    let proof;try{proof=transferProof(r,payload,now);}catch(error){fail(error.message);}
+    const next={...state,deposit_refunds:patch(state.deposit_refunds,payload.id,()=>({status:"PAID",transactionRef:proof.transactionRef,paidAt:proof.transferredAt,version:(r.version||1)+1}))};
+    return {state:next,result:{id:r.id}};
+  },
+
   // S09f · Nhân viên xác nhận đã thu phí phát sinh / công nợ tại quầy
   CONFIRM_FEE_COLLECTION() { fail(NO_RETURN_COLLECTION); },
 
   // M08 · Quản lý xác nhận đã chuyển khoản hoàn tiền cho đơn khách huỷ (D27)
-  CONFIRM_RESERVATION_REFUND(state, { id, method, transaction_ref }, now) {
+  CONFIRM_RESERVATION_REFUND(state, payload, now) {
+    const {id,method,transaction_ref}=payload;
     const r = find(state.refunds || [], id, "yêu cầu hoàn tiền");
     if (r.status !== "PENDING") fail("Khoản hoàn tiền này đã được xác nhận.");
+    try{transferProof(r,payload,now);}catch(error){fail(error.message);}
     const ref = String(transaction_ref || "").trim();
     if (method !== "CASH" && !ref) fail("Nhập mã giao dịch hoàn tiền.");
     const next = { ...state, refunds: patch(state.refunds, id, () => ({ status: "PAID", paid_at: iso(now), method: method || "BANK_TRANSFER", transaction_ref: ref || null })) };

@@ -19,7 +19,7 @@ test('C12 metadata giữ mã truy cập, lịch sử và báo lỗi đọc chi t
 });
 
 test('Ghép C12/C13 giữ nguyên API nhận chìa khóa, cấp lại mã và gia hạn của main', () => {
-  assert.deepEqual(OPS_ACTIONS.RECORD_KEY_RECEIPT({ id: 'BG-0001' }), ['POST', '/api/ops/keys/BG-0001/receipt']);
+  assert.deepEqual(OPS_ACTIONS.RECORD_KEY_RECEIPT({ id: 'BG-0001' }), ['POST', '/api/ops/keys/BG-0001/receipt',{identityChecked:undefined,conditionChecked:undefined,keyDelivered:undefined}]);
   assert.deepEqual(OPS_ACTIONS.TICKET_RESPONSE({ id: 'HT-0001', note: 'Đã xử lý', next: 'DONE' }),
     ['POST', '/api/ops/tickets/HT-0001/responses', { note: 'Đã xử lý', nextStatus: 'DONE' }]);
   assert.deepEqual(OPS_ACTIONS.REISSUE_CREDENTIAL({ unit: 'K01', type: 'PIN', reason: 'Quên mã' }),

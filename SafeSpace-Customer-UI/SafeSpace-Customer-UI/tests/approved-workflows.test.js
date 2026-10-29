@@ -4,7 +4,7 @@ import { applyWorkflowAction, createWorkflowSeed, depositSchedule, policyRate } 
 import { accessError } from "../src/shared/utils/access.js";
 import { loadWorkflow, saveWorkflow } from "../src/features/facility-operations/workflows/workflowApi.js";
 
-const actor = roles => ({ id: 3, name: "Nguyễn Văn An", roles });
+const actor = roles => ({ id: 3, name: "Trần Văn Long", facilityId:1, roles });
 test("khấu trừ dựa trên cọc gốc, cộng theo ngày, chặn ở 100%", () => {
   const d = depositSchedule(1150000, "2026-10-01", "2026-10-04");
   assert.equal(d.deducted, 172500); assert.equal(d.balance, 977500);
@@ -18,17 +18,18 @@ test("phân bổ phần lẻ vẫn cộng đúng 100% tiền cọc", () => {
   assert.throws(() => depositSchedule(100, "2026-01-01", "2026-02-01", 0));
 });
 test("khách không được xác nhận hoàn cọc, quản lý không ghi trùng", () => {
-  const s = createWorkflowSeed(), p = { id: "HC-0098", transactionRef: "FT123" };
+  const s = createWorkflowSeed(), p = { id: "HC-0098", confirmed:true,transferredAt:new Date(Date.now()-60000).toISOString(),transactionRef: "FT123" };
   assert.throws(() => applyWorkflowAction(s, "CONFIRM_DEPOSIT_REFUND", p, actor(["CUSTOMER"])), /quyền/);
   assert.throws(() => applyWorkflowAction(s, "CONFIRM_DEPOSIT_REFUND", { id: p.id }, actor(["MANAGER"])), /mã giao dịch/);
+  s.depositRefunds[0].inspectedAt=new Date(Date.now()-120000).toISOString();
   const next = applyWorkflowAction(s, "CONFIRM_DEPOSIT_REFUND", p, actor(["MANAGER"]));
   assert.equal(next.depositRefunds[0].status, "PAID"); assert.equal(s.depositRefunds[0].status, "PENDING");
   assert.throws(() => applyWorkflowAction(next, "CONFIRM_DEPOSIT_REFUND", p, actor(["MANAGER"])), /không còn/);
 });
 test("biên bản bắt buộc đủ thông tin và thời gian không ở tương lai", () => {
-  const s = createWorkflowSeed(), p = { id: "QH-0061", inventory: "03 thùng", location: "Khu ngoài K03", performedAt: "2099-01-01T10:00:00Z", unitStatus: "INSPECTION" };
+  const s = createWorkflowSeed(), p = { id: "QH-0061", inventory: "03 thùng", location: "Khu ngoài K03", performedAt: "2099-01-01T10:00:00Z", unitStatus: "INSPECTION",confirmed:true,beforePhotos:[{name:"before.png",type:"image/png",size:20}],afterPhotos:[{name:"after.png",type:"image/png",size:20}] };
   assert.throws(() => applyWorkflowAction(s, "RECORD_REMOVAL", p, actor(["STAFF"])), /tương lai/);
-  p.performedAt = "2026-01-01T10:00:00Z";
+  p.performedAt = new Date(Date.now()-60000).toISOString();
   const next = applyWorkflowAction(s, "RECORD_REMOVAL", p, actor(["STAFF"]));
   assert.equal(next.overdue[0].status, "DONE"); assert.equal(next.overdue[0].record.location, p.location);
   assert.throws(() => applyWorkflowAction(next, "RECORD_REMOVAL", p, actor(["STAFF"])), /không gửi lại/);
@@ -69,7 +70,7 @@ test("API chưa có endpoint luôn từ chối đọc/ghi, không trả dữ li�
   } finally { globalThis.fetch = original; }
 });
 
-test("mốc xử lý đồ quá hạn theo tỷ lệ chính sách đang lưu, không cố định 20 ngày", () => {
+test("cọc hết sớm do tỷ lệ cao vẫn không xử lý đồ trước mốc ngày 20", () => {
   assert.equal(policyRate({ rate: 10 }), 10);
   assert.equal(policyRate(null), 5);
   assert.equal(policyRate({ rate: 0 }), 5);
@@ -77,8 +78,16 @@ test("mốc xử lý đồ quá hạn theo tỷ lệ chính sách đang lưu, kh
   const s = createWorkflowSeed();
   s.policy.rate = 10;
   s.overdue[0].endDate = new Date(Date.now() - 11 * 86400000).toISOString().slice(0, 10);
-  const payload = { id: s.overdue[0].id, inventory: "2 thùng carton", location: "Khu tập kết A", performedAt: new Date(Date.now() - 60000).toISOString(), unitStatus: "INSPECTION" };
-  assert.equal(applyWorkflowAction(s, "RECORD_REMOVAL", payload, actor(["STAFF"])).overdue[0].status, "DONE");
+  const payload = { id: s.overdue[0].id, inventory: "2 thùng carton", location: "Khu tập kết A", performedAt: new Date(Date.now() - 60000).toISOString(), unitStatus: "INSPECTION",confirmed:true,beforePhotos:[{name:"before.png",type:"image/png",size:20}],afterPhotos:[{name:"after.png",type:"image/png",size:20}] };
+  assert.throws(()=>applyWorkflowAction(s, "RECORD_REMOVAL", payload, actor(["STAFF"])),/mốc 20 ngày/);
   s.policy.rate = 5;
   assert.throws(() => applyWorkflowAction(s, "RECORD_REMOVAL", payload, actor(["STAFF"])), /mốc 20 ngày/);
+});
+
+test("khách đọc hoàn cọc qua endpoint riêng, không gọi board vận hành", async () => {
+  const previous = globalThis.fetch;
+  let url;
+  globalThis.fetch = async path => { url = String(path); return new Response("[]", {status:200}); };
+  try { assert.deepEqual(await loadWorkflow("customerRefunds"), []); assert.ok(url.endsWith("/api/deposit-refunds")); assert.ok(!url.includes("/ops/")); }
+  finally { globalThis.fetch = previous; }
 });

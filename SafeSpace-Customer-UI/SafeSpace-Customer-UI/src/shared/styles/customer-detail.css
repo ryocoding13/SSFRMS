@@ -1,0 +1,53 @@
+@import "./customer-records.css";
+.customer-detail__grid { display: grid; grid-template-columns: minmax(0, 804fr) minmax(0, 432fr); gap: 24px; align-items: start; }
+.customer-detail__column { display: grid; gap: 20px; min-width: 0; }
+.customer-detail__card { padding: 24px; border-radius: 12px; display: grid; gap: 14px; min-width: 0; }
+.customer-detail__card h2 { font-size: 18px; font-weight: 600; line-height: 1.5; margin: 0; }
+.customer-detail__card .detail-list { margin: 0; display: grid; gap: 10px; }
+.customer-detail__card .detail-list > div { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; padding: 0; border: 0; font-size: 14px; }
+.customer-detail__card .detail-list dt { color: var(--muted); }
+.customer-detail__card .detail-list dd { font-weight: 600; text-align: left; overflow-wrap: anywhere; }
+.customer-detail__sidebar .detail-list > div { grid-template-columns: 120px minmax(0, 1fr); }
+.customer-detail__card .hint { margin: 0; font-size: 13px; }
+.customer-detail__actions { display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+.customer-detail .btn { border-radius: 10px; padding: 12px 20px; font-size: 15px; justify-content: center; white-space: normal; }
+.customer-detail .record-summary { padding: 16px 18px; border-radius: 10px; flex-wrap: wrap; }
+.customer-detail .record-summary__body h2 { font-size: 15px; }
+.customer-detail .record-summary__actions .btn { min-width: 104px; }
+.customer-detail__choices { border: 0; padding: 0; display: grid; gap: 12px; }
+.customer-detail__choices legend { font-size: 14px; font-weight: 600; margin-bottom: 14px; }
+.customer-detail__choice { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+.customer-detail__choice input { width: 20px; height: 20px; flex-shrink: 0; accent-color: var(--blue); margin: 0; }
+@media (max-width: 1000px) { .customer-detail__grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px) { .customer-detail__card .detail-list > div { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
+
+.customer-history__filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.customer-history__filters select { width: 100%; }
+@media (max-width: 600px) { .customer-history__filters { grid-template-columns: minmax(0, 1fr); } }
+
+.customer-detail__task { padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.customer-detail__task > div { flex: 1; min-width: 130px; }
+.customer-detail__task h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.customer-detail__task p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.customer-detail__task .btn { margin-left: auto; }
+
+.return-request__fields { margin: 0; min-inline-size: 0; }
+.return-photos { display: grid; gap: 12px; }
+.return-photos__upload { display: grid; gap: 10px; padding: 24px; text-align: center; border: 1px dashed var(--blue); border-radius: 10px; background: #edf3ff; color: var(--blue); }
+.return-photos__upload input { width: 100%; min-width: 0; font-size: 13px; }
+.return-photos__list { display: flex; flex-wrap: wrap; gap: 12px; }
+.return-photos__list:empty { display: none; }
+.return-photos__list figure { margin: 0; width: 140px; display: grid; gap: 6px; }
+.return-photos__list img { width: 140px; height: 100px; object-fit: cover; border-radius: 8px; }
+.return-photos__list figcaption { overflow-wrap: anywhere; font-size: 12px; }
+.return-request__warning { border-color: #d8a368; }
+.return-request__warning h2 { color: #a86108; }
+.return-request__warning ul { margin: 0; padding-left: 20px; display: grid; gap: 14px; font-size: 14px; }
+
+.refund-timeline { list-style: none; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 20px; padding: 24px; margin: 0 0 24px; border-radius: 12px; }
+.refund-timeline li { display: flex; gap: 12px; align-items: center; font-size: 14px; }
+.refund-timeline p { font-size: 12px; margin: 5px 0 0; color: var(--muted); }
+.refund-timeline__step { background: var(--blue); color: white; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; }
+.refund-timeline__step--done { background: #087f68; }
+@media(max-width: 750px) { .refund-timeline { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(max-width: 450px) { .refund-timeline { grid-template-columns: minmax(0,1fr); } }

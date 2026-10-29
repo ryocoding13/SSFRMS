@@ -1,3 +1,5 @@
+import { verifyPhotoFile } from "../../../shared/utils/refundRequest.js";
+import { opsMutationCheck, opsReceiptCheck } from "../settlements/settlementModel.js";
 import { supportsReturnPolicy, RETURN_POLICY_PENDING, NO_RETURN_COLLECTION } from "../../../shared/utils/returnPolicy.js";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
@@ -44,8 +46,11 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
   const [loadError, setLoadError] = useState(null);
   const [confirmation, setConfirmation] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [needsRefresh,setNeedsRefresh]=useState(false);
   // Kết quả sau khi lưu (Figma 03a thành công / 03b thất bại): { kind, title, text, action, detail }
   const [outcome, setOutcome] = useState(null);
+  const alive=useRef(true),currentRole=useRef(role);currentRole.current=role;
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
   const activeAction = useRef(false);
   const confirmationRef = useRef(null);
   const outcomeRef = useRef(null);
@@ -63,6 +68,8 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
       const board = await loadBoard(role);
       commit({ ...board, log: ref.current?.log || [] });
       setSource("api");
+      setNeedsRefresh(false);
+      return board;
     } catch (e) {
       if (mode !== "api" && e instanceof ApiError && (e.status === 404 || e.status === 405)) {
         commit(readOps());
@@ -70,6 +77,7 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
       } else {
         onApiError?.(e);
         setLoadError(e?.message || "Không tải được dữ liệu vận hành từ máy chủ.");
+        return null;
       }
     }
   }, [commit, onApiError, role, mode]);
@@ -83,6 +91,7 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
     if (source !== "local" || !state) return;
     try {
       localStorage.setItem(OPS_KEY, JSON.stringify(state));
+      window.dispatchEvent(new Event("safespace-workflows"));
     } catch {
       /* trình duyệt chặn lưu: giữ trong phiên */
     }
@@ -103,13 +112,16 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
 
   const execute = useCallback(
     async (type, payload, message) => {
+      try { if(needsRefresh)throw new Error("Cần tải lại dữ liệu trước khi gửi tiếp.");opsMutationCheck(type,payload,ref.current,source,role); } catch(error) {return {ok:false,error:error.message};}
       if (type === "CONFIRM_FEE_COLLECTION") return { ok: false, error: NO_RETURN_COLLECTION };
       if (type === "REVOKE_CREDENTIAL") return { ok: false, error: "Không hỗ trợ thu hồi QR/PIN thủ công." };
       if (type === "CONFIRM_REFUND" && source === "api" && !supportsReturnPolicy(ref.current)) return { ok: false, error: RETURN_POLICY_PENDING };
       if (source === "api" && type !== "MARK_READ") {
         try {
-          const res = await callAction(type, payload);
-          await reload();
+          const res = await callAction(type, payload,()=>alive.current&&currentRole.current===role);
+          if(!alive.current||currentRole.current!==role)return {ok:false,error:"Phiên làm việc đã thay đổi. Tải lại để kiểm tra kết quả."};
+          const board=await reload();
+          try {opsReceiptCheck(type,payload,res,board);} catch(error) {error.uncertain=true;throw error;}
           if (message) {
             commit(appendLog(ref.current, message, null));
             notify?.(message);
@@ -117,6 +129,7 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
           // Giữ số liệu backend trả về (vd. số tiền hoàn cọc thực tế) để màn kết quả hiển thị đúng
           return { ok: true, ...(res && typeof res === "object" && !Array.isArray(res) ? res : {}) };
         } catch (e) {
+          if(e.uncertain||e.status===0||e.status===409||e.status>=500)setNeedsRefresh(true);
           onApiError?.(e);
           // Route chưa có trên backend: ASP.NET trả 404/405 không kèm nội dung → báo rõ thay vì "Không tìm thấy dữ liệu."
           const missing = e instanceof ApiError && (e.status === 404 || e.status === 405) && !e.data;
@@ -125,6 +138,8 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
           return { ok: false, error };
         }
       }
+      if(type==="SUBMIT_RETURN")for(const file of payload.files||[])await verifyPhotoFile(file);
+      if(!alive.current||currentRole.current!==role)return {ok:false,error:"Phiên làm việc đã thay đổi."};
       const out = reduceOps(ref.current, { type, payload }, new Date());
       if (out.error) {
         notify?.(out.error.message, "error");
@@ -134,7 +149,7 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
       if (message) notify?.(message);
       return { ok: true, ...out.result };
     },
-    [source, reload, commit, notify, onApiError],
+    [source, reload, commit, notify, onApiError, needsRefresh, role],
   );
 
   // Guard the mutation boundary. Nhân viên: mọi thao tác hỏi xác nhận rồi báo kết quả (S02–S05, S09).
@@ -168,6 +183,7 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
       } catch (error) {
         result = { ok: false, error: error?.message };
       }
+      if(!alive.current)return {ok:false,error:"Phiên làm việc đã thay đổi."};
       setSaving(false);
       setConfirmation(null);
       if (!result.ok) {
@@ -180,6 +196,7 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
       return result;
     } finally {
       activeAction.current = false;
+      if(!alive.current)return {ok:false,error:"Phiên làm việc đã thay đổi."};
       setSaving(false);
       setConfirmation(null);
     }
@@ -200,7 +217,7 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
 
   const reset = useCallback(() => commit(createOpsData()), [commit]);
 
-  const value = useMemo(() => ({ ops: state, run, reset, reload, source }), [state, run, reset, reload, source]);
+  const value = useMemo(() => ({ ops: state, run, reset, reload, source, saving, needsRefresh }), [state, run, reset, reload, source, saving, needsRefresh]);
 
   if (!state)
     return (
@@ -219,17 +236,11 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
       </main>
     );
   return <OpsContext.Provider value={value}>
+    {(loadError||needsRefresh)&&<div className="container page"><p role="alert">{loadError||"Chưa xác minh kết quả lần gửi trước. Tải lại trước khi gửi tiếp; không chuyển tiền lần nữa."}</p><Button disabled={saving} onClick={reload}>Tải lại dữ liệu</Button></div>}
     {children}
     {confirmation && <ConfirmDialog {...confirmation} busy={saving} onCancel={() => confirmationRef.current?.(false)} onConfirm={() => confirmationRef.current?.(true)} />}
     {outcome && (
-      <Modal title={outcome.title} size="confirm" onClose={closeOutcome}>
-        <span className={`modal__state modal__state--${outcome.kind}`} aria-hidden="true" />
-        <p className="modal__text">{outcome.text}</p>
-        {outcome.detail && <p className="hint">{outcome.detail}</p>}
-        <Button variant={outcome.kind === "success" ? "primary" : "outline"} block onClick={closeOutcome}>
-          {outcome.action || (outcome.kind === "success" ? "Đã hiểu" : "Quay lại kiểm tra")}
-        </Button>
-      </Modal>
+      <ConfirmDialog title={outcome.title} tone={outcome.kind} text={outcome.text} hint={outcome.detail||""} rows={[]} label={outcome.action||"Về hồ sơ"} cancelLabel={null} onCancel={closeOutcome} onConfirm={closeOutcome}/>
     )}
   </OpsContext.Provider>;
 }

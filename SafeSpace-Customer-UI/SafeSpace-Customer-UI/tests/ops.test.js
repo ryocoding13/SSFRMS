@@ -44,7 +44,7 @@ test("không nhận chìa khóa khi chưa xác minh; nhận chìa khóa không �
   s = run(s, "VERIFY_CUSTOMER", { id: "XM-0142", doc_type: "CCCD", doc_no: "079123456789", photo_ok: true, info_ok: true }).state;
   assert.equal(s.verifications.find((v) => v.id === "XM-0142").doc_last4, "6789");
   const before = s.units.find(u => u.code === "K01").status;
-  s = run(s, "RECORD_KEY_RECEIPT", { id: "BG-0142" }).state;
+  s = run(s, "RECORD_KEY_RECEIPT", { id: "BG-0142",identity_checked:true,condition_checked:true,key_delivered:true }).state;
   assert.equal(s.units.find(u => u.code === "K01").status, before);
 });
 
@@ -87,7 +87,7 @@ test("M08 · xác nhận hoàn tiền đơn huỷ theo D27: cần mã giao dịc
   }
   const id = pending[0].id;
   assert.match(run(s, "CONFIRM_RESERVATION_REFUND", { id, method: "BANK_TRANSFER", transaction_ref: " " }).error.message, /mã giao dịch/);
-  const out = run(s, "CONFIRM_RESERVATION_REFUND", { id, method: "BANK_TRANSFER", transaction_ref: "FT26258904512" });
+  const out = run(s, "CONFIRM_RESERVATION_REFUND", { id, method: "BANK_TRANSFER", transaction_ref: "FT26258904512",confirmed:true,transferredAt:"2026-09-14T01:00:00Z" });
   assert.ok(!out.error);
   s = out.state;
   const done = s.refunds.find((r) => r.id === id);

@@ -1,0 +1,9 @@
+@import "../../../shared/styles/customer-detail.css";
+.damage-page .damage-note { background: var(--soft); padding: 16px; border-radius: 10px; font-size: 14px; }
+.damage-page textarea { resize: vertical; }
+.damage-photos { display: flex; gap: 12px; flex-wrap: wrap; }
+.damage-photos a { width: 120px; height: 90px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.damage-photos img { width: 100%; height: 100%; object-fit: cover; }
+.damage-page .damage-list-item { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.damage-page .damage-list-item .btn { flex-shrink: 0; }
+@media(max-width:600px){ .damage-page .damage-list-item { align-items: stretch; flex-direction: column; } .damage-photos a { width: calc(33.333% - 8px); } }

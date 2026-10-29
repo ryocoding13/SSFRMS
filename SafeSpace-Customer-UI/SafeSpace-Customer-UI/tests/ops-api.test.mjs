@@ -39,7 +39,7 @@ test("khu vận hành qua API: nhân viên xử lý, quản lý phân bổ / duy
     assert.equal((await act("CONFIRM_PAYMENT", { id: "SS-20260913-0147" }, staff)).status, 400, "không xác nhận hai lần");
     // Xác minh rồi bàn giao
     assert.equal((await act("VERIFY_CUSTOMER", { id: "XM-0142", doc_type: "Căn cước công dân", doc_no: "079123456789", photo_ok: true, info_ok: true }, staff)).status, 200);
-    assert.equal((await act("RECORD_KEY_RECEIPT", { id: "BG-0142", method: "CARD" }, staff)).status, 200);
+    assert.equal((await act("RECORD_KEY_RECEIPT", { id: "BG-0142",identity_checked:true,condition_checked:true,key_delivered:true }, staff)).status, 200);
     assert.equal((await act("TICKET_RESPONSE", { id: "HT-0082", note: "Đã cấp lại thẻ", next: "DONE" }, staff)).status, 200);
     assert.equal((await act("SUBMIT_RETURN", { id: "TK-0098", report: { items: "a", walls: "b", keys: "c", proposal: "d" } }, staff)).status, 200);
     // Nhân viên không được làm việc của quản lý

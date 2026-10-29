@@ -188,3 +188,90 @@ Xem `SafeSpace-Customer-UI/SafeSpace-Customer-UI/APPROVED-FE-README.md` để c�
 ## D32 — 26/10/2026
 
 `#/staff/fees` ngừng phục vụ (404 nội bộ); không có nút/queue thu phí trả kho. C11 giữ gia hạn, ẩn phí trả kho chờ thu. Quy tắc FE nằm ở `src/shared/utils/returnPolicy.js`; test `tests/return-policy.test.js`, browser `node scripts/check-return-policy.mjs`. M07 có điều kiện mở theo capability máy chủ, xem BACKEND-TODO T10.
+
+## Đồng bộ Figma đợt 01 — 27/10/2026
+
+- C06 `#/units` và C14 `#/reservations` dùng `src/shared/components/RecordSummaryCard.jsx`; kiểu thẻ ngang và responsive ở `src/shared/styles/customer-records.css`.
+- `ConfirmDialog.jsx` giữ mẫu xác nhận 560 px; điều chỉnh chi tiết trong `ss.css`. Chưa chuyển mọi popup sang đủ 6 loại.
+- Phạm vi, node Figma, kết quả kiểm tra và điểm tiếp tục: `../../docs/sprints/FE-figma-sync-01.md`.
+
+## Đồng bộ Figma đợt 02 — 27/10/2026
+
+- C07/C08/C11 dùng `src/shared/styles/customer-detail.css` (cột 804/432 responsive); giữ token/font và UI primitives.
+- C11h `#/payments/history` lọc hợp đồng/loại khoản, chỉ liệt kê trạng thái đã ghi nhận. Chưa có bộ lọc thời gian vì mapper chưa cung cấp thời điểm giao dịch.
+- C11k mới: `#/payments/check/:ref` → `src/features/customer/payments/PaymentStatusPage.jsx`, truy cập từ khoản gia hạn C11. Dùng service checkPaid/startPayos, không gọi fetch trong Page.
+- `ConfirmDialog.jsx`: tone confirm/danger/success/failure/warning/info cùng Modal 560px. ChangeFlowDialog dùng lại; C11/C11h dùng info. QR/PayOS là modal chuyên biệt giữ nội dung hiện có, chưa migrate toàn bộ callsite ứng dụng.
+- `src/shared/api/renewalConsentApi.js`: kiểm T20 trước gửi và kiểm evidence response; tests/renewal-consent.test.js.
+- Điểm tiếp tục: `../../docs/sprints/FE-figma-sync-02.md`.
+
+## Figma–FE đợt03 (27/10/2026)
+
+| Route/chức năng | File |
+|---|---|
+| `#/units/:id/return` — ảnh trống + tài khoản hoàn, xác nhận khoá QR/PIN | `src/features/customer/contracts/ReturnRequestPage.jsx` |
+| `#/reservations/:id/cancel` — huỷ đơn riêng, ngân hàng chính chủ | `src/features/customer/reservations/CancelReservationPage.jsx` |
+| `#/refunds` — tiến độ, đối soát, trạng thái chuyển tiền | `src/features/customer/payments/RefundTrackingPage.jsx` |
+| Tài khoản, ảnh và phân rã khoản hoàn dùng chung | `src/shared/components/RefundBankFields.jsx`, `ReturnPhotoInput.jsx`, `RefundSummary.jsx` |
+| Validation/adapter chặn API cũ | `src/shared/utils/refundRequest.js`, `src/shared/api/refundRequestApi.js`, `src/shared/hooks/useRefundSupport.js` |
+
+RefundTracking/ReturnProgress đọc resource `customerRefunds` → `/api/deposit-refunds` (hợp đồng BE đề xuất), demo dùng cùng bộ hồ sơ cục bộ. Chưa kiểm browser/API thật. Chi tiết `docs/sprints/FE-figma-sync-03.md` ở gốc repo.
+
+## Figma–FE Batch04 — 28/10/2026
+
+- A02 `#/register`: username riêng; C13 `#/profile`: username chỉ đọc; D33.
+- B03 `#/business/pricing`: thẻ chọn cơ sở; B03a `#/business/rates?facility=:id`: 4 thẻ loại kho và form sửa giá. `facilityRates.js` chọn đúng giá hiệu lực, không lấy nhầm cơ sở hoặc mức giá tương lai.
+- C08 nối T20 theo DTO main; `RenewalStatusPage.jsx` giữ hết hạn/đã trả, hạn thanh toán và lựa chọn tại quầy. Xem BACKEND-TODO mục C08 mới.
+- Danh mục 163 frame Main, 8 màn/nhánh còn thiếu và kế hoạch 7 phiên: `docs/figma-audit-2026-10-28/README.md` ở gốc repo; CSV cùng thư mục. Danh mục route không chứng minh mọi màn đã khớp pixel/API.
+
+
+## Figma–FE Batch05 — 28/10/2026
+
+| Route/chức năng | File |
+|---|---|
+| `#/checkout/:id/confirm` — C04a tóm tắt đơn/khách tự đồng ý | `src/features/customer/payments/ReservationReviewPage.jsx` |
+| `#/checkout/:id` — C04, mở thẳng URL vẫn phải qua xác nhận | `src/features/customer/payments/CheckoutPage.jsx` |
+| `#/policies` / `?tab=contract&contract=:id&renewal=:id` — C15/C15b | `src/features/customer/policies/RentalPolicyPage.jsx` |
+| Lấy đúng phiên bản, chống response cũ/đổi nguồn | `src/shared/hooks/useRentalPolicy.js` |
+| Validate policy/evidence, DTO và adapter xác nhận | `src/shared/utils/rentalPolicy.js`, `src/shared/api/reservationConsentApi.js` |
+
+API/LocalProvider có service `rentalPolicy(version?)`, action `ACCEPT_RESERVATION_POLICY`; chặn QR/quầy khi thiếu consent. API chỉ cache response thực từ server theo user/đơn; local opt-in giữ snapshot riêng và gắn demo. C15b không lấy cache đơn thay consent hợp đồng. Giới hạn backend và kiểm chứng: `docs/sprints/FE-figma-sync-05.md` ở gốc repo.
+
+
+## Batch06 — hư hỏng/khắc phục (FE, API còn chờ)
+
+| Route | Page | Quyền / điểm vào |
+|---|---|---|
+| `units/:id/damage?case=:caseId` | `features/customer/contracts/DamageResponsePage.jsx` | Customer owner; từ chi tiết kho/tiến độ trả kho |
+| `manager/damage-responses[?id=:caseId]` | `features/manager/damage/DamageReviewPage.jsx` | Manager đúng cơ sở; từ Hợp đồng |
+| `manager/damage-inspections[?id=:caseId]` | `features/manager/damage/DamageInspectionPage.jsx` | Manager đúng cơ sở; từ Hợp đồng/Phản hồi hư hỏng |
+
+Shared model/API/hook/components ở `features/facility-operations/damage/`. API mới là đề xuất, không có trên main c1a9b05; 404 báo lỗi, không giả thành công. Demo opt-in lưu riêng, ảnh chỉ metadata; không ghi quyết toán hoàn cọc. Xem sprint 06 và BACKEND-TODO.
+
+
+## Batch07 — sự cố cơ sở (T13 chưa có BE)
+
+| Route | File | Điểm vào |
+|---|---|---|
+| `#/units/:id/incident?incident=:incidentId` | `src/features/customer/contracts/IncidentChoicePage.jsx` | Chi tiết kho → Hỗ trợ do sự cố cơ sở; chỉ owner, không hiện DRAFT |
+| `#/manager/incidents[?id=:incidentId]` | `src/features/manager/incidents/IncidentManagementPage.jsx` | Hợp đồng → Sự cố cơ sở; scope cơ sở manager |
+
+D30-16b là trạng thái TRANSFERRED của trang khách. Model/adapter/hook/components ở `features/facility-operations/incidents/`. Dùng UI/ConfirmDialog/bank/photo chung. API đề xuất, không có trên main c1a9b05; demo opt-in lưu riêng, không đổi hợp đồng/ledger/QR thật. GET manager cần trả draft descriptor/candidates/version từ server; không tạo fake ID trong API mode. Chi tiết sprint07 và BACKEND-TODO.
+
+
+## Batch08 — nhân viên/quản lý, đối soát/hoàn tiền
+
+URL giữ nguyên: staff/verify?id, staff/keys?id, staff/return?id, staff/overdue, manager/contracts[?id], manager/refunds, manager/deposit-refunds[?id]. M07 dùng thẻ từng hợp đồng, ID lạ không fallback. Page route được key theo ID để không mang form hồ sơ trước sang hồ sơ mới.
+
+Shared validation/summary ở `src/features/facility-operations/settlements/{settlementModel.js,SettlementComponents.jsx,settlements.css}`. Provider kiểm guard/readback và dùng ConfirmDialog6tone. S02 checklist4 không nhập giấy tờ; API cũ chưa hỗ trợ nên bị chặn, không điền giấy tờ giả. S04/M08 cũng có marker server riêng (BACKEND-TODO). Chốt/hoàn demo dùng `ops.deposit_refunds`, customerRefunds đọc cùng queue khi có; bank/owner thiếu không tự suy đoán. Chi tiết nguồn Figma/test/giới hạn ở docs/sprints/FE-figma-sync-08.md.
+
+
+## Batch09 — vận hành/admin và popup
+
+- `admin/permissions`: RoleAccessTable chỉ xem, không gọi assignPermission/revokePermission.
+- `admin/new`, `admin/users/:id`: SelectionPanel/AccountAssignmentCards ở `features/admin/components/`; helper readback/partial create ở `features/admin/utils/accountActions.js`. Atomic role-change API mới là đề xuất, không fallback hai bước.
+- `business/facilities`: ID lạ không fallback, readback tại `facilities/facilityMutation.js`.
+- `business/policy-content`: layout phiên bản/thông số/phạm vi +7 nhóm, T20 publication verify helper `policies/policyPublication.js`; metadata lên lịch chưa có API nên không dựng trường giả.
+- `business/export`: helper `reports/reportScope.js`, đúng scope/date/catalog/summary, CSV chống formula. B04 giữ XLSX, export tab bị khóa lúc tải. B01/B04 thiếu số liệu hiện rõ.
+- `shared/components/ChangeFlowDialog.jsx` và business useConfirm: guard/lifecycle/cleanup và ConfirmDialog chuẩn. UI Modal có placement drawer tùy chọn, không đổi placement callsite cũ.
+
+Giới hạn/test/node Figma ở docs/sprints/FE-figma-sync-09.md; endpoint/marker các batch trước vẫn blocked như ghi trong BACKEND-TODO.

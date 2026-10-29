@@ -139,3 +139,29 @@ test("backend trả PENDING_VERIFICATION (confirm-transfer) → chờ đối so�
   assert.equal(d.reservations[1].status, "PENDING_VERIFICATION");
   assert.equal(reservationsToExpire({ remote: verifying, overlay: { holds: hold.holds, transfers: {} }, timeoutSeconds: 60, now: later }).length, 0);
 });
+
+
+test("D32 renewal: EXPIRED không thành PENDING, lưu hạn/bằng chứng và chặn trả tiền quá hạn", () => {
+  const dto=structuredClone(remote), c=dto.contracts[0];
+  c.renewals[0]={...c.renewals[0],status:"EXPIRED",policyVersion:2,acceptedAt:"2026-09-21T03:00:00Z",paymentDeadlineAt:"2026-09-22T04:00:00Z",expiredAt:"2026-09-22T04:01:00Z"};
+  c.payments.push({paymentId:30,renewalId:5,paymentType:"RENEWAL",amount:4500000,status:"PENDING",paymentMethod:"CASH"});
+  const out=composeData({catalog,remote:dto,overlay:{},session,timeoutSeconds:60,now:NOW});
+  assert.equal(out.renewals[0].status,"EXPIRED");
+  assert.equal(out.renewals[0].payment_deadline_at,"2026-09-22T04:00:00.000Z");
+  assert.equal(out.renewals[0].policy_consent.version,"2");
+  assert.equal(out.renewals[0].at_counter,true);
+  const payment=out.ledger.find(l=>l.api_id===30);
+  assert.equal(payment.status,"EXPIRED");assert.equal(payment.payable,false);
+  assert.ok(!out.ledger.some(l=>l.status==="RENEWAL_PENDING"));
+});
+test("D32 renewal: PAID giữ PAID; duyệt chưa trả vẫn bị chặn khi qua paymentDeadlineAt", () => {
+  for(const status of ["PAID","APPROVED"]) {
+    const dto=structuredClone(remote), c=dto.contracts[0];
+    c.renewals[0]={...c.renewals[0],status,paymentDeadlineAt:"2026-09-22T04:00:00Z"};
+    c.payments.push({paymentId:30,renewalId:5,paymentType:"RENEWAL",amount:4500000,status:status==="PAID"?"PAID":"PENDING"});
+    const out=composeData({catalog,remote:dto,overlay:{},session,timeoutSeconds:60,now:NOW});
+    assert.equal(out.renewals[0].status,status);
+    assert.equal(out.ledger.find(l=>l.api_id===30).status,status==="PAID"?"RECONCILED":"EXPIRED");
+    assert.equal(out.ledger.find(l=>l.api_id===30).payable,false);
+  }
+});

@@ -23,6 +23,7 @@
  *    - Form gán cơ sở mới kèm ngày bắt đầu phân công.
  */
 
+import { RolesCard,FacilityCard } from "../components/AccountAssignmentCards.jsx";
 import React, { useEffect, useState } from "react";
 import { adminApi } from "../api/adminApi.js";
 import { DatePicker, Select } from "../../../shared/components/Pickers.jsx";
@@ -54,7 +55,7 @@ function InfoCard({ user, onSaved }) {
   // Đồng bộ lại form khi thông tin user thay đổi
   useEffect(() => {
     setForm({ fullName: user.fullName, email: user.email, phone: user.phone || "", status: user.status });
-  }, [user]);
+  }, [user.userId,user.fullName,user.email,user.phone,user.status]);
 
   // Kiểm tra dữ liệu form có thay đổi so với dữ liệu gốc không
   const dirty = form.fullName !== user.fullName || form.email !== user.email || form.phone !== (user.phone || "") || form.status !== user.status;
@@ -195,204 +196,6 @@ function PasswordCard({ user }) {
  * - allRoles: danh mục tất cả vai trò trong hệ thống
  * - onSaved: callback làm mới dữ liệu
  */
-function RolesCard({ user, allRoles, onSaved }) {
-  const { onApiError } = useApp();
-  const [adding, setAdding] = useState("");    // roleId được chọn trong dropdown để gán thêm
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [flowEl, runChange] = useChangeFlow();
-
-  // Tập hợp các roleId mà user đang sở hữu
-  const owned = new Set(user.roles.map((r) => r.roleId));
-  // Danh sách các vai trò còn lại mà user chưa có
-  const available = allRoles.filter((r) => !owned.has(r.roleId));
-
-  // Hàm thực thi gọi API kèm xử lý loading/lỗi
-  // Figma 885:10691–10817: mỗi thay đổi đi qua xác nhận → đã … / không … được
-  const run = async (perform, action, content) => {
-    setBusy(true);
-    setError("");
-    const out = await runChange({ action, scope: `Tài khoản ${user.fullName}`, content, perform });
-    setBusy(false);
-    if (out.error) onApiError(out.error);
-    if (out.ok) onSaved();
-    return out;
-  };
-
-  return (
-    <section className="panel form-card">
-      <h2>Vai trò</h2>
-
-      {/* Danh sách các vai trò hiện tại của người dùng */}
-      <div className="role-list">
-        {sortRoles(user.roles, (r) => r.roleName).map((r) => (
-          <span className="role-pill" key={r.roleId}>
-            {roleLabel(r.roleName)}
-            {/* Nút bấm thu hồi vai trò */}
-            <button
-              type="button"
-              aria-label={`Thu hồi vai trò ${roleLabel(r.roleName)}`}
-              onClick={() => run(() => adminApi.revokeRole(user.userId, r.roleId), "Thu hồi vai trò", `${roleLabel(r.roleName)} · giữ ít nhất một quản trị viên hoạt động`)}
-              disabled={busy}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        {user.roles.length === 0 && <span className="muted">Chưa có vai trò.</span>}
-      </div>
-
-      {/* Form gán thêm vai trò mới (chỉ hiện khi còn vai trò chưa gán) */}
-      {available.length > 0 && (
-        <div className="inline-form">
-          <Select aria-label="Chọn vai trò để gán" value={adding} onChange={(e) => setAdding(e.target.value)}>
-            <option value="">Chọn vai trò…</option>
-            {available.map((r) => (
-              <option key={r.roleId} value={r.roleId}>{roleLabel(r.roleName)}</option>
-            ))}
-          </Select>
-          <Button
-            disabled={!adding || busy}
-            onClick={() => run(() => adminApi.assignRole(user.userId, Number(adding)), "Gán vai trò", roleLabel(available.find((r) => String(r.roleId) === String(adding))?.roleName)).then((out) => out.ok && setAdding(""))}
-          >
-            Gán vai trò
-          </Button>
-        </div>
-      )}
-
-      {error && <Notice tone="error">{error}</Notice>}
-
-      {flowEl}
-    </section>
-  );
-}
-
-/*
- * FacilityCard - Thẻ Quản Lý Phân Công Cơ Sở Phụ Trách
- *
- * Dành riêng cho vai trò Nhân viên cơ sở (STAFF) và Quản lý cơ sở (MANAGER).
- * Quy tắc nghiệp vụ: Mỗi người chỉ phụ trách 1 cơ sở tại một thời điểm.
- */
-function FacilityCard({ user, facilities, rows, onSaved }) {
-  const { onApiError } = useApp();
-  const [flowEl, runChange] = useChangeFlow();
-  const [facilityId, setFacilityId] = useState(""); // Cơ sở chọn trong dropdown để phân công
-  const [from, setFrom] = useState(today());        // Ngày bắt đầu phân công
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  // Tìm phân công đang có hiệu lực (ACTIVE)
-  const active = rows.find((r) => r.status === "ACTIVE");
-
-  // Hàm chạy API đổi trạng thái hoặc phân công
-  // Figma 885:10691–10817: mỗi thay đổi đi qua xác nhận → đã … / không … được
-  const run = async (perform, action, content) => {
-    setBusy(true);
-    setError("");
-    const out = await runChange({ action, scope: `Tài khoản ${user.fullName}`, content, perform });
-    setBusy(false);
-    if (out.error) onApiError(out.error);
-    if (out.ok) onSaved();
-    return out;
-  };
-
-  return (
-    <section className="panel form-card">
-      <h2>Cơ sở phụ trách</h2>
-      <p className="muted">
-        {active ? (
-          <>Đang phụ trách <strong>{active.facilityName}</strong> từ {dateOnlyLabel(active.assignedFrom)}.</>
-        ) : (
-          "Chưa được phân công cơ sở."
-        )}{" "}
-        Mỗi nhân viên / quản lý chỉ phụ trách một cơ sở tại một thời điểm; phân công mới sẽ tự kết thúc phân công cũ.
-      </p>
-
-      {/* Form phân công cơ sở mới */}
-      <div className="inline-form inline-form--wrap">
-        <Select aria-label="Chọn cơ sở" value={facilityId} onChange={(e) => setFacilityId(e.target.value)}>
-          <option value="">Chọn cơ sở…</option>
-          {facilities.map((f) => (
-            <option key={f.facilityId} value={f.facilityId}>{f.name}</option>
-          ))}
-        </Select>
-        <DatePicker value={from} min="2000-01-01" onChange={setFrom} className="inline-date" />
-        <Button
-          disabled={!facilityId || busy}
-          onClick={() => run(() => adminApi.assignFacility({ userId: user.userId, facilityId: Number(facilityId), assignedFrom: from, assignedTo: null }), "Phân công cơ sở", `${facilities.find((f) => String(f.facilityId) === String(facilityId))?.name || ""} · chỉ một cơ sở tại một thời điểm; kết thúc phân công cũ`).then((out) => out.ok && setFacilityId(""))}
-        >
-          Phân công
-        </Button>
-      </div>
-
-      {error && <Notice tone="error">{error}</Notice>}
-      {flowEl}
-
-      {/* Bảng lịch sử các đợt phân công cơ sở */}
-      {rows.length > 0 && (
-        <div className="scroll-x">
-          <table className="table table--inner">
-            <thead>
-              <tr>
-                <th>Cơ sở</th>
-                <th>Thời gian</th>
-                <th>Trạng thái</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.userFacilityId}>
-                  <td>
-                    {r.facilityName}
-                    <small className="cell-sub">Phân công bởi {r.assignerName || "—"}</small>
-                  </td>
-                  <td>{dateOnlyLabel(r.assignedFrom)} – {r.assignedTo ? dateOnlyLabel(r.assignedTo) : "nay"}</td>
-                  <td><StatusTag map={ASSIGNMENT_STATUS} status={r.status} /></td>
-                  <td className="cell-actions">
-                    {/* Các nút hành động khi phân công đang ACTIVE */}
-                    {r.status === "ACTIVE" && (
-                      <>
-                        <button
-                          type="button"
-                          className="link-btn"
-                          disabled={busy}
-                          onClick={() => run(() => adminApi.setAssignmentStatus(r.userFacilityId, "SUSPENDED"), "Tạm ngưng phân công", `${r.facilityName} · phân công cơ sở đang được chọn`)}
-                        >
-                          Tạm ngưng
-                        </button>
-                        <button
-                          type="button"
-                          className="link-btn link-btn--danger"
-                          disabled={busy}
-                          onClick={() => run(() => adminApi.setAssignmentStatus(r.userFacilityId, "ENDED"), "Kết thúc phân công", `${r.facilityName} · kết thúc phân công hiện tại; giữ lịch sử`)}
-                        >
-                          Kết thúc
-                        </button>
-                      </>
-                    )}
-                    {/* Nút kích hoạt lại khi phân công đang SUSPENDED */}
-                    {r.status === "SUSPENDED" && (
-                      <button
-                        type="button"
-                        className="link-btn"
-                        disabled={busy}
-                        onClick={() => run(() => adminApi.setAssignmentStatus(r.userFacilityId, "ACTIVE"), "Kích hoạt lại phân công", r.facilityName)}
-                      >
-                        Kích hoạt lại
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
 /*
  * UserDetailPage - Component Trang Chi Tiết Tài Khoản
  *
@@ -464,6 +267,7 @@ export default function UserDetailPage({ id }) {
         </div>
       </header>
 
+      {res.error&&<Notice tone="error">{res.error} <Button onClick={res.reload}>Thử tải lại</Button></Notice>}
       {/* 4 Thẻ thống kê nhanh của tài khoản */}
       <div className="stats stats--4">
         <div className="stat"><strong>{user.activeContractsCount}</strong><span>Hợp đồng đang thuê</span></div>
@@ -473,7 +277,7 @@ export default function UserDetailPage({ id }) {
       </div>
 
       {/* Lưới 2 cột chứa 4 thẻ chức năng quản lý tài khoản */}
-      <div className="grid grid--2 admin-grid">
+      <fieldset disabled={res.loading||!!res.error} className="grid grid--2 admin-grid">
         {/* Cột trái: Thông tin cá nhân & Đặt lại mật khẩu */}
         <div className="stack stack--col stack--fill">
           <InfoCard user={user} onSaved={res.reload} />
@@ -488,7 +292,7 @@ export default function UserDetailPage({ id }) {
             <FacilityCard user={user} facilities={facilities} rows={assignments} onSaved={res.reload} />
           )}
         </div>
-      </div>
+      </fieldset>
     </main>
   );
 }

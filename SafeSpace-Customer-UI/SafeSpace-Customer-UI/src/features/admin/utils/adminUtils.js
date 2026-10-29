@@ -67,7 +67,7 @@ export function useLoad(fn, deps, onApiError) {
       // Chỉ cập nhật state nếu đây là request mới nhất
       if (id === seq.current) setState({ loading: false, error: null, data });
     } catch (e) {
-      onApiError?.(e);
+      if (id === seq.current) onApiError?.(e);
       if (id === seq.current) setState((s) => ({ loading: false, error: e?.message || "Không tải được dữ liệu.", data: s.data }));
     }
   }, deps); // eslint-disable-line react-hooks/exhaustive-deps
@@ -75,6 +75,7 @@ export function useLoad(fn, deps, onApiError) {
   // Tự động gọi run khi các giá trị trong deps thay đổi
   useEffect(() => {
     run();
+    return () => {seq.current++;};
   }, [run]);
 
   return { ...state, reload: run };

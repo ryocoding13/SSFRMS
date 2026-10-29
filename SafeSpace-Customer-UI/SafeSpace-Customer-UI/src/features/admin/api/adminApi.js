@@ -13,7 +13,7 @@
  * 6. Danh mục cơ sở (lấy danh sách các cơ sở SafeSpace để phục vụ gán cơ sở)
  */
 
-import { request } from "../../../shared/api/httpClient.js";
+import { request,ApiError } from "../../../shared/api/httpClient.js";
 
 /*
  * q - Chuyển đổi đối tượng tham số (params) thành chuỗi Query String cho URL
@@ -69,6 +69,8 @@ export const adminApi = {
   permissions: () => request("/api/admin/permissions"),
 
   // Gán một vai trò cho người dùng (POST /api/admin/users/{userId}/roles)
+  // Đề xuất atomic replacement; không fallback assign rồi revoke.
+  changeRole: async(userId,body)=>{try{return await request(`/api/admin/users/${userId}/role-change`,{method:"POST",body});}catch(error){if([404,405].includes(error.status))throw new ApiError("Máy chủ chưa hỗ trợ đổi vai trò trong một thao tác. Chưa đổi vai trò; không gán rồi gỡ thay thế.",error.status);throw error;}},
   assignRole: (userId, roleId) => request(`/api/admin/users/${userId}/roles`, { method: "POST", body: { roleId } }),
 
   // Thu hồi một vai trò khỏi người dùng (DELETE /api/admin/users/{userId}/roles/{roleId})

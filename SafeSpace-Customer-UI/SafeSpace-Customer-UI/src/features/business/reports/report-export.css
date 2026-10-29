@@ -1,0 +1,14 @@
+/* Trường ngày/cơ sở không vượt cột ở tablet và màn nhỏ. */
+.report-export .field :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.report-export .field select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font: inherit;
+  color: var(--text);
+  background: var(--white);
+}

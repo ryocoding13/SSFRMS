@@ -1,3 +1,67 @@
+## 2026-10-29 — F40 Batch10: browser và kiểm giới hạn tích hợp (phiên 7)
+
+- Khôi phục đúng Batch09 từ gói chỉ định; SHA256 45698710691ba1348db454770a132b25754082ce88524ea1727149e6dedd688e,143 file khớp source. Giữ main c1a9b05/F40 active/F41 blocked; không sửa BE/schema/Figma, không commit/push/PR/merge.
+- Sửa Modal mất focus khi onClose thay đổi, stack Escape/Tab/focus/backdrop, disabled/hidden Tab và khóa cuộn; popup dài cuộn được. Sửa overflow input/select Xuất báo cáo tại768px.
+- Chromium Headless Shell156:45/45 Batch10 tại1440/768/390 +14/14 auth-support;59 ca browser demo/stub, không phải tích hợp API thật. Bao phủ25 route/5 role, lỗi/session/scope FE, drawer/popup, file input và tải CSV.2 test code Modal gốc09 tái hiện lỗi, bản sửa PASS.
+- FE155/155, business9/9, workflow12/12, SSR173, structure/build/diff đạt. Bundle>500kB còn. Không chạy init lặp hoặc BE tests khi thiếu môi trường; docs/verification/FE-batch10-browser-2026-10-29.md ghi bằng chứng/giới hạn cụ thể.
+- API5151 connection refused; chưa .NET/SQL Server/PayOS/thiết bị thật. Atomic role-change, scheduled metadata, persistence/evidence và server enforcement ở BACKEND-TODO còn blocked. Chưa coi toàn hệ thống hoàn tất/đủ điều kiện merge.
+- Xác minh chuỗi patch/checkpoint04→09; gói10 có patch nối09/cộng dồn main và chuỗi7 phiên để thành viên tự review/commit/push nhánh riêng. PowerShell chưa chạy trên Windows. Chi tiết docs/sprints/FE-figma-sync-10.md; không tạo lịch sử commit giả.
+
+## 2026-10-28 — F40 Batch09: vận hành/admin/popup (phiên 6)
+
+- Tiếp Batch08 trên main c1a9b05 đọc lại qua GitHub; giữ F40 active/F41 blocked. Không sửa BE/schema/Figma, không commit/push/PR/merge.
+- A03 chỉ xem; A02/A05 panel chọn cơ sở/đổi/cấp lại vai trò. Đổi role cần endpoint atomic đề xuất, 404 không fallback gán/gỡ. Create+assign vẫn hai request; partial tạo xong/phân công lỗi báo rõ, không tạo lần hai. Role/assignment readback, stale loader và popup guard được sửa.
+- B05 ID lạ không fallback, status không chọn sẵn/readback; policy ngừng/xóa đúng stage, publication T20 đúng version/rate/7 nội dung. Không sao chép wording Figma đảo D32. Xuất CSV đúng scope/summary, escape formula, reject non-CSV; B01/B04 không giả0 khi thiếu tiền, giữ XLSX hiện có.
+- FE155/155; business9/9; workflows12/12; SSR173 lượt + assertions; structure/build/init --fe-only/diff PASS. Hai patch incremental/main apply + byte-match PASS. Chromium thiếu executable; chưa browser/visual/API .NET/SQL Server thật. Bundle>500KB còn.
+- Chi tiết docs/sprints/FE-figma-sync-09.md; BACKEND-TODO bổ sung atomic role-change/permission legacy/assignment/report scope. Còn Batch10 browser và tích hợp, không tuyên bố hệ thống đã hoàn tất.
+
+## 2026-10-28 — F40 Batch08: nhân viên/quản lý, đối soát và hoàn tiền (phiên 5)
+
+- Tiếp Batch07, main đọc lại c1a9b05. Giữ F40 active/F41 blocked; không sửa BE/schema/Figma, không commit/push/PR/merge.
+- S02 checklist4 mục không nhập giấy tờ; chìa khóa cần xác minh +3 tick, không kích hoạt; kiểm kê cần bằng chứng hư hỏng và khấu trừ10% vệ sinh, không điền sẵn kết luận. M07 thẻ từng hồ sơ, xem biên bản/ảnh, chặn khắc phục chưa xử lý, chốt chỉ chờ hoàn.
+- Hoàn cọc/M08 cần bank chính chủ, mã/thời gian/checklist; thiếu tiền không giả0, status lạ không giảPAID. Ngày20 cần ảnh trước/sau, đúng phân công/mốc thực tế; cọc hết sớm không được dọn sớm. Demo chốt/hoàn dùng queue ops, không giao dịch thật.
+- API main chưa hỗ trợ đầy đủ; guard marker server và kiểm receipt/readback, lỗi không fallback. BACKEND-TODO mục Batch08 ghi DTO/marker/evidence/transaction. Không tự dựng số giấy tờ/owner/bank thiếu.
+- FE145/145; workflows12/12; business9/9; SSR158 lượt + assertions; structure/build/init --fe-only/diff PASS. Patch incremental/main apply + byte-match PASS. Chromium thiếu executable, chưa browser/visual/API .NET/SQL Server/PayOS thật.
+- docs/sprints/FE-figma-sync-08.md và danh mục CSV đã cập nhật. Còn2 phiên: Batch09 vận hành/admin, Batch10 browser/tích hợp.
+
+## 2026-10-28 — F40 Batch07: sự cố cơ sở (phiên 4)
+
+- Tiếp source Batch06 trên main c1a9b05 đọc lại qua GitHub; giữ F40 active/F41 blocked. Không sửa BE/schema/Figma, không commit/push/PR/merge.
+- D30-10/16/16b: manager ghi nhận/lưu nháp/gửi phương án → khách tự chọn → manager hoàn tất chuyển thực tế hoặc kết thúc theo lựa chọn. Chuyển giữ kỳ/giá/cọc, không phụ phí; chỉ hoàn tất mới đổi mã, ô cũ bảo trì. Kết thúc hoàn tháng đang thuê + tháng chưa dùng +100% cọc, tạo PENDING, không tự PAID.
+- Scope/owner/version/stage/equivalent-unit guards; ngân hàng chính chủ, ảnh, giờ VN; popup giữ kết quả sau đổi stage. 404 báo chưa hỗ trợ; 409/network/5xx/ack sai cần tải lại. Demo tách contract/ledger/QR thật; không cấp QR demo.
+- FE 137/137; business 9/9; workflows 12/12; SSR149 lượt + assertions; structure/build/init --fe-only/diff PASS. Patch after-batch06/main apply + byte-match PASS.
+- Chromium launch thiếu executable; chưa browser/visual thao tác hay API .NET/SQL Server/PayOS/thiết bị cửa thật. T13 còn chờ GET draft/candidate và các mutation/transaction/evidence/idempotency; xem BACKEND-TODO và docs/sprints/FE-figma-sync-07.md.
+- Cả 8 màn/nhánh thiếu FE ở danh mục Batch04 đã có triển khai, không đồng nghĩa tích hợp xong. Còn 3 phiên, tiếp Batch08 nhân viên/manager.
+
+## 2026-10-28 — F40 Batch06: phản hồi hư hỏng và khắc phục (phiên 3)
+
+- Tiếp source Batch05 trên main c1a9b05. Giữ F40 active/F41 blocked; không sửa BE/schema/Figma, không commit/push/PR/merge.
+- D30-13/18/18b có FE: khách phản hồi/ảnh → manager đồng ý có hạn hoặc từ chối có lý do → khách báo xong → manager kiểm đạt/chưa đạt. Đạt bỏ đúng khoản hư hỏng; không chuyển tiền/mở QR/PIN.
+- Role/owner/facility/version/stage/OPEN guards; giờ VN; giữ form khi lỗi, chống gửi lặp; acknowledgement sai/mất mạng/409 cần tải lại. Demo opt-in tách khỏi quyết toán thật; API đề xuất chưa có, lỗi không fallback.
+- FE 122/122; business 9/9; workflows 12/12; SSR 136 lượt + assertions; structure/build/init --fe-only/diff PASS. Patch incremental/cộng dồn apply + byte-match PASS.
+- Chưa browser/visual thực thi hoặc API .NET/SQL Server thật. BACKEND-TODO ghi endpoint/state machine/atomic deduction và chặn chốt khi hồ sơ còn mở; không tuyên bố toàn luồng tích hợp hoàn tất.
+- Chi tiết docs/sprints/FE-figma-sync-06.md. Còn 3 màn/nhánh sự cố chưa có FE trong danh mục đầu; còn 4 phiên, tiếp Batch07.
+
+## 2026-10-28 — F40 Batch05: chính sách trước thanh toán và xem bản đã đồng ý
+
+- Tiếp Batch04 trên main c1a9b05; không sửa Figma/BE/schema, không commit/push/PR/merge. F40 active/F41 blocked giữ nguyên.
+- Thêm C04a checkout/:id/confirm, khách tự tick và lưu server acknowledgement trước QR/quầy; guard provider cho direct URL/service/action. Lỗi/đổi policy chưa mở thanh toán; chống bấm lặp và điều hướng muộn.
+- C15/C15b 2 tab, hợp đồng/gia hạn, đọc đúng version server; thiếu evidence gốc báo rõ, không fallback bản hiện hành. Mốc áp dụng D32 giữ nguyên, không chép câu Figma mâu thuẫn.
+- T20 DTO đang có đã nối; BE vẫn cần trả consent gốc và chặn giao dịch server/thu tiền mặt, xử lý retry/idempotency. Cache client không thay bảo mật server. Xem BACKEND-TODO mục Batch05.
+- FE 110/110; business 9/9; workflows 12/12; SSR 122 route + assertions/LocalProvider guards; structure/build/init --fe-only/diff PASS. 7 test mới có HTTP mock, không phải API .NET/SQL Server/PayOS thật. Chưa browser/visual thực thi; chunk >500KB còn.
+- Patch after-batch04 và gộp main kiểm apply/byte-match. Source, route/checklist/blocker ở docs/sprints/FE-figma-sync-05.md. Còn 5 phiên tiếp theo theo kế hoạch, Batch06 hư hỏng/khắc phục.
+
+## 2026-10-28 — F40: Batch04 đối chiếu ba ZIP và Figma hiện tại
+
+- Nền main c1a9b05; giữ nhật ký mới, ghép code cộng dồn Batch03 từ 816209d. Không sửa Figma/BE/schema, không commit/push/PR/merge.
+- Sửa A02 username riêng/C13 theo Figma 28/10, ghi D33; B03 chọn cơ sở → B03a bốn loại kho, sửa giá đúng cơ sở/ngày hiệu lực và giữ form khi lỗi.
+- Sửa C08 theo DTO T20 đã merge: policyVersion số + accepted true, acknowledgement cấp ngoài cùng; giữ timestamp server. Mapper giữ PAID/EXPIRED và deadline; chặn thanh toán quá hạn, không tạo thêm gia hạn khi còn khoản đã duyệt chưa trả.
+- Giữ bank/ảnh/capability T08 của Batch03: backend cũ bị chặn, không âm thầm bỏ field. Chưa hoàn tất C04a/C15b/sự cố/khắc phục và các màn role khác.
+- Kiểm: FE 103/103; business 9/9; workflows 12/12; SSR 119 route + assertions; structure/build/init --fe-only/diff đạt. Asset kho riêng JPEG 180x228 đủ 4 file. Cảnh báo bundle >500KB còn. Chromium tải lỗi ZIP nên chưa browser; chưa API thật/SQL Server/PayOS/thiết bị cửa. Giữ F40 active/F41 blocked.
+- Kiểm kê trực tiếp Figma 163 frame Main (có trạng thái/lặp cơ sở), 8 màn/nhánh chưa có triển khai tương ứng trong 11 frame; không gọi tất cả là màn mới. Xem docs/figma-audit-2026-10-28/README.md và CSV; 7 phiên gồm phiên này.
+- Điểm cần nhóm chốt/BE review: wording C15b so với phạm vi D32; T08; atomicity T20 (RenewalService ghi renewal và consent qua hai SaveChanges). Không tự sửa nghiệp vụ phía BE.
+- ZIP có 4 đường patch cho main hiện hành có/chưa có Batch01/02/03; git apply --check, áp dụng trên bản sạch và đối chiếu byte. Thành viên tự review/commit/push/PR/merge.
+
 ## 2026-10-28 — T02, T03, T04, T20 BE: Gia hạn, PayOS, thu tại quầy & chính sách cho thuê theo D32 (Đạt)
 
 - Nền `origin/main` 0f0194b, làm trên nhánh `feature/dat-renewal-policy-d32`. Không commit/push/PR/merge; không tự ý nâng feature passing khi chưa có SQL Server/PayOS thật và thành viên phụ trách xác nhận.
