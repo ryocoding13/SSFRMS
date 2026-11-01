@@ -9,6 +9,7 @@ import "@fontsource/inter/vietnamese-700.css";
 import "@fontsource/inter/latin-800.css";
 import "@fontsource/inter/vietnamese-800.css";
 import "../shared/styles/ss.css";
+import "../shared/styles/motion.css";
 import "../shared/styles/auth-support.css";
 import "../shared/styles/workflows.css";
 import { WORKFLOW_DEMO } from "../features/facility-operations/workflows/useWorkflowData.js";

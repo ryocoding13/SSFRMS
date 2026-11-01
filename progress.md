@@ -1,3 +1,10 @@
+## 2026-11-02 — F40: hiệu ứng chuyển cảnh dùng chung + chốt D34
+
+- Theo yêu cầu thành viên FE: thêm `src/shared/styles/motion.css` (mới), import một lần trong `src/app/App.jsx` ngay sau `ss.css`. Chỉ thêm hiệu ứng, không đổi màu, kích thước, bố cục, route, API hay nghiệp vụ.
+- Cách 1 (hover/bấm): transition cho `.btn`, mục menu `.subnav`/`.header__nav`, ô nhập `.field` (viền xanh khi focus) và thẻ `.facility-card`. Cách 2 (khi xuất hiện): `#main` mờ dần khi đổi trang (đã đổi `key` theo đường dẫn sẵn trong App.jsx), `.overlay` mờ dần, `.modal` phóng nhẹ, drawer Admin trượt từ phải. Tôn trọng `prefers-reduced-motion`.
+- DECISIONS D34 chuyển "Đã chốt 02/11/2026": PR #54 trùng (đã vào main qua #55) nên đóng; Tiến review T13, Ngọc Mai review T05/T07/T08 và sửa T06 (hạn 05/11); giá hoàn tháng chưa dùng giữ `AgreedMonthlyRate`; ảnh giữ trong SQL Server; `damageWorkflowResolved` giữ tạm tới T23.
+- Kiểm tra trong thư mục FE (Node 22.23): `check:structure` PASS, `npm test` 155/155, `test:business` 9/9, `test:render` 173 route PASS, `build` PASS (cảnh báo bundle >500 kB có sẵn). **Chưa kiểm** trên trình duyệt thật (môi trường AI không có Chromium) và chưa chạy BE/SQL Server vì không chạm BE. Không đổi trạng thái tính năng.
+
 ## 2026-10-29 — F42: BE T05/T07/T08/T13 + cờ khả năng Batch08 (nhánh feature/be-t05-t07-t08-t13-flags)
 
 - Yêu cầu của thành viên FE: gỡ chỗ FE PR #53 khoá luồng khi API thật thiếu cờ (xác minh khách, kiểm kê, hoàn tiền, huỷ đơn đã thanh toán, gửi trả kho) và làm T13. Nhánh xếp chồng trên PR #53 (`fd61df1`) để không xung đột tài liệu; merge PR #53 trước.

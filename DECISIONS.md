@@ -328,7 +328,7 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - B03 chọn cơ sở trước → B03a bốn loại kho (15/30 m², thường/lạnh), có ảnh và sửa giá cho đúng cơ sở/loại kho/ngày áp dụng. Giá đọc API; không chép số minh họa Figma. Không sửa ngược giá hợp đồng. B02 giữ quản lý chính sách/phí toàn hệ thống theo D32.
 - Chỉ sửa FE, ghi nhận hợp đồng T20 backend đã merge trên main c1a9b05. Không xác nhận tích hợp SQL Server/PayOS thật và không đổi trạng thái feature.
 
-## D34 — 29/10/2026: Cách backend triển khai T05/T07/T08/T13 và cờ khả năng — Chờ nhóm xác nhận
+## D34 — 29/10/2026: Cách backend triển khai T05/T07/T08/T13 và cờ khả năng — Đã chốt 02/11/2026
 
 > Người dùng (FE) yêu cầu ngày 29/10 làm hộ phần BE: sự cố cơ sở (T13, kế hoạch giao Tiến) và cờ hỗ trợ Batch08 kèm T05/T07/T08 (giao Ngọc Mai). Không đổi quy tắc tiền của D27/D32; chỉ ghi các lựa chọn kỹ thuật cần nhóm biết. Nhánh `feature/be-t05-t07-t08-t13-flags`, chưa build/kiểm SQL Server.
 
@@ -339,3 +339,11 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - **Cờ khả năng** được bật cố định trên `GET /api/ops/board` và `GET /api/rental-policy` của nhánh này vì server đã lưu đủ dữ liệu tương ứng. `returns[].damageWorkflowResolved = true` vì BE chưa có luồng phản hồi/khắc phục hư hỏng (Batch06) nên không hồ sơ nào có thể đang mở; khi làm Batch06 phải tính lại cờ này.
 - **Sự cố cơ sở (T13)**: mã hồ sơ `SC-{mã hợp đồng}-{lần}` cấp từ lúc còn nháp; ô tương đương = cùng cơ sở + cùng loại kho (loại và diện tích), trống, không bảo trì, không trùng hợp đồng khác; ô được giữ (`RESERVED`) từ lúc gửi phương án tới khi khách chọn. Khoản hoàn khi kết thúc = tiền tháng đang thuê + các tháng nguyên chưa bắt đầu (theo giá `AgreedMonthlyRate`) + 100% cọc, chốt tại ngày quản lý xác nhận kết thúc.
 - Cần nhóm xác nhận: (1) Tiến / Ngọc Mai review vì chạm phần việc đã giao; (2) giá dùng cho tháng chưa dùng khi hợp đồng đã gia hạn với giá khác; (3) giữ ảnh trong DB hay chuyển sang lưu trữ tệp riêng sau 31/10.
+
+**Chốt ngày 02/11/2026 (đại diện nhóm):**
+
+- Code của nhánh này đã vào `main` qua PR #55. PR #54 trùng nội dung nên đóng, không merge lại.
+- (1) Review: Tiến review phần T13 (sự cố cơ sở); Ngọc Mai review T05/T07/T08 và sửa luôn T06 trên `main` (`RefundPolicy` còn trả `Debt` và còn trừ 10% vệ sinh khi khách chỉ quá hạn, trái D32). Hạn 05/11/2026.
+- (2) Giá cho tháng chưa dùng khi kết thúc do sự cố: giữ cách hiện tại, tính theo `AgreedMonthlyRate` (giá thuê ban đầu), kể cả khi hợp đồng đã gia hạn với giá khác. Giới hạn đã biết: nếu giá gia hạn khác giá gốc, số hoàn cho tháng thuộc kỳ gia hạn sẽ lệch với số khách đã trả.
+- (3) Ảnh bằng chứng tiếp tục lưu trong bảng `evidence_photos` của SQL Server, đọc qua URL ký HMAC hết hạn 1 giờ; không chuyển sang lưu trữ tệp riêng.
+- Cờ `returns[].damageWorkflowResolved = true` được giữ tạm. Khi làm T23 (BE phản hồi/khắc phục hư hỏng), bắt buộc thay bằng giá trị tính từ hồ sơ thật và chặn chốt M07 khi còn hồ sơ mở.

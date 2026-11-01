@@ -1,0 +1,89 @@
+/* ---------- Hiệu ứng chuyển cảnh dùng chung (02/11/2026) ----------
+   Cách 1: transition khi rê chuột / bấm (nút, menu, ô nhập, thẻ cơ sở).
+   Cách 2: keyframes khi xuất hiện (chuyển trang, popup, drawer).
+   Chỉ thêm hiệu ứng, không đổi màu, kích thước hay bố cục hiện có.
+   Người dùng bật "giảm chuyển động" trong máy sẽ không thấy hiệu ứng
+   (khối prefers-reduced-motion cuối file và trong ss.css). */
+
+:root {
+  --ss-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ss-fast: 0.15s;
+  --ss-base: 0.22s;
+}
+
+/* ===== Cách 1: hover / bấm ===== */
+
+.btn {
+  transition:
+    background-color var(--ss-fast) ease,
+    border-color var(--ss-fast) ease,
+    color var(--ss-fast) ease,
+    box-shadow var(--ss-fast) ease,
+    transform var(--ss-fast) ease;
+}
+.btn--primary:hover:not(:disabled) { box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28); }
+.btn--danger:hover:not(:disabled) { filter: brightness(0.95); box-shadow: 0 6px 16px rgba(180, 35, 24, 0.22); }
+.btn:active:not(:disabled) { transform: scale(0.98); }
+
+.subnav a,
+.header__nav a,
+.usermenu__btn,
+.view-toggle a {
+  transition: background-color var(--ss-fast) ease, color var(--ss-fast) ease, box-shadow var(--ss-fast) ease;
+}
+.subnav a:not(.is-active):hover { background: var(--soft); }
+
+.field input,
+.field textarea,
+.select select {
+  transition: border-color var(--ss-fast) ease, box-shadow var(--ss-fast) ease;
+}
+.field input:focus,
+.field textarea:focus,
+.select select:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Thẻ cơ sở trong danh sách tìm kho: nhấc nhẹ khi rê chuột (giống thẻ ở trang chủ) */
+.facility-card {
+  transition: transform var(--ss-fast) ease, box-shadow var(--ss-fast) ease;
+}
+.facility-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(16, 21, 42, 0.1); }
+
+/* ===== Cách 2: khi xuất hiện ===== */
+
+@keyframes ss-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ss-page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ss-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ss-slide-in-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Chuyển trang: #main đổi key theo đường dẫn trong App.jsx nên chạy lại mỗi lần đổi trang */
+#main { animation: ss-page-in var(--ss-base) var(--ss-ease) both; }
+
+/* Popup chuẩn (Modal/ConfirmDialog): nền mờ dần, hộp phóng nhẹ */
+.overlay { animation: ss-fade-in var(--ss-fast) ease-out both; }
+.overlay > .modal { animation: ss-pop-in var(--ss-base) var(--ss-ease) both; }
+
+/* Drawer bên phải (Admin): trượt từ phải vào thay vì phóng */
+.overlay.overlay--drawer > .modal { animation: ss-slide-in-right var(--ss-base) var(--ss-ease) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  #main,
+  .overlay,
+  .overlay > .modal,
+  .facility-card,
+  .btn { animation: none !important; transition: none !important; transform: none !important; }
+}
