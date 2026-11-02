@@ -1,3 +1,25 @@
+## Phiên 2026-11-02 — Hoàn thành Task T12: Hồ sơ quá hạn ngày 20 và biên bản xử lý đồ theo D32
+
+- **Mục tiêu:** Hoàn thành trọn vẹn Task T12 thuộc phân công của Tiến (theo Kế hoạch hoàn thiện cập nhật 26–31/10/2026 và `BACKEND-TODO.md` mục D32):
+  1. **Endpoints API:**
+     - `GET /api/ops/overdue-cases`: Lấy danh sách hồ sơ quá hạn lọc theo cơ sở của người gọi (`staff`/`manager`). Trả về thông tin chi tiết: `id` (`QH-xxxx`), `facilityId`, `contractId` (`HĐ-xxxx`), `unit`, `customer`, `deposit`, `endDate`, `status` (`OPEN` / `ESCALATED` / `ASSIGNED` / `DONE`), `assignee`, `assigneeId`, `removalDay` (20), `notes`, và `record` (biên bản nếu đã lập).
+     - `POST /api/ops/overdue-cases/actions`: Xử lý 2 hành động:
+       + `ASSIGN_REMOVAL`: Dành riêng cho Quản lý cơ sở (`RequireManager`), phân công nhân viên phụ trách hồ sơ xử lý đồ quá hạn. Kiểm tra chặt chẽ nhân viên được gán phải thuộc cơ sở phụ trách (`UserFacilities`). Cập nhật `AssignedStaffId`, chuyển DTO status sang `ASSIGNED`.
+       + `RECORD_REMOVAL`: Nhân viên hoặc Quản lý cơ sở ghi nhận biên bản xử lý đồ thực tế:
+         * Kiểm tra thời gian thực hiện (`performedAt`) không được ở tương lai và phải đạt ít nhất 20 ngày quá hạn (`>= 20` ngày trễ tính theo giờ Việt Nam `+07:00` so với `EndDate`).
+         * Bắt buộc có danh mục/tình trạng đồ (`inventory`) và vị trí đưa đồ ra ngoài (`location`).
+         * Bắt buộc người dùng xác nhận (`confirmed = true`).
+         * Bắt buộc ít nhất 1 ảnh trước xử lý (`beforePhotos`) và 1 ảnh sau xử lý (`afterPhotos`). Giải mã base64 và lưu an toàn vào `EvidencePhotos` với `OwnerType = RETURN_INSPECTION` (phân loại qua tên tệp `before_` / `after_`), tuân thủ 100% check constraint và schema DB có sẵn mà không cần migration mới.
+         * Cập nhật trạng thái ô kho sang `INSPECTION` (Chờ vệ sinh / kiểm tra) hoặc `MAINTENANCE` (Bảo trì), nghiêm cấm chuyển về `AVAILABLE`. Ghi lịch sử trạng thái ô kho qua `SetUnitStatus`.
+         * Lưu thông tin biên bản vào `Notes` dưới dạng JSON, chuyển trạng thái case sang `RESOLVED` trong DB (DTO trả `DONE`), ghi nhận `ActivityLog`.
+         * Chống gửi lặp (idempotent), từ chối gửi lại biên bản nếu đã hoàn tất.
+  2. **Kiểm chứng:**
+     - `dotnet build StorageProject.slnx`: **PASS (0 Error, 18 warnings phụ thuộc có sẵn)**.
+     - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: **118/118 unit tests PASS** (gồm 6/6 tests toàn diện mới cho `OverdueCaseT12Tests`).
+     - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj`: **9/9 SQL Server integration tests PASS**.
+     - `cd SafeSpace-Customer-UI/SafeSpace-Customer-UI; npm test`: **155/155 tests PASS**.
+- **Tuân thủ AGENTS.md:** AI không commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
+
 ## Phiên 2026-11-02 — Hoàn thành Task T17 (Loại bỏ gán nhân viên chéo cơ sở) & Task T11 (Overdue Worker hàng ngày theo D32)
 
 - **Mục tiêu:** Hoàn thiện 2 tasks còn lại theo phân công của Tiến (Kế hoạch hoàn thiện cập nhật 26–31/10/2026 và D32):

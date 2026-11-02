@@ -95,6 +95,16 @@ public static class FacilityOpsEndpoints
             Run(async () => Results.Ok(new { item = await ops.ConfirmDepositRefundAsync(Actor(user), request, ct) })))
             .WithSummary("CONFIRM_DEPOSIT_REFUND: quản lý ghi mã giao dịch → PAID; expectedVersion cũ trả 409");
 
+        // ---- T12 · Hồ sơ quá hạn ngày 20 và biên bản xử lý đồ (D32)
+        group.MapGet("/overdue-cases", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(await ops.GetOverdueCasesAsync(Actor(user), ct))))
+            .WithSummary("Danh sách hồ sơ quá hạn của cơ sở phụ trách (mốc ngày 20 xử lý đồ)");
+
+        group.MapPost("/overdue-cases/actions", (OverdueCaseActionRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(new { item = await ops.HandleOverdueCaseActionAsync(Actor(user), request, ct) })))
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(EvidencePhotos.RequestBodyLimit))
+            .WithSummary("ASSIGN_REMOVAL (quản lý phân công) / RECORD_REMOVAL (nhân viên/quản lý lưu biên bản xử lý đồ ngày 20 kèm ảnh)");
+
         // ---- T13 · Sự cố do cơ sở (quản lý)
         group.MapGet("/incidents", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
             Run(async () => Results.Ok(await ops.GetIncidentsAsync(Actor(user), ct))))
