@@ -18,6 +18,8 @@ public static class UnitStatusRules
             "AVAILABLE" => next is "MAINTENANCE" or "OUT_OF_SERVICE",
             "MAINTENANCE" => next is "AVAILABLE" or "OUT_OF_SERVICE",
             "OUT_OF_SERVICE" => next is "AVAILABLE" or "MAINTENANCE",
+            "INSPECTION" => next is "AVAILABLE" or "MAINTENANCE",
+            "UNDER_INSPECTION" => next is "AVAILABLE" or "MAINTENANCE",
             _ => false
         };
         if (!allowed) throw new InvalidOperationException("Không được đổi trạng thái này bằng tay. Hãy dùng luồng phân bổ, bàn giao hoặc trả kho.");

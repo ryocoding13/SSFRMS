@@ -172,6 +172,10 @@ if (builder.Configuration.GetValue<bool>("Worker:EnableExpiredCashHold", true))
 {
     builder.Services.AddHostedService<ExpiredCashHoldWorker>();
 }
+if (builder.Configuration.GetValue<bool>("Worker:EnableOverdue", true))
+{
+    builder.Services.AddHostedService<OverdueWorker>();
+}
 builder.Services.AddHostedService<ExpiredRenewalWorker>();
 builder.Services.AddScoped<IPayOSService, PayOSService>();
 builder.Services.AddSingleton(new AccessQrOptions(

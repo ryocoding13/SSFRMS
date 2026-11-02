@@ -1,3 +1,48 @@
+## Phiên 2026-11-02 — Hoàn thành Task T12: Hồ sơ quá hạn ngày 20 và biên bản xử lý đồ theo D32
+
+- **Mục tiêu:** Hoàn thành trọn vẹn Task T12 thuộc phân công của Tiến (theo Kế hoạch hoàn thiện cập nhật 26–31/10/2026 và `BACKEND-TODO.md` mục D32):
+  1. **Endpoints API:**
+     - `GET /api/ops/overdue-cases`: Lấy danh sách hồ sơ quá hạn lọc theo cơ sở của người gọi (`staff`/`manager`). Trả về thông tin chi tiết: `id` (`QH-xxxx`), `facilityId`, `contractId` (`HĐ-xxxx`), `unit`, `customer`, `deposit`, `endDate`, `status` (`OPEN` / `ESCALATED` / `ASSIGNED` / `DONE`), `assignee`, `assigneeId`, `removalDay` (20), `notes`, và `record` (biên bản nếu đã lập).
+     - `POST /api/ops/overdue-cases/actions`: Xử lý 2 hành động:
+       + `ASSIGN_REMOVAL`: Dành riêng cho Quản lý cơ sở (`RequireManager`), phân công nhân viên phụ trách hồ sơ xử lý đồ quá hạn. Kiểm tra chặt chẽ nhân viên được gán phải thuộc cơ sở phụ trách (`UserFacilities`). Cập nhật `AssignedStaffId`, chuyển DTO status sang `ASSIGNED`.
+       + `RECORD_REMOVAL`: Nhân viên hoặc Quản lý cơ sở ghi nhận biên bản xử lý đồ thực tế:
+         * Kiểm tra thời gian thực hiện (`performedAt`) không được ở tương lai và phải đạt ít nhất 20 ngày quá hạn (`>= 20` ngày trễ tính theo giờ Việt Nam `+07:00` so với `EndDate`).
+         * Bắt buộc có danh mục/tình trạng đồ (`inventory`) và vị trí đưa đồ ra ngoài (`location`).
+         * Bắt buộc người dùng xác nhận (`confirmed = true`).
+         * Bắt buộc ít nhất 1 ảnh trước xử lý (`beforePhotos`) và 1 ảnh sau xử lý (`afterPhotos`). Giải mã base64 và lưu an toàn vào `EvidencePhotos` với `OwnerType = RETURN_INSPECTION` (phân loại qua tên tệp `before_` / `after_`), tuân thủ 100% check constraint và schema DB có sẵn mà không cần migration mới.
+         * Cập nhật trạng thái ô kho sang `INSPECTION` (Chờ vệ sinh / kiểm tra) hoặc `MAINTENANCE` (Bảo trì), nghiêm cấm chuyển về `AVAILABLE`. Ghi lịch sử trạng thái ô kho qua `SetUnitStatus`.
+         * Lưu thông tin biên bản vào `Notes` dưới dạng JSON, chuyển trạng thái case sang `RESOLVED` trong DB (DTO trả `DONE`), ghi nhận `ActivityLog`.
+         * Chống gửi lặp (idempotent), từ chối gửi lại biên bản nếu đã hoàn tất.
+  2. **Kiểm chứng:**
+     - `dotnet build StorageProject.slnx`: **PASS (0 Error, 18 warnings phụ thuộc có sẵn)**.
+     - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: **118/118 unit tests PASS** (gồm 6/6 tests toàn diện mới cho `OverdueCaseT12Tests`).
+     - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj`: **9/9 SQL Server integration tests PASS**.
+     - `cd SafeSpace-Customer-UI/SafeSpace-Customer-UI; npm test`: **155/155 tests PASS**.
+- **Tuân thủ AGENTS.md:** AI không commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
+
+## Phiên 2026-11-02 — Hoàn thành Task T17 (Loại bỏ gán nhân viên chéo cơ sở) & Task T11 (Overdue Worker hàng ngày theo D32)
+
+- **Mục tiêu:** Hoàn thiện 2 tasks còn lại theo phân công của Tiến (Kế hoạch hoàn thiện cập nhật 26–31/10/2026 và D32):
+  1. **Task T17 (Phân quyền & phạm vi cơ sở nghiêm ngặt):**
+     - Sửa `ContractService.RegisterMoveOutAsync`: loại bỏ hoàn toàn fallback lấy bất kỳ nhân viên STAFF của hệ thống hoặc fallback gán nhầm khách hàng (`contract.Customer`) làm nhân viên kiểm tra kho.
+     - Truy vấn lọc nghiêm ngặt `UserFacilities` theo đúng `contract.Unit.FacilityId`, trạng thái `ACTIVE` và trong thời gian hiệu lực (`AssignedFrom <= today` và `AssignedTo == null || AssignedTo >= today`).
+     - Ưu tiên gán `STAFF` của cơ sở; nếu không có thì gán `MANAGER` của cơ sở. Nếu cơ sở không có nhân sự phụ trách nào thì ném ngoại lệ rõ ràng (`InvalidOperationException: "Cơ sở hiện chưa có nhân viên phụ trách để phân công kiểm tra kho."`), không cho phép gán sai phạm vi.
+  2. **Task T11 (Tiến trình quét & xử lý hợp đồng quá hạn hàng ngày):**
+     - Tạo `OverdueProcessor.cs`: Xử lý hợp đồng theo giờ Việt Nam (`+07:00`):
+       + Chuyển hợp đồng `ACTIVE` sắp hết hạn trong 30 ngày thành `EXPIRING`.
+       + Chuyển hợp đồng quá hạn (`EndDate < today`) thành `OVERDUE`.
+       + Tính phí quá hạn: trừ 5% cọc ban đầu cho mỗi ngày trễ (`0.05 * DepositAmount * overdueDays`), khống chế trần tối đa 100% cọc ban đầu.
+       + Điểm dừng tính phí (D32): khi khách đã gửi đăng ký trả kho (`RETURN_PENDING`), ngày tính phí dừng lại tại ngày lập biên bản hẹn kiểm tra kho (`ReturnInspection.CreatedAt`).
+       + Tự động mở hoặc cập nhật `OverdueCase`: ghi nhận phí phạt luỹ kế, đánh dấu mốc nhắc khách ngày 10–14, tự động chuyển `ESCALATED` và ghi nhật ký hoạt động (`ActivityLog`) ở mốc ngày 20 để nhân viên xử lý di dời đồ. Đảm bảo tính lũy đẳng (idempotent), không nhân bản case hay phí nếu quét nhiều lần trong ngày.
+     - Tạo `OverdueWorker.cs`: `BackgroundService` sử dụng `PeriodicTimer` (5 phút/lần) khởi tạo scope DI và gọi `OverdueProcessor.ProcessDailyOverdueAsync`.
+     - Đăng ký `OverdueWorker` trong `Program.cs` hỗ trợ bật/tắt qua config `Worker:EnableOverdue`.
+     - Tạo `OverdueProcessorTests.cs`: 5 unit tests toàn diện kiểm thử đầy đủ các kịch bản chuyển đổi trạng thái, tính phí 5%/ngày, chặn trần 100%, tính lũy đẳng và dừng tính phí khi `RETURN_PENDING`.
+- **Kiểm chứng:**
+  - `dotnet build StorageProject.slnx`: **PASS (0 Error, 17 warnings phụ thuộc có sẵn)**.
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: **94/94 unit tests PASS** (gồm 5/5 tests mới cho OverdueProcessor).
+  - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj`: **9/9 SQL Server integration tests PASS**.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
+
 ## 2026-11-02 — F40: hiệu ứng chuyển cảnh dùng chung + chốt D34
 
 - Theo yêu cầu thành viên FE: thêm `src/shared/styles/motion.css` (mới), import một lần trong `src/app/App.jsx` ngay sau `ss.css`. Chỉ thêm hiệu ứng, không đổi màu, kích thước, bố cục, route, API hay nghiệp vụ.
@@ -93,6 +138,7 @@
   - `git diff --check`: PASS, không có trailing whitespace.
   - Tạo sprint contract `docs/sprints/dat-renewal-policy-d32.md` và tài liệu nghiệm thu chi tiết `docs/verification/dat-renewal-policy-2026-10.md`.
 - Giới hạn: Đã kiểm chứng toàn diện trên in-memory SQLite, fake clock và fake gateway; chưa chạy trên SQL Server thật của nhóm (`REQUIRE_SQLSERVER=true`) và tài khoản PayOS thật.
+
 
 ## Phiên 2026-10-26 — Hoàn thành Task T17, T15, T09 (Backend Logic Fixes) & Migration Schema mới
 
