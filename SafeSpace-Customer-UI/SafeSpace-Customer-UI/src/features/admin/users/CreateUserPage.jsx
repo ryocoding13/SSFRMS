@@ -399,7 +399,7 @@ export default function CreateUserPage() {
             </div>
             <div className="role-group">
               <span className="role-group__label">Không gắn cơ sở</span>
-              <div className="role-chips">{roles.filter((r) => !FACILITY_ROLES.includes(r.roleName)).map((r) => (
+              <div className="role-chips">{roles.filter((r) => !FACILITY_ROLES.includes(r.roleName) && r.roleName !== "CUSTOMER").map((r) => (
               <button
                 type="button"
                 key={r.roleId}

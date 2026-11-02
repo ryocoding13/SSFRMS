@@ -7,6 +7,7 @@ import { contractOf, contractStatus, facilityOf, pendingRenewal, pendingReturn }
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { NotFound } from "./components/ContractNotFound.jsx";
 import { AccessQrModal } from "../access/AccessQrModal.jsx";
+import { canCancel } from "../reservations/ReservationListPage.jsx";
 
 import "../../../shared/styles/customer-detail.css";
 
@@ -25,6 +26,9 @@ export function RentedUnitDetailPage({ id }) {
   const issued = c.access_issued ?? c.status !== "DRAFT";
   const prestart = c.start_date > today();
   const busy = Boolean(renewal || ret);
+  // Trước StartDate (D27) khách huỷ đơn để được hoàn 100% tiền thuê + 90% cọc, không đi luồng trả kho
+  const reservation = c.reservation_id ? data.reservations.find((x) => x.reservation_id === c.reservation_id) : null;
+  const cancellable = prestart && !ended && reservation && canCancel(data, reservation);
   const pickupText = pickup ? `${dateLabel(pickup.date)} · ${pickup.slot}` : null;
   return (
     <main className="container page customer-records customer-detail">
@@ -47,12 +51,13 @@ export function RentedUnitDetailPage({ id }) {
           <section className="panel customer-detail__card">
             <h2>QR, PIN & chìa khóa</h2>
             <DetailList items={[
-              ["QR & PIN 6 số", ended || ret || c.end_date <= today() ? "Đã hết hiệu lực" : issued ? `Đã cấp · hiệu lực từ ${dateLabel(c.start_date)}` : "Chưa được cấp"],
+              ["QR & PIN 6 số", ended || ret || c.end_date <= today() ? "Đã hết hiệu lực" : issued ? (prestart ? `Đã cấp · mã hiện từ ${dateLabel(c.start_date)}` : `Đã cấp · hiệu lực từ ${dateLabel(c.start_date)}`) : "Chưa được cấp"],
               ["Chìa khóa vật lý", c.handed_over ? "Đã nhận tại quầy" : "Nhận tại quầy cơ sở"],
               ...(pickupText ? [["Lịch nhận chìa khóa", pickupText]] : []),
             ]} />
             <p className="hint">{issued && !ended ? "Hợp đồng và mã ra vào đã được cấp. " : ""}QR và PIN chỉ mở được cửa trong kỳ thuê; mã tự hết hiệu lực khi hết hạn hoặc gửi trả kho thành công.</p>
-            {issued && !ended && <div className="customer-detail__actions"><Button disabled={Boolean(ret) || c.end_date <= today()} onClick={() => setQrOpen(true)}>{ret || c.end_date <= today() ? "QR đã hết hiệu lực" : "Xem QR & PIN 6 số"}</Button></div>}
+            {/* D35–D36 · L13: trước ngày thuê không mở QR/PIN */}
+            {issued && !ended && <div className="customer-detail__actions"><Button disabled={prestart || Boolean(ret) || c.end_date <= today()} onClick={() => setQrOpen(true)}>{ret || c.end_date <= today() ? "QR đã hết hiệu lực" : prestart ? `Mã hiện từ ${dateLabel(c.start_date)}` : "Xem QR & PIN 6 số"}</Button></div>}
           </section>
           <section className="panel customer-detail__card">
             <h2>Chính sách áp dụng</h2>
@@ -67,10 +72,19 @@ export function RentedUnitDetailPage({ id }) {
           <div className="customer-detail__task"><div><h3>Gia hạn</h3><p>Gửi trước ngày hết hạn, thanh toán sau khi được duyệt.</p></div>
             {issued && !ended && !busy && c.end_date > today() ? <LinkButton to={`units/${id}/renew`} variant="outline">Yêu cầu gia hạn</LinkButton> : <Button variant="outline" disabled>Yêu cầu gia hạn</Button>}
           </div>
-          <div className="customer-detail__task"><div><h3>Trả kho</h3><p>Đăng ký lịch kiểm tra và xử lý hoàn cọc.</p></div>
-            {issued && !ended && !busy ? <LinkButton to={`units/${id}/return`} variant="outline">Đăng ký trả kho</LinkButton> : <Button variant="outline" disabled>Đăng ký trả kho</Button>}
-          </div>
-          <div className="customer-detail__task"><div><h3>Hỗ trợ</h3><p>QR, PIN, chìa khóa, thanh toán.</p></div><LinkButton to={`support?contract=${encodeURIComponent(id)}`} variant="outline">Gửi yêu cầu hỗ trợ</LinkButton></div>
+          {prestart && !ended ? (
+            <div className="customer-detail__task"><div><h3>Huỷ đơn</h3><p>Chưa đến ngày thuê: hoàn 100% tiền thuê và 90% tiền cọc.</p></div>
+              {cancellable ? <LinkButton to={`reservations/${c.reservation_id}/cancel`} variant="outline">Huỷ đơn</LinkButton> : <Button variant="outline" disabled>Huỷ đơn</Button>}
+            </div>
+          ) : (
+            <div className="customer-detail__task"><div><h3>Trả kho</h3><p>Đăng ký lịch kiểm tra và xử lý hoàn cọc.</p></div>
+              {issued && !ended && !busy ? <LinkButton to={`units/${id}/return`} variant="outline">Đăng ký trả kho</LinkButton> : <Button variant="outline" disabled>Đăng ký trả kho</Button>}
+            </div>
+          )}
+          {/* D35–D36 · L14: hỗ trợ gắn kho chỉ khi đã bắt đầu và chưa kết thúc */}
+          {!prestart && !ended
+            ? <div className="customer-detail__task"><div><h3>Hỗ trợ</h3><p>QR, PIN, chìa khóa, thanh toán.</p></div><LinkButton to={`support?contract=${encodeURIComponent(id)}`} variant="outline">Gửi yêu cầu hỗ trợ</LinkButton></div>
+            : <div className="customer-detail__task"><div><h3>Hỗ trợ</h3><p>{prestart ? "Kho chưa đến ngày thuê." : "Hợp đồng đã kết thúc."} Cần hỏi thêm? Gửi hỗ trợ chung.</p></div><LinkButton to="inquiries" variant="outline">Gửi hỗ trợ chung</LinkButton></div>}
           {ended && <LinkButton to="find">Thuê kho mới</LinkButton>}
           {!issued && !ended && <LinkButton to="payments" variant="outline">Xem lịch nhận chìa khóa</LinkButton>}
           <p className="hint">{ended ? "Hợp đồng đã kết thúc. Tiền cọc được hoàn theo biên bản trả kho." : "Tiền cọc được đối chiếu sau kiểm tra kho. Nhận chìa khóa không kích hoạt hợp đồng."}</p>

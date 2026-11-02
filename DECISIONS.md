@@ -347,3 +347,13 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - (2) Giá cho tháng chưa dùng khi kết thúc do sự cố: giữ cách hiện tại, tính theo `AgreedMonthlyRate` (giá thuê ban đầu), kể cả khi hợp đồng đã gia hạn với giá khác. Giới hạn đã biết: nếu giá gia hạn khác giá gốc, số hoàn cho tháng thuộc kỳ gia hạn sẽ lệch với số khách đã trả.
 - (3) Ảnh bằng chứng tiếp tục lưu trong bảng `evidence_photos` của SQL Server, đọc qua URL ký HMAC hết hạn 1 giờ; không chuyển sang lưu trữ tệp riêng.
 - Cờ `returns[].damageWorkflowResolved = true` được giữ tạm. Khi làm T23 (BE phản hồi/khắc phục hư hỏng), bắt buộc thay bằng giá trị tính từ hồ sơ thật và chặn chốt M07 khi còn hồ sơ mở.
+
+## D35–D36 — 02/11/2026: Ảnh hỗ trợ, nhận chìa khóa theo yêu cầu, mã ra vào và hỗ trợ theo kỳ thuê — Đã chốt
+
+> Đại diện nhóm (Thắng) chốt ngày 02/11/2026 cho các lỗi L3, L6, L10, L13, L14 trong ghi chú sửa lỗi FE 02/11. Không đổi quy tắc tiền D27/D32.
+
+- **D35 · Ảnh khách gửi (L3):** nhân viên phải xem được ảnh khách đính kèm (yêu cầu hỗ trợ, trả kho) thì mới xác nhận bàn giao hoặc thu hồi kho. Thay ý "chỉ lưu tên tệp" của D04 cho ảnh hỗ trợ. Ảnh lưu theo cách D34 đã chốt (bảng `evidence_photos`, URL ký HMAC 1 giờ). Cần BE: nhận ảnh khi tạo ticket và trả danh sách ảnh trong `OpsTicketDto`; FE: gửi ảnh thật và hiện ảnh ở màn nhân viên. Chưa triển khai.
+- **D36 · Nhận chìa khóa theo yêu cầu (L10):** thay phần "tự tạo lịch bàn giao" của D26. Sau thanh toán vẫn tự cấp hợp đồng và QR/PIN, nhưng BE **không** tự tạo `HandoverRecord`; chỉ tạo khi khách gửi yêu cầu nhận chìa khóa. Huỷ đơn trước StartDate vẫn dùng điều kiện "chưa nhận chìa khóa" (D34). Cần nhóm làm tiếp: API/màn khách yêu cầu chìa khóa, Figma màn này, cách xử lý các lịch `SCHEDULED` cũ. Chưa triển khai.
+- **L6 · Quản trị tạo tài khoản:** quản trị chỉ tạo tài khoản nội bộ (nhân viên, quản lý, vận hành, quản trị); khách tự đăng ký. Màn tạo tài khoản không hiện vai trò Khách hàng.
+- **L13 · QR/PIN trước ngày thuê:** vẫn cấp mã sau thanh toán (D26) nhưng trước StartDate khách không xem được QR/PIN; giao diện ghi "Mã hiện từ {StartDate}". BE nên từ chối trả mã trước StartDate (mảng QR/PIN).
+- **L14 · Hỗ trợ gắn kho:** chỉ gửi yêu cầu hỗ trợ gắn với một kho khi hợp đồng đã bắt đầu và chưa kết thúc (gồm đang chờ trả kho, quá hạn chưa trả). Chưa bắt đầu hoặc đã kết thúc thì dùng hỗ trợ khi chưa có hợp đồng (C12-0). BE `SupportTicketService` cần chặn tương ứng.

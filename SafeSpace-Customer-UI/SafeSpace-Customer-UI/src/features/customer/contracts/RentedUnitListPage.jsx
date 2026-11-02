@@ -40,7 +40,9 @@ export function RentedUnitListPage() {
                 actions={<>
                   {issued && !ended && (status === "EXPIRING" && c.end_date > now && !busy
                     ? <LinkButton to={`units/${c.contract_id}/renew`} variant="outline">Gia hạn</LinkButton>
-                    : <Button variant="outline" disabled={Boolean(pendingReturn(data, c.contract_id)) || c.end_date <= now} onClick={() => setQrContract(c)}>Xem QR & PIN</Button>)}
+                    : prestart
+                      ? <Button variant="outline" disabled>Mã hiện từ {dateLabel(c.start_date)}</Button>
+                      : <Button variant="outline" disabled={Boolean(pendingReturn(data, c.contract_id)) || c.end_date <= now} onClick={() => setQrContract(c)}>Xem QR & PIN</Button>)}
                   <LinkButton to={`units/${c.contract_id}`}>Xem hợp đồng</LinkButton>
                 </>}>
                 <p>{siteLabel(f)}{c.size_m2 ? ` · ${c.size_m2} m²` : ""} · {c.contract_id}</p>
