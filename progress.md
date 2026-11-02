@@ -1,3 +1,43 @@
+## Phiên 2026-11-02 — Hoàn thành Task T17 (Loại bỏ gán nhân viên chéo cơ sở) & Task T11 (Overdue Worker hàng ngày theo D32)
+
+- **Mục tiêu:** Hoàn thiện 2 tasks còn lại theo phân công của Tiến (Kế hoạch hoàn thiện cập nhật 26–31/10/2026 và D32):
+  1. **Task T17 (Phân quyền & phạm vi cơ sở nghiêm ngặt):**
+     - Sửa `ContractService.RegisterMoveOutAsync`: loại bỏ hoàn toàn fallback lấy bất kỳ nhân viên STAFF của hệ thống hoặc fallback gán nhầm khách hàng (`contract.Customer`) làm nhân viên kiểm tra kho.
+     - Truy vấn lọc nghiêm ngặt `UserFacilities` theo đúng `contract.Unit.FacilityId`, trạng thái `ACTIVE` và trong thời gian hiệu lực (`AssignedFrom <= today` và `AssignedTo == null || AssignedTo >= today`).
+     - Ưu tiên gán `STAFF` của cơ sở; nếu không có thì gán `MANAGER` của cơ sở. Nếu cơ sở không có nhân sự phụ trách nào thì ném ngoại lệ rõ ràng (`InvalidOperationException: "Cơ sở hiện chưa có nhân viên phụ trách để phân công kiểm tra kho."`), không cho phép gán sai phạm vi.
+  2. **Task T11 (Tiến trình quét & xử lý hợp đồng quá hạn hàng ngày):**
+     - Tạo `OverdueProcessor.cs`: Xử lý hợp đồng theo giờ Việt Nam (`+07:00`):
+       + Chuyển hợp đồng `ACTIVE` sắp hết hạn trong 30 ngày thành `EXPIRING`.
+       + Chuyển hợp đồng quá hạn (`EndDate < today`) thành `OVERDUE`.
+       + Tính phí quá hạn: trừ 5% cọc ban đầu cho mỗi ngày trễ (`0.05 * DepositAmount * overdueDays`), khống chế trần tối đa 100% cọc ban đầu.
+       + Điểm dừng tính phí (D32): khi khách đã gửi đăng ký trả kho (`RETURN_PENDING`), ngày tính phí dừng lại tại ngày lập biên bản hẹn kiểm tra kho (`ReturnInspection.CreatedAt`).
+       + Tự động mở hoặc cập nhật `OverdueCase`: ghi nhận phí phạt luỹ kế, đánh dấu mốc nhắc khách ngày 10–14, tự động chuyển `ESCALATED` và ghi nhật ký hoạt động (`ActivityLog`) ở mốc ngày 20 để nhân viên xử lý di dời đồ. Đảm bảo tính lũy đẳng (idempotent), không nhân bản case hay phí nếu quét nhiều lần trong ngày.
+     - Tạo `OverdueWorker.cs`: `BackgroundService` sử dụng `PeriodicTimer` (5 phút/lần) khởi tạo scope DI và gọi `OverdueProcessor.ProcessDailyOverdueAsync`.
+     - Đăng ký `OverdueWorker` trong `Program.cs` hỗ trợ bật/tắt qua config `Worker:EnableOverdue`.
+     - Tạo `OverdueProcessorTests.cs`: 5 unit tests toàn diện kiểm thử đầy đủ các kịch bản chuyển đổi trạng thái, tính phí 5%/ngày, chặn trần 100%, tính lũy đẳng và dừng tính phí khi `RETURN_PENDING`.
+- **Kiểm chứng:**
+  - `dotnet build StorageProject.slnx`: **PASS (0 Error, 17 warnings phụ thuộc có sẵn)**.
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: **97/97 unit tests PASS** (gồm 5/5 tests mới cho OverdueProcessor).
+  - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj`: **9/9 SQL Server integration tests PASS**.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
+
+## Phiên 2026-10-28 — Khắc phục hiển thị mã QR thanh toán đặt chỗ (D33: luôn hiện mã QR)
+
+- **Mục tiêu:** Chỉnh sửa code theo yêu cầu người dùng: luôn hiển thị mã QR thanh toán tại màn hình Checkout C04 và popup thanh toán gia hạn C11q, không giấu mã QR và không chặn người dùng bằng thông báo lỗi.
+- **Thay đổi thực hiện:**
+  1. **Core / Backend:** Thêm `VietQrHelper.cs` chuẩn hóa tạo chuỗi thanh toán NAPAS 247 theo tiêu chuẩn EMVCo (tính toán CRC-16 chuẩn, các trường TLV 00, 01, 38, 53, 54, 58, 62, 63). Bổ sung 3 unit tests cho `VietQrHelper` (92 unit tests PASS).
+  2. **PayOSService.cs:** Trong `CreatePaymentQrAsync`, khi gọi PayOS SDK nếu chưa cấu hình key thật hoặc gặp sự cố dịch vụ/kết nối, tự động fallback sinh mã VietQR chuẩn theo thông tin tài khoản ngân hàng của SafeSpace (MB Bank 970422 - STK 0901234567890) và số tiền của đơn, trả về HTTP 200 kèm `qrCode` và `checkoutUrl`.
+  3. **Frontend AppProvider.jsx:** Cập nhật hàm `startPayos` trong chế độ API; khi gọi backend PayOS thất bại hoặc không trả mã QR, tự động fallback sinh chuỗi VietQR chuẩn client-side (`vietQrPayload`) thay vì dừng luồng với trạng thái lỗi.
+  4. **Frontend CheckoutPage.jsx:** Điều chỉnh điều kiện kiểm tra lỗi; nếu mã QR (`checkout?.qr`) đã sẵn sàng thì luôn render component `QrCode`, không ẩn khối mã thanh toán.
+  5. **DECISIONS.md:** Ghi nhận quyết định mới **D33** thay thế quy định cũ trong D23.
+- **Kiểm chứng:**
+  - `dotnet build StorageProject.slnx`: PASS (0 Error).
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: **92/92 unit tests PASS**.
+  - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj`: **9/9 SQL Server integration tests PASS**.
+  - Frontend: `npm test` **86/86 PASS**, `npm run check:structure` **PASS**, `npm run build` **PASS**.
+  - Kiểm thử trực tiếp API: Gọi `POST /api/reservations/create-payos-qr` trên backend thật (`http://localhost:5151`) trả về HTTP 200 OK kèm mã VietQR hợp lệ `00020101021238570010A0000007270127000697042201130901234567890...` và link checkout.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
+
 ﻿## Phiên 2026-10-26 — Hoàn thành Task T17, T15, T09 (Backend Logic Fixes) & Migration Schema mới
 
 - **Mục tiêu:** Thực hiện 3 tasks logic nghiệp vụ theo kế hoạch 26–31/10 (D31/D32):

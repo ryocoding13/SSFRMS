@@ -138,7 +138,7 @@ public class ContractService(AppDbContext dbContext) : IContractService
             throw new KeyNotFoundException($"Không tìm thấy hợp đồng #{contractId}.");
         }
 
-        if (contract.Status is not ("ACTIVE" or "EXPIRING"))
+        if (contract.Status is not ("ACTIVE" or "EXPIRING" or "OVERDUE"))
         {
             throw new InvalidOperationException($"Không thể đăng ký trả kho với hợp đồng ở trạng thái {contract.Status}.");
         }
@@ -155,12 +155,31 @@ public class ContractService(AppDbContext dbContext) : IContractService
         }
         var scheduledAt = request.Date.ToDateTime(timePart);
 
-        // Find a staff member at the facility or system staff
+        // Tìm nhân viên (STAFF hoặc MANAGER) đang được phân công tại cơ sở của kho (T17: chặn gán chéo cơ sở)
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
         var staffUser = await dbContext.Users
-            .Include(u => u.UserRoles)
-                .ThenInclude(ur => ur.Role)
-            .FirstOrDefaultAsync(u => u.UserRoles.Any(ur => ur.Role.RoleName == "STAFF"), ct)
-            ?? contract.Customer;
+            .Where(u => u.Status == "ACTIVE"
+                        && u.UserRoles.Any(ur => ur.Role.RoleName == "STAFF")
+                        && u.UserFacilities.Any(uf => uf.FacilityId == contract.Unit.FacilityId
+                                                      && uf.Status == "ACTIVE"
+                                                      && uf.AssignedFrom <= today
+                                                      && (uf.AssignedTo == null || uf.AssignedTo >= today)))
+            .OrderBy(u => u.UserId)
+            .FirstOrDefaultAsync(ct)
+            ?? await dbContext.Users
+                .Where(u => u.Status == "ACTIVE"
+                            && u.UserRoles.Any(ur => ur.Role.RoleName == "MANAGER")
+                            && u.UserFacilities.Any(uf => uf.FacilityId == contract.Unit.FacilityId
+                                                          && uf.Status == "ACTIVE"
+                                                          && uf.AssignedFrom <= today
+                                                          && (uf.AssignedTo == null || uf.AssignedTo >= today)))
+                .OrderBy(u => u.UserId)
+                .FirstOrDefaultAsync(ct);
+
+        if (staffUser == null)
+        {
+            throw new InvalidOperationException("Cơ sở hiện chưa có nhân viên phụ trách để phân công kiểm tra kho.");
+        }
 
         var inspection = new StorageProject.Core.Entities.ReturnInspection
         {

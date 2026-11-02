@@ -166,6 +166,10 @@ if (builder.Configuration.GetValue<bool>("Worker:EnableExpiredCashHold", true))
 {
     builder.Services.AddHostedService<ExpiredCashHoldWorker>();
 }
+if (builder.Configuration.GetValue<bool>("Worker:EnableOverdue", true))
+{
+    builder.Services.AddHostedService<OverdueWorker>();
+}
 builder.Services.AddScoped<IPayOSService, PayOSService>();
 builder.Services.AddSingleton(new AccessQrOptions(
     builder.Configuration["AccessQr:Secret"] ?? jwtSecret,
