@@ -53,7 +53,8 @@ export function PaymentConfirmationPage({ query }) {
             ["Số tiền cần thu", <span className="price" key="a">{money(p.amount)}</span>],
             ["Hình thức thu", "Tiền mặt / chuyển khoản tại quầy"],
             ["Giữ chỗ đến", holdUntil ? dateTimeLabel(holdUntil) : "—"],
-            ["Gồm", parts.months ? `Thuê ${parts.months} tháng ${money(parts.rent)} + cọc ${money(parts.deposit)}${parts.estimated ? " (ước tính, cọc bằng 1 tháng thuê)" : ""}` : p.offer],
+            // Chỉ ghi số tiền từng phần khi backend trả tách; chưa có thì không tự chia (cọc thực tế theo chính sách DEPOSIT)
+            ["Gồm", !parts.months ? p.offer || "Tiền thuê và tiền cọc" : parts.estimated ? `Thuê ${parts.months} tháng + tiền cọc${p.offer ? ` · ${p.offer}` : ""}` : `Thuê ${parts.months} tháng ${money(parts.rent)} + cọc ${money(parts.deposit)}`],
           ]}
         />
         {done ? (

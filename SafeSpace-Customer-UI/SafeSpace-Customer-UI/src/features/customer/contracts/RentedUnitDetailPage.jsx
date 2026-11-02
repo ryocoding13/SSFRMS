@@ -7,6 +7,7 @@ import { contractOf, contractStatus, facilityOf, pendingRenewal, pendingReturn }
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { NotFound } from "./components/ContractNotFound.jsx";
 import { AccessQrModal } from "../access/AccessQrModal.jsx";
+import { canCancel } from "../reservations/ReservationListPage.jsx";
 
 import "../../../shared/styles/customer-detail.css";
 
@@ -25,6 +26,9 @@ export function RentedUnitDetailPage({ id }) {
   const issued = c.access_issued ?? c.status !== "DRAFT";
   const prestart = c.start_date > today();
   const busy = Boolean(renewal || ret);
+  // Trước StartDate (D27) khách huỷ đơn để được hoàn 100% tiền thuê + 90% cọc, không đi luồng trả kho
+  const reservation = c.reservation_id ? data.reservations.find((x) => x.reservation_id === c.reservation_id) : null;
+  const cancellable = prestart && !ended && reservation && canCancel(data, reservation);
   const pickupText = pickup ? `${dateLabel(pickup.date)} · ${pickup.slot}` : null;
   return (
     <main className="container page customer-records customer-detail">
@@ -67,9 +71,15 @@ export function RentedUnitDetailPage({ id }) {
           <div className="customer-detail__task"><div><h3>Gia hạn</h3><p>Gửi trước ngày hết hạn, thanh toán sau khi được duyệt.</p></div>
             {issued && !ended && !busy && c.end_date > today() ? <LinkButton to={`units/${id}/renew`} variant="outline">Yêu cầu gia hạn</LinkButton> : <Button variant="outline" disabled>Yêu cầu gia hạn</Button>}
           </div>
-          <div className="customer-detail__task"><div><h3>Trả kho</h3><p>Đăng ký lịch kiểm tra và xử lý hoàn cọc.</p></div>
-            {issued && !ended && !busy ? <LinkButton to={`units/${id}/return`} variant="outline">Đăng ký trả kho</LinkButton> : <Button variant="outline" disabled>Đăng ký trả kho</Button>}
-          </div>
+          {prestart && !ended ? (
+            <div className="customer-detail__task"><div><h3>Huỷ đơn</h3><p>Chưa đến ngày thuê: hoàn 100% tiền thuê và 90% tiền cọc.</p></div>
+              {cancellable ? <LinkButton to={`reservations/${c.reservation_id}/cancel`} variant="outline">Huỷ đơn</LinkButton> : <Button variant="outline" disabled>Huỷ đơn</Button>}
+            </div>
+          ) : (
+            <div className="customer-detail__task"><div><h3>Trả kho</h3><p>Đăng ký lịch kiểm tra và xử lý hoàn cọc.</p></div>
+              {issued && !ended && !busy ? <LinkButton to={`units/${id}/return`} variant="outline">Đăng ký trả kho</LinkButton> : <Button variant="outline" disabled>Đăng ký trả kho</Button>}
+            </div>
+          )}
           <div className="customer-detail__task"><div><h3>Hỗ trợ</h3><p>QR, PIN, chìa khóa, thanh toán.</p></div><LinkButton to={`support?contract=${encodeURIComponent(id)}`} variant="outline">Gửi yêu cầu hỗ trợ</LinkButton></div>
           {ended && <LinkButton to="find">Thuê kho mới</LinkButton>}
           {!issued && !ended && <LinkButton to="payments" variant="outline">Xem lịch nhận chìa khóa</LinkButton>}

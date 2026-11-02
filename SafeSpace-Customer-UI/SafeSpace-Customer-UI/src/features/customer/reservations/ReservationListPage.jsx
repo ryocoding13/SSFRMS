@@ -12,15 +12,18 @@ import RecordSummaryCard from "../../../shared/components/RecordSummaryCard.jsx"
 
 // Đơn khách tự huỷ được — cùng quy tắc backend ReservationService.CancelReservationAsync:
 // PENDING_PAYMENT / PENDING_AT_FACILITY (chưa thu tiền) huỷ lúc nào cũng được;
-// CONFIRMED (đã thanh toán) chỉ huỷ trước ngày bắt đầu thuê, từ ngày bắt đầu dùng quy trình trả kho.
-const CANCELLABLE_API = ["PENDING_PAYMENT", "PENDING_AT_FACILITY", "CONFIRMED"];
+// CONFIRMED / UNIT_ASSIGNED (đã thanh toán, có thể đã cấp ô) chỉ huỷ trước ngày bắt đầu thuê và khi chưa nhận chìa khóa;
+// từ ngày bắt đầu dùng quy trình trả kho (D27).
+const CANCELLABLE_API = ["PENDING_PAYMENT", "PENDING_AT_FACILITY", "CONFIRMED", "UNIT_ASSIGNED"];
+const PAID_API = ["CONFIRMED", "UNIT_ASSIGNED"];
 export function canCancel(data, r, now = today()) {
   if (r.status === "CANCELLED") return false;
   const started = r.start_date && now >= r.start_date;
-  if (r.api_status) return CANCELLABLE_API.includes(r.api_status) && !(r.api_status === "CONFIRMED" && started);
+  const handedOver = data.contracts.some((c) => c.reservation_id === r.reservation_id && c.handed_over);
+  if (r.api_status) return CANCELLABLE_API.includes(r.api_status) && !(PAID_API.includes(r.api_status) && (started || handedOver));
   if (r.status === "PENDING_PAYMENT") return true;
   if (r.status !== "CONFIRMED" || started) return false;
-  return !data.contracts.some((c) => c.reservation_id === r.reservation_id && c.handed_over);
+  return !handedOver;
 }
 
 // C14b/C14c — đơn đã huỷ có khoản hoàn (D27): PENDING = chờ quản lý chuyển khoản, COMPLETED = đã hoàn

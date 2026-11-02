@@ -52,7 +52,7 @@ export const LIST_TEXT = {
 
 // Gom việc của nhân viên. `all` = trang Công việc ngày (bàn giao chỉ tính kho đã xác minh khách).
 export function staffTasks(ops, me, kind = "all") {
-  const verified = (h) => ops.verifications.find((v) => v.id === h.verification_id)?.status !== "TODO";
+  const verified = (h) => ops.verifications.find((v) => v.id === h.verification_id)?.status === "DONE";
   const list = [];
   if (kind === "all" || kind === "reconcile")
     ops.payments
