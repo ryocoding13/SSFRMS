@@ -72,6 +72,13 @@ try {
   assert.ok(endedUnits.includes("Xem hợp đồng") && !endedUnits.includes("Xem QR &amp; PIN"));
   recordData.contracts[0].status = "ACTIVE";
   recordData.contracts[0].end_date = "2099-12-31";
+  // D35–D36 · L13: trước ngày thuê không mở QR/PIN, chỉ ghi ngày mã hiện
+  recordData.contracts[0].start_date = "2099-01-01";
+  memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: recordData }));
+  const prestartUnits = renderToStaticMarkup(React.createElement(App));
+  assert.match(prestartUnits, /<button[^>]*disabled[^>]*>Mã hiện từ /);
+  assert.ok(!prestartUnits.includes("Xem QR &amp; PIN"));
+  recordData.contracts[0].start_date = "2026-01-01";
   recordData.returns = [{ contract_id: recordData.contracts[0].contract_id, status: "PENDING" }];
   memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: recordData }));
   const returningUnits = renderToStaticMarkup(React.createElement(App));
@@ -205,7 +212,7 @@ try {
   // C12 phản hồi nhân viên, C14 huỷ đơn, S09 thu tiền tại kho, M02 đổi trạng thái ô
   seed(true);
   const pages = [
-    ["units/HĐ-2026-0142", ["Hợp đồng và mã ra vào đã được cấp", "Xem QR &amp; PIN 6 số", "Nhận tại quầy cơ sở"]],
+    ["units/HĐ-2026-0142", ["Hợp đồng và mã ra vào đã được cấp", "Đã cấp · mã hiện từ", "Mã hiện từ", "Nhận tại quầy cơ sở"]],
     ["units/HĐ-2026-0086", ["Xem QR &amp; PIN 6 số", "Yêu cầu gia hạn", "Đăng ký trả kho"]],
     ["payments", ["Thanh toán", "Gia hạn B-015 · 3 tháng", "Chờ thanh toán"]],
     ["support", ["Phản hồi của nhân viên", "Thẻ cũ bị lỗi từ"]],
@@ -219,7 +226,9 @@ try {
     count++;
   }
   window.location.hash = "#/units/HĐ-2026-0142";
-  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Xem QR &amp; PIN 6 số"), "D26: QR hiển thị trước khi nhận chìa khóa");
+  // D26 vẫn cấp mã sau thanh toán; D35–D36 (L13) chỉ mở QR/PIN từ ngày bắt đầu thuê
+  const prestartDetail = renderToStaticMarkup(React.createElement(App));
+  assert.ok(prestartDetail.includes("Đã cấp · mã hiện từ") && !prestartDetail.includes("Xem QR &amp; PIN 6 số"), "L13: trước ngày thuê không mở QR/PIN");
   seed(true, OPS_ACCOUNTS[0]);
   for (const [r, texts] of [["staff/reconcile", ["Thu tiền tại kho", "Chờ thu khi nhận kho"]], ["staff/reconcile?id=SS-20260914-0142", ["Xác nhận đã thu", "Để sau", "Thuê 3 tháng"]], ["staff", ["Chờ thu tiền tại kho", "THU TIỀN"]]]) {
     window.location.hash = `#/${r}`;

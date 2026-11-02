@@ -1,10 +1,10 @@
 import React, { useRef, useState } from "react";
 import { Select } from "../../../shared/components/Pickers.jsx";
 import { Button, LinkButton, Dialog, Field, Icon, Modal, Notice, PageHeader, StatusTag } from "../../../shared/components/UI.jsx";
-import { dateTimeLabel } from "../../../shared/utils/format.js";
+import { dateTimeLabel, today } from "../../../shared/utils/format.js";
 import { ACCESS_REQUESTS, TICKET_STATUS, TICKET_TOPICS } from "../../../shared/utils/status.js";
 import { href } from "../../../app/router.js";
-import { facilityOf } from "../../../app/state/appSelectors.js";
+import { contractStatus, facilityOf } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 
 const MAX_FILES = 3;
@@ -57,8 +57,12 @@ export default function SupportPage({ query }) {
   const [busy, setBusy] = useState(false);
   const preContract = query.get("contract");
   const preTopic = query.get("topic");
+  // D35–D36 · L14: chỉ gắn hỗ trợ với hợp đồng đã bắt đầu và chưa kết thúc
+  const supportable = data.contracts.filter((c) => c.start_date <= today() && contractStatus(c) !== "ENDED");
+  const noContract = supportable.length === 0;
+  const blockedContract = noContract && data.contracts.length > 0;
   const [form, setForm] = useState({
-    contract_id: data.contracts.some((c) => c.contract_id === preContract) ? preContract : data.contracts[0]?.contract_id || "",
+    contract_id: supportable.some((c) => c.contract_id === preContract) ? preContract : supportable[0]?.contract_id || "",
     topic: TICKET_TOPICS[preTopic] ? preTopic : "ACCESS",
     description: "",
     subject: "",
@@ -88,6 +92,7 @@ export default function SupportPage({ query }) {
   };
   const submit = async (e) => {
     e.preventDefault();
+    if (blockedContract || (mode === "api" && !form.contract_id)) return setErrors({ form: "Chưa có kho đang thuê để gắn yêu cầu. Vui lòng dùng hỗ trợ chung." });
     if (form.topic === "OTHER" && !form.subject.trim()) return setErrors({ subject: "Vui lòng nhập chủ đề của bạn." });
     if (!form.description.trim()) return setErrors({ description: "Vui lòng mô tả vấn đề bạn đang gặp." });
     setBusy(true);
@@ -115,12 +120,13 @@ export default function SupportPage({ query }) {
         <form className="panel form-card" onSubmit={submit} noValidate>
           <Field label="Kho / hợp đồng liên quan">
             <Select value={form.contract_id} onChange={(e) => set("contract_id", e.target.value)}>
-              {data.contracts.map((c) => (
+              {supportable.map((c) => (
                 <option key={c.contract_id} value={c.contract_id}>{c.unit_number} · {facilityOf(data, c.facility_id, c.facility_name).name}</option>
               ))}
-              {data.contracts.length === 0 && <option value="">{mode === "api" ? "Bạn chưa có hợp đồng thuê kho" : "Vấn đề chung (chưa thuê kho)"}</option>}
+              {noContract && <option value="">{blockedContract ? "Không có kho đang trong kỳ thuê" : mode === "api" ? "Bạn chưa có hợp đồng thuê kho" : "Vấn đề chung (chưa thuê kho)"}</option>}
             </Select>
           </Field>
+          {blockedContract && <Notice>Chỉ gửi yêu cầu theo kho khi hợp đồng đang trong kỳ thuê. Kho chưa đến ngày thuê hoặc đã kết thúc, vui lòng dùng <a href={href("inquiries")}>hỗ trợ chung</a>.</Notice>}
           <Field label="Chủ đề">
             <Select value={form.topic} onChange={(e) => set("topic", e.target.value)}>
               {Object.entries(TICKET_TOPICS).filter(([, t]) => !t.legacy).map(([k, t]) => (
@@ -159,7 +165,7 @@ export default function SupportPage({ query }) {
             {errors.files && <p className="field__error" role="alert">{errors.files}</p>}
           </div>
           {errors.form && <Notice tone="error">{errors.form}</Notice>}
-          <Button type="submit" disabled={busy}>{busy ? "Đang gửi…" : "Gửi yêu cầu"}</Button>
+          <Button type="submit" disabled={busy || blockedContract}>{busy ? "Đang gửi…" : "Gửi yêu cầu"}</Button>
         </form>
 
         <div className="stack stack--col stack--fill">

@@ -3,8 +3,8 @@
 import React, { useEffect, useRef, useState } from "react";
 
 // Các thành phần giao diện dùng chung:
-// Button: nút bấm; Field: nhãn, ô nhập và thông báo lỗi; Icon: biểu tượng.
-import { Button, Field, Icon, Modal, Notice } from "../../shared/components/UI.jsx";
+// Button: nút bấm; Field: nhãn, ô nhập và thông báo lỗi.
+import { Button, Field, Modal, Notice } from "../../shared/components/UI.jsx";
 
 // go(): chuyển trang bằng code.
 // href(): tạo đường dẫn dạng #/... để dùng trong thẻ <a>.
@@ -171,11 +171,6 @@ export function RegisterPage({ query }) {
           block là thuộc tính của Button giúp nút rộng hết hàng.
         */}
         <Button type="submit" block disabled={busy}>{busy ? "Đang tạo tài khoản…" : "Tạo tài khoản"}</Button>
-
-        {/* Đây là thông tin hiển thị; việc gán vai trò không diễn ra ở đoạn JSX này. */}
-        <p className="auth__role">
-          <Icon name="check" size={14} /> Tài khoản mới sẽ tự động vào vai trò Khách hàng.
-        </p>
 
         {/* href("login") tạo đường dẫn #/login cho người đã có tài khoản. */}
         <p className="auth__switch">
