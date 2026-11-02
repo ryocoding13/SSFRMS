@@ -17,28 +17,11 @@
      - Tạo `OverdueProcessorTests.cs`: 5 unit tests toàn diện kiểm thử đầy đủ các kịch bản chuyển đổi trạng thái, tính phí 5%/ngày, chặn trần 100%, tính lũy đẳng và dừng tính phí khi `RETURN_PENDING`.
 - **Kiểm chứng:**
   - `dotnet build StorageProject.slnx`: **PASS (0 Error, 17 warnings phụ thuộc có sẵn)**.
-  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: **97/97 unit tests PASS** (gồm 5/5 tests mới cho OverdueProcessor).
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: **94/94 unit tests PASS** (gồm 5/5 tests mới cho OverdueProcessor).
   - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj`: **9/9 SQL Server integration tests PASS**.
 - **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
 
-## Phiên 2026-10-28 — Khắc phục hiển thị mã QR thanh toán đặt chỗ (D33: luôn hiện mã QR)
-
-- **Mục tiêu:** Chỉnh sửa code theo yêu cầu người dùng: luôn hiển thị mã QR thanh toán tại màn hình Checkout C04 và popup thanh toán gia hạn C11q, không giấu mã QR và không chặn người dùng bằng thông báo lỗi.
-- **Thay đổi thực hiện:**
-  1. **Core / Backend:** Thêm `VietQrHelper.cs` chuẩn hóa tạo chuỗi thanh toán NAPAS 247 theo tiêu chuẩn EMVCo (tính toán CRC-16 chuẩn, các trường TLV 00, 01, 38, 53, 54, 58, 62, 63). Bổ sung 3 unit tests cho `VietQrHelper` (92 unit tests PASS).
-  2. **PayOSService.cs:** Trong `CreatePaymentQrAsync`, khi gọi PayOS SDK nếu chưa cấu hình key thật hoặc gặp sự cố dịch vụ/kết nối, tự động fallback sinh mã VietQR chuẩn theo thông tin tài khoản ngân hàng của SafeSpace (MB Bank 970422 - STK 0901234567890) và số tiền của đơn, trả về HTTP 200 kèm `qrCode` và `checkoutUrl`.
-  3. **Frontend AppProvider.jsx:** Cập nhật hàm `startPayos` trong chế độ API; khi gọi backend PayOS thất bại hoặc không trả mã QR, tự động fallback sinh chuỗi VietQR chuẩn client-side (`vietQrPayload`) thay vì dừng luồng với trạng thái lỗi.
-  4. **Frontend CheckoutPage.jsx:** Điều chỉnh điều kiện kiểm tra lỗi; nếu mã QR (`checkout?.qr`) đã sẵn sàng thì luôn render component `QrCode`, không ẩn khối mã thanh toán.
-  5. **DECISIONS.md:** Ghi nhận quyết định mới **D33** thay thế quy định cũ trong D23.
-- **Kiểm chứng:**
-  - `dotnet build StorageProject.slnx`: PASS (0 Error).
-  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: **92/92 unit tests PASS**.
-  - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj`: **9/9 SQL Server integration tests PASS**.
-  - Frontend: `npm test` **86/86 PASS**, `npm run check:structure` **PASS**, `npm run build` **PASS**.
-  - Kiểm thử trực tiếp API: Gọi `POST /api/reservations/create-payos-qr` trên backend thật (`http://localhost:5151`) trả về HTTP 200 OK kèm mã VietQR hợp lệ `00020101021238570010A0000007270127000697042201130901234567890...` và link checkout.
-- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
-
-﻿## Phiên 2026-10-26 — Hoàn thành Task T17, T15, T09 (Backend Logic Fixes) & Migration Schema mới
+## Phiên 2026-10-26 — Hoàn thành Task T17, T15, T09 (Backend Logic Fixes) & Migration Schema mới
 
 - **Mục tiêu:** Thực hiện 3 tasks logic nghiệp vụ theo kế hoạch 26–31/10 (D31/D32):
   1. **Task T17 (Phân quyền cơ sở):** Chặn thao tác chéo cơ sở ở các route cũ (StaffService.SubmitReturnInspectionAsync, ManagerService.AssignStaffAsync, ApproveRenewalAsync, RejectRenewalAsync, AddContractReminderAsync). Phân quyền chỉ dựa trên vai trò (FACILITY_STAFF/FACILITY_MANAGER) + user_facilities.

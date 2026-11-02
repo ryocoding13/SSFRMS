@@ -310,12 +310,3 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 
 **Giao diện**
 - Mục "Chính sách" riêng trên menu khách; một mẫu popup chuẩn (560 px, 6 loại: xác nhận, xác nhận nguy hiểm, thành công, thất bại, cảnh báo, thông tin); thông báo dùng chuông, không trang riêng. Màn không ghi mã nội bộ "D30/D31"; phiên bản hiển thị dạng "11/2026".
-
-
-## D33 — 2026-10-28: Luôn hiển thị mã QR thanh toán đặt chỗ (không giấu mã thanh toán) — Đã chốt
-
-- Theo yêu cầu người dùng: Hệ thống thanh toán đặt chỗ (C04) và gia hạn (C11q) luôn hiển thị mã QR thanh toán cho khách hàng quét trên màn hình, không giấu mã hay báo lỗi làm đứt luồng.
-- Khi PayOS được cấu hình đầy đủ (ClientId, ApiKey, ChecksumKey) và kết nối thành công, hệ thống sử dụng liên kết và mã QR từ PayOS SDK (`createPaymentLink`).
-- Khi PayOS chưa cấu hình hoặc gặp sự cố dịch vụ/kết nối mạng, Backend (`PayOSService`) và Frontend (`AppProvider.startPayos`) tự động fallback tạo chuỗi mã VietQR chuẩn NAPAS 247 (`vietQrPayload` / `VietQrHelper.Generate`) dựa trên tài khoản thụ hưởng của cơ sở (MB Bank 970422 - STK 0901234567890), số tiền thanh toán chính xác và nội dung chuyển khoản theo mã đơn.
-- Giao diện `CheckoutPage.jsx` luôn hiển thị khối `QrCode` khi có mã thanh toán.
-- Thay thế dòng "Không dùng VietQR mặc định khi PayOS lỗi" trong D23.

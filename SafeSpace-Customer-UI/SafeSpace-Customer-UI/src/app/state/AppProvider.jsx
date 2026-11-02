@@ -720,32 +720,11 @@ function ApiProvider({ children }) {
       startPayos: ({ kind, item }) =>
         guard(async () => {
           if (kind === "payment" && isReturnFee(item)) return { ok: false, error: NO_RETURN_COLLECTION };
-          let dto = null;
-          try {
-            dto = kind === "payment" ? await api.paymentPayos(item.api_id) : await api.reservationPayos(item.api_id);
-          } catch (e) {
-            // Khi API PayOS lỗi hoặc chưa cấu hình key, tự động fallback sang VietQR bên dưới
-          }
+          const dto = kind === "payment" ? await api.paymentPayos(item.api_id) : await api.reservationPayos(item.api_id);
           const checkout = normPayos(dto);
-          if (checkout) {
-            if (checkout.paid) await loadCustomer().catch(() => {});
-            return { ok: true, checkout };
-          }
-          const content = (kind === "payment" ? item.ref : item.reservation_id || "").replaceAll("-", "");
-          const amount = item.amount ?? item.initial_total;
-          const qr = vietQrPayload({ bin: bankAccount.bin, accountNo: bankAccount.accountNo, amount, content });
-          return {
-            ok: true,
-            checkout: {
-              order_code: item.order_code || content,
-              amount,
-              qr,
-              url: null,
-              expires_at: null,
-              description: content,
-              paid: false,
-            },
-          };
+          if (!checkout) return fail("Máy chủ chưa trả mã QR thanh toán. Vui lòng thử lại.");
+          if (checkout.paid) await loadCustomer().catch(() => {});
+          return { ok: true, checkout };
         }),
       checkPaid: ({ kind, item }) =>
         guard(async () => {

@@ -158,7 +158,7 @@ export function CheckoutPage({ id }) {
                 <Notice>
                   Thanh toán QR đang tạm gián đoạn. Bạn có thể chọn <strong>Tại cửa hàng</strong> để giữ chỗ và thanh toán khi nhận kho.
                 </Notice>
-              ) : qrState === "error" && !checkout?.qr ? (
+              ) : qrState === "error" ? (
                 <Notice tone="error">
                   {qrError}{" "}
                   <button type="button" className="link-btn" onClick={load}>Tạo lại mã QR</button>

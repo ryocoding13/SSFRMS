@@ -6,7 +6,6 @@ using StorageProject.Core.DTOs.Payment;
 using StorageProject.Core.DTOs.Reservation;
 using StorageProject.Core.Entities;
 using StorageProject.Core.Interfaces;
-using StorageProject.Core.Utils;
 using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
@@ -43,6 +42,7 @@ public class PayOSService(
         if (r.OrderCode != null && !string.IsNullOrEmpty(r.CheckoutUrl) && !string.IsNullOrEmpty(r.PaymentQrUrl))
             return new CreatePayOSQrResponse(r.ReservationId, r.OrderCode.Value, r.CheckoutUrl, r.PaymentQrUrl, amount, expiry);
 
+        gateway.EnsureConfigured();
         // Commit the identifier before calling the external system. A timeout must not create another order code.
         if (r.OrderCode == null) {
             r.OrderCode = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 100 + Random.Shared.Next(100);
@@ -53,7 +53,6 @@ public class PayOSService(
         }
         CheckoutLink link;
         try {
-            gateway.EnsureConfigured();
             var frontendBaseUrl = configuration?["AppSettings:FrontendUrl"]?.TrimEnd('/')
                 ?? configuration?["Frontend:BaseUrl"]?.TrimEnd('/')
                 ?? "http://localhost:5173";
@@ -66,13 +65,7 @@ public class PayOSService(
                 returnUrl,
                 cancelUrl);
         } catch (Exception ex) {
-            logger.LogWarning(ex, "PayOS gateway not configured or failed for reservation {ReservationId}. Generating standard VietQR fallback.", r.ReservationId);
-            var vietQr = VietQrHelper.Generate(
-                bin: configuration?["AppSettings:BankBin"] ?? "970422",
-                accountNo: configuration?["AppSettings:BankAccount"] ?? "0901234567890",
-                amount: (long)amount,
-                content: $"Dat kho #{r.ReservationId}");
-            link = new CheckoutLink($"https://pay.payos.vn/web/{r.OrderCode}", vietQr);
+            throw new InvalidOperationException("Không tạo được link PayOS. Kiểm tra cấu hình hoặc chọn thanh toán tại cửa hàng.", ex);
         }
         r.CheckoutUrl = link.Url;
         r.PaymentQrUrl = link.Qr;
