@@ -705,9 +705,12 @@ function ApiProvider({ children }) {
           case "UPDATE_NAME": {
             const current = refs.current.session;
             if (!current) return fail("Vui lòng đăng nhập lại.");
-            const profile = await api.updateProfile({ fullName: String(p.name || "").trim() });
+            const body = { fullName: String(p.name || "").trim() };
+            // Backend: Phone = null thì giữ nguyên số cũ, chuỗi rỗng thì xoá số
+            if (p.phone !== undefined) body.phone = String(p.phone || "").replace(/[\s.-]/g, "");
+            const profile = await api.updateProfile(body);
             if (!applyProfile(profile, current)) return fail("Phiên đăng nhập đã thay đổi. Vui lòng thử lại.");
-            return { ok: true, name: profile.fullName };
+            return { ok: true, name: profile.fullName, phone: profile.phone ?? body.phone };
           }
           case "REQUEST_RETURN": {
             const c = d.contracts.find((x) => x.contract_id === p.contract_id);

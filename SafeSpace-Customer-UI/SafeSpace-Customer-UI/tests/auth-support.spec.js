@@ -90,8 +90,8 @@ test("C13: lưu tên đã trim, giữ số điện thoại và đúng tài kho�
   const state = await setup(page);
   await login(page);
   await page.getByLabel("Tên tài khoản (hiển thị)").fill("  An cập nhật  ");
-  await page.getByRole("button", { name: "Lưu tên tài khoản" }).click();
-  await expect(page.getByRole("heading", { name: "Đã lưu tên" })).toBeVisible();
+  await page.getByRole("button", { name: "Lưu thông tin" }).click();
+  await expect(page.getByRole("heading", { name: "Đã lưu thông tin" })).toBeVisible();
   expect(state.users.customer01.fullName).toBe("An cập nhật");
   expect(state.users.customer01.phone).toBe("0901234567");
   await page.reload();
@@ -108,8 +108,8 @@ test("C13: tên từ API thay tên overlay cũ; khách khác không bị đổi 
   await login(page);
   await expect(page.getByLabel("Tên tài khoản (hiển thị)")).toHaveValue("Nguyễn Văn An");
   await page.getByLabel("Tên tài khoản (hiển thị)").fill("An mới");
-  await page.getByRole("button", { name: "Lưu tên tài khoản" }).click();
-  await expect(page.getByRole("heading", { name: "Đã lưu tên" })).toBeVisible();
+  await page.getByRole("button", { name: "Lưu thông tin" }).click();
+  await expect(page.getByRole("heading", { name: "Đã lưu thông tin" })).toBeVisible();
   await page.getByRole("button", { name: "Đã hiểu", exact: true }).click();
   await page.getByRole("button", { name: "Đăng xuất", exact: true }).click();
   await login(page, "customer02");
@@ -121,12 +121,12 @@ test("C13: tên trống bị chặn; lỗi lưu không đổi tên trong phiên"
   const state = await setup(page);
   await login(page);
   await page.getByLabel("Tên tài khoản (hiển thị)").fill(" ");
-  await page.getByRole("button", { name: "Lưu tên tài khoản" }).click();
+  await page.getByRole("button", { name: "Lưu thông tin" }).click();
   await expect(page.getByText("Tên hiển thị cần từ 2 đến 100 ký tự.")).toBeVisible();
   expect(state.calls.filter((x) => x.method === "PUT")).toHaveLength(0);
   state.saveStatus = 500;
   await page.getByLabel("Tên tài khoản (hiển thị)").fill("Chưa lưu");
-  await page.getByRole("button", { name: "Lưu tên tài khoản" }).click();
+  await page.getByRole("button", { name: "Lưu thông tin" }).click();
   await expect(page.getByText("Không lưu được hồ sơ.")).toBeVisible();
   expect(state.users.customer01.fullName).toBe("Nguyễn Văn An");
   await page.reload();
@@ -138,9 +138,9 @@ test("C13: chặn bấm lưu lặp trong khi chờ máy chủ", async ({ page })
   state.delay = 600;
   await login(page);
   await page.getByLabel("Tên tài khoản (hiển thị)").fill("An đang lưu");
-  await page.getByRole("button", { name: "Lưu tên tài khoản" }).click();
+  await page.getByRole("button", { name: "Lưu thông tin" }).click();
   await expect(page.getByRole("button", { name: "Đang lưu…" })).toBeDisabled();
-  await expect(page.getByRole("heading", { name: "Đã lưu tên" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Đã lưu thông tin" })).toBeVisible();
   expect(state.calls.filter((x) => x.method === "PUT")).toHaveLength(1);
 });
 
@@ -273,7 +273,7 @@ test("C13: phản hồi lưu trễ không thay phiên của khách đăng nhập
   await page.getByLabel("Tên tài khoản (hiển thị)").fill("An lưu trễ");
   const saved = page.waitForResponse((res) => res.request().method() === "PUT" && new URL(res.url()).pathname === "/api/auth/profile");
   const requested = page.waitForRequest((req) => req.method() === "PUT" && new URL(req.url()).pathname === "/api/auth/profile");
-  await page.getByRole("button", { name: "Lưu tên tài khoản" }).click();
+  await page.getByRole("button", { name: "Lưu thông tin" }).click();
   await requested;
   await page.getByRole("button", { name: "Đăng xuất", exact: true }).click();
   await login(page, "customer02", "Customer@123", true);

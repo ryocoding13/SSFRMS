@@ -269,7 +269,7 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 ## D32 — 2026-10-26: Khấu trừ tối đa bằng cọc, quá hạn theo cọc, sự cố cơ sở, không thu hồi mã — Đã chốt
 
 > Người dùng chốt ngày 26/10/2026 (kế hoạch hoàn thiện 26–31/10). Áp dụng cho **mọi hợp đồng**, kể cả hợp đồng đang chạy.
-> Chưa triển khai code; việc BE/FE ghi ở `SafeSpace-Customer-UI/SafeSpace-Customer-UI/BACKEND-TODO.md` mục "D31".
+> Chưa triển khai code; việc BE/FE ghi ở `SafeSpace-Customer-UI/SafeSpace-Customer-UI/BACKEND-TODO.md` mục "D32" (02/11/2026: sửa tham chiếu ghi nhầm "D31", không đổi nội dung quyết định).
 
 **Tiền khi trả kho và quá hạn**
 - Tổng khấu trừ khi trả kho (vệ sinh 10% cọc cố định, hư hỏng, quá hạn) tối đa bằng 100% cọc. Vượt cọc thì hoàn 0 đ và dừng ở đó; **không phát sinh công nợ ngoài cọc**, không tạo khoản phải thu khách sau trả kho.

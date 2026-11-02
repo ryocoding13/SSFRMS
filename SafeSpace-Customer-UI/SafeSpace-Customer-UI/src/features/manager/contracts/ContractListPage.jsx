@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { InspectionReview } from "../../facility-operations/settlements/SettlementComponents.jsx";
 import { canFinalizeReturn } from "../../facility-operations/settlements/settlementModel.js";
 import { RecordCard } from "../../facility-operations/workflows/WorkflowComponents.jsx";
@@ -33,6 +33,9 @@ export function ContractListPage({ query }) {
   const sel = query.get("id") ? ops.contracts.find(c=>c.id===query.get("id")) : null;
   const [note, setNote] = useState("");
   const mismatch = ops.payments.filter((p) => p.status === "MISMATCH");
+  const detailRef = useRef(null);
+  // "Xem hồ sơ" mở chi tiết ngay dưới danh sách: cuộn tới để quản lý thấy trang đã chuyển
+  useEffect(() => { if (sel) detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, [sel?.id]);
   return (
     <main className="container page">
       <PageHeaderBlock title="Hợp đồng & xử lý quá hạn" text="Theo dõi hạn thuê, đối soát trả kho và yêu cầu cần duyệt tại cơ sở." />
@@ -42,9 +45,8 @@ export function ContractListPage({ query }) {
       ))}
       <div className="customer-detail__column">{ops.contracts.map(c=>{const [label,tone]=CONTRACT_STATE(c);return <RecordCard key={c.id} title={`${c.id} · ${c.customer}`} subtitle={`Kho ${c.unit} · hết hạn ${dateLabel(c.end)}`} status={label} actions={<LinkButton to={c.state==="RENEWAL"?"manager/renewals":`manager/contracts${qs({id:c.id})}`}>{c.state==="RETURNED"?"Duyệt đối soát":c.state==="OVERDUE"?"Xem hồ sơ quá hạn":"Xem hồ sơ"}</LinkButton>}><p>{c.state==="RETURNED"?"Biên bản đã gửi · khấu trừ tối đa bằng cọc":c.state==="RENEWAL"?"Có yêu cầu gia hạn cần duyệt":"Theo dõi hạn thuê và lịch sử liên hệ khách"}</p></RecordCard>;})}</div>
       {query.get("id")&&!sel&&<Empty title="Không tìm thấy hợp đồng" text="Chọn đúng hồ sơ thuộc cơ sở phụ trách."/>}
-      <div className="workflow-links"><LinkButton to="manager/refunds" variant="outline">Hoàn tiền đơn huỷ</LinkButton><LinkButton to="manager/deposit-refunds" variant="outline">Hoàn cọc sau trả kho</LinkButton></div>
       {sel && (
-        <section className="panel form-card">
+        <section className="panel form-card contract-detail" ref={detailRef}>
           <h2>{sel.id} · Bước tiếp theo</h2>
           {sel.state === "RETURNED" ? (
             <>
@@ -84,9 +86,6 @@ export function ContractListPage({ query }) {
               }}
             />
           )}
-          <LinkButton to="manager/deposit-refunds" variant="outline">Hoàn cọc sau trả kho</LinkButton>
-          {/* Figma M07: lối vào M08 hoàn tiền đơn huỷ */}
-          <LinkButton to="manager/refunds" className="btn--fit">Hoàn tiền đơn huỷ{(ops.refunds || []).some((r) => r.status === "PENDING") ? ` (${ops.refunds.filter((r) => r.status === "PENDING").length})` : ""}</LinkButton>
           {(sel.reminders || []).length > 0 && (
             <ul className="ops-notes">
               {sel.reminders.map((r, i) => <li key={i}><small>{dateTimeLabel(r.at)}</small>{r.text}</li>)}
@@ -94,6 +93,8 @@ export function ContractListPage({ query }) {
           )}
         </section>
       )}
+      {/* Figma M07: lối vào M08 hoàn tiền đơn huỷ và hoàn cọc, một thẻ cuối trang */}
+      <div className="panel workflow-links workflow-links--panel"><LinkButton to="manager/refunds" variant="outline">Hoàn tiền đơn huỷ{(ops.refunds || []).some((r) => r.status === "PENDING") ? ` (${ops.refunds.filter((r) => r.status === "PENDING").length})` : ""}</LinkButton><LinkButton to="manager/deposit-refunds" variant="outline">Hoàn cọc sau trả kho</LinkButton></div>
     </main>
   );
 }

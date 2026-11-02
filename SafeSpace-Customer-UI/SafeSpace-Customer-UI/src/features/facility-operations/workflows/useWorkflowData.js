@@ -25,13 +25,14 @@ export function useWorkflowData(resource) {
   const [data, setData] = useState(() => demo ? readDemo()[storageResource] : resource === "policy" ? null : []);
   const [loading, setLoading] = useState(!demo);
   const [error, setError] = useState("");
+  const [errorStatus, setErrorStatus] = useState(0);
   const [busy, setBusy] = useState(false);
   const guard = useRef(false), generation = useRef(0);
   const reload = useCallback(async () => {
     const seq = ++generation.current;
-    setLoading(true); setError("");
+    setLoading(true); setError(""); setErrorStatus(0);
     try { const result = demo ? readDemo()[storageResource] : await loadWorkflow(resource); if(["depositRefunds","overdue"].includes(resource)&&!Array.isArray(result))throw new Error("Máy chủ chưa trả danh sách hợp lệ."); if (seq === generation.current) {setData(result);setNeedsRefresh(false);} }
-    catch (e) { if (seq === generation.current) setError(e.message); onApiError?.(e); }
+    catch (e) { if (seq === generation.current) { setError(e.message); setErrorStatus(e?.status || 0); } onApiError?.(e); }
     finally { if (seq === generation.current) setLoading(false); }
   }, [demo, resource, storageResource, onApiError, actorKey]);
   useEffect(() => { reload(); return () => { generation.current++; }; }, [reload]);
@@ -71,9 +72,9 @@ export function useWorkflowData(resource) {
         else await reload();
       }
       return { ok: true };
-    } catch (e) { if(e.uncertain||e.status===0||e.status===409||e.status>=500)setNeedsRefresh(true); onApiError?.(e); return { ok: false, error: e.message }; }
+    } catch (e) { if(e.uncertain||e.status===0||e.status===409||e.status>=500)setNeedsRefresh(true); onApiError?.(e); return e?.status === 403 ? { ok: false, code: "FORBIDDEN", error: "Quyền tài khoản hoặc trạng thái phân công vừa thay đổi. Tải lại dữ liệu và kiểm tra quyền hiện tại trước khi tiếp tục." } : { ok: false, error: e.message }; }
     finally { guard.current = false; setBusy(false); }
   }, [demo, resource, storageResource, user, roles, onApiError, reload, needsRefresh, facilityId, data, actorKey]);
   const scoped = ["depositRefunds","overdue"].includes(resource) ? (data||[]).filter(r=>facilityId!=null&&r.facilityId===facilityId) : data;
-  return { data:scoped, loading, error, busy, reload, run, demo,needsRefresh };
+  return { data:scoped, loading, error, errorStatus, busy, reload, run, demo,needsRefresh };
 }

@@ -82,5 +82,6 @@ export default function AdminRoutes({ parts }) {
   // tab: truyền mục menu hiện tại cho AdminShell.
   // body: nội dung trang được chọn ở các điều kiện phía trên.
   // {body} được truyền vào AdminShell thông qua children.
-  return <AdminLayout tab={tab}>{body}</AdminLayout>;
+  // key theo đường dẫn: nội dung trang dựng lại khi đổi trang, header/menu giữ nguyên (không giật)
+  return <AdminLayout tab={tab}><React.Fragment key={parts.join("/")}>{body}</React.Fragment></AdminLayout>;
 }

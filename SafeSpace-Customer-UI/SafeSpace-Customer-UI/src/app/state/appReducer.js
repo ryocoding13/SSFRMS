@@ -417,11 +417,15 @@ const handlers = {
     };
   },
 
+  // C13: lưu tên hiển thị và (nếu gửi kèm) số điện thoại
   UPDATE_NAME(state, p) {
     const name = (p.name || "").trim();
     if (name.length < 2) fail("Vui lòng nhập tên hiển thị.");
     if (name.length > 100) fail("Tên không quá 100 ký tự.");
-    return { state: { ...state, user: { ...state.user, full_name: name } }, result: { name } };
+    if (p.phone === undefined) return { state: { ...state, user: { ...state.user, full_name: name } }, result: { name } };
+    const phone = String(p.phone || "").replace(/[\s.-]/g, "");
+    if (phone && !/^(0\d{9}|\+84\d{9})$/.test(phone)) fail("Số điện thoại chưa đúng định dạng.");
+    return { state: { ...state, user: { ...state.user, full_name: name, phone } }, result: { name, phone } };
   },
 
   CHANGE_PASSWORD(state, p) {
