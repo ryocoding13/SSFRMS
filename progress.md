@@ -1,3 +1,17 @@
+## 2026-11-02 — F40: sửa giật/chớp khi bấm trong khu Nhân viên, Quản lý cơ sở, Vận hành KD, Quản trị
+
+- Nguyên nhân: `#main` trong `src/app/App.jsx` đổi `key` theo đường dẫn, mà header/menu (`*Layout.jsx`) và `OpsProvider` nằm trong `#main`. Mỗi lần bấm menu/nút đổi trang, cả header, menu và dữ liệu vận hành bị dựng lại: hiện "Đang tải dữ liệu vận hành…", gọi lại `/api/ops/board`, chiều cao `--site-header-height` bị xoá rồi đo lại, cộng hiệu ứng `ss-page-in` (mờ từ 0 + trượt 6 px) chạy lại cho cả màn hình. `router.js` còn cuộn lên đầu cả khi chỉ đổi `?id`/bộ lọc.
+- Sửa: khu staff/manager/business/admin giữ `key` theo khu; nội dung từng trang vẫn dựng lại nhờ `React.Fragment key` trong `AdminRoutes`, `BusinessRoutes`, `FacilityOperationsRoutes`. `OpsProvider` nhận `navKey` và nạp lại board ngầm khi đổi trang (giữ dữ liệu đang hiện, không bật màn tải). `router.js` chỉ cuộn lên đầu khi đổi đường dẫn. `motion.css`: chuyển trang chỉ mờ nhẹ 0.55→1 trong 0.15 s, bỏ trượt. Khu khách hàng giữ cách dựng lại theo đường dẫn như cũ.
+- Kiểm tra (Node 22.23, nối sau patch hiển thị 02/11): `check:structure` PASS, `npm test` 155/155, `test:business` 9/9, `test:render` 173 route PASS, `build` PASS (cảnh báo bundle >500 kB có sẵn). Đo bằng Chromium headless trên `MOCK_OPS=1 npm run dev:mock`, đăng nhập manager01, bấm 6 mục menu: bản cũ header dựng lại 5 lần, hiện màn "Đang tải…" 5 lần, 10 lần gọi board; bản sửa 0, 0 và 5 lần gọi board ngầm. Đây là mock API, chưa kiểm với backend .NET/SQL Server thật. Không đổi API, nghiệp vụ hay trạng thái tính năng.
+
+## 2026-11-02 — F40: sửa hiển thị theo Figma (M07, A02/A05, B04, C11 gia hạn)
+
+- M07 `#/manager/contracts`: "Xem hồ sơ" cuộn tới khối chi tiết (trước đó chi tiết hiện ở cuối trang nên trông như không chuyển trang); bỏ hai nút hoàn tiền lặp trong khối chi tiết, gom vào một thẻ cuối trang như Figma; thẻ hồ sơ xếp sát nhau, nhãn trạng thái và nút cùng một hàng bên phải (áp dụng mọi `RecordCard`).
+- A02 thêm tài khoản: bỏ mục "Vận hành KD" lặp (DB có cả `OPERATIONS` và `BUSINESS_OPERATOR`; giữ `OPERATIONS`); chia hai nhóm: Nhân viên/Quản lý cơ sở (cần cơ sở) ở trên, Khách hàng/Vận hành KD/Quản trị ở dưới. A05: nút "Gỡ vai trò" trong chip không còn bị bóp thành ô tròn 22 px.
+- B04: cột biểu đồ tối đa 220 px, ít cơ sở không kéo hết chiều ngang.
+- C11 theo dõi gia hạn: đã chọn thu tại quầy thì ẩn nút "Thanh toán PayOS" (BE đã huỷ link PayOS khi chọn quầy, T04).
+- Kiểm tra: `check:structure` PASS, `npm test` 155/155, `test:business` 9/9, `test:workflows` 12/12, `test:render` 173 route PASS, `build` PASS. `test:approved-ui` lỗi môi trường cả trước và sau khi sửa (không có trình duyệt). Chưa xem trên trình duyệt thật; không đổi trạng thái tính năng.
+
 ## 2026-11-02 — F40: hiệu ứng chuyển cảnh dùng chung + chốt D34
 
 - Theo yêu cầu thành viên FE: thêm `src/shared/styles/motion.css` (mới), import một lần trong `src/app/App.jsx` ngay sau `ss.css`. Chỉ thêm hiệu ứng, không đổi màu, kích thước, bố cục, route, API hay nghiệp vụ.

@@ -184,7 +184,10 @@ function Shell() {
       <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>Chuyển đến nội dung</a>
       {!(isAdminPage && !adminBody && authed) && !(isOpsPage && authed && opsAllowed) && !(isBusinessPage && !businessBody && authed) && <Header page={route.page} />}
       {(WORKFLOW_DEMO || mode === "local") && <p className="demo-banner" role="status">MÔ PHỎNG FE · Dữ liệu thử nghiệm, không thanh toán / chuyển tiền thật.</p>}
-      <div id="main" tabIndex={-1} key={route.raw.split("?")[0]}>
+      {/* Khu khách hàng: đổi key theo đường dẫn để mỗi trang dựng lại.
+          Khu Nhân viên/Quản lý/Vận hành KD/Quản trị: giữ key theo khu để header, menu và dữ liệu vận hành
+          không bị dựng lại (mất dữ liệu → hiện "Đang tải…" → giật) mỗi lần bấm; nội dung từng trang dựng lại trong *Routes. */}
+      <div id="main" tabIndex={-1} key={isAdminPage || isOpsPage || isBusinessPage ? `area:${route.page}` : route.raw.split("?")[0]}>
         {needsLogin ? null : loadError && !ready ? (
           <main className="container page">
             <Empty title="Không tải được dữ liệu" text={loadError}>
@@ -202,7 +205,7 @@ function Shell() {
           businessBody || <BusinessRoutes parts={route.parts} query={route.query} />
         ) : isOpsPage ? (
           opsAllowed ? (
-            <OpsProvider notify={notify} mode={mode} onApiError={onApiError} role={opsRole}>
+            <OpsProvider notify={notify} mode={mode} onApiError={onApiError} role={opsRole} navKey={route.raw.split("?")[0]}>
               <FacilityOperationsRoutes role={opsRole} parts={route.parts} query={route.query} />
             </OpsProvider>
           ) : (

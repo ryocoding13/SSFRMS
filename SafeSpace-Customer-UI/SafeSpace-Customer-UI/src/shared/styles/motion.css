@@ -57,9 +57,10 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+/* Chuyển trang chỉ mờ nhẹ, không trượt: mờ từ 0 hoặc dịch lên xuống làm màn hình chớp và nhảy khi bấm liên tục */
 @keyframes ss-page-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0.55; }
+  to { opacity: 1; }
 }
 @keyframes ss-pop-in {
   from { opacity: 0; transform: translateY(8px) scale(0.97); }
@@ -70,8 +71,9 @@
   to { opacity: 1; transform: none; }
 }
 
-/* Chuyển trang: #main đổi key theo đường dẫn trong App.jsx nên chạy lại mỗi lần đổi trang */
-#main { animation: ss-page-in var(--ss-base) var(--ss-ease) both; }
+/* Chuyển trang: #main đổi key theo đường dẫn ở khu khách hàng (App.jsx) nên chạy lại mỗi lần đổi trang.
+   Khu nhân viên/quản lý/vận hành/quản trị giữ #main theo khu nên chỉ chạy khi vào khu, không chớp mỗi lần bấm. */
+#main { animation: ss-page-in var(--ss-fast) ease-out; }
 
 /* Popup chuẩn (Modal/ConfirmDialog): nền mờ dần, hộp phóng nhẹ */
 .overlay { animation: ss-fade-in var(--ss-fast) ease-out both; }

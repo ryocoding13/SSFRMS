@@ -22,7 +22,7 @@ import { adminApi } from "../api/adminApi.js";
 import { Select } from "../../../shared/components/Pickers.jsx";
 import { Button, Field, Modal, Notice } from "../../../shared/components/UI.jsx";
 import { isEmail, isPhone, today } from "../../../shared/utils/format.js";
-import { FACILITY_ROLES, roleLabel, sortRoles } from "../../../shared/utils/roles.js";
+import { FACILITY_ROLES, roleLabel, sortRoles, uniqueRoles } from "../../../shared/utils/roles.js";
 import { go } from "../../../app/router.js";
 import { useChangeFlow } from "../../../shared/components/ChangeFlowDialog.jsx";
 import { useApp } from "../../../app/state/AppProvider.jsx";
@@ -63,7 +63,7 @@ export default function CreateUserPage() {
 
   const meta = useLoad(async () => {
     const [roles, facilities] = await Promise.all([adminApi.roles(), adminApi.facilities()]);
-    return { roles: sortRoles(roles, (r) => r.roleName), facilities: facilities.filter((f) => f.status === "ACTIVE") };
+    return { roles: uniqueRoles(sortRoles(roles, (r) => r.roleName), (r) => r.roleName), facilities: facilities.filter((f) => f.status === "ACTIVE") };
   }, [], onApiError);
 
 
@@ -380,32 +380,38 @@ export default function CreateUserPage() {
             Hiển thị mỗi role dưới dạng một nút lựa chọn. */}
         <div className={`field${errors.roleId ? " field--invalid" : ""}`}>
           <span className="field__label" id="role-label">Vai trò</span>
-          <div className="role-chips" role="radiogroup" aria-labelledby="role-label">
-
-            {/* Render danh sách vai trò lấy từ API. */}
-            {roles.map((r) => (
+          {/* Hai nhóm: vai trò phải chọn cơ sở (Nhân viên, Quản lý) ở trên; vai trò không gắn cơ sở ở dưới. */}
+          <div className="role-groups" role="radiogroup" aria-labelledby="role-label">
+            <div className="role-group">
+              <span className="role-group__label">Theo cơ sở · cần chọn cơ sở phụ trách</span>
+              <div className="role-chips">{roles.filter((r) => FACILITY_ROLES.includes(r.roleName)).map((r) => (
               <button
                 type="button"
                 key={r.roleId}
-
-                // Khai báo nút có hành vi giống radio.
                 role="radio"
-
-                // Xác định vai trò này đang được chọn hay không.
                 aria-checked={String(form.roleId) === String(r.roleId)}
-
-                // Thêm class is-on để làm nổi bật role đang chọn.
                 className={String(form.roleId) === String(r.roleId) ? "is-on" : ""}
-
-                // Khi click, cập nhật roleId của form.
                 onClick={() => set("roleId", r.roleId)}
               >
-                {/* Hiển thị tên vai trò dễ đọc. */}
                 {roleLabel(r.roleName)}
               </button>
-            ))}
-
-            {/* Trong lúc API tải vai trò, hiển thị thông báo. */}
+            ))}</div>
+            </div>
+            <div className="role-group">
+              <span className="role-group__label">Không gắn cơ sở</span>
+              <div className="role-chips">{roles.filter((r) => !FACILITY_ROLES.includes(r.roleName)).map((r) => (
+              <button
+                type="button"
+                key={r.roleId}
+                role="radio"
+                aria-checked={String(form.roleId) === String(r.roleId)}
+                className={String(form.roleId) === String(r.roleId) ? "is-on" : ""}
+                onClick={() => set("roleId", r.roleId)}
+              >
+                {roleLabel(r.roleName)}
+              </button>
+            ))}</div>
+            </div>
             {meta.loading && <span className="muted">Đang tải vai trò…</span>}
           </div>
 

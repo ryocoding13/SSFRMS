@@ -39,7 +39,7 @@ function appendLog(state, text, to) {
   return { ...state, log: [{ id: `L-${at.getTime()}`, text, to, role: "ALL", at: at.toISOString(), read: false }, ...(state.log || [])].slice(0, 60) };
 }
 
-export function OpsProvider({ children, notify, mode = "local", onApiError, role }) {
+export function OpsProvider({ children, notify, mode = "local", onApiError, role, navKey }) {
   // source: "loading" | "api" | "local"
   const [source, setSource] = useState(mode === "api" ? "loading" : "local");
   const [state, setState] = useState(() => (mode === "api" ? null : readOps()));
@@ -214,6 +214,12 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
     window.addEventListener("focus", refresh);
     return () => { clearInterval(timer); window.removeEventListener("focus", refresh); };
   }, [mode, reload]);
+  // Đổi trang trong khu vận hành: nạp lại board ngầm (giữ dữ liệu đang hiện, không bật màn "Đang tải…")
+  const firstNav = useRef(true);
+  useEffect(() => {
+    if (firstNav.current) { firstNav.current = false; return; }
+    if (mode === "api" && !activeAction.current && ref.current) reload();
+  }, [navKey, mode, reload]);
 
   const reset = useCallback(() => commit(createOpsData()), [commit]);
 
