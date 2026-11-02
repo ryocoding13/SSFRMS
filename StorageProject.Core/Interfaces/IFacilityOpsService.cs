@@ -46,4 +46,8 @@ public interface IFacilityOpsService
     Task<IncidentReceiptDto> ChooseIncidentOptionAsync(long customerId, string contractCode, IncidentActionRequest request, CancellationToken ct = default);
     Task<IncidentReceiptDto> CompleteIncidentTransferAsync(OpsActor actor, string id, IncidentActionRequest request, CancellationToken ct = default);
     Task<IncidentReceiptDto> FinalizeIncidentTerminationAsync(OpsActor actor, string id, IncidentActionRequest request, CancellationToken ct = default);
+
+    // T12 · Hồ sơ quá hạn ngày 20 và biên bản xử lý đồ (D32)
+    Task<IReadOnlyList<OverdueCaseDto>> GetOverdueCasesAsync(OpsActor actor, CancellationToken ct = default);
+    Task<OverdueCaseDto> HandleOverdueCaseActionAsync(OpsActor actor, OverdueCaseActionRequest request, CancellationToken ct = default);
 }
