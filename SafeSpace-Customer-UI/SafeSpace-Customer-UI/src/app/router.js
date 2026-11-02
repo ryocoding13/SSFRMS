@@ -12,9 +12,14 @@ export function useRoute() {
   const read = () => (typeof window === "undefined" ? parseRoute("") : parseRoute(window.location.hash));
   const [route, setRoute] = useState(read);
   useEffect(() => {
+    let lastPath = read().raw.split("?")[0];
     const onChange = () => {
-      setRoute(read());
-      window.scrollTo(0, 0);
+      const next = read();
+      const path = next.raw.split("?")[0];
+      setRoute(next);
+      // Chỉ cuộn lên đầu khi đổi trang; đổi bộ lọc / ?id trong cùng trang thì giữ vị trí để không bị nhảy
+      if (path !== lastPath) window.scrollTo(0, 0);
+      lastPath = path;
     };
     window.addEventListener("hashchange", onChange);
     return () => window.removeEventListener("hashchange", onChange);

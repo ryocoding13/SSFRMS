@@ -30,7 +30,7 @@ import { DatePicker, Select } from "../../../shared/components/Pickers.jsx";
 import { Button, Empty, Field, LinkButton, Notice, StatusTag } from "../../../shared/components/UI.jsx";
 import { useChangeFlow } from "../../../shared/components/ChangeFlowDialog.jsx";
 import { isEmail, isPhone, today } from "../../../shared/utils/format.js";
-import { ASSIGNMENT_STATUS, USER_STATUS, needsFacility, roleLabel, sortRoles } from "../../../shared/utils/roles.js";
+import { ASSIGNMENT_STATUS, USER_STATUS, needsFacility, roleLabel, sortRoles, uniqueRoles } from "../../../shared/utils/roles.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { dateOnlyLabel, dateTime, tempPassword, useLoad } from "../utils/adminUtils.js";
 
@@ -221,7 +221,7 @@ export default function UserDetailPage({ id }) {
     ]);
     return {
       user,
-      roles: sortRoles(roles, (r) => r.roleName),
+      roles: uniqueRoles(sortRoles(roles, (r) => r.roleName), (r) => r.roleName),
       facilities: facilities.filter((f) => f.status === "ACTIVE"),
       assignments,
     };

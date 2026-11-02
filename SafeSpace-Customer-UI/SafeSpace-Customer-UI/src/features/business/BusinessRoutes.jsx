@@ -44,5 +44,6 @@ export default function BusinessRoutes({ parts, query }) {
       </main>
     );
   }
-  return <BusinessLayout active={active}>{body}</BusinessLayout>;
+  // key theo đường dẫn: nội dung trang dựng lại khi đổi trang, header/menu giữ nguyên (không giật)
+  return <BusinessLayout active={active}><React.Fragment key={parts.join("/")}>{body}</React.Fragment></BusinessLayout>;
 }

@@ -80,6 +80,8 @@ export default function FacilityOperationsRoutes({ role, parts, query }) {
   const [Page, active] = hit || [null, ""];
   return (
     <FacilityOperationsLayout role={role} active={active}>
+      {/* key theo đường dẫn: nội dung trang dựng lại khi đổi trang, header/menu/dữ liệu giữ nguyên */}
+      <React.Fragment key={parts.join("/")}>
       {Page ? (
         staff && LIST_KIND[parts[0]] ? <StaffTab kind={LIST_KIND[parts[0]]} Detail={Page} query={query} /> : <Page key={query.get("id") || "list"} query={query} />
       ) : (
@@ -89,6 +91,7 @@ export default function FacilityOperationsRoutes({ role, parts, query }) {
           </Empty>
         </main>
       )}
+      </React.Fragment>
     </FacilityOperationsLayout>
   );
 }

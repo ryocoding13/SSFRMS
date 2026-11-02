@@ -32,7 +32,7 @@ Nguồn: file Figma "SafeSpace - Modern UI" (section Khách hàng + Trang chủ 
 | C11 / C11b Thanh toán & lịch hẹn | `#/payments` | `src/features/customer/payments/PaymentListPage.jsx` | Thẻ lịch hẹn + bảng khoản thu; khoản gia hạn đã duyệt có nút "Thanh toán" → C11q (`src/shared/components/PayosModal.jsx`, `POST /api/payments/{id}/payos`); trả xong hiện thông báo C11b |
 | C12 Hỗ trợ | `#/support` | `src/features/customer/support/SupportPage.jsx` | Danh sách yêu cầu, trích đoạn phản hồi và Cập nhật yêu cầu; giữ 8 nhóm, tiêu đề Khác, cấp lại QR/PIN/chìa khóa. Ảnh chỉ giữ tên cục bộ, chưa upload máy chủ. |
 | C12b Tiến trình hỗ trợ | `#/support/:id` | `src/features/customer/support/SupportTicketDetailPage.jsx` | Nội dung, nhân viên, lịch sử responses, mốc thời gian từ API, báo lỗi và tải lại; không dựng dữ liệu còn thiếu |
-| C13, C13a–d, toast | `#/profile` | `src/features/customer/profile/CustomerProfilePage.jsx` | Chỉ sửa tên; email / SĐT chỉ đọc (SĐT che bớt); hộp thoại "Đã hiểu" |
+| C13, C13a–d, toast | `#/profile` | `src/features/customer/profile/CustomerProfilePage.jsx` | Sửa tên hiển thị và **số điện thoại** (`PUT /api/auth/profile` gửi `fullName`, `phone`; kiểm định dạng 0xxxxxxxxx / +84), nút "Lưu thông tin" theo Figma; tên đăng nhập và email chỉ đọc; hộp thoại "Đã hiểu" (cập nhật 02/11/2026, L4) |
 | C14 / C14a / C14b Đơn đặt chỗ | `#/reservations`, `#/reservations/:id` | `src/features/customer/reservations/ReservationListPage.jsx`, `src/features/customer/payments/CheckoutPage.jsx` | Nút "Huỷ đơn" (đơn chưa nhận kho) → hộp thoại C14a: đã trả, phí huỷ, số tiền hoàn (`cancel-preview`); huỷ xong "Đã huỷ · Đang hoàn tiền" |
 | Popup thông báo (public / customer, đã đọc) | (header) | `src/shared/components/Header.jsx` | |
 

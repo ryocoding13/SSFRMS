@@ -132,7 +132,10 @@
 .business-app .biz-bars { align-items: flex-start; gap: 20px; height: 184px; padding-top: 10px; }
 .business-app .biz-bars__col { justify-content: flex-start; gap: 8px; }
 .business-app .biz-bars__col b { display: none; }
-.business-app .biz-bars__col i { max-width: none; flex: none; background: var(--purple); border-radius: 6px; }
+.business-app .biz-bars__col i { max-width: 220px; flex: none; background: var(--purple); border-radius: 6px; }
+/* Ít cơ sở (1–2) thì cột không kéo hết chiều ngang; giữ độ rộng cột như Figma B04 (~5 cơ sở) */
+.business-app .biz-bars { justify-content: flex-start; }
+.business-app .biz-bars__col { flex: 0 1 220px; }
 .business-app .biz-bars__col span { font-size: 13px; line-height: 16px; }
 .business-app .business-reports .table th:first-child { width: 27%; }
 

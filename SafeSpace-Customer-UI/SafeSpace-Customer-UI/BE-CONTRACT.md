@@ -121,11 +121,11 @@ Hình dạng dữ liệu giao diện đang dùng nằm ở `src/features/facilit
 - AccessQrDto có validFrom, backupCode là PIN6; POST /api/access/scan nhận thêm unitNumber (bắt buộc khi dùng PIN). ContractDetailDto có accessUpdatedAt để tạo thông báo cấp lại mã.
 - PayOS thành công tự phân bổ/cấp hợp đồng, không còn yêu cầu bàn giao. Xem đầy đủ tại docs/figma-ui-sync-2026-10-22.md.
 
-## Đồng bộ 26/10 — D31
+## Đồng bộ 26/10 — D32 (trước đây ghi nhầm D31, sửa 02/11/2026)
 
-Nguồn `DECISIONS.md` D31; danh sách việc và người làm ở `BACKEND-TODO.md` mục "D31". Những điểm hợp đồng API thay đổi:
+Nguồn `DECISIONS.md` D32 (dòng A01 theo D31 — đăng nhập email/username); danh sách việc và người làm ở `BACKEND-TODO.md` mục "D32". Những điểm hợp đồng API thay đổi:
 
-| Màn | Endpoint | Thay đổi theo D31 |
+| Màn | Endpoint | Thay đổi theo D32 |
 |---|---|---|
 | A01 | `POST /api/auth/login` | Nhận email **hoặc** username trong cùng ô (`identifier` hoặc `username`) |
 | C03b, C04 | `GET /api/rental-policy`, `GET /api/rental-policy/versions/{version}` | Bản chính sách hiện hành (công khai) và bản theo phiên bản; đơn lưu `policyVersion`, `acceptedAt`, `channel` khi khách đồng ý |

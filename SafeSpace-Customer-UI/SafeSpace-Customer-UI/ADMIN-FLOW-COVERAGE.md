@@ -10,7 +10,7 @@ tài khoản khác mở `#/admin` sẽ thấy "Không có quyền truy cập". T
 |---|---|---|---|
 | A01 Quản lý tài khoản | `#/admin` | `src/features/admin/users/UserListPage.jsx` | `GET dashboard/stats`, `GET users?page&pageSize&searchTerm&status&roleId`, `GET roles`, `GET users/{id}/facilities` (cột Cơ sở phụ trách) |
 | (thêm) Chi tiết tài khoản | `#/admin/users/:id` | `src/features/admin/users/UserDetailPage.jsx` | `GET/PUT users/{id}`, `POST users/{id}/reset-password`, `POST/DELETE users/{id}/roles`, `GET users/{id}/facilities`, `POST user-facilities`, `PUT user-facilities/{id}/status` |
-| A02 Thêm & phân quyền tài khoản | `#/admin/new` | `src/features/admin/users/CreateUserPage.jsx` | `POST users` (+ `POST user-facilities` khi là Nhân viên / Quản lý) |
+| A02 Thêm & phân quyền tài khoản | `#/admin/new` | `src/features/admin/users/CreateUserPage.jsx` | `POST users` (+ `POST user-facilities` khi là Nhân viên / Quản lý). Có ô **Tên đăng nhập** riêng (D33: bắt buộc, ≤ 50 ký tự, không khoảng trắng / @); vai trò chia 2 nhóm: Nhân viên / Quản lý cơ sở (cần chọn cơ sở) và Khách hàng / Vận hành KD / Quản trị; "Vận hành KD" chỉ hiện một lần (cập nhật 02/11/2026) |
 | A03 Cấu hình quyền truy cập | `#/admin/permissions` | `src/features/admin/permissions/PermissionListPage.jsx` | `GET roles`, `GET permissions`, `POST/DELETE roles/{id}/permissions` |
 | A04 Nhật ký hoạt động | `#/admin/logs` | `src/features/admin/logs/AuditLogPage.jsx` | `GET logs/login-history`, `GET logs/activity-logs` |
 | Thông báo / admin | (chuông) | `src/features/admin/AdminLayout.jsx` | `GET dashboard/stats`, `GET logs/login-history` |

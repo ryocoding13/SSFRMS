@@ -161,7 +161,7 @@ function Shell() {
   const businessBody = mode !== "api" ? (
     <main className="container page"><Empty title="Khu vận hành kinh doanh cần kết nối máy chủ" text="Chạy npm run dev:business để xem giao diện khi chưa có backend, hoặc bật chế độ API và chạy máy chủ của bạn." /></main>
   ) : authed && !businessAllowed ? (
-    <main className="container page"><Empty title="Không có quyền truy cập" text="Khu này dành cho tài khoản Quản lý vận hành kinh doanh."><LinkButton to={homeFor(roles)}>Về trang của tôi</LinkButton></Empty></main>
+    <main className="container page"><Empty title="Bạn không có quyền truy cập" text="Tài khoản hiện tại không được phép xem nội dung này. Khu này dành cho tài khoản Quản lý vận hành kinh doanh."><LinkButton to={homeFor(roles)}>Về tổng quan</LinkButton></Empty></main>
   ) : null;
 
   const adminBody =
@@ -173,8 +173,8 @@ function Shell() {
       </main>
     ) : authed && !isAdmin ? (
       <main className="container page">
-        <Empty title="Không có quyền truy cập" text="Khu quản trị chỉ dành cho tài khoản có vai trò Quản trị.">
-          <LinkButton to="overview">Về trang của tôi</LinkButton>
+        <Empty title="Bạn không có quyền truy cập" text="Tài khoản hiện tại không được phép xem nội dung này. Khu quản trị chỉ dành cho tài khoản có vai trò Quản trị.">
+          <LinkButton to={homeFor(roles)}>Về tổng quan</LinkButton>
         </Empty>
       </main>
     ) : null;
@@ -184,7 +184,10 @@ function Shell() {
       <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>Chuyển đến nội dung</a>
       {!(isAdminPage && !adminBody && authed) && !(isOpsPage && authed && opsAllowed) && !(isBusinessPage && !businessBody && authed) && <Header page={route.page} />}
       {(WORKFLOW_DEMO || mode === "local") && <p className="demo-banner" role="status">MÔ PHỎNG FE · Dữ liệu thử nghiệm, không thanh toán / chuyển tiền thật.</p>}
-      <div id="main" tabIndex={-1} key={route.raw.split("?")[0]}>
+      {/* Khu khách hàng: đổi key theo đường dẫn để mỗi trang dựng lại.
+          Khu Nhân viên/Quản lý/Vận hành KD/Quản trị: giữ key theo khu để header, menu và dữ liệu vận hành
+          không bị dựng lại (mất dữ liệu → hiện "Đang tải…" → giật) mỗi lần bấm; nội dung từng trang dựng lại trong *Routes. */}
+      <div id="main" tabIndex={-1} key={isAdminPage || isOpsPage || isBusinessPage ? `area:${route.page}` : route.raw.split("?")[0]}>
         {needsLogin ? null : loadError && !ready ? (
           <main className="container page">
             <Empty title="Không tải được dữ liệu" text={loadError}>
@@ -202,13 +205,13 @@ function Shell() {
           businessBody || <BusinessRoutes parts={route.parts} query={route.query} />
         ) : isOpsPage ? (
           opsAllowed ? (
-            <OpsProvider notify={notify} mode={mode} onApiError={onApiError} role={opsRole}>
+            <OpsProvider notify={notify} mode={mode} onApiError={onApiError} role={opsRole} navKey={route.raw.split("?")[0]}>
               <FacilityOperationsRoutes role={opsRole} parts={route.parts} query={route.query} />
             </OpsProvider>
           ) : (
             <main className="container page">
-              <Empty title="Không có quyền truy cập" text={route.page === "staff" ? "Khu này dành cho nhân viên và quản lý cơ sở." : "Khu này dành cho quản lý cơ sở."}>
-                <LinkButton to={homeFor(roles)}>Về trang của tôi</LinkButton>
+              <Empty title="Bạn không có quyền truy cập" text={`Tài khoản hiện tại không được phép xem nội dung này. ${route.page === "staff" ? "Khu này dành cho nhân viên và quản lý cơ sở." : "Khu này dành cho quản lý cơ sở."}`}>
+                <LinkButton to={homeFor(roles)}>Về tổng quan</LinkButton>
               </Empty>
             </main>
           )
