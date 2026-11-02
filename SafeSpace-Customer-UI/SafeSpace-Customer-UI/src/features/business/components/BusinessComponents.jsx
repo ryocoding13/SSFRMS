@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
+import React, { useEffect,useRef,useState } from "react";
 import { Select } from "../../../shared/components/Pickers.jsx";
 import { Button, Empty, Field, Modal } from "../../../shared/components/UI.jsx";
 import { today } from "../../../shared/utils/format.js";
@@ -179,21 +180,9 @@ export function PolicyForm({ title = "Thêm chính sách", types, unitTypes = []
 
 /** Hộp xác nhận dạng Promise: const [confirmEl, ask] = useConfirm(); if (await ask({ title, message })) … */
 export function useConfirm() {
-  const [state, setState] = useState(null);
-  const ask = ({ title, message, actionLabel = "Đồng ý" }) =>
-    new Promise((resolve) => setState({ title, message, actionLabel, resolve }));
-  const close = (answer) => {
-    state?.resolve(answer);
-    setState(null);
-  };
-  const el = state && (
-    <Modal title={state.title} onClose={() => close(false)}>
-      <p className="modal__text">{state.message}</p>
-      <div className="modal__actions">
-        <Button onClick={() => close(true)}>{state.actionLabel}</Button>
-        <Button variant="outline" onClick={() => close(false)}>Huỷ</Button>
-      </div>
-    </Modal>
-  );
-  return [el, ask];
+ const [state,setState]=useState(null),resolver=useRef(null);
+ useEffect(()=>()=>{resolver.current?.(false);resolver.current=null;},[]);
+ const ask=({title,message,actionLabel="Đồng ý"})=>{if(resolver.current)return Promise.resolve(false);return new Promise(resolve=>{resolver.current=resolve;setState({title,message,actionLabel});});};
+ const close=value=>{const resolve=resolver.current;resolver.current=null;setState(null);resolve?.(value);};
+ return [state&&<ConfirmDialog title={state.title} text={state.message} rows={[]} label={state.actionLabel} onCancel={()=>close(false)} onConfirm={()=>close(true)}/>,ask];
 }

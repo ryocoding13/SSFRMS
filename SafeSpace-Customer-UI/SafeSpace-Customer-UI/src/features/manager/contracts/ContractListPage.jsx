@@ -1,5 +1,9 @@
 import React, { useState } from "react";
-import { Button, Field, LinkButton, Modal, Notice, Tag } from "../../../shared/components/UI.jsx";
+import { InspectionReview } from "../../facility-operations/settlements/SettlementComponents.jsx";
+import { canFinalizeReturn } from "../../facility-operations/settlements/settlementModel.js";
+import { RecordCard } from "../../facility-operations/workflows/WorkflowComponents.jsx";
+import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
+import { Button, Empty, Field, LinkButton, Modal, Notice, Tag } from "../../../shared/components/UI.jsx";
 import { dateLabel, dateTimeLabel, daysBetween, money, today } from "../../../shared/utils/format.js";
 import { go, qs } from "../../../app/router.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
@@ -13,73 +17,40 @@ export const CONTRACT_STATE = (c) =>
       ? ["Cần duyệt", "amber"]
       : c.state === "RETURNED"
         ? ["Chờ xác nhận trả kho", "amber"]
-        : ["Đã xử lý", "green"];
+        : ["CLOSED","RESOLVED"].includes(c.state)?["Đã xử lý", "green"]:["Chưa rõ trạng thái", "amber"];
 
 // M07: chốt số tiền, không xác nhận đã chuyển hoàn.
 function ReturnConfirmDialog({ contract, ret, onClose, onConfirm }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  return (
-    <Modal title={`Xác nhận trả kho · ${contract.id}`} size="md" onClose={busy ? undefined : onClose}>
-      <p className="modal__text modal__text--sub">{[contract.customer, `Kho ${contract.unit}`, ret?.appointment ? `trả kho ${dateLabel(ret.appointment)}` : null].filter(Boolean).join(" · ")}</p>
-      <div className="refund-box">
-        <dl className="pay-rows">
-          <div><dt>Tiền cọc đang giữ</dt><dd>{money(ret?.deposit)}</dd></div>
-          <div><dt>Khấu trừ tối đa</dt><dd>100% tiền cọc</dd></div>
-          <div><dt>Số tiền hoàn chính thức</dt><dd>Máy chủ tính khi chốt</dd></div>
-        </dl>
-      </div>
-      <Field label="Ghi chú (không bắt buộc)">
-        <input maxLength={255} value={note} placeholder="Ví dụ: Đã đối chiếu tình trạng kho và thông tin hoàn tiền" onChange={(e) => setNote(e.target.value)} />
-      </Field>
-      <p className="hint">Chốt trả kho tạo khoản chờ hoàn. Tổng khấu trừ không vượt cọc; không thu thêm. Hoàn tiền bằng chuyển khoản trong 3–5 ngày làm việc. Kho cần vệ sinh hoặc sửa tiếp tục bảo trì.</p>
-      <div className="modal__actions modal__actions--end">
-        <Button variant="outline" disabled={busy} onClick={onClose}>Huỷ</Button>
-        <Button disabled={busy} onClick={async () => { setBusy(true); const ok = await onConfirm(note.trim()); if (!ok) setBusy(false); }}>{busy ? "Đang lưu…" : "Xác nhận trả kho"}</Button>
-      </div>
-    </Modal>
-  );
+  return <ConfirmDialog title={`Duyệt đối soát · ${contract.id}`} text="Chốt số tiền tạo khoản chờ hoàn, chưa xác nhận đã chuyển tiền." busy={busy} rows={[["Khách hàng / kho",`${contract.customer} · ${contract.unit}`],["Tiền cọc",ret?.deposit!=null?money(ret.deposit):"Chưa có dữ liệu"],["Số tiền chính thức","Máy chủ tính khi chốt"]]} label="Chốt đối soát" hint="Khấu trừ không vượt cọc; không thu thêm. Kho cần vệ sinh/sửa tiếp tục bảo trì." onCancel={onClose} onConfirm={async()=>{if(busy)return;setBusy(true);try{const ok=await onConfirm(note.trim());if(!ok)setBusy(false);}catch{setBusy(false);}}}><Field label="Ghi chú đối soát"><textarea maxLength={255} value={note} disabled={busy} onChange={e=>setNote(e.target.value)}/></Field></ConfirmDialog>;
 }
 
 export function ContractListPage({ query }) {
-  const { ops, run, source } = useOps();
+  const { ops, run, source, saving, needsRefresh } = useOps();
   const settlementReady = source === "local" || supportsReturnPolicy(ops);
   const [returning, setReturning] = useState(false);
-  const sel = ops.contracts.find((c) => c.id === query.get("id")) || ops.contracts.find((c) => c.state === "RETURNED") || ops.contracts[0];
+  const sel = query.get("id") ? ops.contracts.find(c=>c.id===query.get("id")) : null;
   const [note, setNote] = useState("");
   const mismatch = ops.payments.filter((p) => p.status === "MISMATCH");
   return (
     <main className="container page">
-      <PageHeaderBlock title="Hợp đồng & xử lý quá hạn" text="Theo dõi hạn thuê, khoản chưa thanh toán và lịch sử nhắc tại cơ sở." />
+      <PageHeaderBlock title="Hợp đồng & xử lý quá hạn" text="Theo dõi hạn thuê, đối soát trả kho và yêu cầu cần duyệt tại cơ sở." />
+      <div className="workflow-links"><LinkButton to="manager/incidents" variant="outline">Sự cố cơ sở</LinkButton><LinkButton to="manager/damage-responses" variant="outline">Phản hồi hư hỏng</LinkButton><LinkButton to="manager/damage-inspections" variant="outline">Kiểm tra khắc phục</LinkButton></div>
       {mismatch.map((p) => (
         <Notice tone="error" key={p.id}>Nhân viên báo sai lệch thanh toán đơn {p.id} ({p.customer}): {p.note}</Notice>
       ))}
-      <div className="panel table-wrap">
-        <table className="table table--hover">
-          <thead><tr><th>Hợp đồng / khách</th><th>Kho / ngày hết hạn</th><th>Khoản cần xử lý</th><th>Trạng thái</th></tr></thead>
-          <tbody>
-            {ops.contracts.map((c) => {
-              const [label, tone] = CONTRACT_STATE(c);
-              return (
-                <tr key={c.id} className={sel?.id === c.id ? "is-picked" : ""} onClick={() => go(`manager/contracts${qs({ id: c.id })}`, { replace: true })}>
-                  <td className="cell-strong">{c.id} · {c.customer}</td>
-                  <td>{c.unit} · {dateLabel(c.end)}</td>
-                  <td>{["RETURNED", "CLOSED"].includes(c.state) ? "Đối chiếu biên bản và khoản hoàn" : c.due}</td>
-                  <td><Tag tone={tone}>{label}</Tag></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <div className="customer-detail__column">{ops.contracts.map(c=>{const [label,tone]=CONTRACT_STATE(c);return <RecordCard key={c.id} title={`${c.id} · ${c.customer}`} subtitle={`Kho ${c.unit} · hết hạn ${dateLabel(c.end)}`} status={label} actions={<LinkButton to={c.state==="RENEWAL"?"manager/renewals":`manager/contracts${qs({id:c.id})}`}>{c.state==="RETURNED"?"Duyệt đối soát":c.state==="OVERDUE"?"Xem hồ sơ quá hạn":"Xem hồ sơ"}</LinkButton>}><p>{c.state==="RETURNED"?"Biên bản đã gửi · khấu trừ tối đa bằng cọc":c.state==="RENEWAL"?"Có yêu cầu gia hạn cần duyệt":"Theo dõi hạn thuê và lịch sử liên hệ khách"}</p></RecordCard>;})}</div>
+      {query.get("id")&&!sel&&<Empty title="Không tìm thấy hợp đồng" text="Chọn đúng hồ sơ thuộc cơ sở phụ trách."/>}
+      <div className="workflow-links"><LinkButton to="manager/refunds" variant="outline">Hoàn tiền đơn huỷ</LinkButton><LinkButton to="manager/deposit-refunds" variant="outline">Hoàn cọc sau trả kho</LinkButton></div>
       {sel && (
         <section className="panel form-card">
           <h2>{sel.id} · Bước tiếp theo</h2>
           {sel.state === "RETURNED" ? (
             <>
-              <p className="muted">Biên bản trả kho {sel.unit} đã được gửi. Đối chiếu khấu trừ cọc và chốt khoản chờ hoàn.</p>
+              <InspectionReview ret={ops.returns.find(r=>r.contract===sel.id)}/><p className="muted">Biên bản trả kho {sel.unit} đã được gửi. Đối chiếu khấu trừ cọc và chốt khoản chờ hoàn.</p>
               {!settlementReady && <Notice>{RETURN_POLICY_PENDING}</Notice>}
-              <Button disabled={!settlementReady} onClick={() => setReturning(true)}>Xác nhận trả kho</Button>
+              <Button disabled={!settlementReady||saving||needsRefresh||!canFinalizeReturn(ops,sel,ops.returns.find(r=>r.contract===sel.id))||(source==="api"&&ops.returns.find(r=>r.contract===sel.id)?.damage_workflow_resolved!==true)} onClick={() => setReturning(true)}>Xác nhận trả kho</Button>
             </>
           ) : sel.state === "RENEWAL" ? (
             <>

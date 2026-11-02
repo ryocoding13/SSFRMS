@@ -38,6 +38,8 @@ public interface IReservationService
     Task<ReservationDto> CreateReservationAsync(long customerId, CreateReservationRequest request, CancellationToken ct = default);
     Task<CancelPreviewDto> GetCancelPreviewAsync(long customerId, long reservationId, CancellationToken ct = default);
     Task CancelReservationAsync(long customerId, long reservationId, string reason, CancellationToken ct = default);
+    /// <summary>Huỷ đơn kèm tài khoản chính chủ nhận hoàn (bắt buộc khi đơn đã thanh toán — D32 / T08).</summary>
+    Task CancelReservationAsync(long customerId, long reservationId, string reason, StorageProject.Core.DTOs.Evidence.RefundBankInput? bank, CancellationToken ct = default);
     Task<ReservationDto> ConfirmTransferAsync(long customerId, long reservationId, CancellationToken ct = default);
 }
 
@@ -64,6 +66,21 @@ public interface IRenewalService
 {
     Task<IReadOnlyList<RenewalDto>> GetContractRenewalsAsync(long customerId, long contractId, CancellationToken ct = default);
     Task<RenewalDto> RequestRenewalAsync(long customerId, long contractId, CreateRenewalRequest request, CancellationToken ct = default);
+    Task<RenewalDto> SelectCounterPaymentAsync(long customerId, long renewalId, CancellationToken ct = default);
+    Task<IReadOnlyList<StorageProject.Core.DTOs.Renewal.CounterRenewalDto>> GetCounterRenewalsAsync(long userId, CancellationToken ct = default);
+    Task CollectCounterRenewalAsync(long userId, string id, CancellationToken ct = default);
+    Task<RenewalDto> ApproveRenewalAsync(long userId, long renewalId, CancellationToken ct = default);
+    Task RejectRenewalAsync(long userId, long renewalId, string reason, CancellationToken ct = default);
+    Task ExpirePendingRenewalsAsync(CancellationToken ct = default);
+}
+
+public interface IRentalPolicyService
+{
+    Task<StorageProject.Core.DTOs.Policy.RentalPolicyDto> GetCurrentPolicyAsync(CancellationToken ct = default);
+    Task<StorageProject.Core.DTOs.Policy.RentalPolicyDto?> GetPolicyVersionAsync(int version, CancellationToken ct = default);
+    Task<StorageProject.Core.DTOs.Policy.RentalPolicyDto> SaveRentalPolicyAsync(long userId, StorageProject.Core.DTOs.Policy.SaveRentalPolicyRequest request, CancellationToken ct = default);
+    Task<StorageProject.Core.DTOs.Policy.PolicyConsentDto> RecordReservationConsentAsync(long customerId, long reservationId, StorageProject.Core.DTOs.Policy.PolicyConsentRequest request, string channel = "WEB_CUSTOMER", CancellationToken ct = default);
+    Task<StorageProject.Core.DTOs.Policy.PolicyConsentDto> RecordRenewalConsentAsync(long customerId, long renewalId, StorageProject.Core.DTOs.Policy.PolicyConsentRequest request, string channel = "WEB_CUSTOMER", CancellationToken ct = default);
 }
 
 public interface ISupportTicketService

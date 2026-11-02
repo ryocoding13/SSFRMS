@@ -100,41 +100,214 @@ public class PayOSService(
         await tx.CommitAsync(ct);
     }
 
+    public async Task<PayosCheckoutDto> CreateRenewalPaymentQrAsync(long customerId, long paymentId, CancellationToken ct = default)
+    {
+        var payment = await dbContext.Payments
+            .Include(p => p.Contract)
+            .Include(p => p.Renewal)
+            .FirstOrDefaultAsync(p => p.PaymentId == paymentId && p.Contract.CustomerId == customerId, ct)
+            ?? throw new InvalidOperationException("Không tìm thấy thông tin khoản thanh toán của bạn.");
+
+        if (payment.PaymentType != "RENEWAL" || payment.Status != "PENDING")
+        {
+            throw new InvalidOperationException("Khoản thanh toán không ở trạng thái chờ thanh toán gia hạn.");
+        }
+
+        var renewal = payment.Renewal
+            ?? throw new InvalidOperationException("Khoản thanh toán không gắn với yêu cầu gia hạn.");
+
+        if (renewal.Status != "APPROVED")
+        {
+            throw new InvalidOperationException("Yêu cầu gia hạn chưa được quản lý phê duyệt.");
+        }
+
+        var now = DateTime.UtcNow;
+        if (renewal.PaymentDeadlineAt.HasValue && now >= renewal.PaymentDeadlineAt.Value)
+        {
+            throw new InvalidOperationException("Yêu cầu gia hạn đã hết hạn thanh toán.");
+        }
+
+        // Return existing active checkout if available
+        var existing = await dbContext.PaymentCheckouts
+            .FirstOrDefaultAsync(c => c.PaymentId == paymentId && c.Status == "PENDING" && c.ExpiresAt > now, ct);
+
+        if (existing != null && !string.IsNullOrEmpty(existing.CheckoutUrl) && !string.IsNullOrEmpty(existing.QrCode))
+        {
+            return new PayosCheckoutDto(
+                OrderCode: existing.OrderCode,
+                Amount: existing.Amount,
+                Description: $"Gia han #{renewal.RenewalId}",
+                Status: existing.Status,
+                QrCode: existing.QrCode,
+                CheckoutUrl: existing.CheckoutUrl,
+                ExpiredAt: existing.ExpiresAt,
+                PaymentId: payment.PaymentId,
+                RenewalId: renewal.RenewalId
+            );
+        }
+
+        gateway.EnsureConfigured();
+
+        var maxExpiry = renewal.PaymentDeadlineAt ?? now.AddHours(24);
+        var expiry = now.AddMinutes(15);
+        if (maxExpiry < expiry)
+        {
+            expiry = maxExpiry;
+        }
+
+        var orderCode = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 100 + Random.Shared.Next(100);
+
+        var checkout = new PaymentCheckout
+        {
+            PaymentId = payment.PaymentId,
+            OrderCode = orderCode,
+            Provider = "PAYOS",
+            Amount = payment.Amount,
+            Status = "PENDING",
+            ExpiresAt = expiry,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        dbContext.PaymentCheckouts.Add(checkout);
+        await dbContext.SaveChangesAsync(ct);
+
+        CheckoutLink link;
+        try
+        {
+            var frontendBaseUrl = configuration?["AppSettings:FrontendUrl"]?.TrimEnd('/')
+                ?? configuration?["Frontend:BaseUrl"]?.TrimEnd('/')
+                ?? "http://localhost:5173";
+            var defaultReturnUrl = $"{frontendBaseUrl}/#/payments";
+
+            link = await gateway.CreateRenewalAsync(
+                orderCode,
+                (int)payment.Amount,
+                renewal.RenewalId,
+                new DateTimeOffset(DateTime.SpecifyKind(expiry, DateTimeKind.Utc)).ToUnixTimeSeconds(),
+                defaultReturnUrl,
+                defaultReturnUrl
+            );
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("Không tạo được link PayOS cho khoản gia hạn. Kiểm tra cấu hình hoặc chọn thanh toán tại quầy.", ex);
+        }
+
+        checkout.CheckoutUrl = link.Url;
+        checkout.QrCode = link.Qr;
+        await dbContext.SaveChangesAsync(ct);
+
+        return new PayosCheckoutDto(
+            OrderCode: orderCode,
+            Amount: payment.Amount,
+            Description: $"Gia han #{renewal.RenewalId}",
+            Status: "PENDING",
+            QrCode: link.Qr,
+            CheckoutUrl: link.Url,
+            ExpiredAt: expiry,
+            PaymentId: payment.PaymentId,
+            RenewalId: renewal.RenewalId
+        );
+    }
+
     public async Task<bool> ProcessWebhookAsync(string webhookBodyJson, string? signatureHeader, CancellationToken ct = default)
     {
         VerifiedReservationPayment? verified;
         try { verified = await gateway.VerifyAsync(webhookBodyJson); }
         catch (Exception ex) { logger.LogWarning(ex, "PayOS signature verification failed"); return false; }
         if (verified == null) return true;
-        var id = await dbContext.Reservations.AsNoTracking().Where(r => r.OrderCode == verified.OrderCode)
+
+        var resId = await dbContext.Reservations.AsNoTracking().Where(r => r.OrderCode == verified.OrderCode)
             .Select(r => (long?)r.ReservationId).SingleOrDefaultAsync(ct);
-        // Never recover an order by parsing unstructured description text.
-        if (id == null) { logger.LogWarning("Unknown PayOS order {OrderCode}", verified.OrderCode); return false; }
-        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"reservation:{id}", ct);
-        var r = await dbContext.Reservations.Include(r => r.UnitAssignments).SingleAsync(r => r.ReservationId == id, ct);
-        if (verified.Amount != ReservationSettlement.Amount(r)) return false;
-        if (r.PaymentMethod == "PAYOS" && r.PaidAt != null)
+
+        var checkout = await dbContext.PaymentCheckouts
+            .Include(c => c.Payment).ThenInclude(p => p.Renewal)
+            .FirstOrDefaultAsync(c => c.OrderCode == verified.OrderCode, ct);
+
+        // Collision check
+        if (resId != null && checkout != null)
         {
-            await ContractProvisioning.EnsureAsync(dbContext, r, null, ct);
+            logger.LogError("Critical collision: OrderCode {OrderCode} matches both a reservation and a payment checkout!", verified.OrderCode);
+            return false;
+        }
+
+        if (resId == null && checkout == null)
+        {
+            logger.LogWarning("Unknown PayOS order {OrderCode}", verified.OrderCode);
+            return false;
+        }
+
+        // Branch 1: Reservation settlement (untouched D23/D26 flow)
+        if (resId != null)
+        {
+            var id = resId.Value;
+            await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"reservation:{id}", ct);
+            var r = await dbContext.Reservations.Include(r => r.UnitAssignments).SingleAsync(r => r.ReservationId == id, ct);
+            if (verified.Amount != ReservationSettlement.Amount(r)) return false;
+            if (r.PaymentMethod == "PAYOS" && r.PaidAt != null)
+            {
+                await ContractProvisioning.EnsureAsync(dbContext, r, null, ct);
+                await dbContext.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct); // Re-delivery of the same verified order: no additional money or allocation.
+                return true;
+            }
+            if (r.PaymentMethod == "AT_FACILITY" || r.Status != "PENDING_PAYMENT" || r.ExpiresAt <= DateTime.UtcNow)
+            {
+                var detail = JsonSerializer.Serialize(new { verified.OrderCode, verified.Amount, reason = "Tiền về sau đổi phương thức/đóng đơn; cần kiểm tra hoàn thủ công" });
+                if (!await dbContext.ActivityLogs.AnyAsync(l => l.EntityType == "RESERVATION" && l.EntityId == id &&
+                    l.Action == "PAYMENT_REVIEW_REQUIRED" && l.NewValue == detail, ct))
+                    dbContext.ActivityLogs.Add(new ActivityLog { EntityType = "RESERVATION", EntityId = id,
+                        Action = "PAYMENT_REVIEW_REQUIRED", NewValue = detail, LoggedAt = DateTime.UtcNow });
+            }
+            else await ReservationSettlement.RecordAsync(dbContext, r, "PAYMENT_GATEWAY", $"PAYOS:{verified.OrderCode}", null, ct);
             await dbContext.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct); // Re-delivery of the same verified order: no additional money or allocation.
+            if (r.PaymentMethod == "PAYOS" && r.PaidAt != null)
+                await ContractProvisioning.EnsureAsync(dbContext, r, null, ct);
+            await dbContext.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
             return true;
         }
-        if (r.PaymentMethod == "AT_FACILITY" || r.Status != "PENDING_PAYMENT" || r.ExpiresAt <= DateTime.UtcNow)
+
+        // Branch 2: Renewal checkout settlement
+        if (checkout != null)
         {
-            var detail = JsonSerializer.Serialize(new { verified.OrderCode, verified.Amount, reason = "Tiền về sau đổi phương thức/đóng đơn; cần kiểm tra hoàn thủ công" });
-            if (!await dbContext.ActivityLogs.AnyAsync(l => l.EntityType == "RESERVATION" && l.EntityId == id &&
-                l.Action == "PAYMENT_REVIEW_REQUIRED" && l.NewValue == detail, ct))
-                dbContext.ActivityLogs.Add(new ActivityLog { EntityType = "RESERVATION", EntityId = id,
-                    Action = "PAYMENT_REVIEW_REQUIRED", NewValue = detail, LoggedAt = DateTime.UtcNow });
+            var payment = checkout.Payment;
+            var renewal = payment?.Renewal;
+            if (payment == null || renewal == null)
+            {
+                logger.LogWarning("Payment checkout {OrderCode} missing payment or renewal", verified.OrderCode);
+                return false;
+            }
+
+            var contractId = payment.ContractId
+                ?? throw new InvalidOperationException("Khoản thanh toán gia hạn không gắn với hợp đồng.");
+
+            await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract:{contractId}", ct);
+
+            if (verified.Amount != checkout.Amount)
+            {
+                logger.LogWarning("Amount mismatch for PayOS renewal order {OrderCode}: expected {Expected}, got {Actual}",
+                    verified.OrderCode, checkout.Amount, verified.Amount);
+                return false;
+            }
+
+            var settled = await RenewalSettlement.RecordAsync(
+                dbContext,
+                contractId,
+                renewal.RenewalId,
+                "PAYMENT_GATEWAY",
+                $"PAYOS:{verified.OrderCode}",
+                null,
+                ct
+            );
+
+            await dbContext.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return settled;
         }
-        else await ReservationSettlement.RecordAsync(dbContext, r, "PAYMENT_GATEWAY", $"PAYOS:{verified.OrderCode}", null, ct);
-        await dbContext.SaveChangesAsync(ct);
-        if (r.PaymentMethod == "PAYOS" && r.PaidAt != null)
-            await ContractProvisioning.EnsureAsync(dbContext, r, null, ct);
-        await dbContext.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
-        return true;
+
+        return false;
     }
 
     public async Task<ReservationPaymentStatusDto?> GetReservationPaymentStatusAsync(long reservationId, CancellationToken ct = default)

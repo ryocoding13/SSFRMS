@@ -27,4 +27,5 @@ public class RentalContract
     public ICollection<ReturnInspection> ReturnInspections { get; set; } = [];
     public ICollection<OverdueCase> OverdueCases { get; set; } = [];
     public ICollection<SupportTicket> SupportTickets { get; set; } = [];
+    public ICollection<PolicyConsent> PolicyConsents { get; set; } = [];
 }

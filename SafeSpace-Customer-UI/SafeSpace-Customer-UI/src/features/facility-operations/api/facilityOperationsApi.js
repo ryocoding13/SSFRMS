@@ -1,6 +1,7 @@
 // API khu vận hành (Nhân viên cơ sở / Quản lý cơ sở): StorageProject.Api/Endpoints/FacilityOpsEndpoints.cs,
 // tài liệu ở docs/facility-ops-api.md; mock/mock-api.mjs (MOCK_OPS=1) chạy cùng hợp đồng để thử không cần .NET.
 // Backend cũ trả 404 cho GET /api/ops/board → giao diện dùng dữ liệu cục bộ trong trình duyệt (ops/store.jsx).
+import { readPhotoData, verifyPhotoFile } from "../../../shared/utils/refundRequest.js";
 import { request } from "../../../shared/api/httpClient.js";
 
 const enc = encodeURIComponent;
@@ -39,6 +40,7 @@ export async function loadBoard(role) {
     revenue: { months: [], by_type: [], as_of: null },
     ...data,
     ...Object.fromEntries(lists.map(key => [key, Array.isArray(data[key]) ? data[key] : []])),
+    refunds:Array.isArray(data.refunds)?data.refunds.map(r=>({...r,bankName:r.bank_name,accountNumber:r.account_number,accountHolder:r.account_holder})):[],
     revenue: data.revenue ?? { months: [], by_type: [], as_of: null },
   };
 }
@@ -49,10 +51,10 @@ export const OPS_ACTIONS = {
   CONFIRM_PAYMENT: ({ id }) => ["POST", `/api/ops/payments/${enc(id)}/confirm`],
   // S09f · Backend chưa có (BACKEND-TODO.md mục S09f)
   REPORT_MISMATCH: ({ id, note }) => ["POST", `/api/ops/payments/${enc(id)}/mismatch`, { note }],
-  VERIFY_CUSTOMER: ({ id, doc_type, doc_no, photo_ok, info_ok }) => [
-    "POST", `/api/ops/verifications/${enc(id)}`, { docType: doc_type, docNumber: String(doc_no || "").trim(), photoMatched: Boolean(photo_ok), infoMatched: Boolean(info_ok) },
+  VERIFY_CUSTOMER: ({ id, doc_type, doc_no, photo_ok, info_ok, original_valid,booking_matched }) => [
+    "POST", `/api/ops/verifications/${enc(id)}`, original_valid!==undefined?{originalDocumentValid:original_valid,photoMatched:photo_ok,infoMatched:info_ok,bookingMatched:booking_matched}:{ docType: doc_type, docNumber: String(doc_no || "").trim(), photoMatched: Boolean(photo_ok), infoMatched: Boolean(info_ok) },
   ],
-  RECORD_KEY_RECEIPT: ({ id }) => ["POST", `/api/ops/keys/${enc(id)}/receipt`],
+  RECORD_KEY_RECEIPT: ({ id, identity_checked,condition_checked,key_delivered }) => ["POST", `/api/ops/keys/${enc(id)}/receipt`,{identityChecked:identity_checked,conditionChecked:condition_checked,keyDelivered:key_delivered}],
   SUBMIT_RETURN: ({ id, report }) => ["POST", `/api/ops/returns/${enc(id)}/inspection`, toApi(report)],
   TICKET_RESPONSE: ({ id, note, next }) => ["POST", `/api/ops/tickets/${enc(id)}/responses`, { note, nextStatus: next }],
   // M02a · F12: đổi trạng thái ô (backend nhận mã ô hoặc id), dùng chung cho nhân viên và quản lý
@@ -68,7 +70,7 @@ export const OPS_ACTIONS = {
   // M07a · Ghi chú gửi kèm; backend hiện chưa đọc body (BACKEND-TODO: lưu ghi chú xác nhận trả kho)
   CONFIRM_REFUND: ({ id, note }) => ["POST", `/api/ops/contracts/${enc(id)}/refund`, { note: String(note || "").trim() || null }],
   // M08 · D27: xác nhận đã chuyển khoản hoàn cho đơn khách huỷ (backend chưa nhận phương thức / mã giao dịch → gửi kèm để lưu sau)
-  CONFIRM_RESERVATION_REFUND: ({ id, method, transaction_ref }) => ["POST", `/api/ops/reservations/${enc(id)}/refund`, { method: method || "BANK_TRANSFER", transactionRef: String(transaction_ref || "").trim() || null }],
+  CONFIRM_RESERVATION_REFUND: ({ id, method, transaction_ref, transferredAt, confirmed }) => ["POST", `/api/ops/reservations/${enc(id)}/refund`, { method: method || "BANK_TRANSFER", transactionRef: String(transaction_ref || "").trim() || null, transferredAt, confirmed }],
   // M02b / M02c · CreateStorageUnitRequest / UpdateStorageUnitRequest (OpsDtos.cs). Backend chưa nhận loại kho + cỡ theo tên:
   // gửi kèm unitTypeCode/area để BE chọn đúng UnitType (BACKEND-TODO.md mục M02b).
   CREATE_UNIT: ({ code, location, type, area }) => ["POST", `/api/manager/units`, { unitNumber: code, locationDescription: location || null, unitTypeCode: type, area: Number(area) }],
@@ -76,9 +78,11 @@ export const OPS_ACTIONS = {
   LOCK_UNIT: ({ id, reason }) => ["POST", `/api/manager/units/${enc(id)}/lock`, { reason }],
 };
 
-export function callAction(type, payload) {
+export async function callAction(type, payload, shouldContinue=()=>true) {
   const make = OPS_ACTIONS[type];
   if (!make) throw new Error("Máy chủ chưa hỗ trợ thao tác này; dữ liệu chưa được thay đổi.");
   const [method, path, body] = make(payload);
+  if(type==="SUBMIT_RETURN"&&payload.files?.length){body.photos=[];for(const file of payload.files){await verifyPhotoFile(file);body.photos.push(await readPhotoData(file));}}
+  if(!shouldContinue())throw new Error("Phiên làm việc đã thay đổi. Chưa gửi thao tác.");
   return request(path, { method, body });
 }

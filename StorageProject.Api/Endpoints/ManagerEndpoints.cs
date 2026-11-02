@@ -138,8 +138,8 @@ public static class ManagerEndpoints
             try
             {
                 var actor = new OpsActor(user.GetUserId(), user.GetUserRole().Equals("MANAGER", StringComparison.OrdinalIgnoreCase));
-                var refund = await ops.ConfirmRefundAsync(actor, id, ct);
-                return Results.Ok(new { message = "Xác nhận hoàn cọc thành công.", refund });
+                var result = await ops.ConfirmRefundAsync(actor, id, null, ct);
+                return Results.Ok(new { message = "Đã chốt quyết toán trả kho.", refund = result.Refund, refundStatus = result.RefundStatus });
             }
             catch (UnauthorizedAccessException)
             {

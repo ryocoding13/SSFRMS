@@ -368,7 +368,7 @@ h4 { font-size: 16px; font-weight: 700; color: var(--ink); }
 
 /* ---------- Modal / lightbox / toast / footer ---------- */
 .overlay { position: fixed; inset: 0; background: rgba(16, 21, 42, 0.45); display: grid; place-items: center; padding: 16px; z-index: 80; }
-.modal { background: #fff; border-radius: 14px; box-shadow: 0 20px 50px rgba(16, 21, 42, 0.25); padding: 26px 28px; width: 100%; max-width: 440px; display: grid; gap: 14px; outline: none; }
+.modal { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; background: #fff; border-radius: 14px; box-shadow: 0 20px 50px rgba(16, 21, 42, 0.25); padding: 26px 28px; width: 100%; max-width: 440px; display: grid; gap: 14px; outline: none; }
 .modal h2 { font-size: 20px; font-weight: 700; }
 .modal__text { color: var(--muted); font-size: 16px; }
 .modal .btn { justify-self: start; }
@@ -843,15 +843,15 @@ label.search-input input { border: 0; outline: 0; flex: 1; font-size: 14px; back
 .subnav__inner > a { display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
 .bell > .pending-badge { position:absolute; top:-4px; right:-5px; }
 .modal--confirm { max-height:calc(100dvh - 32px); overflow-y:auto; width:560px; max-width:calc(100vw - 32px); padding:28px; border:1px solid var(--line); border-radius:16px; display:flex; flex-direction:column; gap:20px; }
-.modal--confirm h2 { font-size:22px; line-height:33px; margin:0; }
+.modal--confirm h2 { font-weight:600; color:var(--ink); font-size:22px; line-height:33px; margin:0; }
 .modal--confirm .modal__text { margin:0; line-height:24px; }
-.confirm-summary { margin:0; padding:16px; background:var(--soft); display:grid; gap:8px; }
+.confirm-summary { border-radius:10px; margin:0; padding:16px; background:var(--soft); display:grid; gap:8px; }
 .confirm-summary div { display:grid; gap:2px; }
 .confirm-summary dt { font-size:13px; line-height:20px; color:var(--muted); }
 .confirm-summary dd { margin:0; font-weight:600; line-height:24px; overflow-wrap:anywhere; white-space:pre-wrap; }
 .modal--confirm .modal__actions { display:flex; gap:12px; margin:0; }
-.modal--confirm .modal__actions > .btn { flex:1; min-height:49px; }
-.modal--confirm .hint { margin:0; }
+.modal--confirm .modal__actions > .btn { flex:1; min-height:49px; padding:12px 16px; border-radius:8px; font-size:15px; font-weight:600; white-space:normal; }
+.modal--confirm .hint { margin:0; font-size:14px; line-height:1.5; }
 .support-access-options { display:flex; flex-wrap:wrap; gap:8px; }
 .support-access-options .btn { flex:1; white-space:normal; }
 .support-grid { grid-template-columns:minmax(0, 804fr) minmax(0, 432fr); }
@@ -895,3 +895,10 @@ label.search-input input { border: 0; outline: 0; flex: 1; font-size: 14px; back
 @media (max-width: 560px) { .form-pair { grid-template-columns: 1fr; } }
 .form-pair--3 { grid-template-columns: repeat(3, 1fr); }
 .form-card__sub { font-size: 16px; margin-top: 4px; }
+
+/* Sáu biến thể cùng mẫu popup SafeSpace 560 px. */
+.modal--confirm.modal--success > h2 { color: #087f68; }
+.modal--confirm.modal--failure > h2 { color: #b42318; }
+.modal--confirm.modal--warning > h2 { color: #a86108; }
+.modal--confirm.modal--info > h2 { color: var(--blue); }
+.modal--confirm.modal--danger .btn--danger { background: #b42318; border-color: #b42318; }

@@ -8,4 +8,5 @@ public interface IPayOSService
     Task PayAtFacilityAsync(long customerId, long reservationId, CancellationToken ct = default);
     Task<bool> ProcessWebhookAsync(string webhookBodyJson, string? signatureHeader, CancellationToken ct = default);
     Task<ReservationPaymentStatusDto?> GetReservationPaymentStatusAsync(long reservationId, CancellationToken ct = default);
+    Task<PayosCheckoutDto> CreateRenewalPaymentQrAsync(long customerId, long paymentId, CancellationToken ct = default);
 }

@@ -31,10 +31,11 @@ export const expiringContracts = (data, now) =>
 export const unpaidCount = (data) => data.ledger.filter((l) => l.status === "UNPAID").length;
 
 export const pendingRenewal = (data, contractId) =>
-  data.renewals.find((r) => r.contract_id === contractId && r.status === "PENDING");
+  data.renewals.find((r) => r.contract_id === contractId && (r.status === "PENDING" || (r.status === "APPROVED" && !data.ledger.some(l => l.kind === "RENEWAL" && l.contract_id === contractId && l.period?.to === r.new_end && l.status === "RECONCILED"))));
 
 export const pendingReturn = (data, contractId) =>
-  data.returns.find((r) => r.contract_id === contractId && ["PENDING", "SCHEDULED"].includes(r.status));
+  data.returns.find((r) => r.contract_id === contractId && ["PENDING", "SCHEDULED"].includes(r.status)) ||
+  (data.contracts.some(c => c.contract_id === contractId && c.status === "RETURN_PENDING") ? { contract_id: contractId, status: "PENDING" } : undefined);
 
 export const latestReservation = (data) =>
   [...data.reservations].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];

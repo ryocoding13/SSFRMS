@@ -9,6 +9,7 @@ async function requestFile(path, { fallbackName = "bao-cao.csv" } = {}) {
   try { res = await fetch(`${API_URL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }); }
   catch { throw new ApiError('Không kết nối được máy chủ. Vui lòng kiểm tra địa chỉ API.', 0); }
   if (!res.ok) { const data = await res.json().catch(() => ({})); throw new ApiError(data.error || data.message || `Không xuất được báo cáo (HTTP ${res.status}).`, res.status, data); }
+  if(!res.headers.get("content-type")?.toLowerCase().includes("text/csv"))throw new Error("Máy chủ chưa trả tệp CSV hợp lệ. Chưa tải báo cáo.");
   return { blob: await res.blob(), fileName: fallbackName };
 }
 

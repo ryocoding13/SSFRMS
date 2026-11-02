@@ -6,12 +6,14 @@ using PayOS.Models.Webhooks;
 
 namespace StorageProject.Infrastructure.Services;
 
-public record VerifiedReservationPayment(long OrderCode, decimal Amount);
+public record VerifiedReservationPayment(long OrderCode, decimal Amount, string? TransactionReference = null);
 public record CheckoutLink(string Url, string Qr);
 public interface IPayOSGateway
 {
     void EnsureConfigured();
     Task<CheckoutLink> CreateAsync(long orderCode, int amount, long reservationId, long expiresAt, string returnUrl, string cancelUrl);
+    Task<CheckoutLink> CreateRenewalAsync(long orderCode, int amount, long renewalId, long expiresAt, string returnUrl, string cancelUrl)
+        => CreateAsync(orderCode, amount, renewalId, expiresAt, returnUrl, cancelUrl);
     Task CancelAsync(long orderCode);
     Task<VerifiedReservationPayment?> VerifyAsync(string body);
 }
@@ -34,6 +36,15 @@ public sealed class SdkPayOSGateway(IConfiguration config) : IPayOSGateway
     {
         var result = await Client().PaymentRequests.CreateAsync(new CreatePaymentLinkRequest {
             OrderCode = orderCode, Amount = amount, Description = $"Dat kho #{reservationId}",
+            ReturnUrl = returnUrl, CancelUrl = cancelUrl, ExpiredAt = (int)expiresAt
+        });
+        return new CheckoutLink(result.CheckoutUrl, result.QrCode);
+    }
+
+    public async Task<CheckoutLink> CreateRenewalAsync(long orderCode, int amount, long renewalId, long expiresAt, string returnUrl, string cancelUrl)
+    {
+        var result = await Client().PaymentRequests.CreateAsync(new CreatePaymentLinkRequest {
+            OrderCode = orderCode, Amount = amount, Description = $"Gia han #{renewalId}",
             ReturnUrl = returnUrl, CancelUrl = cancelUrl, ExpiredAt = (int)expiresAt
         });
         return new CheckoutLink(result.CheckoutUrl, result.QrCode);

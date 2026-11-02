@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Photo } from "../../../shared/components/Photo.jsx";
-import { Button, Notice } from "../../../shared/components/UI.jsx";
+import { Button, LinkButton, Notice } from "../../../shared/components/UI.jsx";
+import { hasReservationConsent } from "../../../shared/utils/rentalPolicy.js";
 import QrCode from "../../../shared/components/QrCode.jsx";
 import { formatCountdown, money } from "../../../shared/utils/format.js";
 import { useNow } from "../../../shared/hooks/useBrowserEvents.js";
@@ -28,10 +29,14 @@ export function CheckoutPage({ id }) {
   const [qrError, setQrError] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, [id]);
   const total = r?.timeout_seconds || timeoutSeconds;
   const deadline = checkout?.expires_at && r?.expires_at ? Math.min(new Date(checkout.expires_at), new Date(r.expires_at)) : checkout?.expires_at || r?.expires_at;
   const remaining = deadline ? (new Date(deadline) - now) / 1000 : 0;
   const pending = r?.status === "PENDING_PAYMENT";
+  const consentReady = hasReservationConsent(r, data.user?.user_id);
+  useEffect(() => { if (r && pending && !consentReady) go(`checkout/${id}/confirm`, { replace: true }); }, [id, pending, consentReady]);
 
   useEffect(() => {
     if (!r) return;
@@ -47,10 +52,12 @@ export function CheckoutPage({ id }) {
 
   // Tạo (hoặc lấy lại) mã QR PayOS của đơn — gọi một lần khi mở phương thức QR
   const load = useCallback(async () => {
-    if (!r || !services) return;
+    if (!r || !services || !consentReady) return;
     setQrState("loading");
     setQrError("");
     const res = await services.startPayos({ kind: "reservation", item: r });
+    if (!alive.current) return;
+    if (res.code === "POLICY_REQUIRED") { go(`checkout/${id}/confirm`, { replace: true }); return; }
     if (res.ok) {
       setCheckout(res.checkout);
       setQrState("ready");
@@ -60,11 +67,11 @@ export function CheckoutPage({ id }) {
       setQrError(res.error);
       setQrState("error");
     }
-  }, [r?.reservation_id, services]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [r?.reservation_id, services, consentReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (method === "qr" && pending && !checkout) load();
-  }, [method, pending]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (method === "qr" && pending && consentReady && !checkout) load();
+  }, [method, pending, consentReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hỏi backend định kỳ: PayOS gọi webhook về backend → đơn đã thanh toán → sang C05
   useEffect(() => {
@@ -84,13 +91,16 @@ export function CheckoutPage({ id }) {
   }, [method, qrState, pending, r?.reservation_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!r) return <NotFound />;
+  if (pending && !consentReady) return <main className="container page"><Notice>Vui lòng xác nhận chính sách trước khi thanh toán.</Notice><LinkButton to={`checkout/${id}/confirm`}>Kiểm tra đơn &amp; chính sách</LinkButton></main>;
 
   const payAtStore = async () => {
     setBusy(true);
     setError("");
     const res = await dispatch("PAY_AT_FACILITY", { reservation_id: id });
+    if (!alive.current) return;
     if (res.ok) return go(`confirmation/${id}`);
     setBusy(false);
+    if (res.code === "POLICY_REQUIRED") return go(`checkout/${id}/confirm`, { replace: true });
     if (res.code === "EXPIRED") return go(`checkout/${id}/failed`, { replace: true });
     setError(res.error);
   };

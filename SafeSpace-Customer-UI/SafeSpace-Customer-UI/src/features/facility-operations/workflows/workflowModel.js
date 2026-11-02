@@ -1,3 +1,4 @@
+import { transferProof,validateRemoval } from "../settlements/settlementModel.js";
 import { addDays, today } from "../../../shared/utils/format.js";
 
 export const POLICY_SECTIONS = [
@@ -13,7 +14,7 @@ export const POLICY_SECTIONS = [
 // Tỷ lệ khấu trừ mỗi ngày lấy từ chính sách đang hiển thị (OPERATIONS chỉnh được); không ghi cứng ở từng màn
 export const policyRate = (policy) => (Number(policy?.rate) > 0 && Number(policy.rate) <= 100 ? Number(policy.rate) : defaultRentalPolicy().rate);
 
-export const defaultRentalPolicy = () => ({ rate: 5, sections: Object.fromEntries(POLICY_SECTIONS.map(([id, , text]) => [id, text])), version: 1 });
+export const defaultRentalPolicy = () => ({ rate: 5, sections: Object.fromEntries(POLICY_SECTIONS.map(([id, , text]) => [id, text])), version: 1, removalDay:20 });
 
 export function depositSchedule(deposit, endDate, asOf = today(), rate = 5) {
   const initial = Math.max(0, Number(deposit) || 0);
@@ -37,7 +38,7 @@ export function createWorkflowSeed() {
     policy: defaultRentalPolicy(),
     discrepancies: [{ id: "SL-0001", facilityId: 1, customer: "Lê Văn An", reference: "PHI-0098", expected: 150000, actual: 100000, note: "Thực nhận thiếu 50.000 đ; cần kiểm tra giao dịch ngân hàng.", status: "PENDING", createdAt: new Date().toISOString() }],
     overdue: [{ id: "QH-0061", facilityId: 1, contractId: "HĐ-0061", unit: "K03", customer: "Trần Quốc Bảo", deposit: 1150000, endDate: addDays(today(), -20), notes: [], status: "PENDING", assignee: "Trần Văn Long" }],
-    depositRefunds: [{ id: "HC-0098", facilityId: 1, ownerId: 3, contractId: "HĐ-0098", unit: "K04", customer: "Nguyễn Văn An", deposit: 1150000, unpaid: 460000, cleaning: 150000, damage: 0, amount: 540000, status: "PENDING", inspectedAt: new Date().toISOString() }],
+    depositRefunds: [{ id: "HC-0098", facilityId: 1, ownerId: 3, contractId: "HĐ-0098", unit: "K04", customer: "Nguyễn Văn An", deposit: 1150000, overdue:172500, cleaning:115000, damage:200000, amount:662500, bankName:"Ngân hàng mô phỏng",accountNumber:"0000123456",accountHolder:"NGUYEN VAN AN",version:1,status: "PENDING", inspectedAt: new Date().toISOString() }],
     counterRenewals: [{ id: "GHQ-0142", facilityId: 1, contractId: "HĐ-0142", unit: "K01", customer: "Nguyễn Văn An", amount: 3450000, months: 3, status: "PENDING" }],
     inquiries: [{ id: "HT-0091", facilityId: 1, ownerId: 3, customer: "Nguyễn Văn An", title: "Tư vấn đặt kho", description: "Tôi muốn biết loại kho phù hợp trước khi đặt chỗ.", status: "OPEN", responses: [], createdAt: new Date().toISOString() }],
   };
@@ -66,15 +67,12 @@ export function applyWorkflowAction(state, action, payload, actor, now = new Dat
     }
     case "RECORD_REMOVAL": {
       allow("STAFF", "MANAGER"); const item = find("overdue"); if (item.status === "DONE") throw new Error("Biên bản đã được lưu; không gửi lại.");
-      { const d = depositSchedule(item.deposit, item.endDate, undefined, policyRate(state.policy)); if (d.days < d.limitDays) throw new Error(`Chưa đến mốc ${d.limitDays} ngày quá hạn.`); }
-      for (const [key, label] of [["inventory", "danh sách và tình trạng đồ"], ["location", "vị trí đưa đồ ra ngoài"], ["performedAt", "thời gian thực hiện"]]) requireText(payload[key], label);
-      if (!Number.isFinite(Date.parse(payload.performedAt)) || Date.parse(payload.performedAt) > now.getTime()) throw new Error("Thời gian thực hiện không hợp lệ hoặc ở tương lai.");
-      if (!["INSPECTION", "MAINTENANCE"].includes(payload.unitStatus)) throw new Error("Chọn trạng thái kho sau kiểm tra.");
-      Object.assign(item, { status: "DONE", record: { ...payload, staff: actor.name, savedAt: at } }); break;
+      const performedAt=validateRemoval(item,payload,state.policy,actor,now);
+      Object.assign(item, { status: "DONE", record: { ...payload,performedAt,beforePhotos:payload.beforePhotos.map(f=>({fileName:f.name,contentType:f.type,size:f.size})),afterPhotos:payload.afterPhotos.map(f=>({fileName:f.name,contentType:f.type,size:f.size})),staff: actor.name, savedAt: at } }); break;
     }
     case "CONFIRM_DEPOSIT_REFUND": {
       allow("MANAGER"); const item = find("depositRefunds"); if (item.status !== "PENDING" || item.amount <= 0) throw new Error("Khoản hoàn không còn chờ xử lý.");
-      requireText(payload.transactionRef, "mã giao dịch hoàn tiền"); Object.assign(item, { status: "PAID", transactionRef: payload.transactionRef.trim(), paidAt: at }); break;
+      const proof=transferProof(item,payload,now);Object.assign(item,{status:"PAID",transactionRef:proof.transactionRef,paidAt:proof.transferredAt});break;
     }
     case "COLLECT_RENEWAL": {
       allow("STAFF", "MANAGER"); const item = find("counterRenewals"); if (item.status !== "PENDING") throw new Error("Khoản gia hạn đã được thu. Không thu lần nữa.");

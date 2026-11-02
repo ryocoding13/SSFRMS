@@ -27,6 +27,20 @@ public static class PaymentEndpoints
             return payment is not null ? Results.Ok(payment) : Results.NotFound(new { error = "Không tìm thấy thông tin thanh toán." });
         });
 
+        group.MapPost("/payments/{id:long}/payos", async (long id, ClaimsPrincipal user, IPayOSService payOSService, CancellationToken ct) =>
+        {
+            try
+            {
+                var customerId = user.GetUserId();
+                var checkout = await payOSService.CreateRenewalPaymentQrAsync(customerId, id, ct);
+                return Results.Ok(checkout);
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
         // PayOS Webhook endpoints (AllowAnonymous)
         app.MapPost("/api/payments/payos-webhook",
             async (

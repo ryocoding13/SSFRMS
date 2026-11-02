@@ -14,7 +14,10 @@
  */
 
 
-import React, { useState } from "react";
+import SelectionPanel from "../components/SelectionPanel.jsx";
+import { activeFacility,createAccountChecked } from "../utils/accountActions.js";
+import { LinkButton } from "../../../shared/components/UI.jsx";
+import React, { useRef, useState } from "react";
 import { adminApi } from "../api/adminApi.js";
 import { Select } from "../../../shared/components/Pickers.jsx";
 import { Button, Field, Modal, Notice } from "../../../shared/components/UI.jsx";
@@ -88,6 +91,7 @@ export default function CreateUserPage() {
   // Lưu kết quả sau khi tạo tài khoản thành công.
   // null: chưa tạo thành công, chưa hiện Modal.
   // Có dữ liệu: hiện Modal thông tin đăng nhập.
+  const [facilityPicker,setFacilityPicker]=useState(false),[uncertain,setUncertain]=useState(false),guard=useRef(false);
   const [done, setDone] = useState(null);
   const [flowEl, runChange] = useChangeFlow();
 
@@ -127,6 +131,7 @@ export default function CreateUserPage() {
     // các trường khác bằng spread operator (...f).
     setForm((f) => {
       const next = { ...f, [k]: v };
+      if(k==="roleId")next.facilityId="";
 
       // Nếu đang nhập email và Admin chưa tự sửa username,
       // tự tạo username từ email mới.
@@ -173,13 +178,14 @@ export default function CreateUserPage() {
     if (form.password.length < 8) e.password = "Mật khẩu tạm thời cần ít nhất 8 ký tự.";
 
     // Bắt buộc lựa chọn một vai trò.
-    if (!form.roleId) e.roleId = "Chọn vai trò cho tài khoản.";
+    if (!role) e.roleId = "Chọn vai trò hợp lệ từ danh sách.";
 
     // Nhân viên và quản lý cơ sở phải được phân công cơ sở.
     // Các vai trò không thuộc nhóm scoped được bỏ qua điều kiện.
     if (scoped && !form.facilityId) e.facilityId = "Nhân viên và Quản lý cơ sở cần có cơ sở phụ trách.";
 
     // Trả về danh sách lỗi để hàm submit xử lý.
+    if(scoped&&form.facilityId)try{activeFacility(meta.data?.facilities||[],form.facilityId);}catch(error){e.facilityId=error.message;}
     return e;
   };
 
@@ -199,6 +205,7 @@ export default function CreateUserPage() {
 
     // Ngăn hành vi submit mặc định của trình duyệt.
     ev.preventDefault();
+    if(guard.current||uncertain||meta.loading||meta.error||done)return;
 
     // Kiểm tra toàn bộ dữ liệu trước khi gọi API.
     const e = validate();
@@ -207,17 +214,17 @@ export default function CreateUserPage() {
     if (Object.keys(e).length) return setErrors(e);
 
     // Bật trạng thái xử lý để vô hiệu hóa nút submit.
-    setBusy(true);
+    guard.current=true;setBusy(true);
 
     // Biến lưu thông tin tài khoản được backend tạo.
-    let created;
+    let created,facilityError=null;
 
     // Figma 885:10555–10579: hỏi xác nhận trước khi tạo; lỗi hiện hộp thoại "Không tạo tài khoản được".
     // Thành công vẫn dùng hộp thoại riêng bên dưới để hiện tên đăng nhập và mật khẩu tạm một lần.
     const outcome = await runChange({
       action: "Tạo tài khoản", scope: "Tài khoản mới", content: "Thông tin, vai trò và cơ sở đã chọn", showSuccess: false,
-      perform: async () => {
-        created = await adminApi.createUser({
+      perform: async isCurrent => {
+        const result = await createAccountChecked(adminApi, {
           username: form.username.trim(),
           password: form.password,
           fullName: form.fullName.trim(),
@@ -225,11 +232,12 @@ export default function CreateUserPage() {
           phone: form.phone.replace(/[\s.-]/g, "") || null,
           initialRoleId: Number(form.roleId),
           status: "ACTIVE",
-        });
+        },scoped?{id:Number(form.facilityId),from:today()}:null,isCurrent);
+        created=result.user;facilityError=result.facilityError;
         return created;
       },
     });
-    if (outcome.cancelled) return setBusy(false);
+    if (outcome.cancelled) {guard.current=false;return setBusy(false);}
 
     try {
       if (outcome.error) throw outcome.error;
@@ -237,6 +245,7 @@ export default function CreateUserPage() {
 
       // Xử lý lỗi API, ví dụ phiên đăng nhập hết hạn.
       onApiError(err);
+      guard.current=false;if(outcome.uncertain)setUncertain(true);
 
       // Tắt trạng thái đang xử lý.
       setBusy(false);
@@ -266,35 +275,8 @@ export default function CreateUserPage() {
      */
 
     // Biến lưu lỗi phân công cơ sở (nếu có).
-    let facilityError = null;
-
-    // Chỉ phân công khi vai trò cần cơ sở
-    // và Admin đã chọn một cơ sở.
-    if (scoped && form.facilityId) {
-      try {
-
-        // Gọi API gán cơ sở cho tài khoản vừa tạo.
-        // userId: ID tài khoản mới.
-        // facilityId: cơ sở Admin chọn.
-        // assignedFrom: ngày bắt đầu phân công.
-        // assignedTo: null nghĩa là chưa xác định ngày kết thúc.
-        await adminApi.assignFacility({ userId: created.userId, facilityId: Number(form.facilityId), assignedFrom: today(), assignedTo: null });
-
-      } catch (err) {
-
-        // Lưu lỗi để cảnh báo trong Modal.
-        // Không hủy kết quả tạo tài khoản trước đó.
-        facilityError = err.message;
-      }
-    }
-
-    // Hoàn tất quá trình gửi API.
     setBusy(false);
-
-    // Lưu kết quả thành công.
-    // State done có giá trị sẽ làm Modal xuất hiện.
-    // Lưu password để Admin xem và sao chép một lần.
-    setDone({ user: created, password: form.password, facilityError });
+    guard.current=false;setDone({ user: created, password: form.password, facilityError });
   };
 
 
@@ -339,7 +321,8 @@ export default function CreateUserPage() {
         <p className="lead">Tạo tài khoản và gán vai trò phù hợp. Gửi tên đăng nhập và mật khẩu tạm thời cho người dùng để đăng nhập lần đầu.</p>
 
         {/* Hiển thị lỗi khi tải danh sách vai trò/cơ sở. */}
-        {meta.error && <Notice tone="error">{meta.error}</Notice>}
+        {uncertain&&<Notice tone="error">Chưa xác minh được tài khoản vừa tạo. Kiểm tra danh sách trước khi tạo lại. <LinkButton to="admin">Danh sách tài khoản</LinkButton></Notice>}
+      {meta.error && <Notice tone="error">{meta.error}</Notice>}
 
         {/* Hiển thị lỗi chung khi tạo tài khoản thất bại. */}
         {errors.form && <p className="form-error" role="alert">{errors.form}</p>}
@@ -435,16 +418,7 @@ export default function CreateUserPage() {
             Chỉ bật khi scoped = true (Staff/Manager).
             Vai trò toàn hệ thống không cần chọn cơ sở. */}
         <Field label="Cơ sở phụ trách" error={errors.facilityId}>
-          <Select value={form.facilityId} disabled={!scoped} onChange={(e) => set("facilityId", e.target.value)}>
-
-            {/* Placeholder thay đổi theo việc vai trò có cần cơ sở. */}
-            <option value="">{scoped ? "Chọn cơ sở" : "Không áp dụng cho vai trò này"}</option>
-
-            {/* Chỉ render cơ sở ACTIVE đã lọc từ API. */}
-            {(meta.data?.facilities || []).map((f) => (
-              <option key={f.facilityId} value={f.facilityId}>{f.name}</option>
-            ))}
-          </Select>
+          <Button className="selection-trigger" variant="outline" disabled={!scoped||busy||meta.loading||uncertain} onClick={()=>setFacilityPicker(true)}>{scoped?(meta.data?.facilities||[]).find(f=>String(f.facilityId)===String(form.facilityId))?.name||"Chọn cơ sở có sẵn":"Không áp dụng cho vai trò này"} ▾</Button>
         </Field>
 
 
@@ -457,7 +431,7 @@ export default function CreateUserPage() {
         {/* NÚT TẠO TÀI KHOẢN
             disabled khi đang gửi request hoặc đang tải metadata.
             Text đổi thành "Đang tạo..." trong lúc xử lý. */}
-        <Button type="submit" block disabled={busy || meta.loading}>{busy ? "Đang tạo tài khoản…" : "Tạo tài khoản"}</Button>
+        <Button type="submit" block disabled={busy || meta.loading || !!meta.error || uncertain || !!done}>{busy ? "Đang tạo tài khoản…" : "Tạo tài khoản"}</Button>
 
         {/* QUAY LẠI DANH SÁCH TÀI KHOẢN */}
         <p className="auth__switch">
@@ -469,9 +443,10 @@ export default function CreateUserPage() {
       {/* MODAL SAU KHI TẠO TÀI KHOẢN THÀNH CÔNG
           Chỉ xuất hiện khi done khác null.
           Khi đóng Modal sẽ chuyển sang trang chi tiết User. */}
+      {facilityPicker&&<SelectionPanel title="Chọn cơ sở phụ trách" description="Chọn một cơ sở có sẵn cho Nhân viên hoặc Quản lý cơ sở." items={(meta.data?.facilities||[]).map(f=>({id:f.facilityId,label:f.name}))} value={form.facilityId} onClose={()=>setFacilityPicker(false)} onSelect={id=>{set("facilityId",id);setFacilityPicker(false);}} confirmLabel="Dùng cơ sở này"/>}
       {flowEl}
       {done && (
-        <Modal title="Đã tạo tài khoản" onClose={() => go(`admin/users/${done.user.userId}`)}>
+        <Modal size="confirm" tone={done.facilityError?"warning":"success"} title={done.facilityError?"Đã tạo tài khoản · Chưa phân công cơ sở":"Đã tạo tài khoản"} onClose={() => go(`admin/users/${done.user.userId}`)}>
 
           {/* Thông báo Admin cần gửi thông tin đăng nhập
               cho người dùng mới và mật khẩu chỉ hiển thị một lần. */}

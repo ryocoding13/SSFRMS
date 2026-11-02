@@ -96,7 +96,8 @@ test("gia hạn: chỉ 1 yêu cầu chờ duyệt, chặn trả kho song song, h
 
 test("trả kho: tạo lịch hẹn chờ xác nhận, không đổi trạng thái hợp đồng", () => {
   const s = createSeedData(T);
-  const a = run(s, "REQUEST_RETURN", { contract_id: "HĐ-2026-0142", date: "2026-12-21", slot: "09:00–09:30", notes: "  ok " });
+  s.contracts.find(c => c.contract_id === "HĐ-2026-0142").start_date = "2026-09-21";
+  const a = run(s, "REQUEST_RETURN", { contract_id: "HĐ-2026-0142", date: "2026-12-21", slot: "09:00–09:30", notes: "  ok ", bank: {bankName:"VCB",accountNumber:"0123456789",accountHolder:s.user.full_name}, photos:[{name:"empty.png",type:"image/png",size:100}], emptied:true });
   assert.equal(a.state.returns[0].notes, "ok");
   assert.equal(a.state.appointments[0].kind, "MOVE_OUT");
   assert.equal(a.state.appointments[0].status, "PENDING");
@@ -165,8 +166,8 @@ test("mốc sắp tới sắp theo ngày và phản ánh yêu cầu gia hạn đ
 
 test("đăng ký: kiểm tra đủ trường, khớp mật khẩu; dữ liệu tài khoản mới rỗng", () => {
   const e = validateRegister({ name: "", email: "x", phone: "1", password: "1", confirm: "2" });
-  assert.deepEqual(Object.keys(e).sort(), ["confirm", "email", "name", "password", "phone"]);
-  assert.deepEqual(validateRegister({ name: "A", email: "a@b.co", phone: "0912345678", password: "Abcdefg1", confirm: "Abcdefg1" }), {});
+  assert.deepEqual(Object.keys(e).sort(), ["confirm", "email", "name", "password", "phone", "username"]);
+  assert.deepEqual(validateRegister({ name: "A", username: "customer-new", email: "a@b.co", phone: "0912345678", password: "Abcdefg1", confirm: "Abcdefg1" }), {});
   const d = createEmptyData({ user_id: 1, full_name: "A", email: "a@b.co", phone: "0912345678" }, T);
   assert.equal(d.contracts.length + d.reservations.length + d.ledger.length, 0);
 });
@@ -227,7 +228,8 @@ test("PayOS gia hạn (C11q → C11b): khoản gia hạn đã duyệt chuyển �
 
 test("huỷ đơn (C14a, D27): đơn đã thanh toán chưa nhận kho được huỷ và hoàn tiền trừ phí 10% tiền cọc; đơn đã nhận kho thì không", () => {
   const s = createSeedData(T);
-  const out = run(s, "CANCEL_RESERVATION", { reservation_id: "SS-20260914-0142", reason: "Đổi kế hoạch chuyển nhà" });
+  s.reservations.find(r => r.reservation_id === "SS-20260914-0142").start_date = "2026-09-22";
+  const out = run(s, "CANCEL_RESERVATION", { reservation_id: "SS-20260914-0142", reason: "Đổi kế hoạch chuyển nhà", bank: {bankName:"VCB",accountNumber:"0123456789",accountHolder:s.user.full_name}, bankConfirmed:true });
   const r = out.state.reservations.find((x) => x.reservation_id === "SS-20260914-0142");
   assert.equal(r.status, "CANCELLED");
   assert.equal(r.refund_status, "PENDING");

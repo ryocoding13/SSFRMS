@@ -38,6 +38,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     // VIII. Renewal
     public DbSet<ContractRenewal> ContractRenewals => Set<ContractRenewal>();
+    public DbSet<PaymentCheckout> PaymentCheckouts => Set<PaymentCheckout>();
+    public DbSet<RentalPolicyVersion> RentalPolicyVersions => Set<RentalPolicyVersion>();
+    public DbSet<PolicyConsent> PolicyConsents => Set<PolicyConsent>();
 
     // IX. Payment
     public DbSet<Payment> Payments => Set<Payment>();
@@ -48,9 +51,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     // XI. Return & Inspection
     public DbSet<ReturnInspection> ReturnInspections => Set<ReturnInspection>();
+    public DbSet<EvidencePhoto> EvidencePhotos => Set<EvidencePhoto>();
 
     // XII. Overdue Handling
     public DbSet<OverdueCase> OverdueCases => Set<OverdueCase>();
+    public DbSet<FacilityIncident> FacilityIncidents => Set<FacilityIncident>();
 
     // XIII. Support & Issue Handling
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();

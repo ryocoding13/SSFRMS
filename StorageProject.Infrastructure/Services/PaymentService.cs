@@ -34,7 +34,8 @@ public class PaymentService(AppDbContext dbContext) : IPaymentService
                 p.DueDate,
                 p.PaidAt,
                 p.Status,
-                p.CreatedAt
+                p.CreatedAt,
+                p.Renewal != null ? p.Renewal.PaymentDeadlineAt : null
             ))
             .ToListAsync(ct);
     }
@@ -44,6 +45,7 @@ public class PaymentService(AppDbContext dbContext) : IPaymentService
         var p = await dbContext.Payments
             .AsNoTracking()
             .Include(x => x.Contract)
+            .Include(x => x.Renewal)
             .Where(x => x.PaymentId == paymentId && ((x.ContractId != null && x.Contract.CustomerId == customerId) || (x.ReservationId != null && x.Reservation.CustomerId == customerId)))
             .FirstOrDefaultAsync(ct);
 
@@ -61,7 +63,8 @@ public class PaymentService(AppDbContext dbContext) : IPaymentService
             p.DueDate,
             p.PaidAt,
             p.Status,
-            p.CreatedAt
+            p.CreatedAt,
+            p.Renewal?.PaymentDeadlineAt
         );
     }
 }
