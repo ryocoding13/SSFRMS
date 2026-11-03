@@ -10,7 +10,10 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
-public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IAccessService
+public class AccessService(
+    AppDbContext dbContext,
+    AccessQrOptions options,
+    IScanRateLimiter? rateLimiter = null) : IAccessService
 {
     private static readonly TimeSpan VnOffset = TimeSpan.FromHours(7);
 
@@ -59,6 +62,12 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
 
     public async Task<ScanResultDto> ScanAsync(string? rawCode, string? ipAddress, CancellationToken ct = default, string? unitNumber = null)
     {
+        var limiter = rateLimiter ?? DefaultScanRateLimiter.Instance;
+        if (!limiter.TryAcquire(ipAddress ?? "unknown"))
+        {
+            return await LogAndDenyAsync(null, null, null, null, "Tạm dừng quét, thử lại sau 60 giây", ipAddress, ct);
+        }
+
         if (string.IsNullOrWhiteSpace(rawCode))
         {
             return await LogAndDenyAsync(null, null, null, null, "Chưa nhận được mã. Đưa mã QR vào máy quét hoặc nhập mã dự phòng.", ipAddress, ct);

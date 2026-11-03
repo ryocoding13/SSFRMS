@@ -1,5 +1,3 @@
-using System.Threading.RateLimiting;
-using Microsoft.AspNetCore.RateLimiting;
 using System.Text;
 using Microsoft.AspNetCore.HttpOverrides;
 using StorageProject.Api.Workers;
@@ -71,12 +69,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
-builder.Services.AddRateLimiter(options => {
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy("access-scan", context => RateLimitPartition.GetFixedWindowLimiter(
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
-});
 
 // 3. Swagger / OpenAPI Configuration
 builder.Services.AddEndpointsApiExplorer();
@@ -178,6 +170,7 @@ if (builder.Configuration.GetValue<bool>("Worker:EnableOverdue", true))
 }
 builder.Services.AddHostedService<ExpiredRenewalWorker>();
 builder.Services.AddScoped<IPayOSService, PayOSService>();
+builder.Services.AddSingleton<IScanRateLimiter, DefaultScanRateLimiter>();
 builder.Services.AddSingleton(new AccessQrOptions(
     builder.Configuration["AccessQr:Secret"] ?? jwtSecret,
     !bool.TryParse(builder.Configuration["AccessQr:DenyOverdue"], out var denyOverdue) || denyOverdue));
@@ -222,7 +215,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseRateLimiter();
 
 // 7. Map Minimal API Endpoints
 app.MapAuthEndpoints();

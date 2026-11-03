@@ -1,3 +1,20 @@
+## Phiên 2026-11-03 — Hoàn thành Task T16: Giới hạn quét mã mở cửa 10 lượt/phút theo D32
+
+- **Mục tiêu:** Hoàn thành trọn vẹn Task T16 thuộc phân công của Tiến (theo Kế hoạch hoàn thiện cập nhật 26–31/10/2026 và `BACKEND-TODO.md` mục D32):
+  1. **Nghiệp vụ & Cơ chế Rate Limiting:**
+     - Thiết lập cơ chế giới hạn quét mã mở cửa (sliding window 60 giây, tối đa 10 lượt/phút) theo từng địa chỉ IP của máy quét / thiết bị tại `POST /api/access/scan`.
+     - Tạo interface `IScanRateLimiter` tại `StorageProject.Core/Interfaces/IScanRateLimiter.cs` và implementation `DefaultScanRateLimiter` tại `StorageProject.Infrastructure/Services/ScanRateLimiter.cs`.
+     - Tích hợp rate limiter vào `AccessService.cs`: khi máy quét gửi yêu cầu vượt quá 10 lượt trong 60 giây, hệ thống trả về ngay HTTP 200 kèm DTO `{ result: "DENIED", reason: "Tạm dừng quét, thử lại sau 60 giây" }` (khớp chính xác màn hình C07r3 trên Figma và yêu cầu trong BACKEND-TODO.md).
+     - Ghi nhận nhật ký kiểm toán vào bảng `ActivityLogs`: `Action = "ACCESS_SCANNED"`, `EntityType = "CONTRACT"`, `EntityId = null`, `NewValue = {"result":"DENIED","unit":null,"reason":"Tạm dừng quét, thử lại sau 60 giây"}`, `IpAddress` tương ứng.
+     - Đồng bộ `AccessEndpoints.cs` và `Program.cs`: loại bỏ bộ lọc HTTP 429 thô của ASP.NET middleware để đảm bảo `DoorScannerPage.jsx` luôn nhận HTTP 200 `ScanResultDto` hiển thị thẻ "Từ chối" đúng nghiệp vụ; đăng ký `IScanRateLimiter` singleton trong DI container.
+  2. **Kiểm chứng:**
+     - `dotnet build StorageProject.slnx`: **PASS (0 Error, 18 warnings phụ thuộc có sẵn)**.
+     - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: **123/123 unit tests PASS** (gồm 5/5 tests mới trong `AccessScanRateLimitTests.cs`).
+     - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj`: **9/9 SQL Server integration tests PASS**.
+     - `cd SafeSpace-Customer-UI/SafeSpace-Customer-UI; npm test`: **155/155 tests PASS**.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
+
+
 ## Phiên 2026-11-02 — Hoàn thành Task T12: Hồ sơ quá hạn ngày 20 và biên bản xử lý đồ theo D32
 
 - **Mục tiêu:** Hoàn thành trọn vẹn Task T12 thuộc phân công của Tiến (theo Kế hoạch hoàn thiện cập nhật 26–31/10/2026 và `BACKEND-TODO.md` mục D32):

@@ -54,7 +54,7 @@ public static class AccessEndpoints
             var ip = context.Connection.RemoteIpAddress?.ToString();
             var result = await accessService.ScanAsync(request.Code, ip, ct, request.UnitNumber);
             return Results.Ok(result);
-        }).AllowAnonymous().RequireRateLimiting("access-scan");
+        }).AllowAnonymous();
 
         return group;
     }
