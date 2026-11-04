@@ -1100,3 +1100,19 @@
 - Đã đọc StorageProject.Api/appsettings.json: không có cờ bảo mật chặn ngân hàng; PayOS chỉ có ba placeholder YOUR_PAYOS_*. Không thay file config, không tự khôi phục/bịa khóa.
 - Kiểm chứng: JSON config hợp lệ; diff chỉ ba file tài liệu; git apply --check và áp dụng patch trên bản nguồn đã đọc, đối chiếu byte PASS; ZIP kiểm tra toàn vẹn PASS. Không chạy build/test ứng dụng, SQL Server hay giao dịch PayOS thật vì chỉ đổi tài liệu.
 - Bàn giao ZIP/patch để thành viên kiểm và tự áp dụng; không commit/push/PR/merge, không đổi trạng thái feature.
+
+## 2026-10-30 — F43: khôi phục gói bàn giao phần Ngọc Mai
+
+- Dựng lại trên main efc0c40 vì tệp ZIP cũ không truy cập được; giữ D31–D34/PR55 và cấu hình nhóm. Không commit/push/PR/merge. Giữ phạm vi D35: reset SMTP, T06, T19, route staff kiểm kê; không tự làm việc khác.
+- Tests142/142 qua VSTest, compile compiler SDK10 offline với dependency đã giữ từ build trước; NuGet timeout nên chưa xác nhận lại restore/build project lần này. FE timezone Việt Nam155/155, business9, workflow12, render173, structure/build; môi trường LA ban đầu trượt3 ca phụ thuộc ngày, không sửa/nới test. Chi tiết/giới hạn: docs/mai-completion-2026-10-30.md.
+- Migration mới 20261030150136_AddMaiPasswordResetInquiriesAndFeeWaiver, model drift đạt, SQL nâng cấp sinh được; không sửa migration cũ/reset DB hay tự quét hợp đồng đóng. SQL nhóm/hộp thư thật/PowerShell Windows/owner review còn chờ; không passing.
+
+
+<!-- MAI_LOCAL_DEMO_HANDOFF_V1 -->
+## 2026-11-04 — Bàn giao phần Ngọc Mai và chạy demo local
+
+- Người dùng xác nhận đã chạy thành công demo quên mật khẩu email trên SSFRMS_Demo.
+- Thêm scripts/mai-demo/local-demo.cjs và docs/ngoc-mai-local-demo.md: cấu hình SQL/Gmail một lần bằng user-secrets, giữ SMTP password/HashKey đã có; lần sau một lệnh chạy API thật và FE sau khi backend ready.
+- Giữ nội dung main và các thay đổi đã phục hồi; không sửa appsettings, migration cũ hoặc quy định D32/D35–D36. Không đổi trạng thái feature.
+- Công cụ đóng gói chạy build API, unit tests BE và bộ FE; kết quả thực tế, SHA nền và danh sách file nằm trong verification.json/manifest.json của ZIP được tạo tại máy đóng gói.
+- Chưa có kết quả SQL Integration đầy đủ, nâng cấp database dùng chung hoặc nghiệm thu toàn bộ các luồng T05/T06/T19 trong lần đóng gói này. Không tự commit/push/PR/merge.

@@ -396,23 +396,13 @@ public class StaffService(AppDbContext dbContext) : IStaffService
 
     public async Task SubmitReturnInspectionAsync(long userId, string id, ReturnInspectionRequest request, CancellationToken ct = default)
     {
-        var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
-        var num = FacilityOpsStateStore.ParseIdNumber(id);
-        var inspection = await dbContext.ReturnInspections
-            .Include(ri => ri.Contract).ThenInclude(c => c.Unit)
-            .FirstOrDefaultAsync(ri => (ri.InspectionId == num || ri.ContractId == num) && ri.Contract.Unit.FacilityId == fac.FacilityId, ct)
-            ?? throw new InvalidOperationException("Không tìm thấy biên bản kiểm tra trả kho tại cơ sở.");
-
-        inspection.Status = "COMPLETED";
-        inspection.InspectedAt = DateTime.UtcNow;
-        inspection.StaffId = userId;
-        inspection.Notes = request.Items;
-        inspection.ConditionStatus = request.Walls;
-        if (inspection.Contract?.Unit != null)
-        {
-            inspection.Contract.Unit.Status = "MAINTENANCE";
-        }
-        await dbContext.SaveChangesAsync(ct);
+        if (!request.DamageFee.HasValue || !request.CleaningRequired.HasValue)
+            throw new ArgumentException("Biên bản cần gửi đầy đủ phí hư hỏng và lựa chọn vệ sinh. Vui lòng cập nhật biểu mẫu.");
+        var manager = await dbContext.UserRoles.AnyAsync(x => x.UserId == userId && x.Role.RoleName == "MANAGER", ct);
+        var code = long.TryParse(id, out var number) ? $"TK-{number:0000}" : id;
+        await new FacilityOpsService(dbContext).SubmitReturnInspectionAsync(new(userId, manager), code,
+            new(request.Items, request.Walls, request.Keys, request.Proposal, request.DamageFee,
+                request.CleaningRequired, request.DamageItem, request.FeeReason, request.Photos), ct);
     }
 
     // Code cũ được giữ để đối chiếu.

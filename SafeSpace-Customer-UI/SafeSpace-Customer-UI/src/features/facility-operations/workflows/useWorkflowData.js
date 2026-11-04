@@ -28,9 +28,23 @@ export function useWorkflowData(resource) {
   const [errorStatus, setErrorStatus] = useState(0);
   const [busy, setBusy] = useState(false);
   const guard = useRef(false), generation = useRef(0);
+  const inquiryRequest = useRef(null);
   const reload = useCallback(async () => {
     const seq = ++generation.current;
     setLoading(true); setError(""); setErrorStatus(0);
+    if (resource === "inquiries") {
+      try {
+        const result = demo ? readDemo()[storageResource] : await loadWorkflow(resource);
+        if (!Array.isArray(result)) throw new Error("Máy chủ chưa trả danh sách hợp lệ.");
+        if (seq === generation.current) { setData(result); setNeedsRefresh(false); }
+      } catch (e) {
+        if (seq === generation.current) { setError(e.message); setErrorStatus(e?.status || 0); }
+        onApiError?.(e);
+      } finally {
+        if (seq === generation.current) setLoading(false);
+      }
+      return;
+    }
     try { const result = demo ? readDemo()[storageResource] : await loadWorkflow(resource); if(["depositRefunds","overdue"].includes(resource)&&!Array.isArray(result))throw new Error("Máy chủ chưa trả danh sách hợp lệ."); if (seq === generation.current) {setData(result);setNeedsRefresh(false);} }
     catch (e) { if (seq === generation.current) { setError(e.message); setErrorStatus(e?.status || 0); } onApiError?.(e); }
     finally { if (seq === generation.current) setLoading(false); }
@@ -64,10 +78,31 @@ export function useWorkflowData(resource) {
         if(action==="RECORD_REMOVAL") {requestPayload={...payload,beforePhotos:[],afterPhotos:[]};for(const kind of ["beforePhotos","afterPhotos"]){for(const file of payload[kind]){await verifyPhotoFile(file);requestPayload[kind].push(await readPhotoData(file));}}}
         if(activeActor.current!==actorKey)throw new Error("Tài khoản đã thay đổi. Tải lại trước khi gửi.");
         if(action==="RECORD_REMOVAL")requestPayload.performedAt=actualVnTime(payload.performedAt);
+        if (resource === "inquiries") {
+          const fingerprint = JSON.stringify({ actorKey, action, payload });
+          if (inquiryRequest.current?.fingerprint !== fingerprint)
+            inquiryRequest.current = { fingerprint, id: crypto.randomUUID() };
+          requestPayload = { ...requestPayload, clientRequestId: inquiryRequest.current.id,
+            ...(action === "REPLY_INQUIRY" ? { expectedVersion: data.find(item => item.id === payload.id)?.version } : {}) };
+        }
         const result=await saveWorkflow(resource, action, requestPayload);
         if(activeActor.current!==actorKey)throw new Error("Tài khoản đã thay đổi. Tải lại để xem kết quả.");
+        if (resource === "inquiries") {
+          const item = result?.item;
+          if (!item || !Number.isSafeInteger(item.version) || !Array.isArray(item.responses) ||
+            (action === "REPLY_INQUIRY" && item.id !== payload.id)) {
+            const error = new Error("Máy chủ chưa xác nhận yêu cầu hỗ trợ. Tải lại trước khi gửi tiếp.");
+            error.uncertain = true; throw error;
+          }
+          inquiryRequest.current = null;
+        }
         if(action==="CONFIRM_DEPOSIT_REFUND") {const item=result?.item;if(item?.id!==payload.id||item.status!=="PAID"||item.transactionRef!==payload.transactionRef.trim()||!Number.isFinite(Date.parse(item.paidAt))||item.amount!==data.find(r=>r.id===payload.id)?.amount||item.facilityId!==facilityId||!Number.isSafeInteger(item.version)||item.version<=data.find(r=>r.id===payload.id)?.version||["contractId","ownerId","customer","bankName","accountNumber","accountHolder"].some(k=>item[k]!==data.find(r=>r.id===payload.id)?.[k])){const error=new Error("Máy chủ chưa xác nhận bằng chứng chuyển tiền; tải lại trước khi gửi tiếp.");error.uncertain=true;throw error;}setData(previous=>previous.map(r=>r.id===item.id?item:r));}
         else if(action==="RECORD_REMOVAL") {if(result?.item?.id!==payload.id||result.item.status!=="DONE"||!result.item.record?.savedAt||result.item.facilityId!==facilityId||!result.item.record?.beforePhotos?.length||!result.item.record?.afterPhotos?.length){const error=new Error("Máy chủ chưa xác nhận biên bản và bằng chứng xử lý.");error.uncertain=true;throw error;}setData(previous=>previous.map(r=>r.id===result.item.id?result.item:r));}
+        else if (resource === "inquiries") setData(previous => {
+          const item = result.item;
+          return previous.some(row => row.id === item.id)
+            ? previous.map(row => row.id === item.id ? item : row) : [item, ...previous];
+        });
         else if(action==="SAVE_RENTAL_POLICY")setData(verifyPublishedPolicy(result,payload));
         else await reload();
       }

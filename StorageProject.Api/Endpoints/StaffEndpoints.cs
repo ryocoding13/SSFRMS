@@ -107,6 +107,8 @@ public static class StaffEndpoints
                 await staffService.SubmitReturnInspectionAsync(userId, id, request, ct);
                 return Results.Ok(new { message = "Lưu biên bản kiểm tra trả kho thành công." });
             }
+            catch (UnauthorizedAccessException ex) { return Results.Json(new { error = ex.Message }, statusCode: 403); }
+            catch (KeyNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
                 return Results.BadRequest(new { error = ex.Message });

@@ -239,6 +239,11 @@ public class ReturnInspectionRequest
     public string Walls { get; set; } = null!;
     public string Keys { get; set; } = null!;
     public string Proposal { get; set; } = null!;
+    public decimal? DamageFee { get; set; }
+    public bool? CleaningRequired { get; set; }
+    public string? DamageItem { get; set; }
+    public string? FeeReason { get; set; }
+    public IReadOnlyList<StorageProject.Core.DTOs.Evidence.EvidencePhotoUpload>? Photos { get; set; }
 }
 
 public class TicketResponseRequest

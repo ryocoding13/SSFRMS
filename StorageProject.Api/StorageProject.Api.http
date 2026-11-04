@@ -142,3 +142,34 @@ Authorization: Bearer {{managerToken}}
 Content-Type: application/json
 
 { "action": "SEND_INCIDENT_PROPOSAL", "id": "SC-0001-1", "expectedVersion": 1, "description": "Thấm nước mái kho", "affectedAt": "2026-10-29T01:00:00.000Z", "confirmed": true, "proposal": "TERMINATE" }
+
+### F43 — Dùng email tài khoản thử do bạn kiểm soát, không lưu OTP/mật khẩu thật vào file này.
+POST {{StorageProject.Api_HostAddress}}/api/auth/password-reset/request
+Content-Type: application/json
+
+{ "email":"test-account@example.com" }
+
+### Mã phải lấy từ thư thực tế, 000000 chỉ là ví dụ.
+POST {{StorageProject.Api_HostAddress}}/api/auth/password-reset/confirm
+Content-Type: application/json
+
+{ "email":"test-account@example.com", "code":"000000", "newPassword":"ExampleOnly@123" }
+
+### T19 — token khách hoặc nhân viên/quản lý đúng cơ sở
+@inquiryToken = <token của tài khoản thử>
+GET {{StorageProject.Api_HostAddress}}/api/support/inquiries
+Authorization: Bearer {{inquiryToken}}
+
+### UUID mới cho thao tác mới, giữ UUID khi retry cùng nội dung.
+POST {{StorageProject.Api_HostAddress}}/api/support/inquiries/actions
+Authorization: Bearer {{inquiryToken}}
+Content-Type: application/json
+
+{ "action":"CREATE_INQUIRY", "facilityId":1, "title":"Tư vấn kho", "description":"Cần kho lạnh 15 m²", "clientRequestId":"e2d35c8b-26bb-4641-a4fe-4e3070291d45" }
+
+### Lấy id/version mới nhất từ GET trước khi trả lời.
+POST {{StorageProject.Api_HostAddress}}/api/support/inquiries/actions
+Authorization: Bearer {{inquiryToken}}
+Content-Type: application/json
+
+{ "action":"REPLY_INQUIRY", "id":"TV-0001", "note":"Đã tiếp nhận", "close":false, "expectedVersion":1, "clientRequestId":"68305c1c-d16c-43e2-92c3-26fa24fef5b1" }

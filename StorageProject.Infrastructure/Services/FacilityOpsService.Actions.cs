@@ -536,10 +536,12 @@ public partial class FacilityOpsService
             HygieneViolation: inspection.CleaningRequired || inspection.CleaningFee > 0 || inspection.ConditionStatus == "DIRTY",
             Overdue: overdueDays > 0, DamageFee: inspection.DamageFee, OverdueFee: overdueFee));
 
-        // Khoản đã phát sinh trên hợp đồng được bù trừ bằng đúng phần đã trừ vào cọc; phần còn lại vẫn là nợ.
-        SettleFromDeposit(contract, "DAMAGE_FEE", result.DamageDeduction, now);
-        SettleFromDeposit(contract, "OVERDUE_FEE", result.OverdueDeduction, now);
-        if (result.FixedDeduction > 0) SettleFromDeposit(contract, "CLEANING_FEE", decimal.MaxValue, now);
+        // D32: chỉ phần bù từ cọc là PAID; phần còn lại được miễn, không giữ công nợ.
+        SettleFromDeposit(contract, "DAMAGE_FEE", result.DamageDeduction, now, actor.UserId);
+        SettleFromDeposit(contract, "OVERDUE_FEE", result.OverdueDeduction, now, actor.UserId);
+        var cleaningBudget = inspection.CleaningRequired || inspection.CleaningFee > 0 || inspection.ConditionStatus == "DIRTY"
+            ? Math.Min(result.FixedDeduction, CleaningFeeFor(contract.DepositAmount)) : 0m;
+        SettleFromDeposit(contract, "CLEANING_FEE", cleaningBudget, now, actor.UserId);
 
         var refund = result.Total;
         var refundStatus = refund > 0 ? "PENDING" : "NO_REFUND";
@@ -586,27 +588,34 @@ public partial class FacilityOpsService
         return day;
     }
 
-    // Đánh dấu khoản chưa thanh toán loại `type` là đã trừ vào cọc tới tối đa `budget`; khoản trả một phần được tách đôi.
-    private void SettleFromDeposit(RentalContract contract, string type, decimal budget, DateTime now)
+    // Giữ tổng tiền ghi nhận: tách phần bù cọc và phần miễn, không giả đã thu toàn bộ.
+    private void SettleFromDeposit(RentalContract contract, string type, decimal budget, DateTime now, long actorId)
     {
         foreach (var p in contract.Payments.Where(p => p.PaymentType == type && (p.Status == "PENDING" || p.Status == "FAILED"))
                      .OrderBy(p => p.PaymentId).ToList())
         {
-            if (budget <= 0) break;
-            if (p.Amount <= budget)
+            var settled = Math.Min(p.Amount, budget);
+            budget -= settled;
+            if (settled == p.Amount)
             {
-                budget -= p.Amount;
-                p.Status = "PAID"; p.PaidAt = now; p.UpdatedAt = now; p.TransactionReference = "Trừ vào tiền cọc";
+                p.Status = "PAID"; p.PaidAt = now; p.UpdatedAt = now; p.TransactionReference = $"DEPOSIT:{contract.ContractId}:{p.PaymentId}";
                 continue;
             }
-            dbContext.Payments.Add(new Payment
+            if (settled > 0)
             {
-                ContractId = p.ContractId, PaymentType = p.PaymentType, Amount = budget, Currency = p.Currency,
-                PaymentMethod = p.PaymentMethod, TransactionReference = "Trừ vào tiền cọc", DueDate = p.DueDate,
-                PaidAt = now, Status = "PAID", CreatedAt = now, UpdatedAt = now
-            });
-            p.Amount -= budget; p.UpdatedAt = now;
-            budget = 0;
+                dbContext.Payments.Add(new Payment
+                {
+                    ContractId = p.ContractId, ReservationId = p.ReservationId, PaymentType = p.PaymentType,
+                    Amount = settled, Currency = p.Currency, PaymentMethod = p.PaymentMethod,
+                    TransactionReference = $"DEPOSIT:{contract.ContractId}:{p.PaymentId}", DueDate = p.DueDate,
+                    PaidAt = now, Status = "PAID", CreatedAt = now, UpdatedAt = now
+                });
+                p.Amount -= settled;
+            }
+            p.Status = "CANCELLED"; p.PaidAt = null; p.UpdatedAt = now;
+            p.TransactionReference = $"WAIVED:{contract.ContractId}:{p.PaymentId}";
+            Log(actorId, "RETURN_FEE_WAIVED", LogEntity.Contract, contract.ContractId,
+                new { paymentId = p.PaymentId, paymentType = p.PaymentType, waivedAmount = p.Amount });
         }
     }
 
