@@ -687,6 +687,54 @@ namespace StorageProject.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("StorageProject.Core.Entities.PasswordResetChallenge", b =>
+                {
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FailedAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Nonce")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("PasswordFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("RequestCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("WindowStartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("password_reset_challenges", (string)null);
+                });
+
             modelBuilder.Entity("StorageProject.Core.Entities.Payment", b =>
                 {
                     b.Property<long>("PaymentId")
@@ -771,7 +819,7 @@ namespace StorageProject.Infrastructure.Migrations
 
                             t.HasCheckConstraint("CK_payments_payment_type", "[PaymentType] IN ('DEPOSIT','RENT','RENEWAL','EXTRA_FEE','OVERDUE_FEE','DAMAGE_FEE','CLEANING_FEE','LOST_KEY_FEE','ACCESS_CARD_FEE','REFUND')");
 
-                            t.HasCheckConstraint("CK_payments_status", "[Status] IN ('PENDING','PAID','FAILED','REFUNDED','PARTIALLY_REFUNDED')");
+                            t.HasCheckConstraint("CK_payments_status", "[Status] IN ('PENDING','PAID','FAILED','REFUNDED','PARTIALLY_REFUNDED','CANCELLED')");
                         });
                 });
 
@@ -1483,6 +1531,101 @@ namespace StorageProject.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("StorageProject.Core.Entities.SupportInquiry", b =>
+                {
+                    b.Property<long>("InquiryId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("InquiryId"));
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("CustomerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<long>("FacilityId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
+                    b.HasKey("InquiryId");
+
+                    b.HasIndex("CustomerId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("FacilityId", "Status");
+
+                    b.ToTable("support_inquiries", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_support_inquiries_status", "[Status] IN ('OPEN','WAITING_CUSTOMER','CLOSED')");
+
+                            t.HasCheckConstraint("CK_support_inquiries_version", "[Version] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("StorageProject.Core.Entities.SupportInquiryReply", b =>
+                {
+                    b.Property<long>("ReplyId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("ReplyId"));
+
+                    b.Property<long>("AuthorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("CloseRequested")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("InquiryId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("ReplyId");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("InquiryId", "AuthorId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.ToTable("support_inquiry_replies", (string)null);
+                });
+
             modelBuilder.Entity("StorageProject.Core.Entities.SupportTicket", b =>
                 {
                     b.Property<long>("TicketId")
@@ -2016,6 +2159,17 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Navigation("Contract");
                 });
 
+            modelBuilder.Entity("StorageProject.Core.Entities.PasswordResetChallenge", b =>
+                {
+                    b.HasOne("StorageProject.Core.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("StorageProject.Core.Entities.Payment", b =>
                 {
                     b.HasOne("StorageProject.Core.Entities.RentalContract", "Contract")
@@ -2265,6 +2419,44 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Navigation("UnitType");
                 });
 
+            modelBuilder.Entity("StorageProject.Core.Entities.SupportInquiry", b =>
+                {
+                    b.HasOne("StorageProject.Core.Entities.User", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("StorageProject.Core.Entities.Facility", "Facility")
+                        .WithMany()
+                        .HasForeignKey("FacilityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("Facility");
+                });
+
+            modelBuilder.Entity("StorageProject.Core.Entities.SupportInquiryReply", b =>
+                {
+                    b.HasOne("StorageProject.Core.Entities.User", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("StorageProject.Core.Entities.SupportInquiry", "Inquiry")
+                        .WithMany("Replies")
+                        .HasForeignKey("InquiryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("Inquiry");
+                });
+
             modelBuilder.Entity("StorageProject.Core.Entities.SupportTicket", b =>
                 {
                     b.HasOne("StorageProject.Core.Entities.User", "AssignedStaff")
@@ -2477,6 +2669,11 @@ namespace StorageProject.Infrastructure.Migrations
                     b.Navigation("SupportTickets");
 
                     b.Navigation("UnitAssignments");
+                });
+
+            modelBuilder.Entity("StorageProject.Core.Entities.SupportInquiry", b =>
+                {
+                    b.Navigation("Replies");
                 });
 
             modelBuilder.Entity("StorageProject.Core.Entities.SupportTicket", b =>

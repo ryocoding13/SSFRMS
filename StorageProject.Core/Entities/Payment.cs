@@ -15,7 +15,7 @@ public class Payment
     public string? TransactionReference { get; set; }
     public DateOnly? DueDate { get; set; }
     public DateTime? PaidAt { get; set; }
-    public string Status { get; set; } = "PENDING"; // PENDING, PAID, FAILED, REFUNDED, PARTIALLY_REFUNDED
+    public string Status { get; set; } = "PENDING"; // PENDING, PAID, FAILED, REFUNDED, PARTIALLY_REFUNDED, CANCELLED
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

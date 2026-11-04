@@ -154,7 +154,7 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
             t.HasCheckConstraint("CK_payments_payment_method",
                 "[PaymentMethod] IN ('CASH','BANK_TRANSFER','CARD','E_WALLET','PAYMENT_GATEWAY')");
             t.HasCheckConstraint("CK_payments_status",
-                "[Status] IN ('PENDING','PAID','FAILED','REFUNDED','PARTIALLY_REFUNDED')");
+                "[Status] IN ('PENDING','PAID','FAILED','REFUNDED','PARTIALLY_REFUNDED','CANCELLED')");
         });
         b.HasOne(p => p.Reservation).WithMany().HasForeignKey(p => p.ReservationId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(p => new { p.ReservationId, p.PaymentType }).IsUnique()

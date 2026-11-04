@@ -20,7 +20,9 @@
     "test:workflow-actions": "node scripts/check-workflow-actions.mjs",
     "test:api-pending": "node scripts/check-api-pending.mjs",
     "test:password-reset": "node scripts/check-password-reset.mjs",
-    "test:batch10": "playwright test --config playwright.batch10.config.js"
+    "test:batch10": "playwright test --config playwright.batch10.config.js",
+    "test:password-reset:backend": "node scripts/check-password-reset-backend.mjs",
+    "test:inquiries:backend": "node scripts/check-inquiries-backend.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",

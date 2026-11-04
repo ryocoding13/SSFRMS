@@ -28,18 +28,17 @@ public sealed record RefundResult(
     decimal DepositRefund,
     decimal FixedDeduction,
     decimal DamageDeduction,
-    decimal OverdueDeduction,
-    decimal Debt)
+    decimal OverdueDeduction)
 {
     public decimal Total => RentRefund + DepositRefund;
 }
 
 /// <summary>
-/// D27 — công thức hoàn cọc và hoàn thuê. Hàm thuần, không đọc cơ sở dữ liệu.
+/// D32 — công thức hoàn cọc và hoàn thuê. Hàm thuần, không đọc cơ sở dữ liệu.
 /// Huỷ trước StartDate: phí 10% cọc, hoàn 100% tiền thuê + 90% cọc.
 /// Dừng sớm sau StartDate: giữ 30% cọc; tháng đang chạy tính đủ, tháng chưa bắt đầu được hoàn tiền thuê.
-/// Trả kho bình thường: hoàn đủ cọc; vi phạm vệ sinh hoặc quá hạn trừ cố định 10% cọc.
-/// Hư hỏng và phí quá hạn trừ thêm vào cọc còn lại; không đủ thì hoàn 0 và phần thiếu ghi thành công nợ.
+/// Trả kho bình thường: hoàn đủ cọc; cần vệ sinh trừ cố định 10% cọc.
+/// Hư hỏng và phí quá hạn chỉ trừ trong phạm vi cọc; không phát sinh công nợ ngoài cọc.
 /// </summary>
 public static class RefundPolicy
 {
@@ -55,12 +54,12 @@ public static class RefundPolicy
         if (i.Scenario == RefundScenario.CancelBeforeStart)
         {
             var fee = Money(i.Deposit * CancelFeeRate);
-            return new RefundResult(i.RentPaid, i.Deposit - fee, fee, 0, 0, 0);
+            return new RefundResult(i.RentPaid, i.Deposit - fee, fee, 0, 0);
         }
 
         var fixedDeduction = i.Scenario == RefundScenario.EarlyStop
             ? Money(i.Deposit * EarlyStopKeepRate)
-            : i.HygieneViolation || i.Overdue ? Money(i.Deposit * HygieneFeeRate) : 0m;
+            : i.HygieneViolation ? Money(i.Deposit * HygieneFeeRate) : 0m;
 
         var rentRefund = i.Scenario == RefundScenario.EarlyStop
             ? UnusedRent(i.RentPaid, i.StartDate, i.EndDate, i.Today)
@@ -71,8 +70,7 @@ public static class RefundPolicy
         remaining -= damage;
         var overdue = Math.Min(remaining, i.OverdueFee);
         remaining -= overdue;
-        var debt = (i.DamageFee - damage) + (i.OverdueFee - overdue);
-        return new RefundResult(rentRefund, remaining, fixedDeduction, damage, overdue, debt);
+        return new RefundResult(rentRefund, remaining, fixedDeduction, damage, overdue);
     }
 
     /// <summary>Số tháng thuê (làm tròn lên) giữa hai ngày; tối thiểu 1.</summary>

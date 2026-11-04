@@ -90,7 +90,13 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
         // Email có thể trùng username của tài khoản khác; không chọn tuỳ ý một người.
         var user = matches.Count == 1 ? matches[0] : null;
 
-        if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        if (user == null)
+        {
+            throw new UnauthorizedAccessException("Tên đăng nhập / email hoặc mật khẩu không chính xác.");
+        }
+        await using var loginTransaction = await CheckoutTransaction.BeginAsync(dbContext, $"password-reset:{user.UserId}", ct);
+        await dbContext.Entry(user).ReloadAsync(ct);
+        if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
             throw new UnauthorizedAccessException("Tên đăng nhập / email hoặc mật khẩu không chính xác.");
         }
@@ -111,6 +117,8 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
         };
         dbContext.LoginHistories.Add(loginHistory);
         await dbContext.SaveChangesAsync(ct);
+
+        await loginTransaction.CommitAsync(ct);
 
         // Generate JWT Token
         var secret = configuration["JwtSettings:Secret"] ?? "CHANGE_ME_TO_A_SECURE_256BIT_KEY_AT_LEAST_32_CHARS_LONG!!";

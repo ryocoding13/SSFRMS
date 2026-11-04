@@ -327,4 +327,36 @@ public sealed class D32RefundEvidenceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => f.Ops.ConfirmReservationRefundAsync(f.ManagerActor, code,
             new OpsReservationRefundRequest("BANK_TRANSFER", "FT26302000100", DateTime.UtcNow, true)));
     }
+    [Fact] public async Task T06_SettlementCapsActualFeePaymentsAndWaivesOnlyReturnFeeRemainders()
+    {
+        await using var f=await Fixture.CreateAsync();var c=await f.ActiveContractAsync();
+        var move=await new ContractService(f.Db).RegisterMoveOutAsync(f.Customer.UserId,c.ContractId,MoveOut(Photo(Jpeg)));
+        await f.Ops.SubmitReturnInspectionAsync(f.StaffActor,$"TK-{move.InspectionId:0000}",
+            new("Trống","Trầy cửa","Đã nhận","Cần bảo trì trước khi cho thuê lại",2_000_000m,true,"Cửa","Hỏng",[Photo(Jpeg)]));
+        Payment Fee(string type,decimal amount,string status="PENDING")=>new(){ContractId=c.ContractId,PaymentType=type,Amount=amount,PaymentMethod="CASH",Status=status,CreatedAt=DateTime.UtcNow,UpdatedAt=DateTime.UtcNow};
+        var rent=Fee("RENT",1_000_000m,"PAID");var renewal=Fee("RENEWAL",500_000m);
+        f.Db.Payments.AddRange(Fee("DAMAGE_FEE",1_500_000m),Fee("OVERDUE_FEE",3_000_000m,"FAILED"),Fee("CLEANING_FEE",1_000_000m),rent,renewal);await f.Db.SaveChangesAsync();
+        var result=await f.Ops.ConfirmRefundAsync(f.ManagerActor,$"HĐ-{c.StartDate.Year}-{c.ContractId:0000}");
+        Assert.Equal("NO_REFUND",result.RefundStatus);Assert.Equal(0m,result.Refund);
+        var fees=await f.Db.Payments.Where(p=>p.ContractId==c.ContractId&&(p.PaymentType=="DAMAGE_FEE"||p.PaymentType=="OVERDUE_FEE"||p.PaymentType=="CLEANING_FEE")).ToListAsync();
+        Assert.Equal(1_000_000m,fees.Where(p=>p.Status=="PAID").Sum(p=>p.Amount));Assert.Equal(4_500_000m,fees.Where(p=>p.Status=="CANCELLED").Sum(p=>p.Amount));
+        Assert.DoesNotContain(fees,p=>p.Status is "PENDING" or "FAILED");Assert.All(fees.Where(p=>p.Status=="CANCELLED"),p=>Assert.Null(p.PaidAt));
+        Assert.Equal("PAID",rent.Status);Assert.Equal(1_000_000m,rent.Amount);Assert.Equal("PENDING",renewal.Status);Assert.Equal(500_000m,renewal.Amount);
+        Assert.Equal(3,await f.Db.ActivityLogs.CountAsync(x=>x.Action=="RETURN_FEE_WAIVED"));
+    }
+    [Fact] public async Task LegacyInspectionRequiresExplicitFeesAndUsesTheSamePersistedRules()
+    {
+        await using var f=await Fixture.CreateAsync();var c=await f.ActiveContractAsync();
+        var move=await new ContractService(f.Db).RegisterMoveOutAsync(f.Customer.UserId,c.ContractId,MoveOut(Photo(Jpeg)));
+        var service=new StaffService(f.Db);
+        await Assert.ThrowsAsync<ArgumentException>(()=>service.SubmitReturnInspectionAsync(f.Staff.UserId,move.InspectionId.ToString(),
+            new(){Items="Trống",Walls="Sạch",Keys="Đủ",Proposal="Sẵn sàng cho thuê lại"}));
+        await service.SubmitReturnInspectionAsync(f.Staff.UserId,move.InspectionId.ToString(),
+            new(){Items="Trống",Walls="Bẩn",Keys="Đủ",Proposal="Cần vệ sinh",DamageFee=0,CleaningRequired=true,FeeReason="Cần vệ sinh sau trả kho"});
+        var inspection=await f.Db.ReturnInspections.AsNoTracking().SingleAsync(x=>x.InspectionId==move.InspectionId);
+        Assert.Equal("COMPLETED",inspection.Status);Assert.True(inspection.CleaningRequired);Assert.Equal(100_000m,inspection.CleaningFee);
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>service.SubmitReturnInspectionAsync(f.Staff.UserId,move.InspectionId.ToString(),
+            new(){Items="Trống",Walls="Sạch",Keys="Đủ",Proposal="Sẵn sàng cho thuê lại",DamageFee=0,CleaningRequired=false}));
+    }
+
 }

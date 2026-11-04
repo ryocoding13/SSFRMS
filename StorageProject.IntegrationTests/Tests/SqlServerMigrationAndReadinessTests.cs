@@ -19,7 +19,8 @@ public sealed class SqlServerMigrationAndReadinessTests(SqlServerFixture fixture
         "20261020154838_ReservationPaymentIntegrity",
         "20261026093424_AddDepositPercentPerDayCalculationType",
         "20261027165711_AddRenewalSettlementAndPolicyConsent",
-        "20261029054804_AddRefundEvidenceAndIncidents"
+        "20261029054804_AddRefundEvidenceAndIncidents",
+        "20261030150136_AddMaiPasswordResetInquiriesAndFeeWaiver"
     ];
 
     [Fact]

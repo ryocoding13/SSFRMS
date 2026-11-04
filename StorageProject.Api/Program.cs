@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using StorageProject.Api.Endpoints;
+using StorageProject.Api.Extensions;
 using StorageProject.Core.DTOs.Access;
 using StorageProject.Core.Interfaces;
 using StorageProject.Infrastructure.Data;
@@ -58,6 +59,7 @@ StorageProject.Infrastructure.Services.EvidencePhotos.Configure(jwtSecret,
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        options.Events = new JwtBearerEvents { OnTokenValidated = AuthSessionValidation.ValidateAsync };
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -73,6 +75,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddRateLimiter(options => {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    PasswordResetRateLimits.Configure(options);
     options.AddPolicy("access-scan", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
@@ -154,6 +157,10 @@ builder.Services.AddCors(options =>
 });
 
 // 5. Dependency Injection - Services
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<IPasswordResetEmailSender, SmtpPasswordResetEmailSender>();
+builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
+builder.Services.AddScoped<ISupportInquiryService, SupportInquiryService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IFacilityService, FacilityService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
@@ -226,6 +233,8 @@ app.UseRateLimiter();
 
 // 7. Map Minimal API Endpoints
 app.MapAuthEndpoints();
+app.MapPasswordResetEndpoints();
+app.MapSupportInquiryEndpoints();
 app.MapFacilityEndpoints();
 app.MapReservationEndpoints();
 app.MapContractEndpoints();

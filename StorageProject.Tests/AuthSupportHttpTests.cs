@@ -38,7 +38,7 @@ public sealed class AuthSupportHttpFixture : IAsyncDisposable
     private WebApplication app = null!;
     public string Address { get; private set; } = "";
     public long ContractId { get; private set; }
-    public static async Task<AuthSupportHttpFixture> Create()
+    public static async Task<AuthSupportHttpFixture> Create(bool withInquiries = false)
     {
         var f = new AuthSupportHttpFixture();
         var builder = WebApplication.CreateBuilder();
@@ -50,6 +50,7 @@ public sealed class AuthSupportHttpFixture : IAsyncDisposable
         });
         builder.Services.AddScoped<AppDbContext>(_ => new TestDb(new DbContextOptionsBuilder<AppDbContext>().UseSqlite($"Data Source={f.database}").Options));
         builder.Services.AddScoped<IAuthService, AuthService>();
+        if (withInquiries) builder.Services.AddScoped<ISupportInquiryService, SupportInquiryService>();
         builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
         builder.Services.AddScoped<IStaffService, StaffService>();
         builder.Services.AddScoped<IFacilityOpsService, FacilityOpsService>();
@@ -68,6 +69,7 @@ public sealed class AuthSupportHttpFixture : IAsyncDisposable
         f.app = builder.Build();
         f.app.UseCors(); f.app.UseAuthentication(); f.app.UseAuthorization();
         f.app.MapAuthEndpoints(); f.app.MapSupportTicketEndpoints(); f.app.MapStaffEndpoints();
+        if (withInquiries) f.app.MapSupportInquiryEndpoints();
         f.app.MapFacilityOpsEndpoints(); f.app.MapFacilityEndpoints(); f.app.MapContractEndpoints();
         // C12/C13 không thao tác đặt chỗ. Danh sách trống chỉ dùng để khởi động app trong browser test.
         f.app.MapGet("/api/reservations", () => Array.Empty<object>()).RequireAuthorization();
@@ -102,6 +104,11 @@ public sealed class AuthSupportHttpFixture : IAsyncDisposable
         var contract = new RentalContract { ReservationId = order.ReservationId, CustomerId = customer.UserId, UnitId = unit.UnitId,
             StartDate = order.StartDate, EndDate = order.ExpectedEndDate, AgreedMonthlyRate = 1000000, DepositAmount = 1000000, Status = "ACTIVE", CreatedAt = DateTime.UtcNow };
         db.Add(contract); await db.SaveChangesAsync(); ContractId = contract.ContractId;
+    }
+    public async Task WithDb(Func<AppDbContext, Task> action)
+    {
+        using var scope = app.Services.CreateScope();
+        await action(scope.ServiceProvider.GetRequiredService<AppDbContext>());
     }
     public HttpClient Client(string? token = null)
     {

@@ -275,3 +275,9 @@ Shared validation/summary ở `src/features/facility-operations/settlements/{set
 - `shared/components/ChangeFlowDialog.jsx` và business useConfirm: guard/lifecycle/cleanup và ConfirmDialog chuẩn. UI Modal có placement drawer tùy chọn, không đổi placement callsite cũ.
 
 Giới hạn/test/node Figma ở docs/sprints/FE-figma-sync-09.md; endpoint/marker các batch trước vẫn blocked như ghi trong BACKEND-TODO.
+
+## F43 — Reset và tư vấn nối API (30/10/2026)
+
+- `src/features/auth/PasswordResetPage.jsx`: giữ route `#/reset-password`, khoá gửi đồng thời, countdown, lỗi giữ form. API `src/features/auth/api/passwordResetApi.js` đã có.
+- Giữ `InquiryListPage.jsx`, `InquiryDetailPage.jsx`, `StaffInquiryPage.jsx`; hook `src/features/facility-operations/workflows/useWorkflowData.js` bổ sung UUID/version, kiểm receipt và cập nhật item server tại chỗ để giữ popup thành công.
+- Browser: `scripts/check-password-reset-backend.mjs`, `scripts/check-inquiries-backend.mjs`, host `tools/PasswordResetBrowserHost`. Kestrel/JWT/SQLite riêng, không thay SQL Server/thư thật.
