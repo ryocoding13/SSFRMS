@@ -171,6 +171,14 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
 
     public async Task<RenewalDto> SelectCounterPaymentAsync(long customerId, long renewalId, CancellationToken ct = default)
     {
+        // S02 (Phiên 3): khoá theo hợp đồng như lúc nhân viên thu tiền / PayOS ghi nhận, tránh đổi sang quầy giữa chừng.
+        var contractId = await dbContext.ContractRenewals.AsNoTracking()
+            .Where(r => r.RenewalId == renewalId && r.Contract.CustomerId == customerId)
+            .Select(r => (long?)r.ContractId)
+            .FirstOrDefaultAsync(ct)
+            ?? throw new KeyNotFoundException("Không tìm thấy yêu cầu gia hạn của bạn.");
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract:{contractId}", ct);
+
         var renewal = await dbContext.ContractRenewals
             .Include(r => r.Contract)
             .Include(r => r.Payments)
@@ -232,6 +240,7 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
         });
 
         await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
         return new RenewalDto(
             renewal.RenewalId,
@@ -335,12 +344,28 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
 
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract:{renewal.ContractId}", ct);
 
+        // S02 (Phiên 3): không thu tiền mặt hai lần tại quầy. Đọc lại trong khoá; chỉ thu khoản khách đã chọn trả tại quầy.
+        var counterPayment = await dbContext.Payments.AsNoTracking()
+            .Where(p => p.RenewalId == renewal.RenewalId && p.PaymentType == "RENEWAL")
+            .OrderByDescending(p => p.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+        var currentStatus = await dbContext.ContractRenewals.AsNoTracking()
+            .Where(r => r.RenewalId == renewal.RenewalId).Select(r => r.Status).FirstAsync(ct);
+        if (currentStatus == "PAID" || counterPayment?.Status == "PAID")
+        {
+            throw new InvalidOperationException("Khoản gia hạn này đã được thu. Không thu tiền mặt lần nữa.");
+        }
+        if (counterPayment == null || counterPayment.Status != "PENDING" || counterPayment.PaymentMethod != "CASH")
+        {
+            throw new InvalidOperationException("Khách chưa chọn thanh toán gia hạn tại quầy.");
+        }
+
         var success = await RenewalSettlement.RecordAsync(
             dbContext,
             renewal.ContractId,
             renewal.RenewalId,
             "CASH",
-            $"CASH:{userId}:{DateTime.UtcNow.Ticks}",
+            $"CASH-RENEWAL:{renewal.RenewalId}", // tham chiếu cố định: gửi lặp chỉ là idempotent, không tạo khoản thu thứ hai
             userId,
             ct
         );
@@ -525,6 +550,30 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
             LoggedAt = now
         });
 
+        await dbContext.SaveChangesAsync(ct);
+    }
+
+    public async Task CancelRenewalAsync(long customerId, long renewalId, CancellationToken ct = default)
+    {
+        var renewal = await dbContext.ContractRenewals
+            .Include(r => r.Contract)
+            .FirstOrDefaultAsync(r => r.RenewalId == renewalId && r.Contract.CustomerId == customerId, ct)
+            ?? throw new KeyNotFoundException("Không tìm thấy yêu cầu gia hạn của bạn.");
+        // Chỉ huỷ khi còn chờ duyệt. Đã duyệt thì khoản RENEWAL đang chờ thanh toán; để hết hạn 24 giờ hoặc thanh toán.
+        if (renewal.Status != "PENDING")
+            throw new InvalidOperationException("Chỉ huỷ được yêu cầu gia hạn đang chờ duyệt.");
+
+        var now = DateTime.UtcNow;
+        renewal.Status = "CANCELLED";
+        dbContext.ActivityLogs.Add(new ActivityLog
+        {
+            UserId = customerId,
+            EntityType = "RENEWAL",
+            EntityId = renewal.RenewalId,
+            Action = "RENEWAL_CANCELLED",
+            NewValue = JsonSerializer.Serialize(new { renewal.RenewalId, by = "CUSTOMER" }),
+            LoggedAt = now
+        });
         await dbContext.SaveChangesAsync(ct);
     }
 

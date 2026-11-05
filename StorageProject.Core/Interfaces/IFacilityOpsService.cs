@@ -14,7 +14,6 @@ public interface IFacilityOpsService
 
     // Nhân viên (và quản lý)
     Task ConfirmPaymentAsync(OpsActor actor, string id, CancellationToken ct = default);
-    Task ReportMismatchAsync(OpsActor actor, string id, OpsNoteRequest request, CancellationToken ct = default);
     Task VerifyCustomerAsync(OpsActor actor, string id, OpsVerifyRequest request, CancellationToken ct = default);
     Task RecordKeyReceiptAsync(OpsActor actor, string id, CancellationToken ct = default);
     Task RecordKeyReceiptAsync(OpsActor actor, string id, OpsKeyReceiptRequest? request, CancellationToken ct = default);
@@ -50,4 +49,22 @@ public interface IFacilityOpsService
     // T12 · Hồ sơ quá hạn ngày 20 và biên bản xử lý đồ (D32)
     Task<IReadOnlyList<OverdueCaseDto>> GetOverdueCasesAsync(OpsActor actor, CancellationToken ct = default);
     Task<OverdueCaseDto> HandleOverdueCaseActionAsync(OpsActor actor, OverdueCaseActionRequest request, CancellationToken ct = default);
+
+    // D39/D40 · Khách xác nhận khấu trừ trả kho (48 giờ), cơ sở kiểm tra lại phương án khách chọn
+    Task<ReturnDeductionDto> GetReturnDeductionAsync(long customerId, string contractCode, CancellationToken ct = default);
+    Task<ReturnDeductionDto> DecideReturnDeductionAsync(long customerId, string contractCode, ReturnDeductionDecisionRequest request, CancellationToken ct = default);
+    Task RecheckReturnAsync(OpsActor actor, string id, ReturnRecheckRequest request, CancellationToken ct = default);
+    /// <summary>Tiến trình nền: quá 48 giờ khách chưa xác nhận → tự chốt hoàn cọc theo biên bản (D40).</summary>
+    Task<int> AutoSettleExpiredDeductionsAsync(CancellationToken ct = default);
+
+    // D42/D43 · Hoàn tiền mặt tại quầy
+    Task<IReadOnlyList<CashRefundDto>> GetCashRefundsAsync(OpsActor actor, CancellationToken ct = default);
+    Task<CashRefundDto> ApproveCashRefundAsync(OpsActor actor, string id, OpsAssignRequest request, CancellationToken ct = default);
+    Task<CashRefundDto> RecordCashRefundCallAsync(OpsActor actor, string id, CashRefundCallRequest request, CancellationToken ct = default);
+    Task<CashRefundDto> PayCashRefundAsync(OpsActor actor, string id, CashRefundPayRequest request, CancellationToken ct = default);
+
+    // D42 · Báo cáo việc tồn cuối ngày (22:00)
+    Task<DailyStaffReportDto> GetDailyReportAsync(OpsActor actor, DateOnly? date = null, CancellationToken ct = default);
+    /// <summary>Tiến trình nền: từ 22:00 giờ Việt Nam ghi báo cáo một lần mỗi cơ sở mỗi ngày.</summary>
+    Task<int> WriteDailyReportsAsync(CancellationToken ct = default);
 }

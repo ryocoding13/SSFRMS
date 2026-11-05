@@ -1,4 +1,5 @@
 import "@fontsource/inter/latin-400.css";
+import { PublicFooter } from "../shared/components/PublicFooter.jsx";
 import "@fontsource/inter/vietnamese-400.css";
 import "@fontsource/inter/latin-500.css";
 import "@fontsource/inter/vietnamese-500.css";
@@ -219,6 +220,8 @@ function Shell() {
           renderPage(route)
         )}
       </div>
+      {/* Footer công khai cho các màn chưa đăng nhập (trang chủ tự gắn footer riêng) */}
+      {!authed && PUBLIC_FOOTER_PAGES.includes(route.page) && <PublicFooter />}
       {storageError && <p className="storage-warning" role="status">Trình duyệt không cho lưu dữ liệu, thao tác chỉ giữ trong phiên này.</p>}
       {toast && (
         <div className={`toast toast--${toast.tone}`} role={toast.tone === "error" ? "alert" : "status"}>
@@ -230,6 +233,8 @@ function Shell() {
     </div>
   );
 }
+
+const PUBLIC_FOOTER_PAGES = ["login", "register", "reset-password", "pricing", "guide"];
 
 export default function App() {
   return (

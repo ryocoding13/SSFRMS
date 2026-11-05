@@ -7,12 +7,29 @@ import ReturnPhotoInput from "../../../shared/components/ReturnPhotoInput.jsx";
 import { useRefundSupport } from "../../../shared/hooks/useRefundSupport.js";
 import { RETURN_SLOTS, emptyRefundBank, validateRefundBank, validateReturnPhotos } from "../../../shared/utils/refundRequest.js";
 import { addDays, dateLabel, money, today } from "../../../shared/utils/format.js";
+import { earlyStopKeep, isEarlyStop, unusedRent } from "../../../shared/utils/returnPolicy.js";
 import { go } from "../../../app/router.js";
 import { contractOf, pendingRenewal } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { NotFound } from "./components/ContractNotFound.jsx";
 import "../../../shared/styles/customer-detail.css";
 export { RETURN_SLOTS };
+// D30-03 · Khoản hoàn dự kiến: trả trước ngày hết hạn giữ 30% cọc + hoàn tiền thuê tháng chưa bắt đầu (D27/D32).
+// Ngày tính là hôm nay vì BE lấy thời điểm khách gửi yêu cầu làm mốc dừng (ConfirmRefundAsync).
+function RefundPreview({ c }) {
+  const deposit = Number(c.deposit), known = Number.isFinite(deposit) && deposit >= 0, now = today();
+  const early = isEarlyStop(c.end_date, now), keep = early ? earlyStopKeep(deposit) : 0;
+  const rent = early ? unusedRent(c.monthly_rate, c.start_date, c.end_date, now) : 0;
+  const rows = [["Cọc ban đầu", known ? money(deposit) : "Chưa có dữ liệu"]];
+  if (early) rows.push(["Trả trước hạn · giữ 30% cọc", `− ${money(keep)}`]);
+  rows.push(["Tiền thuê tháng chưa bắt đầu", money(rent)], [early ? "Khấu trừ hư hỏng" : "Khấu trừ (vệ sinh, hư hỏng, quá hạn)", "Sau kiểm tra"]);
+  return <section className="panel customer-detail__card return-refund">
+    <h2>Khoản hoàn dự kiến</h2>
+    <DetailList items={rows} />
+    <div className="return-refund__total"><span>Dự kiến hoàn</span><strong>{known ? money(Math.max(0, deposit - keep) + rent) : "Chưa có dữ liệu"}</strong></div>
+    <p className="hint">{early ? `Trả trước ngày ${dateLabel(c.end_date)}: hoàn 70% cọc và tiền thuê các tháng chưa bắt đầu; tháng đang dùng tính đủ.` : "Trả đúng hạn, kho sạch: hoàn đủ cọc."} Số chính thức xác nhận sau kiểm tra kho; tổng khấu trừ tối đa bằng cọc. Hoàn trong 3–5 ngày làm việc vào tài khoản chính chủ.</p>
+  </section>;
+}
 export function ReturnRequestPage({ id }) {
   const { data, dispatch, mode } = useApp();
   const support = useRefundSupport("returnRequestSupported");
@@ -63,6 +80,7 @@ export function ReturnRequestPage({ id }) {
       </form>
       <aside className="customer-detail__column customer-detail__sidebar">
         <section className="panel customer-detail__card"><h2>Hợp đồng {id}</h2><DetailList items={[["Kho", c.unit_number], ["Dùng đến hết", `${dateLabel(c.end_date)} · 23:59`], ["Cọc đang giữ", money(c.deposit)]]} /></section>
+        <RefundPreview c={c} />
         <section className="panel customer-detail__card return-request__warning"><h2>Sau khi gửi thành công</h2><ul><li>Dừng tính phí quá hạn ngay.</li><li>QR/PIN khoá ngay, không mở lại.</li><li>Không thể huỷ yêu cầu.</li><li>Đồ còn lại do nhân viên dọn; cơ sở không nhận bảo quản.</li></ul><p className="hint">Số hoàn được xác nhận sau kiểm tra. Tổng khấu trừ tối đa bằng tiền cọc, không thu thêm ngoài cọc.</p></section>
       </aside>
     </div>

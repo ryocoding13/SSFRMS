@@ -43,10 +43,8 @@ public static class ContractProvisioning
                 AssignedBy = recordedBy, AssignedAt = now, Status = "ACTIVE", Reason = "Hệ thống tự phân bổ sau thanh toán" });
         }
         if (contract.Status is not ("DRAFT" or "ACTIVE" or "EXPIRING")) return false;
-        if (contract.HandoverRecord == null && !await db.HandoverRecords.AnyAsync(h => h.ContractId == contract.ContractId && contract.ContractId != 0, ct))
-            contract.HandoverRecord = new HandoverRecord { StaffId = recordedBy, CreatedAt = now,
-                ScheduledAt = reservation.CheckInAppointmentAt ?? reservation.StartDate.ToDateTime(new TimeOnly(9, 0)).AddHours(-7),
-                Status = "SCHEDULED", Notes = "Chỉ ghi nhận nhận chìa khóa; không kích hoạt hợp đồng" };
+        // D36 (thay D26): không tự tạo lịch nhận chìa khóa. Lịch chỉ tạo khi khách gửi yêu cầu chủ đề "Nhận chìa khóa"
+        // (SupportTicketService, IssueType KEY_PICKUP).
         var changed = contract.Status == "DRAFT";
         contract.Status = contract.Status == "EXPIRING" ? "EXPIRING" : "ACTIVE";
         contract.ActivatedAt ??= now;

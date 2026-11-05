@@ -63,7 +63,8 @@ public record MoveOutRequest(
     string? AccountNumber = null,
     string? AccountHolder = null,
     bool? Emptied = null,
-    IReadOnlyList<StorageProject.Core.DTOs.Evidence.EvidencePhotoUpload>? Photos = null
+    IReadOnlyList<StorageProject.Core.DTOs.Evidence.EvidencePhotoUpload>? Photos = null,
+    string? RefundMethod = null // D42: BANK_TRANSFER (mặc định) hoặc CASH (tiền mặt tại quầy)
 );
 
 public record MoveOutResponseDto(

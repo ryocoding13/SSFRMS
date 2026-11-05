@@ -62,6 +62,10 @@ public partial class FacilityOpsService
             throw new OpsConflictException("Khoản hoàn đã thay đổi. Tải lại trước khi gửi tiếp; không chuyển tiền lần nữa.");
         }
         if (p.Status != "PENDING" || p.Amount <= 0) throw new InvalidOperationException("Khoản hoàn không còn chờ xử lý.");
+        if (p.PaymentMethod == CashMethod)
+        {
+            throw new InvalidOperationException("Khách chọn nhận tiền mặt tại quầy. Duyệt chi tiền mặt, không ghi chuyển khoản.");
+        }
 
         var incident = await dbContext.FacilityIncidents.AsNoTracking().FirstOrDefaultAsync(i => i.RefundPaymentId == p.PaymentId, ct);
         var account = AccountOf(p, incident);
@@ -139,7 +143,9 @@ public partial class FacilityOpsService
                     Utc(i?.CreatedAt), Utc(p.CreatedAt), Utc(p.CreatedAt), paid ? Utc(p.PaidAt) : null, p.DueDate,
                     paid ? p.TransactionReference : null, account?.BankName, account?.AccountNumber, account?.AccountHolder,
                     incident != null ? $"Kết thúc do sự cố cơ sở ({incident.CaseCode}): {incident.Description}" : i?.Notes,
-                    incident != null ? Array.Empty<EvidencePhotoDto>() : PhotosOf(photos, i?.InspectionId));
+                    incident != null ? Array.Empty<EvidencePhotoDto>() : PhotosOf(photos, i?.InspectionId),
+                    p.PaymentMethod == CashMethod ? CashMethod : "BANK_TRANSFER",
+                    p.PaymentMethod == CashMethod ? CashRefundCode(p.PaymentId) : null);
             })
             .ToList();
     }

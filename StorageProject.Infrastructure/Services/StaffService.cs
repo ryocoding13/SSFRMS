@@ -355,24 +355,6 @@ public class StaffService(AppDbContext dbContext) : IStaffService
         await tx.CommitAsync(ct);
     }
 
-    public async Task MismatchPaymentAsync(long userId, string id, MismatchPaymentRequest request, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(request.Note))
-        {
-            throw new ArgumentException("Ghi chú sai lệch không được để trống.");
-        }
-        var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
-        var r = await FacilityOpsStateStore.FindReservationByIdAsync(dbContext, id, fac.FacilityId, ct);
-        if (r == null)
-        {
-            throw new InvalidOperationException("Không tìm thấy thông tin đặt chỗ / thanh toán.");
-        }
-
-        r.Status = "MISMATCH";
-        r.CancellationReason = request.Note;
-        await dbContext.SaveChangesAsync(ct);
-    }
-
     public async Task VerifyCustomerAsync(long userId, string id, VerifyCustomerRequest request, CancellationToken ct = default)
     {
         if (!request.PhotoMatched || !request.InfoMatched)

@@ -84,26 +84,6 @@ public partial class FacilityOpsService
         await new StaffService(dbContext).ConfirmPaymentAsync(actor.UserId, id, ct);
     }
 
-    public async Task ReportMismatchAsync(OpsActor actor, string id, OpsNoteRequest request, CancellationToken ct = default)
-    {
-        var facility = await FacilityOfAsync(actor, ct);
-        var r = await ReservationAsync(facility.FacilityId, id, ct);
-        if (r.Status != "PENDING_VERIFICATION") throw new InvalidOperationException("Khoản này đã được xử lý.");
-        var note = Clip(request.Note, 500);
-        if (note.Length == 0) throw new ArgumentException("Vui lòng ghi rõ sai lệch (số tiền, nội dung hoặc thời gian).");
-
-        var last = await dbContext.ActivityLogs
-            .Where(l => l.EntityType == LogEntity.Reservation && l.EntityId == r.ReservationId
-                        && (l.Action == LogAction.PaymentMismatch || l.Action == LogAction.TransferReported))
-            .OrderByDescending(l => l.LoggedAt)
-            .FirstOrDefaultAsync(ct);
-        if (last?.Action == LogAction.PaymentMismatch) throw new InvalidOperationException("Khoản này đã được xử lý.");
-
-        // Đơn vẫn chờ đối soát; quản lý liên hệ khách rồi nhân viên xác nhận lại khi đã khớp
-        Log(actor.UserId, LogAction.PaymentMismatch, LogEntity.Reservation, r.ReservationId, new { note });
-        await dbContext.SaveChangesAsync(ct);
-    }
-
     // =====================================================================
     // S02 · Xác minh khách khi đến nhận kho — chỉ lưu 4 số cuối giấy tờ
     // =====================================================================
@@ -224,6 +204,11 @@ public partial class FacilityOpsService
         if ((damageFee > 0 || cleaningRequired) && proposal == ReadyToRelet)
         {
             throw new ArgumentException("Kho cần vệ sinh hoặc sửa phải chờ kiểm tra/bảo trì, không chọn cho thuê lại ngay.");
+        }
+        // L22 / D38: chỉ cho thuê lại ngay khi đạt tiêu chuẩn ít nhất 2/3 mục (đồ còn lại, tường/sàn/cửa, chìa khoá).
+        if (proposal == ReadyToRelet && InspectionStandard.PassedCount(items, walls, keys) < 2)
+        {
+            throw new ArgumentException("Đạt dưới 2/3 tiêu chuẩn nên chưa được chọn \"Sẵn sàng cho thuê lại\".");
         }
         // Kiểm toàn bộ ảnh trước khi ghi; hư hỏng bắt buộc có ảnh bằng chứng.
         var photos = EvidencePhotos.Decode(request.Photos, required: damageFee > 0, what: "bằng chứng hư hỏng");
@@ -518,6 +503,8 @@ public partial class FacilityOpsService
         }
 
         var now = NowUtc;
+        // D39/D40: có khấu trừ thì chờ khách xác nhận (48 giờ) hoặc cơ sở kiểm tra lại phương án khách chọn.
+        await RequireDeductionSettledAsync(inspection, actor.UserId, now, ct);
         // D32 / T09: Dừng tính phí quá hạn khi gửi trả kho thành công (inspection.CreatedAt là thời điểm khách gửi move-out).
         var moveOutDate = DateOnly.FromDateTime((inspection.CreatedAt != default ? inspection.CreatedAt : (inspection.InspectedAt ?? now)) + VnOffset);
         var returnDate = DateOnly.FromDateTime((inspection.InspectedAt ?? now) + VnOffset);
@@ -551,7 +538,8 @@ public partial class FacilityOpsService
             dbContext.Payments.Add(new Payment
             {
                 ContractId = contract.ContractId, PaymentType = "REFUND", Amount = refund, Currency = "VND",
-                PaymentMethod = "BANK_TRANSFER", DueDate = RefundDueDate(now),
+                // D42: khách chọn tiền mặt tại quầy khi gửi trả kho → quản lý duyệt, nhân viên chi.
+                PaymentMethod = inspection.RefundBankName == CashMethod ? CashMethod : "BANK_TRANSFER", DueDate = RefundDueDate(now),
                 Status = "PENDING", CreatedAt = now, UpdatedAt = now
             });
         }
@@ -639,6 +627,10 @@ public partial class FacilityOpsService
         if (refunds.Count == 0) throw new InvalidOperationException("Đơn này không có khoản hoàn tiền.");
         var pending = refunds.FirstOrDefault(p => p.Status == "PENDING")
             ?? throw new InvalidOperationException("Khoản hoàn tiền này đã được xác nhận.");
+        if (pending.PaymentMethod == CashMethod)
+        {
+            throw new InvalidOperationException("Khách chọn nhận tiền mặt tại quầy. Duyệt chi tiền mặt, không ghi chuyển khoản.");
+        }
         if (!RefundBank.IsComplete(r.RefundBankName, r.RefundAccountNumber, r.RefundAccountHolder))
         {
             throw new InvalidOperationException("Đơn huỷ chưa có tài khoản nhận hoàn chính chủ. Liên hệ khách bổ sung trước khi chuyển tiền.");

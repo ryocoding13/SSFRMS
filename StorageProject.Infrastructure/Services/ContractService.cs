@@ -95,7 +95,13 @@ public class ContractService(AppDbContext dbContext) : IContractService
                 r.RenewalAmount,
                 r.Status,
                 r.RequestedAt,
-                r.ApprovedAt
+                r.ApprovedAt,
+                r.PaymentDeadlineAt, // L1: khách thấy hạn thanh toán gia hạn
+                r.AppliedAt,
+                r.ExpiredAt,
+                c.Payments.Where(p => p.RenewalId == r.RenewalId && p.PaymentType == "RENEWAL").Select(p => (long?)p.PaymentId).FirstOrDefault(),
+                r.PolicyVersion,
+                r.AcceptedAt
             ))
             .ToList();
 
@@ -173,8 +179,9 @@ public class ContractService(AppDbContext dbContext) : IContractService
         {
             throw new InvalidOperationException("Hợp đồng đang có yêu cầu gia hạn chưa xong. Huỷ hoặc hoàn tất gia hạn trước khi trả kho.");
         }
+        // D42: khách chọn chuyển khoản (tài khoản chính chủ) hoặc tiền mặt tại quầy.
         var bank = RefundBank.Validate(new StorageProject.Core.DTOs.Evidence.RefundBankInput(
-            request.BankName, request.AccountNumber, request.AccountHolder), contract.Customer.FullName);
+            request.BankName, request.AccountNumber, request.AccountHolder, request.RefundMethod), contract.Customer.FullName, allowCash: true);
 
         // Giờ hẹn khách chọn là giờ Việt Nam; DB lưu UTC (D10).
         var timePart = new TimeOnly(9, 0);
@@ -222,7 +229,7 @@ public class ContractService(AppDbContext dbContext) : IContractService
             Status = "SCHEDULED",
             Notes = note.Length > 0 ? note : null,
             RefundBankName = bank.BankName,
-            RefundAccountNumber = bank.AccountNumber,
+            RefundAccountNumber = bank.AccountNumber.Length > 0 ? bank.AccountNumber : null,
             RefundAccountHolder = bank.AccountHolder,
             CreatedAt = now // mốc dừng tính phí quá hạn (D32)
         };

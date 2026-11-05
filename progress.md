@@ -1,3 +1,41 @@
+## 2026-11-05 — Phiên 3: BE chức năng mới (D39/D40, D36 + S01, D35 + S04, S06, S02, D42, D43)
+
+- **D39/D40** `FacilityOpsService.Workflows.cs` (mới): trạng thái khấu trừ đọc từ `activity_logs` (NONE · WAITING · AUTO_AGREED · AGREED · SELF_CLEAN · SELF_REPLACE · DISPUTE · RECHECKED). Khách `GET/POST /api/contracts/{contractId}/return-deduction` chọn một lần trong 48 giờ; cơ sở `POST /api/ops/returns/{id}/recheck` (đạt → không trừ khoản tương ứng). `ConfirmRefundAsync` (M07) chặn khi còn trong 48 giờ hoặc chờ kiểm tra lại; không có khấu trừ thì không cần xác nhận. `FacilityWorkflowWorker` (5 phút) tự chốt hoàn cọc theo biên bản khi quá 48 giờ, ghi dưới tên quản lý cơ sở. Board trả `lateInspection` (quá 3 ngày chưa gửi biên bản), `deductionStatus`, `deductionDeadlineAt`.
+- **D36 + S01** bỏ tự tạo `HandoverRecord` khi cấp hợp đồng (`ContractProvisioning`); hỗ trợ chủ đề `KEY_PICKUP` (lưu ACCESS_CARD + tiêu đề cố định "Nhận chìa khóa · lần đầu nhận kho") tạo/mở lại lịch SCHEDULED, chặn trùng. `DbSeeder.ApplyPhien3DataFixesAsync` huỷ lịch SCHEDULED tự tạo trước đây (chưa xác minh), không xoá dữ liệu.
+- **D35 + S04** ticket nhận tối đa 3 ảnh (`evidence_photos` loại `SUPPORT_TICKET`); `OpsTicketDto.Photos`, `Topic`.
+- **S06 (P0)** ảnh biên bản quá hạn dùng loại `OVERDUE_BEFORE` / `OVERDUE_AFTER` (không trùng id với ảnh trả kho). Migration viết tay `20261105120000_Phien3EvidenceOwnerTypes` (chỉ đổi CHECK, chưa có file Designer); seeder chuyển loại ảnh cũ chỉ khi migration đã áp.
+- **S02 (P0)** gia hạn trả tại quầy: `SelectCounterPaymentAsync` khoá `contract:{id}`; `CollectCounterRenewalAsync` chỉ thu khoản khách đã chọn tiền mặt, đã thu thì báo lỗi, tham chiếu cố định `CASH-RENEWAL:{renewalId}`.
+- **D42** khách chọn `refundMethod` = `CASH` hoặc chuyển khoản khi huỷ đơn / trả kho (`RefundBankName = "CASH"`, không cần tài khoản); khoản REFUND `PaymentMethod = CASH`; M08 và hoàn cọc chuyển khoản từ chối khoản tiền mặt. `/api/ops/cash-refunds` (danh sách, `approve` quản lý giao nhân viên, `calls` ghi kết quả gọi + ngày hẹn, `pay` tick 4 mục). Mốc gọi nhắc 10/20/25 ngày, hạn 30 ngày, ngày hẹn tạm dừng nhắc. `GET /api/ops/daily-report` + ghi log `DAILY_STAFF_REPORT` lúc 22:00 mỗi cơ sở. Gỡ endpoint báo sai lệch (`/api/ops/payments/{id}/mismatch`, `/api/staff/payments/{id}/mismatch`), không xoá dữ liệu cũ.
+- **D43** hỏi đáp hỗ trợ không còn đóng: cờ `close` bị bỏ qua, phản hồi của cơ sở → `WAITING_CUSTOMER`, dữ liệu `CLOSED` cũ vẫn trả lời tiếp.
+- Test: thêm `D32RefundEvidenceTests.Phien3.cs` (48 giờ + tự chốt, không khấu trừ, tự dọn + kiểm tra lại, khiếu nại, tiền mặt 4 mục, nhắc ngày 10/hẹn/quá 30 ngày, huỷ đơn chọn tiền mặt, ảnh hỗ trợ + KEY_PICKUP). Sửa test theo quyết định mới: `CheckoutTests` (D36 không tự tạo lịch, L13 không trả QR trước ngày thuê), `D32RefundEvidenceTests` (khách đồng ý khấu trừ trước M07), `SupportInquiryTests` (D43), `OverdueCaseT12Tests` (S06).
+- **Kiểm tra / giới hạn:** NuGet vẫn bị chặn nên **chưa build, chưa chạy `dotnet test`**. Đã biên dịch đầy đủ `StorageProject.Core` bằng Roslyn; Infrastructure, Api, Tests, IntegrationTests chỉ kiểm cú pháp (không lỗi CS1xxx) — lỗi kiểu dữ liệu chỉ phát hiện khi thành viên build. Chưa kiểm SQL Server (migration viết tay), chưa chạy worker thật. Không đổi trạng thái tính năng.
+
+## 2026-11-05 — Phiên 2: BE sửa nhỏ (L1, L2, L5, L7, L8, L11, L13, L14, L22, L24, FIFO, S05, phí huỷ 5%)
+
+- Base `main` c274829 (sau PR #67). Áp lại patch Phiên 1; gộp xung đột `progress.md`.
+- **L11** `OpsRules.CalculateDeposit`: PERCENTAGE tính trên 1 tháng thuê, không trên tổng kỳ thuê (test `DepositPolicyD32Tests` đổi theo L11 Thắng xác nhận 05/11).
+- **D40 phí huỷ 5%** `RefundPolicy.CancelFeeRate = 0.05m`; câu chính sách huỷ trong `ReservationService`; seed chính sách CANCELLATION 5% (chỉ DB mới — DB đã có cần Vận hành KD sửa ở B02). Test `RefundPolicyTests`, `D32RefundEvidenceTests` đổi 3.900.000 → 3.950.000.
+- **L1** `ContractService` trả `PaymentDeadlineAt`, `AppliedAt`, `ExpiredAt`, `PaymentId` cho gia hạn. **L8** `OpsRenewalDto` thêm `MonthlyRate`, `Amount`, `PaymentDeadlineAt`. **L2** `OpsTicketDto` thêm `Description`, `Topic`.
+- **L13** `AccessService.GetQrAsync` không trả QR/PIN trước StartDate. **L14 (D40)** `SupportTicketService`: chặn ticket cho hợp đồng DRAFT/CANCELLED/COMPLETED/TERMINATED; cho phép hợp đồng đã thanh toán chưa tới ngày bắt đầu.
+- **L5** BE đã chặn hai chiều trên `main` (gia hạn khi RETURN_PENDING, trả kho khi có gia hạn PENDING/APPROVED). Thêm `POST /api/renewals/{id}/cancel` để khách huỷ gia hạn đang chờ duyệt.
+- **T20** đã có trên `main` (PR #67) — không sửa. **S03** route kiểm tra trả kho cũ đã dùng service ops (D37) — không sửa.
+- **L22 / D38** `InspectionStandard` (Core) + `SubmitReturnInspectionAsync`: chỉ "Sẵn sàng cho thuê lại" khi đạt ≥ 2/3 mục.
+- **L24** quên mật khẩu: email không thuộc tài khoản nào trả 404 `EMAIL_NOT_REGISTERED`; tài khoản bị khoá/ngừng vẫn trả câu chung.
+- **L7** gộp `BUSINESS_OPERATOR` vào `OPERATIONS` bằng `DbSeeder.MergeLegacyOperationsRoleAsync` (chạy mỗi lần khởi động, idempotent, không xoá người dùng). Endpoint Vận hành vẫn nhận claim cũ cho JWT phát hành trước.
+- **FIFO** bảng việc nhân viên: thanh toán, bàn giao, trả kho, hỗ trợ xếp theo thời gian tạo, cũ trước.
+- **S05** `OverdueProcessor`: tỷ lệ lấy từ chính sách OVERDUE (mặc định 5%/ngày khi chưa có); mốc ngày dùng hằng `OpsRules`; mỗi hợp đồng xử lý trong khoá `move-out:{id}` (cùng khoá với đăng ký trả kho) nên không ghi đè RETURN_PENDING và chạy an toàn nhiều instance; EXPIRING cập nhật có điều kiện bằng `ExecuteUpdateAsync`.
+- `activity_logs`: các việc nhân viên (thu tiền, xác minh, nhận chìa, kiểm tra trả kho, hỗ trợ, hoàn tiền, quá hạn) đều có log có `UserId` — đủ cho báo cáo cuối ngày D42. Sửa board đọc thêm `PHYSICAL_KEY_RECEIVED` khi hiện cách giao chìa.
+- Test mới: `Phien2FixTests` (2/3 tiêu chuẩn, phí huỷ 5% đúng ví dụ SS-0139, trạng thái ticket), `OverdueProcessorTests.ProcessDailyOverdue_UsesRateFromActiveOverduePolicy`, `PasswordResetTests.UnregisteredEmailIsReportedAsNotRegisteredAndNoMail`, D38 trong `D32RefundEvidenceTests`.
+- **Kiểm tra / giới hạn:** môi trường này chặn NuGet (`api.nuget.org` 403) nên **chưa restore, chưa build, chưa chạy `dotnet test`**. Đã cài .NET SDK 10.0.114 (apt), biên dịch đầy đủ `StorageProject.Core` bằng Roslyn và kiểm cú pháp (không lỗi CS1xxx) cho Infrastructure, Api, Tests. FE trên base mới: `npm test` 155/155, `test:render` 173, `test:business` 9/9, `test:workflows` 12/12, `build`, `check:structure` PASS. Cần thành viên chạy `dotnet build` + `dotnet test` (SQLite) và SQL Server trước merge. Không đổi trạng thái tính năng.
+
+## 2026-11-05 — Phiên 1: chốt D38–D42, Figma tổng hợp 04/11 và kế hoạch phiên tiếp theo
+
+- DECISIONS: đánh số lại theo `main` 31017cd (D37 là của Ngọc Mai) — D38 quy tắc 2/3, D39 khách xác nhận khấu trừ, D40 quyết định 04/11 23:03 (phí huỷ 5%, hỗ trợ theo kỳ thuê, một thao tác mỗi ô, nhận chìa khóa; 48 giờ tự hoàn theo biên bản), D41 đặt trước theo ngày + xung đột do khách cũ quá hạn, D42 hoàn tiền mặt tại quầy, bỏ báo cáo sai lệch, việc tồn cuối ngày, L11.
+- Figma (file SafeSpace - Modern UI): các màn D40–D42 và D41, 9 chủ đề C12, S10/S10b, M04-cuối ngày, thống nhất màu/cỡ số tiền, xếp popup theo màn cha. Xoá 13 màn báo cáo sai lệch (Thắng đồng ý). Quy ước tiền ghi ở `docs/conventions.md`.
+- FE patch 04/11 (biên bản kiểm tra dạng chọn, khung ảnh, giữ 30% cọc, footer) áp lại lên `main` 31017cd: `npm test` 155/155, `test:render` 173 route, `build`, `check:structure` PASS. Chưa chạy Playwright và chưa có .NET trong môi trường này.
+- Kế hoạch (một nhánh `fix/tong-hop-04-11`, push một lượt): Phiên 2 BE sửa nhỏ · Phiên 3 BE chức năng mới (D39, D36, D35, S02, S06, D42) · Phiên 4 BE D41 · Phiên 5 FE khách hàng · Phiên 6 FE nhân viên + quản lý · Phiên 7 kiểm tra, tài liệu, bàn giao. Không đổi trạng thái tính năng.
+- Đã chốt thêm D43: hỗ trợ không có thao tác đóng; S10b có ô ngày hẹn.
+
 ## 2026-11-05 — Hoàn thành Gói W8: Tích hợp FE, Tài liệu, Rà soát B01–B05 và Bàn giao tổng thể
 
 - **Mục tiêu:** Thực hiện Gói W8 theo kế hoạch `SSFRMS-Business-Operator-Implementation-Plan.md`, hoàn tất toàn diện 9 gói công việc (W0–W8) phục vụ vai trò Quản lý Vận hành Kinh doanh (Business Operator):

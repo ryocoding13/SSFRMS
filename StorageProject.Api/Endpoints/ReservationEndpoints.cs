@@ -7,7 +7,9 @@ using StorageProject.Core.Interfaces;
 
 namespace StorageProject.Api.Endpoints;
 
-public record CancelReservationRequest(string Reason, string? BankName = null, string? AccountNumber = null, string? AccountHolder = null);
+// D42: RefundMethod = "CASH" (tiền mặt tại quầy) hoặc "BANK_TRANSFER"/bỏ trống (chuyển khoản, cần tài khoản chính chủ).
+public record CancelReservationRequest(string Reason, string? BankName = null, string? AccountNumber = null, string? AccountHolder = null,
+    string? RefundMethod = null);
 
 public static class ReservationEndpoints
 {
@@ -66,8 +68,8 @@ public static class ReservationEndpoints
             try
             {
                 var customerId = user.GetUserId();
-                var bank = request.BankName != null || request.AccountNumber != null || request.AccountHolder != null
-                    ? new StorageProject.Core.DTOs.Evidence.RefundBankInput(request.BankName, request.AccountNumber, request.AccountHolder)
+                var bank = request.BankName != null || request.AccountNumber != null || request.AccountHolder != null || request.RefundMethod != null
+                    ? new StorageProject.Core.DTOs.Evidence.RefundBankInput(request.BankName, request.AccountNumber, request.AccountHolder, request.RefundMethod)
                     : null;
                 await reservationService.CancelReservationAsync(customerId, id, request.Reason, bank, ct);
                 return Results.Ok(new { message = "Đã hủy đơn đặt chỗ thành công." });

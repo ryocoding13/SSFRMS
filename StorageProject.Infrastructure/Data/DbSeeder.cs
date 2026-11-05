@@ -75,8 +75,7 @@ public static partial class DbSeeder
             ("ADMIN", "Quản trị viên toàn quyền hệ thống"),
             ("MANAGER", "Quản lý cơ sở kho"),
             ("STAFF", "Nhân viên vận hành, bàn giao và kiểm tra kho"),
-            ("OPERATIONS", "Quản lý vận hành kinh doanh toàn hệ thống"),
-            ("BUSINESS_OPERATOR", "Quản lý vận hành kinh doanh toàn hệ thống"),
+            ("OPERATIONS", "Quản lý vận hành kinh doanh toàn hệ thống"), // L7: mã duy nhất cho Vận hành KD
             ("CUSTOMER", "Khách hàng thuê kho tự quản")
         };
 
@@ -92,8 +91,9 @@ public static partial class DbSeeder
         var adminRole = await context.Roles.FirstAsync(r => r.RoleName == "ADMIN");
         var staffRole = await context.Roles.FirstAsync(r => r.RoleName == "STAFF");
         var managerRole = await context.Roles.FirstAsync(r => r.RoleName == "MANAGER");
-        var businessOpRole = await context.Roles.FirstAsync(r => r.RoleName == "BUSINESS_OPERATOR");
         var opsRole = await context.Roles.FirstAsync(r => r.RoleName == "OPERATIONS");
+        await MergeLegacyOperationsRoleAsync(context, opsRole);
+        await ApplyPhien3DataFixesAsync(context);
 
         if (!await context.Permissions.AnyAsync())
         {
@@ -157,10 +157,6 @@ public static partial class DbSeeder
             var p = allPermsList.FirstOrDefault(x => x.PermissionCode == code);
             if (p != null)
             {
-                if (!await context.RolePermissions.AnyAsync(rp => rp.RoleId == businessOpRole.RoleId && rp.PermissionId == p.PermissionId))
-                {
-                    context.RolePermissions.Add(new RolePermission { RoleId = businessOpRole.RoleId, PermissionId = p.PermissionId });
-                }
                 if (!await context.RolePermissions.AnyAsync(rp => rp.RoleId == opsRole.RoleId && rp.PermissionId == p.PermissionId))
                 {
                     context.RolePermissions.Add(new RolePermission { RoleId = opsRole.RoleId, PermissionId = p.PermissionId });
@@ -212,7 +208,7 @@ public static partial class DbSeeder
         var cust1 = await EnsureUserAsync("customer01", "an.nguyen@example.com", "Nguyễn Văn An", "0901234567", "Customer@123", customerRole);
         var cust2 = await EnsureUserAsync("customer02", "mai.tran@example.com", "Trần Thị Mai", "0912345678", "Customer@123", customerRole);
 
-        // 2b. Vai trò Quản lý vận hành KD (OPERATIONS & BUSINESS_OPERATOR) + tài khoản ops01
+        // 2b. Vai trò Quản lý vận hành KD (OPERATIONS, L7 đã gộp BUSINESS_OPERATOR) + tài khoản ops01
         await EnsureOperationsRoleAsync(context);
 
         // 2c. Quyền của STAFF / MANAGER + tài khoản manager01, staff02 (BACKEND-TODO A1)
@@ -247,6 +243,55 @@ public static partial class DbSeeder
         await context.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Phiên 3 (05/11/2026), chạy mỗi lần khởi động và idempotent, không xoá dữ liệu:
+    /// S06 chuyển ảnh quá hạn cũ (lưu nhầm loại RETURN_INSPECTION, tên tệp before_/after_) sang OVERDUE_BEFORE/AFTER;
+    /// D36 huỷ các lịch nhận chìa khóa SCHEDULED hệ thống tự tạo trước đây mà khách chưa yêu cầu và chưa xác minh.
+    /// </summary>
+    public static async Task ApplyPhien3DataFixesAsync(AppDbContext context)
+    {
+        // Ảnh quá hạn chỉ đổi loại khi DB đã có ràng buộc CHECK mới (migration Phien3EvidenceOwnerTypes),
+        // tránh lỗi khởi động khi nhóm tắt AutoMigrate và chưa áp migration.
+        var ownerTypesReady = !context.Database.IsRelational()
+            || (await context.Database.GetAppliedMigrationsAsync()).Contains("20261105120000_Phien3EvidenceOwnerTypes");
+        var resolvedCaseIds = context.ActivityLogs
+            .Where(l => l.Action == "OVERDUE_REMOVAL_RECORDED" && l.EntityType == "OVERDUE_CASE")
+            .Select(l => l.EntityId);
+        if (ownerTypesReady) await context.EvidencePhotos
+            .Where(p => p.OwnerType == "RETURN_INSPECTION" && p.FileName.StartsWith("before_") && resolvedCaseIds.Contains(p.OwnerId))
+            .ExecuteUpdateAsync(u => u.SetProperty(p => p.OwnerType, "OVERDUE_BEFORE"));
+        if (ownerTypesReady) await context.EvidencePhotos
+            .Where(p => p.OwnerType == "RETURN_INSPECTION" && p.FileName.StartsWith("after_") && resolvedCaseIds.Contains(p.OwnerId))
+            .ExecuteUpdateAsync(u => u.SetProperty(p => p.OwnerType, "OVERDUE_AFTER"));
+
+        await context.HandoverRecords
+            .Where(h => h.Status == "SCHEDULED" && h.VerifiedAt == null
+                        && h.Notes == "Chỉ ghi nhận nhận chìa khóa; không kích hoạt hợp đồng")
+            .ExecuteUpdateAsync(u => u
+                .SetProperty(h => h.Status, "CANCELLED")
+                .SetProperty(h => h.Notes, "D36: huỷ lịch tự tạo; khách gửi yêu cầu nhận chìa khóa qua hỗ trợ khi cần"));
+        context.ChangeTracker.Clear();
+    }
+
+    /// <summary>
+    /// L7 (D40): gộp mã vai trò cũ BUSINESS_OPERATOR vào OPERATIONS. Chạy được nhiều lần, không xoá người dùng:
+    /// người có vai trò cũ được gán OPERATIONS (nếu chưa có), sau đó gỡ quan hệ và vai trò cũ.
+    /// </summary>
+    public static async Task MergeLegacyOperationsRoleAsync(AppDbContext context, Role opsRole)
+    {
+        var legacy = await context.Roles.FirstOrDefaultAsync(r => r.RoleName == "BUSINESS_OPERATOR");
+        if (legacy == null) return;
+
+        var legacyUsers = await context.UserRoles.Where(ur => ur.RoleId == legacy.RoleId).ToListAsync();
+        var opsUserIds = await context.UserRoles.Where(ur => ur.RoleId == opsRole.RoleId).Select(ur => ur.UserId).ToListAsync();
+        foreach (var ur in legacyUsers.Where(ur => !opsUserIds.Contains(ur.UserId)))
+            context.UserRoles.Add(new UserRole { UserId = ur.UserId, RoleId = opsRole.RoleId, AssignedBy = ur.AssignedBy, AssignedAt = ur.AssignedAt });
+        context.UserRoles.RemoveRange(legacyUsers);
+        context.RolePermissions.RemoveRange(await context.RolePermissions.Where(rp => rp.RoleId == legacy.RoleId).ToListAsync());
+        context.Roles.Remove(legacy);
+        await context.SaveChangesAsync();
+    }
+
     // ------------------------------------------------------------------------------------------
     // Quản lý vận hành kinh doanh (SRS: Business Operations Manager — UC19–UC23)
     // ------------------------------------------------------------------------------------------
@@ -260,13 +305,7 @@ public static partial class DbSeeder
             await context.SaveChangesAsync();
         }
 
-        var bizOpRole = await context.Roles.FirstOrDefaultAsync(r => r.RoleName == "BUSINESS_OPERATOR");
-        if (bizOpRole == null)
-        {
-            bizOpRole = new Role { RoleName = "BUSINESS_OPERATOR", Description = "Quản lý vận hành kinh doanh toàn hệ thống" };
-            context.Roles.Add(bizOpRole);
-            await context.SaveChangesAsync();
-        }
+        await MergeLegacyOperationsRoleAsync(context, opsRole);
 
         var newPermissions = new List<Permission>
         {
@@ -300,10 +339,6 @@ public static partial class DbSeeder
                 if (!existingPairs.Any(x => x.RoleId == opsRole.RoleId && x.PermissionId == perm.PermissionId))
                 {
                     context.RolePermissions.Add(new RolePermission { RoleId = opsRole.RoleId, PermissionId = perm.PermissionId });
-                }
-                if (!existingPairs.Any(x => x.RoleId == bizOpRole.RoleId && x.PermissionId == perm.PermissionId))
-                {
-                    context.RolePermissions.Add(new RolePermission { RoleId = bizOpRole.RoleId, PermissionId = perm.PermissionId });
                 }
             }
         }
@@ -357,8 +392,8 @@ public static partial class DbSeeder
                     PolicyName = "Phí hủy đặt chỗ",
                     PolicyType = "CANCELLATION",
                     CalculationType = "PERCENTAGE",
-                    Value = 0.0m, // Miễn phí hủy trước khi check-in
-                    RuleDescription = "Miễn phí hủy đơn đặt chỗ trước thời điểm bắt đầu thuê",
+                    Value = 5.0m, // D40: phí huỷ 5% tiền cọc trước ngày bắt đầu (số tính trong RefundPolicy.CancelFeeRate)
+                    RuleDescription = "Huỷ trước ngày bắt đầu thuê: phí 5% tiền cọc, hoàn đủ tiền thuê và 95% tiền cọc. Từ 0h ngày bắt đầu, tiền thuê tháng đó tính đủ (D40)",
                     EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
                     Status = "ACTIVE",
                     CreatedAt = DateTime.UtcNow,

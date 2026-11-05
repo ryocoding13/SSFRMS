@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { Select } from "../../../shared/components/Pickers.jsx";
 import { Button, LinkButton, Dialog, Field, Icon, Modal, Notice, PageHeader, StatusTag } from "../../../shared/components/UI.jsx";
 import { dateTimeLabel, today } from "../../../shared/utils/format.js";
@@ -6,9 +6,9 @@ import { ACCESS_REQUESTS, TICKET_STATUS, TICKET_TOPICS } from "../../../shared/u
 import { href } from "../../../app/router.js";
 import { contractStatus, facilityOf } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
+import ReturnPhotoInput from "../../../shared/components/ReturnPhotoInput.jsx";
 
 const MAX_FILES = 3;
-const MAX_MB = 5;
 
 function TicketCard({ t }) {
   const { dispatch, notify } = useApp();
@@ -71,24 +71,11 @@ export default function SupportPage({ query }) {
   const [files, setFiles] = useState([]);
   const [errors, setErrors] = useState({});
   const [sent, setSent] = useState(null);
-  const picker = useRef(null);
+  const [reading, setReading] = useState(false);
 
   const set = (k, v) => {
     setForm({ ...form, [k]: v });
     setErrors((p) => ({ ...p, [k]: undefined }));
-  };
-  const addFiles = (list) => {
-    const next = [...files];
-    let problem = "";
-    for (const f of list) {
-      if (!["image/jpeg", "image/png"].includes(f.type)) problem = "Chỉ đính kèm ảnh JPG hoặc PNG.";
-      else if (f.size > MAX_MB * 1024 * 1024) problem = `Mỗi ảnh tối đa ${MAX_MB} MB.`;
-      else if (next.length >= MAX_FILES) problem = `Tối đa ${MAX_FILES} ảnh.`;
-      else next.push(f);
-    }
-    setFiles(next);
-    setErrors((p) => ({ ...p, files: problem || undefined }));
-    if (picker.current) picker.current.value = "";
   };
   const submit = async (e) => {
     e.preventDefault();
@@ -147,25 +134,10 @@ export default function SupportPage({ query }) {
           <Field label="Mô tả vấn đề" error={errors.description}>
             <textarea rows={3} maxLength={1000} placeholder="Mô tả chi tiết vấn đề để cơ sở hỗ trợ bạn…" value={form.description} onChange={(e) => set("description", e.target.value)} />
           </Field>
-          <div className={`field${errors.files ? " field--invalid" : ""}`}>
-            <span className="field__label">Ảnh đính kèm (không bắt buộc)</span>
-            <button type="button" className="attach" onClick={() => picker.current?.click()}><span aria-hidden="true">+</span><span>Thêm ảnh</span></button>
-            <input ref={picker} type="file" accept="image/jpeg,image/png" multiple hidden onChange={(e) => addFiles([...e.target.files])} />
-            <p className="hint">Tối đa 3 ảnh · JPG, PNG · mỗi ảnh tối đa 5 MB</p>
-            {files.length > 0 && (
-              <ul className="files">
-                {files.map((f, i) => (
-                  <li key={`${f.name}-${i}`}>
-                    <span>{f.name}</span>
-                    <button type="button" onClick={() => setFiles(files.filter((_, j) => j !== i))} aria-label={`Bỏ ${f.name}`}>×</button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {errors.files && <p className="field__error" role="alert">{errors.files}</p>}
-          </div>
+          {/* Khung ảnh dùng chung với trả kho (Figma C12): ảnh nằm trong khung, tối đa 3 ảnh */}
+          <ReturnPhotoInput files={files} onChange={setFiles} onReading={setReading} disabled={busy} required={false} max={MAX_FILES} label="Đính kèm ảnh" />
           {errors.form && <Notice tone="error">{errors.form}</Notice>}
-          <Button type="submit" disabled={busy || blockedContract}>{busy ? "Đang gửi…" : "Gửi yêu cầu"}</Button>
+          <Button type="submit" disabled={busy || reading || blockedContract}>{busy ? "Đang gửi…" : "Gửi yêu cầu"}</Button>
         </form>
 
         <div className="stack stack--col stack--fill">

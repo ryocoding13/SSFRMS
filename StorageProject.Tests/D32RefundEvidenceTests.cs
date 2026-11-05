@@ -14,7 +14,7 @@ namespace StorageProject.Tests;
 /// D32 / T05, T07, T08: ảnh bằng chứng, tài khoản chính chủ, kiểm kê lưu phí, hoàn cọc hai bước, huỷ đơn đã thanh toán.
 /// Chạy trên SQLite trong bộ nhớ (không có sp_getapplock) — chưa thay cho kiểm SQL Server thật.
 /// </summary>
-public sealed class D32RefundEvidenceTests
+public sealed partial class D32RefundEvidenceTests
 {
     private sealed class TestDb(DbContextOptions<AppDbContext> options) : AppDbContext(options)
     {
@@ -209,6 +209,9 @@ public sealed class D32RefundEvidenceTests
 
         // M07: chốt → chờ hoàn, chưa PAID; ô giữ MAINTENANCE
         var contractCode = $"HĐ-{c.StartDate.Year}-{c.ContractId:0000}";
+        // D39/D40: có khấu trừ thì chờ khách xác nhận trong 48 giờ trước khi chốt.
+        await Assert.ThrowsAsync<InvalidOperationException>(() => f.Ops.ConfirmRefundAsync(f.ManagerActor, contractCode));
+        await f.Ops.DecideReturnDeductionAsync(f.Customer.UserId, contractCode, new ReturnDeductionDecisionRequest("AGREE", null));
         var settled = await f.Ops.ConfirmRefundAsync(f.ManagerActor, contractCode, "Đối chiếu đủ ảnh");
         Assert.Equal("PENDING", settled.RefundStatus);
         Assert.Equal(700_000m, settled.Refund); // 1.000.000 − vệ sinh 100.000 − hư hỏng 200.000
@@ -312,7 +315,7 @@ public sealed class D32RefundEvidenceTests
         Assert.Equal("AVAILABLE", (await f.Db.StorageUnits.SingleAsync(u => u.UnitId == unit.UnitId)).Status);
         Assert.Equal("REVOKED", (await f.Db.AccessCredentials.SingleAsync(a => a.ContractId == contract.ContractId)).Status);
         var refund = await f.Db.Payments.SingleAsync(p => p.ReservationId == r.ReservationId && p.PaymentType == "REFUND");
-        Assert.Equal(3_900_000m, refund.Amount); // 100% thuê + 90% cọc
+        Assert.Equal(3_950_000m, refund.Amount); // D40: 100% thuê + 95% cọc
         Assert.Equal("PENDING", refund.Status);
 
         var code = $"SS-{cancelled.CreatedAt.AddHours(7):yyyyMMdd}-{cancelled.ReservationId:0000}";
@@ -336,6 +339,7 @@ public sealed class D32RefundEvidenceTests
         Payment Fee(string type,decimal amount,string status="PENDING")=>new(){ContractId=c.ContractId,PaymentType=type,Amount=amount,PaymentMethod="CASH",Status=status,CreatedAt=DateTime.UtcNow,UpdatedAt=DateTime.UtcNow};
         var rent=Fee("RENT",1_000_000m,"PAID");var renewal=Fee("RENEWAL",500_000m);
         f.Db.Payments.AddRange(Fee("DAMAGE_FEE",1_500_000m),Fee("OVERDUE_FEE",3_000_000m,"FAILED"),Fee("CLEANING_FEE",1_000_000m),rent,renewal);await f.Db.SaveChangesAsync();
+        await f.Ops.DecideReturnDeductionAsync(f.Customer.UserId,$"HĐ-{c.StartDate.Year}-{c.ContractId:0000}",new ReturnDeductionDecisionRequest("AGREE",null));
         var result=await f.Ops.ConfirmRefundAsync(f.ManagerActor,$"HĐ-{c.StartDate.Year}-{c.ContractId:0000}");
         Assert.Equal("NO_REFUND",result.RefundStatus);Assert.Equal(0m,result.Refund);
         var fees=await f.Db.Payments.Where(p=>p.ContractId==c.ContractId&&(p.PaymentType=="DAMAGE_FEE"||p.PaymentType=="OVERDUE_FEE"||p.PaymentType=="CLEANING_FEE")).ToListAsync();
@@ -351,12 +355,16 @@ public sealed class D32RefundEvidenceTests
         var service=new StaffService(f.Db);
         await Assert.ThrowsAsync<ArgumentException>(()=>service.SubmitReturnInspectionAsync(f.Staff.UserId,move.InspectionId.ToString(),
             new(){Items="Trống",Walls="Sạch",Keys="Đủ",Proposal="Sẵn sàng cho thuê lại"}));
+        // L22 / D38: đạt 1/3 tiêu chuẩn thì không được chọn cho thuê lại ngay.
+        var below=await Assert.ThrowsAsync<ArgumentException>(()=>service.SubmitReturnInspectionAsync(f.Staff.UserId,move.InspectionId.ToString(),
+            new(){Items="Chưa đạt · còn ít đồ",Walls="Chưa đạt tiêu chuẩn vệ sinh",Keys="Đã nhận đủ chìa",Proposal="Sẵn sàng cho thuê lại",DamageFee=0,CleaningRequired=false}));
+        Assert.Contains("2/3",below.Message);
         await service.SubmitReturnInspectionAsync(f.Staff.UserId,move.InspectionId.ToString(),
             new(){Items="Trống",Walls="Bẩn",Keys="Đủ",Proposal="Cần vệ sinh",DamageFee=0,CleaningRequired=true,FeeReason="Cần vệ sinh sau trả kho"});
         var inspection=await f.Db.ReturnInspections.AsNoTracking().SingleAsync(x=>x.InspectionId==move.InspectionId);
         Assert.Equal("COMPLETED",inspection.Status);Assert.True(inspection.CleaningRequired);Assert.Equal(100_000m,inspection.CleaningFee);
         await Assert.ThrowsAsync<InvalidOperationException>(()=>service.SubmitReturnInspectionAsync(f.Staff.UserId,move.InspectionId.ToString(),
-            new(){Items="Trống",Walls="Sạch",Keys="Đủ",Proposal="Sẵn sàng cho thuê lại",DamageFee=0,CleaningRequired=false}));
+            new(){Items="Đạt · không còn đồ",Walls="Đạt tiêu chuẩn",Keys="Đã nhận đủ chìa",Proposal="Sẵn sàng cho thuê lại",DamageFee=0,CleaningRequired=false}));
     }
 
 }

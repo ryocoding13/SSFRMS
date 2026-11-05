@@ -42,22 +42,7 @@ public static class StaffEndpoints
             }
         });
 
-        group.MapPost("/payments/{id}/mismatch", async (string id, MismatchPaymentRequest request, ClaimsPrincipal user, IStaffService staffService, CancellationToken ct) =>
-        {
-            var role = user.GetUserRole();
-            if (role.Equals("CUSTOMER", StringComparison.OrdinalIgnoreCase)) return Results.Forbid();
-
-            try
-            {
-                var userId = user.GetUserId();
-                await staffService.MismatchPaymentAsync(userId, id, request, ct);
-                return Results.Ok(new { message = "Ghi nhận sai lệch thanh toán." });
-            }
-            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-            {
-                return Results.BadRequest(new { error = ex.Message });
-            }
-        });
+        // D42: bỏ báo cáo sai lệch thanh toán (POST /payments/{id}/mismatch đã gỡ; dữ liệu cũ trong DB giữ nguyên).
 
         // 3. Customer Verification
         group.MapPost("/verifications/{id}", async (string id, VerifyCustomerRequest request, ClaimsPrincipal user, IStaffService staffService, CancellationToken ct) =>

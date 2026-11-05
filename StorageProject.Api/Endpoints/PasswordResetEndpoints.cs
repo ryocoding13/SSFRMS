@@ -12,6 +12,7 @@ public static class PasswordResetEndpoints
         group.MapPost("/request", async (PasswordResetRequest request, IPasswordResetService service, CancellationToken ct) =>
         {
             try { return Results.Ok(await service.RequestAsync(request, ct)); }
+            catch (EmailNotRegisteredException ex) { return Results.NotFound(new { error = ex.Message, code = "EMAIL_NOT_REGISTERED" }); }
             catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
             catch (PasswordResetDeliveryException ex) { return Results.Json(new { error = ex.Message }, statusCode: 503); }
         }).RequireRateLimiting("password-reset-request");
