@@ -10,7 +10,8 @@ public record ReturnDeductionDto(
     string ReturnId, string ContractId, decimal Deposit, decimal CleaningFee, decimal DamageFee,
     string DamageItem, string FeeReason, IReadOnlyList<EvidencePhotoDto> Photos,
     string? SentAt, string? DeadlineAt, bool NeedsConfirmation,
-    string Status, string? Decision, string? DecisionNote, string? DecidedAt, string? RecheckNote);
+    string Status, string? Decision, string? DecisionNote, string? DecidedAt, string? RecheckNote,
+    decimal OverdueFee = 0, int OverdueDays = 0, string? StaffName = null);
 
 /// <summary>D39: khách chọn AGREE · SELF_CLEAN · SELF_REPLACE · DISPUTE.</summary>
 public record ReturnDeductionDecisionRequest(string? Decision, string? Note);

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Button, DetailList, Empty, Field, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
+import { Button, DetailList, Empty, Field, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
 import { money } from "../../../shared/utils/format.js";
 import { hoursLeft, vnStamp } from "../../../shared/utils/vnTime.js";
@@ -16,11 +16,12 @@ const STATUS = {
   DISPUTE: ["Đang xem xét khiếu nại", "amber"], RECHECKED: ["Cơ sở đã kiểm tra lại", "green"],
 };
 const DECISIONS = {
-  AGREE: ["Đồng ý khấu trừ · hoàn tất hoàn cọc", "Cơ sở chốt hoàn cọc theo biên bản."],
-  SELF_CLEAN: ["Tự dọn dẹp kho thay cho phí vệ sinh", "Bạn dọn kho; cơ sở kiểm tra lại, đạt tiêu chuẩn thì không trừ phí vệ sinh."],
-  SELF_REPLACE: ["Tự thay thế vật dụng tương đương thay cho phí hư hỏng", "Bạn thay vật dụng; cơ sở kiểm tra lại, đạt thì không trừ phí hư hỏng."],
-  DISPUTE: ["Khiếu nại nội dung biên bản", "Ghi rõ nội dung chưa đúng; cơ sở xem xét và kiểm tra lại."],
+  AGREE: "Đồng ý khấu trừ · hoàn tất hoàn cọc",
+  SELF_CLEAN: "Tự dọn dẹp kho thay cho phí vệ sinh",
+  SELF_REPLACE: "Tự thay thế vật dụng tương đương thay cho phí hư hỏng",
+  DISPUTE: "Khiếu nại nội dung biên bản",
 };
+const NOTE_LABEL = { AGREE: "Ghi chú cho cơ sở (không bắt buộc)", SELF_CLEAN: "Phương án và thời gian thực hiện", SELF_REPLACE: "Phương án và thời gian thực hiện", DISPUTE: "Nội dung khiếu nại *" };
 const safeUrl = url => typeof url === "string" && (/^https:\/\//.test(url) || /^\/[^/]/.test(url));
 
 export function ReturnDeductionPage({ id }) {
@@ -32,7 +33,7 @@ export function ReturnDeductionPage({ id }) {
   const guard = useRef(false);
   if (!c) return <NotFound />;
   const d = load.data;
-  const total = d ? Math.max(0, Number(d.deposit) - Number(d.cleaningFee) - Number(d.damageFee)) : 0;
+  const total = d ? Math.max(0, Number(d.deposit) - (Number(d.overdueFee) || 0) - Number(d.cleaningFee) - Number(d.damageFee)) : 0;
   const left = d ? hoursLeft(d.deadlineAt) : null;
   const options = d ? Object.keys(DECISIONS).filter(k => (k !== "SELF_CLEAN" || d.cleaningFee > 0) && (k !== "SELF_REPLACE" || d.damageFee > 0)) : [];
   const open = d?.status === "WAITING" && left !== 0;
@@ -50,40 +51,50 @@ export function ReturnDeductionPage({ id }) {
     finally { guard.current = false; setBusy(false); }
   };
   const [label, tone] = STATUS[d?.status] || ["Chưa có biên bản", "blue"];
+  const overdue = Number(d?.overdueFee) || 0, deposit = Number(d?.deposit) || 0;
+  const pct = deposit > 0 && d?.cleaningFee > 0 ? Math.round(Number(d.cleaningFee) / deposit * 100) : null;
+  const choiceText = k => k === "SELF_CLEAN" ? `${DECISIONS[k]} (${money(d.cleaningFee)})` : k === "SELF_REPLACE" ? `${DECISIONS[k]} (${money(d.damageFee)})` : DECISIONS[k];
+  const pill = d?.status === "WAITING" && left != null ? `${label} · còn ${left} giờ` : label;
+  const deductRows = d ? [
+    ...(d.cleaningFee > 0 ? [["Vệ sinh · theo chính sách", <strong>{money(d.cleaningFee)}{pct != null ? ` (${pct}% cọc)` : ""}</strong>]] : []),
+    ...(d.damageFee > 0 ? [[`Hư hỏng${d.damageItem ? ` · ${d.damageItem}` : ""}`, <strong>{money(d.damageFee)} (theo biên bản)</strong>]] : []),
+  ] : [];
+  const minus = v => v > 0 ? <span className="money-deduct">− {money(v)}</span> : money(0);
   return <main className="container page customer-records customer-detail">
-    <p className="customer-records__breadcrumb">SafeSpace / Khách hàng / Kho của tôi / {id} / Xác nhận khấu trừ</p>
-    <PageHeader title={`Xác nhận khấu trừ · Kho ${c.unit_number}`} description="Kiểm tra biên bản trả kho của nhân viên và chọn phương án trong 48 giờ.">{d && <Tag tone={tone}>{label}</Tag>}</PageHeader>
+    <p className="customer-records__breadcrumb">SafeSpace / Khách hàng / Kho của tôi / {id}</p>
+    <PageHeader title={`Xác nhận khấu trừ trả kho · Kho ${c.unit_number}`} description="Nhân viên đã kiểm tra kho. Xem các khoản trừ vào cọc rồi xác nhận để hoàn tất hoàn cọc.">{d && <Tag tone={tone}>{pill}</Tag>}</PageHeader>
     {load.demo ? <Notice>Chế độ mô phỏng chưa có biên bản trả kho thật. Vui lòng dùng chế độ kết nối máy chủ.</Notice>
       : load.loading ? <Notice>Đang tải biên bản…</Notice>
       : load.error ? <><Notice tone="error">{load.error}</Notice><Button variant="outline" onClick={load.reload}>Tải lại</Button></>
       : !d ? <Empty title="Chưa có biên bản trả kho" text="Nhân viên gửi biên bản trong 3 ngày sau khi bạn gửi yêu cầu trả kho." />
       : <div className="customer-detail__grid">
         <div className="customer-detail__column">
-          {d.needsConfirmation && <section className="panel customer-detail__card deadline-banner"><div><h2>Hạn xác nhận: {vnStamp(d.deadlineAt)}</h2><p className="hint">{left != null ? `Còn khoảng ${left} giờ.` : ""} Quá hạn, hệ thống tự hoàn cọc theo biên bản của nhân viên.</p></div><Tag tone="amber">48 giờ</Tag></section>}
-          <section className="panel customer-detail__card"><h2>Biên bản {d.returnId}</h2>
-            <DetailList items={[["Gửi lúc", vnStamp(d.sentAt)], ...(d.damageItem ? [["Hạng mục hư hỏng", d.damageItem]] : []), ["Lý do khấu trừ", d.feeReason || "Không có"]]} />
-            {d.photos?.length ? <ul className="deduction-photos">{d.photos.filter(p => safeUrl(p.url)).map((p, i) => <li key={i}><a href={p.url} target="_blank" rel="noreferrer">Xem ảnh biên bản {i + 1}</a></li>)}</ul> : <p className="hint">Biên bản không kèm ảnh.</p>}
+          <section className="panel customer-detail__card"><h2>Khoản khấu trừ từ cọc</h2>
+            {deductRows.length ? <DetailList items={deductRows} /> : <p className="hint">Biên bản không có khoản trừ vào cọc.</p>}
+            {d.photos?.length > 0 && <ul className="deduction-photos">{d.photos.filter(p => safeUrl(p.url)).map((p, i) => <li key={i}><a href={p.url} target="_blank" rel="noreferrer" aria-label={`Xem ảnh biên bản ${i + 1}`}><img src={p.url} alt={`Ảnh biên bản ${i + 1}`} loading="lazy" /></a></li>)}</ul>}
+            <p className="hint">Biên bản do {d.staffName || "nhân viên cơ sở"} lập lúc {vnStamp(d.sentAt)}.{d.cleaningFee > 0 ? " Phí vệ sinh cố định theo chính sách trả kho." : ""}{d.damageFee > 0 ? " Hư hỏng kèm ảnh bằng chứng." : ""}{d.feeReason ? ` Ghi chú: ${d.feeReason}` : ""}</p>
           </section>
-          {open ? <form className="panel customer-detail__card" onSubmit={submit} noValidate><h2>Phương án của bạn</h2>
-            <fieldset className="deduction-options" disabled={busy}>
-              {options.map(k => <label key={k} className={`refund-method__option${decision === k ? " is-active" : ""}`}><input type="radio" name="deduction" checked={decision === k} onChange={() => { setDecision(k); setError(""); }} /><span><strong>{DECISIONS[k][0]}</strong><small>{DECISIONS[k][1]}</small></span></label>)}
+          {open ? <form className="panel customer-detail__card" onSubmit={submit} noValidate><h2>Phản hồi của bạn</h2>
+            <fieldset className="choice-list" disabled={busy}>
+              {options.map(k => <label key={k} className="choice-list__item"><input type="radio" name="deduction" checked={decision === k} onChange={() => { setDecision(k); setError(""); }} /><span>{choiceText(k)}</span></label>)}
             </fieldset>
-            <Field label={decision === "DISPUTE" ? "Nội dung khiếu nại *" : "Ghi chú cho cơ sở (không bắt buộc)"}><textarea rows={3} maxLength={1000} value={note} disabled={busy} onChange={e => { setNote(e.target.value); setError(""); }} /></Field>
+            {decision && <Field label={NOTE_LABEL[decision]}><textarea rows={3} maxLength={1000} value={note} disabled={busy} onChange={e => { setNote(e.target.value); setError(""); }} /></Field>}
+            <p className="hint">Bạn có 48 giờ để xác nhận{d.deadlineAt ? ` (đến ${vnStamp(d.deadlineAt)})` : ""}. Quá 48 giờ không phản hồi, hệ thống tự hoàn cọc theo biên bản của nhân viên. Cơ sở luôn chấp nhận phương án tự dọn dẹp; kiểm tra lại đạt thì không trừ phí vệ sinh.</p>
             {error && <Notice tone="error">{error}</Notice>}
-            <div className="customer-detail__actions"><LinkButton to={`units/${encodeURIComponent(id)}/progress`} variant="outline">Tiến độ trả kho</LinkButton><Button type="submit" disabled={busy}>Gửi lựa chọn</Button></div>
+            <div className="customer-detail__actions"><Button type="submit" disabled={busy}>Gửi phản hồi cho cơ sở</Button></div>
           </form>
           : <section className="panel customer-detail__card"><h2>Kết quả</h2>
-            {done && <Notice tone="success">Đã gửi lựa chọn của bạn.</Notice>}
-            <DetailList items={[["Trạng thái", label], ...(d.decision ? [["Bạn đã chọn", DECISIONS[d.decision]?.[0] || d.decision], ["Lúc", vnStamp(d.decidedAt)]] : []), ...(d.decisionNote ? [["Ghi chú", d.decisionNote]] : []), ...(d.recheckNote ? [["Kết quả kiểm tra lại", d.recheckNote]] : [])]} />
+            {done && <Notice tone="success">Đã gửi phản hồi của bạn.</Notice>}
+            <DetailList items={[["Trạng thái", label], ...(d.decision ? [["Bạn đã chọn", DECISIONS[d.decision] || d.decision], ["Lúc", vnStamp(d.decidedAt)]] : []), ...(d.decisionNote ? [["Ghi chú", d.decisionNote]] : []), ...(d.recheckNote ? [["Kết quả kiểm tra lại", d.recheckNote]] : [])]} />
             {d.status === "NONE" && <p className="hint">Biên bản không có khoản trừ nên không cần xác nhận; cơ sở chốt hoàn cọc theo quy trình.</p>}
           </section>}
         </div>
-        <aside className="panel customer-detail__card customer-detail__sidebar return-refund"><h2>Khoản hoàn dự kiến</h2>
-          <DetailList items={[["Cọc ban đầu", money(d.deposit)], ["Phí vệ sinh theo chính sách", d.cleaningFee > 0 ? <span className="money-deduct">− {money(d.cleaningFee)}</span> : money(0)], ["Hư hỏng theo biên bản", d.damageFee > 0 ? <span className="money-deduct">− {money(d.damageFee)}</span> : money(0)]]} />
-          <div className="return-refund__total"><span>Dự kiến hoàn</span><strong>{money(total)}</strong></div>
-          <p className="hint">Phí quá hạn (nếu có) và tiền thuê chưa dùng được tính khi cơ sở chốt hoàn cọc. Tổng khấu trừ tối đa bằng tiền cọc.</p>
+        <aside className="panel customer-detail__card customer-detail__sidebar"><h2>Khoản hoàn sau khấu trừ</h2>
+          <DetailList items={[["Cọc ban đầu", money(deposit)], ...(overdue > 0 ? [[`Quá hạn ${d.overdueDays} ngày`, minus(overdue)]] : []), ["Vệ sinh · theo chính sách", minus(d.cleaningFee)], ["Hư hỏng · theo biên bản", minus(d.damageFee)]]} />
+          <div className="summary-total"><span>Dự kiến hoàn</span><strong>{money(total)}</strong></div>
+          <p className="hint">Hoàn cọc chỉ hoàn tất sau khi bạn xác nhận. Nếu cơ sở chấp nhận bạn tự dọn hoặc thay thế, khoản đó không bị trừ. Tổng khấu trừ tối đa bằng tiền cọc.</p>
         </aside>
       </div>}
-    {confirm && <ConfirmDialog title="Gửi lựa chọn khấu trừ?" tone="warning" text="Bạn chỉ chọn được một lần cho biên bản này." rows={[["Phương án", DECISIONS[decision][0]], ...(note.trim() ? [["Ghi chú", note.trim()]] : [])]} busy={busy} onCancel={() => setConfirm(false)} onConfirm={send} label="Gửi lựa chọn" />}
+    {confirm && <ConfirmDialog title="Gửi phản hồi cho cơ sở?" tone="warning" text="Bạn chỉ chọn được một lần cho biên bản này." rows={[["Phương án", DECISIONS[decision]], ...(note.trim() ? [["Ghi chú", note.trim()]] : [])]} busy={busy} onCancel={() => setConfirm(false)} onConfirm={send} label="Gửi phản hồi" />}
   </main>;
 }

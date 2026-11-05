@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Button, DetailList, LinkButton, Notice, PageHeader, StatusTag, Tag } from "../../../shared/components/UI.jsx";
 import { typeLabel } from "../../../shared/utils/catalog.js";
-import { dateLabel, money, rangeLabel, today } from "../../../shared/utils/format.js";
+import { dateLabel, daysBetween, money, rangeLabel, today } from "../../../shared/utils/format.js";
 import { CONTRACT_STATUS, LEDGER_STATUS } from "../../../shared/utils/status.js";
 import { contractOf, contractStatus, facilityOf, pendingRenewal, pendingReturn } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
@@ -35,7 +35,7 @@ export function RentedUnitDetailPage({ id }) {
   return (
     <main className="container page customer-records customer-detail">
       <p className="customer-records__breadcrumb">SafeSpace / Khách hàng / Kho của tôi / {id}</p>
-      <PageHeader title={`Kho ${c.unit_number} · Hợp đồng thuê`} description={`${c.contract_id} · ${f.name}`}>{prestart && !ended ? <Tag tone="blue">Chưa đến ngày sử dụng</Tag> : <StatusTag map={CONTRACT_STATUS} status={status} />}</PageHeader>
+      <PageHeader title={`Kho ${c.unit_number} · Hợp đồng thuê`} description={`${c.contract_id} · ${f.name}`}>{prestart && !ended ? <Tag tone="blue">Chưa đến ngày sử dụng</Tag> : status === "EXPIRING" ? <Tag tone="amber">Sắp hết hạn · còn {daysBetween(today(), c.end_date)} ngày</Tag> : <StatusTag map={CONTRACT_STATUS} status={status} />}</PageHeader>
       <div className="customer-detail__grid">
         <div className="customer-detail__column">
           <section className="panel customer-detail__card">
@@ -73,21 +73,21 @@ export function RentedUnitDetailPage({ id }) {
           {c.status === "RETURN_PENDING" && <Notice>Nhân viên gửi biên bản trả kho trong 3 ngày. Khi có biên bản, bạn có 48 giờ để xác nhận khoản khấu trừ. <a href={`#/units/${encodeURIComponent(id)}/deduction`}>Xem biên bản & xác nhận</a></Notice>}
           {prestart && !ended && <Notice>Nếu kho chưa sẵn sàng 5 ngày trước ngày nhận, SafeSpace gửi đề xuất đổi kho. <a href={`#/units/${encodeURIComponent(id)}/unit-change`}>Xem đề xuất đổi kho</a></Notice>}
           {ret && <Notice>{ret.date ? `Yêu cầu trả kho ngày ${dateLabel(ret.date)} đang chờ cơ sở xác nhận.` : "Yêu cầu trả kho đã được ghi nhận; chưa có thông tin lịch kiểm tra."}</Notice>}
-          <div className="customer-detail__task"><div><h3>Gia hạn</h3><p>{bookedFrom ? `Ô đã có khách đặt từ ${dateLabel(bookedFrom)}. Liên hệ cơ sở để chuyển sang ô khác còn trống.` : ret ? "Đã gửi trả kho nên không gia hạn được." : "Gửi trước ngày hết hạn, thanh toán sau khi được duyệt."}</p></div>
-            {issued && !ended && !busy && !bookedFrom && c.end_date > today() ? <LinkButton to={`units/${id}/renew`} variant="outline">Yêu cầu gia hạn</LinkButton> : <Button variant="outline" disabled>Yêu cầu gia hạn</Button>}
+          <div className="customer-detail__task"><div><h3>Gia hạn</h3><p>{bookedFrom ? `Ô ${c.unit_number} đã có khách đặt từ ${dateLabel(bookedFrom)} · liên hệ cơ sở để gia hạn sang ô khác còn trống.` : ret ? "Đã gửi trả kho nên không gia hạn được." : "Gửi trước ngày hết hạn, thanh toán sau khi được duyệt."}</p></div>
+            {issued && !ended && !busy && !bookedFrom && c.end_date > today() ? <LinkButton to={`units/${id}/renew`} variant="outline">Gia hạn</LinkButton> : <Button variant="outline" disabled>Gia hạn</Button>}
           </div>
           {prestart && !ended ? (
             <div className="customer-detail__task"><div><h3>Huỷ đơn</h3><p>Chưa đến ngày thuê: hoàn 100% tiền thuê và 95% tiền cọc (phí huỷ 5% cọc).</p></div>
               {cancellable ? <LinkButton to={`reservations/${c.reservation_id}/cancel`} variant="outline">Huỷ đơn</LinkButton> : <Button variant="outline" disabled>Huỷ đơn</Button>}
             </div>
           ) : (
-            <div className="customer-detail__task"><div><h3>Trả kho</h3><p>Đăng ký lịch kiểm tra và xử lý hoàn cọc.</p></div>
-              {issued && !ended && !busy ? <LinkButton to={`units/${id}/return`} variant="outline">Đăng ký trả kho</LinkButton> : <Button variant="outline" disabled>Đăng ký trả kho</Button>}
+            <div className="customer-detail__task"><div><h3>Trả kho</h3><p>Gửi ảnh kho trống, phí quá hạn dừng ngay.</p></div>
+              {issued && !ended && !busy ? <LinkButton to={`units/${id}/return`} variant="outline">Trả kho</LinkButton> : <Button variant="outline" disabled>Trả kho</Button>}
             </div>
           )}
           {/* D40 (thay L14): hợp đồng đã thanh toán, kể cả chưa đến ngày thuê, được gửi hỗ trợ theo kho; đã kết thúc thì dùng hỗ trợ chung */}
           {!ended
-            ? <div className="customer-detail__task"><div><h3>Hỗ trợ</h3><p>{c.handed_over ? "QR, PIN, chìa khóa, thanh toán." : "Lần đầu nhận chìa khóa: gửi yêu cầu để cơ sở xếp lịch."}</p></div><LinkButton to={c.handed_over ? `support?contract=${encodeURIComponent(id)}` : `support?contract=${encodeURIComponent(id)}&topic=KEY_PICKUP`} variant="outline">{c.handed_over ? "Gửi yêu cầu hỗ trợ" : "Yêu cầu nhận chìa khóa"}</LinkButton></div>
+            ? <div className="customer-detail__task"><div><h3>Hỗ trợ</h3><p>{c.handed_over ? "QR, PIN, chìa khóa, thanh toán." : "Lần đầu nhận chìa khóa: gửi yêu cầu để cơ sở xếp lịch."}</p></div><LinkButton to={c.handed_over ? `support?contract=${encodeURIComponent(id)}` : `support?contract=${encodeURIComponent(id)}&topic=KEY_PICKUP`} variant="outline">{c.handed_over ? "Gửi" : "Nhận chìa khóa"}</LinkButton></div>
             : <div className="customer-detail__task"><div><h3>Hỗ trợ</h3><p>Hợp đồng đã kết thúc. Cần hỏi thêm? Gửi hỗ trợ chung.</p></div><LinkButton to="inquiries" variant="outline">Gửi hỗ trợ chung</LinkButton></div>}
           {ended && <LinkButton to="find">Thuê kho mới</LinkButton>}
           {!issued && !ended && <LinkButton to="payments" variant="outline">Xem lịch nhận chìa khóa</LinkButton>}

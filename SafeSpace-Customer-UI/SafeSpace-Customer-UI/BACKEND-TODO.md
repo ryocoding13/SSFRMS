@@ -13,7 +13,7 @@
 FE làm ở Phiên 5 (khách) và Phiên 6 (nhân viên, quản lý). Ngày giờ trả về là giờ Việt Nam `yyyy-MM-ddTHH:mm:ss`.
 
 - **Khấu trừ trả kho (D39/D40)** — `GET /api/contracts/{contractId}/return-deduction` (contractId số hoặc `HĐ-…`) →
-  `{ returnId, contractId, deposit, cleaningFee, damageFee, damageItem, feeReason, photos[], sentAt, deadlineAt, needsConfirmation, status, decision, decisionNote, decidedAt, recheckNote }`.
+  `{ returnId, contractId, deposit, cleaningFee, damageFee, damageItem, feeReason, photos[], sentAt, deadlineAt, needsConfirmation, status, decision, decisionNote, decidedAt, recheckNote, overdueFee, overdueDays, staffName }` (3 trường cuối thêm ở Phiên 5b cho D30-13: phí quá hạn tới lúc gửi trả kho, người lập biên bản).
   `status`: `NONE` · `WAITING` · `AUTO_AGREED` · `AGREED` · `SELF_CLEAN` · `SELF_REPLACE` · `DISPUTE` · `RECHECKED`.
   `POST` cùng URL `{ decision: "AGREE"|"SELF_CLEAN"|"SELF_REPLACE"|"DISPUTE", note }` (DISPUTE bắt buộc note; chọn một lần, trước hạn).
   Cơ sở: `POST /api/ops/returns/{TK-id}/recheck { cleaningPassed, replacementPassed, note }`. M07 `/contracts/{id}/refund` trả 400 "Chờ khách xác nhận…" khi còn hạn.

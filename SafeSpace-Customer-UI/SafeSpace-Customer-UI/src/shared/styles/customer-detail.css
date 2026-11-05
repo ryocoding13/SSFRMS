@@ -7,7 +7,9 @@
 .customer-detail__card .detail-list > div { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; padding: 0; border: 0; font-size: 14px; }
 .customer-detail__card .detail-list dt { color: var(--muted); }
 .customer-detail__card .detail-list dd { font-weight: 600; text-align: left; overflow-wrap: anywhere; }
-.customer-detail__sidebar .detail-list > div { grid-template-columns: 120px minmax(0, 1fr); }
+.customer-detail__sidebar .detail-list > div { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+/* Figma: cột tóm tắt 432 canh giá trị sát phải (SPACE_BETWEEN) */
+.customer-detail__sidebar .detail-list dd { text-align: right; }
 .customer-detail__card .hint { margin: 0; font-size: 13px; }
 .customer-detail__actions { display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
 .customer-detail .btn { border-radius: 10px; padding: 12px 20px; font-size: 15px; justify-content: center; white-space: normal; }
@@ -69,7 +71,8 @@
 
 .return-request__warning { border-color: #d8a368; }
 .return-request__warning h2 { color: #a86108; }
-.return-request__warning ul { margin: 0; padding-left: 20px; display: grid; gap: 14px; font-size: 14px; }
+.return-request__warning ul { margin: 0; padding-left: 20px; display: grid; gap: 14px; font-size: 14px; list-style: disc; }
+.return-request__warning li::marker { color: #a86108; }
 
 .refund-timeline { list-style: none; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 20px; padding: 24px; margin: 0 0 24px; border-radius: 12px; }
 .refund-timeline li { display: flex; gap: 12px; align-items: center; font-size: 14px; }
@@ -131,16 +134,21 @@
 .inspect-cleaning strong { font-weight: 600; }
 .inspect-cleaning small { color: var(--muted); font-size: 13px; }
 
-/* D42/D44 · Cách nhận hoàn: chuyển khoản / tiền mặt tại quầy */
+/* D42/D44 · Figma D30-07 / D30-03: "Nhận hoàn qua" chọn chuyển khoản / tiền mặt trên một hàng */
 .refund-method { display: grid; gap: 14px; }
-.refund-method__options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.refund-method__option { display: flex; gap: 10px; align-items: flex-start; padding: 14px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; background: var(--white); }
-.refund-method__option.is-active { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue) inset; background: var(--soft); }
-.refund-method__option span { display: grid; gap: 4px; min-width: 0; }
-.refund-method__option strong { font-size: 15px; }
-.refund-method__option small { font-size: 13px; color: var(--muted, #64748b); line-height: 1.4; }
+.refund-method__intro { margin: -4px 0 0; }
+.refund-method__row { display: grid; gap: 10px; }
+.refund-method__label { font-size: 14px; font-weight: 600; color: var(--text); }
+.refund-method__options { display: flex; flex-wrap: wrap; gap: 12px 28px; }
+.refund-method__option { display: inline-flex; gap: 10px; align-items: center; cursor: pointer; font-size: 15px; }
+.refund-method__option input { margin: 0; width: 18px; height: 18px; accent-color: var(--blue); }
 .refund-method__cash { display: grid; gap: 10px; }
-@media (max-width: 640px) { .refund-method__options { grid-template-columns: 1fr; } }
+.refund-method__cash .hint { margin: 0; }
+
+/* Lựa chọn dạng danh sách (D30-13, C-D41a, D30-16) */
+.choice-list { border: 0; padding: 0; margin: 0; display: grid; gap: 14px; }
+.choice-list__item { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; font-size: 15px; line-height: 1.45; }
+.choice-list__item input { margin: 2px 0 0; width: 18px; height: 18px; flex: none; accent-color: var(--blue); }
 
 /* D39 · Xác nhận khấu trừ trả kho · D41 · Đề xuất đổi kho */
 .deduction-options { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; }
@@ -148,3 +156,19 @@
 .deadline-banner { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; }
 .money-deduct { color: var(--money-deduct); }
 .money-total { color: var(--money-total); font-weight: 700; }
+
+/* D30-13 · ảnh biên bản và tổng tiền ở cột tóm tắt */
+.deduction-photos { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.deduction-photos a { display: block; width: 120px; height: 90px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--soft); }
+.deduction-photos img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.summary-total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-top: 14px; border-top: 1px solid var(--line); }
+.summary-total span { font-weight: 600; }
+.summary-total strong { color: var(--money-total); font-size: 28px; font-weight: 700; }
+
+/* C12 · Yêu cầu gần đây */
+.support-recent__item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #f8faff; }
+.support-recent__text { display: grid; gap: 4px; min-width: 0; font-size: 14px; }
+.support-recent__status { font-size: 12px; font-weight: 600; }
+.support-recent__reply { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.support-recent__actions { display: flex; gap: 8px; flex: none; }
+.support-recent__actions .btn { min-width: 72px; }

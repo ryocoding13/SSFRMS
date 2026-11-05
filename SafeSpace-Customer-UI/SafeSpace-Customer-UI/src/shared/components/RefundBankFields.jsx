@@ -1,9 +1,9 @@
 import React from "react";
 import { Field } from "./UI.jsx";
-export default function RefundBankFields({ value, onChange, disabled, expectedName }) {
+export default function RefundBankFields({ value, onChange, disabled, expectedName, intro = true }) {
   const change = key => e => onChange({ ...value, [key]: e.target.value });
   return <>
-    <p className="hint">Chuyển khoản vào tài khoản chính chủ (tên trùng hợp đồng), kể cả khi bạn đã thanh toán bằng tiền mặt. Thời hạn hoàn: 3–5 ngày làm việc.</p>
+    {intro && <p className="hint">Chuyển khoản vào tài khoản chính chủ (tên trùng hợp đồng), kể cả khi bạn đã thanh toán bằng tiền mặt. Thời hạn hoàn: 3–5 ngày làm việc.</p>}
     <div className="form-row">
       <Field label="Ngân hàng *"><input required maxLength={100} autoComplete="off" value={value.bankName} onChange={change("bankName")} disabled={disabled} /></Field>
       <Field label="Số tài khoản *"><input required inputMode="numeric" pattern="[0-9]{6,19}" minLength={6} maxLength={19} autoComplete="off" value={value.accountNumber} onChange={change("accountNumber")} disabled={disabled} /></Field>

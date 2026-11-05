@@ -48,6 +48,10 @@ public sealed partial class D32RefundEvidenceTests
         Assert.True(view.NeedsConfirmation);
         Assert.Equal(100_000m, view.CleaningFee);
         Assert.NotNull(view.DeadlineAt);
+        // D30-13: hợp đồng còn hạn → không có phí quá hạn; biên bản ghi tên nhân viên lập.
+        Assert.Equal(0m, view.OverdueFee);
+        Assert.Equal(0, view.OverdueDays);
+        Assert.False(string.IsNullOrWhiteSpace(view.StaffName));
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => f.Ops.ConfirmRefundAsync(f.ManagerActor, Code(c)));
         Assert.Contains("Chờ khách xác nhận", ex.Message);
 

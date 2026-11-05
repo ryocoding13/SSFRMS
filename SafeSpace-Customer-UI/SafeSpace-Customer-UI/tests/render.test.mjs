@@ -41,10 +41,10 @@ try {
   window.location.hash = "#/units/HĐ-2026-0142/return";
   const returnHtml = renderToStaticMarkup(React.createElement(App));
   // D42: khách chọn cách nhận hoàn (chuyển khoản / tiền mặt tại quầy); mặc định chuyển khoản vẫn hiện ô tài khoản
-  for (const text of ["Hiện trạng kho", "Tải ảnh kho trống", "Cách nhận hoàn", "Tiền mặt tại quầy", "Số tài khoản", "Không thể huỷ yêu cầu", "QR/PIN khoá ngay", "48 giờ"]) assert.ok(returnHtml.includes(text), text);
+  for (const text of ["Hiện trạng kho", "Tải ảnh kho trống", "Nhận tiền hoàn · Chính chủ", "Nhận hoàn qua", "Tiền mặt tại quầy", "Số tài khoản", "Không thể huỷ yêu cầu", "QR/PIN khoá ngay", "48 giờ"]) assert.ok(returnHtml.includes(text), text);
   window.location.hash = "#/reservations/SS-20260914-0142/cancel";
   const cancelHtml = renderToStaticMarkup(React.createElement(App));
-  for (const text of ["Cách nhận hoàn", "Tiền mặt tại quầy", "Số tài khoản", "Chủ tài khoản", "Khoản hoàn dự kiến"]) assert.ok(cancelHtml.includes(text), text);
+  for (const text of ["Nhận tiền hoàn · Chính chủ", "Tiền mặt tại quầy", "Số tài khoản", "Chủ tài khoản", "Khoản hoàn dự kiến"]) assert.ok(cancelHtml.includes(text), text);
   const { createWorkflowSeed } = await vite.ssrLoadModule("/src/features/facility-operations/workflows/workflowModel.js");
   const workflowFixture = createWorkflowSeed();
   const owner = createSeedData().user.user_id;
@@ -214,10 +214,10 @@ try {
   seed(true);
   const pages = [
     // D36: chìa khóa vật lý giao theo yêu cầu "Nhận chìa khóa"; D40: hợp đồng chưa tới ngày thuê vẫn gửi hỗ trợ được
-    ["units/HĐ-2026-0142", ["Hợp đồng và mã ra vào đã được cấp", "Đã cấp · mã hiện từ", "Mã hiện từ", "Yêu cầu nhận chìa khóa"]],
-    ["units/HĐ-2026-0086", ["Xem QR &amp; PIN 6 số", "Yêu cầu gia hạn", "Đăng ký trả kho"]],
+    ["units/HĐ-2026-0142", ["Hợp đồng và mã ra vào đã được cấp", "Đã cấp · mã hiện từ", "Mã hiện từ", "Nhận chìa khóa"]],
+    ["units/HĐ-2026-0086", ["Xem QR &amp; PIN 6 số", "Gia hạn", "Trả kho"]],
     ["payments", ["Thanh toán", "Gia hạn B-015 · 3 tháng", "Chờ thanh toán"]],
-    ["support", ["Phản hồi của nhân viên", "Thẻ cũ bị lỗi từ"]],
+    ["support", ["Phản hồi của nhân viên", "Thẻ cũ bị lỗi từ", "Yêu cầu gần đây", "Lưu ý khi gửi"]],
     ["reservations", ["Huỷ đơn SS-0142", "Thao tác", "phí huỷ 5% tiền cọc"]], // D40
     ["find/1", ["Chỉ đường đến cơ sở", "google.com/maps/dir"]],
   ];

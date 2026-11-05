@@ -102,7 +102,8 @@ public partial class FacilityOpsService
         long customerId, string contractCode, bool track, CancellationToken ct)
     {
         var contractId = CustomerContractId(contractCode);
-        var query = dbContext.RentalContracts.Include(c => c.ReturnInspections).Include(c => c.Payments).AsQueryable();
+        var query = dbContext.RentalContracts.Include(c => c.Unit).Include(c => c.ReturnInspections).ThenInclude(i => i.Staff)
+            .Include(c => c.Payments).AsQueryable();
         if (!track) query = query.AsNoTracking();
         var contract = await query.FirstOrDefaultAsync(c => c.ContractId == contractId && c.CustomerId == customerId, ct)
                        ?? throw new KeyNotFoundException("Không tìm thấy hợp đồng của bạn.");
@@ -119,12 +120,16 @@ public partial class FacilityOpsService
         var decision = logs.LastOrDefault(l => l.Action == FlowAction.DeductionDecision);
         var recheck = logs.LastOrDefault(l => l.Action == FlowAction.DeductionRecheck);
         var photos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.ReturnInspection, [i.InspectionId], ct);
+        // D30-13: phí quá hạn tính đến lúc khách gửi trả kho (D32), hiển thị cùng khoản khấu trừ.
+        var overdueDays = Math.Max(0, DateOnly.FromDateTime(i.CreatedAt + VnOffset).DayNumber - c.EndDate.DayNumber);
+        var overdueFee = c.Unit != null ? await OverdueFeeAtAsync(c, c.Unit.FacilityId, i.CreatedAt, ct) : 0;
         return new ReturnDeductionDto(
             ReturnCode(i.InspectionId), ContractCode(c), c.DepositAmount, i.CleaningFee, i.DamageFee,
             i.DamageItem ?? "", i.FeeReason ?? "", PhotosOf(photos, i.InspectionId),
             Local(i.InspectedAt), Local(deadline), status == "WAITING",
             status, decision != null ? Read(decision, "decision") : null, decision != null ? Read(decision, "note") : null,
-            Local(decision?.LoggedAt), recheck != null ? Read(recheck, "note") : null);
+            Local(decision?.LoggedAt), recheck != null ? Read(recheck, "note") : null,
+            overdueFee, overdueDays, i.Staff?.FullName);
     }
 
     public async Task<ReturnDeductionDto> GetReturnDeductionAsync(long customerId, string contractCode, CancellationToken ct = default)
