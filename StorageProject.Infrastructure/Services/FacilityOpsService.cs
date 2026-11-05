@@ -156,7 +156,7 @@ public partial class FacilityOpsService(AppDbContext dbContext) : IFacilityOpsSe
         public const string Contract = "RENTAL_CONTRACT";
     }
 
-    private void Log(long userId, string action, string entityType, long entityId, object value) =>
+    private void Log(long? userId, string action, string entityType, long entityId, object value) =>
         dbContext.ActivityLogs.Add(new ActivityLog
         {
             UserId = userId,

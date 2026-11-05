@@ -8,7 +8,7 @@ namespace StorageProject.Api.Endpoints;
 
 /// <summary>
 /// Khu Quản lý vận hành kinh doanh (Business Operations Manager) — UC19–UC23.
-/// Role OPERATIONS hoặc BUSINESS_OPERATOR; sai vai trò trả 403.
+/// Role OPERATIONS (L7: BUSINESS_OPERATOR đã gộp; vẫn nhận claim cũ cho token phát hành trước khi gộp); sai vai trò trả 403.
 /// </summary>
 public static class OperationsEndpoints
 {

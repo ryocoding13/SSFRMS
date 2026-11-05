@@ -85,9 +85,10 @@ export function applyWorkflowAction(state, action, payload, actor, now = new Dat
     case "REPLY_INQUIRY": {
       const item = find("inquiries"); const customer = actor.roles.includes("CUSTOMER");
       if (customer && String(item.ownerId) !== String(actor.id)) throw new Error("Yêu cầu không thuộc tài khoản của bạn.");
-      if (!customer) allow("STAFF", "MANAGER"); if (item.status === "CLOSED") throw new Error("Yêu cầu đã đóng.");
+      if (!customer) allow("STAFF", "MANAGER"); // D43: không có thao tác đóng; yêu cầu CLOSED cũ vẫn trả lời tiếp
+
       requireText(payload.note, "nội dung phản hồi"); item.responses.push({ text: payload.note.trim(), at, by: actor.name, customer });
-      item.status = customer ? "OPEN" : payload.close ? "CLOSED" : "WAITING_CUSTOMER"; break;
+      item.status = customer ? "OPEN" : "WAITING_CUSTOMER"; break;
     }
     case "SAVE_RENTAL_POLICY":
       allow("OPERATIONS"); if (!(Number(payload.rate) > 0 && Number(payload.rate) <= 100)) throw new Error("Tỷ lệ phải lớn hơn 0 và không quá 100%.");

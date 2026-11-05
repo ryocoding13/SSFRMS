@@ -41,6 +41,15 @@ export const api = {
     request(`/api/contracts/${contractId}/renewals`, { method: "POST", body: { renewalPeriodMonths: months, ...(consent ? { policyVersion: Number(consent.version), accepted: true } : {}) } }),
   confirmHandover: (handoverId) => request(`/api/handovers/${handoverId}/confirm`, { method: "POST" }),
   requestMoveOut: (contractId, body) => request(`/api/contracts/${contractId}/move-out`, { method: "POST", body }),
+  // D39/D40 · Khách xác nhận khấu trừ trả kho trong 48 giờ
+  returnDeduction: (contractId) => request(`/api/contracts/${encodeURIComponent(contractId)}/return-deduction`),
+  decideReturnDeduction: (contractId, body) => request(`/api/contracts/${encodeURIComponent(contractId)}/return-deduction`, { method: "POST", body }),
+  // D42/D44 · Hoàn tiền mặt tại quầy: theo dõi, đổi sang chuyển khoản trong 30 ngày
+  cashRefunds: () => request("/api/cash-refunds"),
+  switchCashRefundToBank: (id, bank) => request(`/api/cash-refunds/${encodeURIComponent(id)}/switch-to-bank`, { method: "POST", body: bank }),
+  // D41 · Đề xuất đổi kho khi khách trước chưa trả / chưa kiểm tra đạt
+  unitConflicts: () => request("/api/unit-conflicts"),
+  chooseUnitConflict: (contractId, body) => request(`/api/contracts/${encodeURIComponent(contractId)}/unit-conflict`, { method: "POST", body }),
 
   // Tài khoản & hồ sơ
   getProfile: () => request("/api/auth/profile"),

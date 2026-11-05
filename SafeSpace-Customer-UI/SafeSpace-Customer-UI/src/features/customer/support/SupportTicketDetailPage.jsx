@@ -49,7 +49,8 @@ export default function SupportTicketDetailPage({ id }) {
           <div className="support-response"><strong>Phản hồi của nhân viên</strong><p>{reply.text}</p></div>
         </TimelineStep>)}
         {replies.length === 0 && !ticket.responses_error && <TimelineStep title="Phản hồi của nhân viên" pending by="Chưa có phản hồi" />}
-        <TimelineStep title={ticket.raw_status === "CANCELLED" ? "Đã huỷ yêu cầu" : "Đóng yêu cầu"} at={ticket.closed_at} pending={!ticket.closed_at} by={!ticket.closed_at && ticket.raw_status !== "CANCELLED" ? "Chưa đóng" : null} />
+        {/* D43: không có bước "Đóng yêu cầu"; chỉ hiện khi khách tự huỷ lúc chưa tiếp nhận */}
+        {ticket.raw_status === "CANCELLED" && <TimelineStep title="Đã huỷ yêu cầu" at={ticket.closed_at} />}
       </ol>
       <p className="hint">Chỉ hủy được yêu cầu khi nhân viên chưa tiếp nhận. Nếu đang đứng tại cổng cơ sở, liên hệ nhân viên trực để được hỗ trợ ngay.</p>
     </section>

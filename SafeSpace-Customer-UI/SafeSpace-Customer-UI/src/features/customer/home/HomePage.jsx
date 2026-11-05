@@ -6,6 +6,7 @@ import { SIZE_BANDS, UNIT_TYPES, areaLabel, listAreas, minRate } from "../../../
 import { money } from "../../../shared/utils/format.js";
 import { go, href, qs } from "../../../app/router.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
+import { PublicFooter } from "../../../shared/components/PublicFooter.jsx";
 
 // Trang chủ theo Figma "START · SafeSpace / Trang chủ" (14/10):
 // hero ảnh + tìm kho theo khu vực → số liệu → 4 loại kho → 3 bước → cơ sở theo khu vực → kêu gọi → footer.
@@ -241,34 +242,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer className="home-footer">
-        <div className="container">
-          <div className="home-footer__cols">
-            <div>
-              <strong className="home-footer__brand">SafeSpace</strong>
-              <p>Kho tự phục vụ tại TP. Hồ Chí Minh.</p>
-              <p>Ra vào {hours} · Camera 24/7</p>
-            </div>
-            <nav aria-label="Khám phá">
-              <strong>Khám phá</strong>
-              <a href={href("find")}>Tìm kho theo khu vực</a>
-              <a href={href("pricing")}>Bảng giá</a>
-              <a href={href("guide")}>Hướng dẫn đặt kho</a>
-            </nav>
-            <nav aria-label="Hỗ trợ">
-              <strong>Hỗ trợ</strong>
-              <a href={href("guide")}>Câu hỏi thường gặp</a>
-              <a href={href("support")}>Gửi yêu cầu hỗ trợ</a>
-            </nav>
-            <div>
-              <strong>Liên hệ</strong>
-              <p>028 3700 1012</p>
-              <p>{facilities[0]?.address || "TP. Hồ Chí Minh"}</p>
-            </div>
-          </div>
-          <p className="home-footer__copy">© {new Date().getFullYear()} SafeSpace. Hệ thống quản lý và cho thuê kho tự phục vụ.</p>
-        </div>
-      </footer>
+      <PublicFooter hours={hours} address={facilities[0]?.address || undefined} />
     </>
   );
 }

@@ -21,7 +21,7 @@ try {
   const seed = (authed, opsUser = null) => memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed, data: createSeedData(), opsUser }));
 
   const publicRoutes = ["reset-password","home", "login", "register", "pricing", "guide", "find", "find?type=climate&band=M", "find/map", "find/map?type=climate", "find/map?area=Kh%C3%B4ng%20c%C3%B3", "find/1", "find/1?view=map&unit=K02", "find/8?type=climate&view=map", "find/999", "nope", "door", "door?unit=B-015"];
-  const privateRoutes = ["units/HĐ-2026-0086/incident", "units/HĐ-2026-0086/incident?incident=missing", "units/unknown/incident","units/HĐ-2026-0086/damage", "units/HĐ-2026-0086/damage?case=missing", "units/unknown/damage","reservations/SS-20260914-0142/cancel", "reservations/missing/cancel","refunds","policies", "payments/check/SS-0086-REN", "payments/check/missing", "payments/history", "inquiries", "inquiries/HT-0091", "units/HĐ-2026-0142/deposit", "units/HĐ-2026-0086/progress", "units/HĐ-2026-0086/renewal-status",
+  const privateRoutes = ["units/HĐ-2026-0086/incident", "units/HĐ-2026-0086/incident?incident=missing", "units/unknown/incident","units/HĐ-2026-0086/damage", "units/HĐ-2026-0086/damage?case=missing", "units/unknown/damage","reservations/SS-20260914-0142/cancel", "reservations/missing/cancel","refunds","refunds/cash","units/HĐ-2026-0086/deduction","units/unknown/deduction","units/HĐ-2026-0142/unit-change","sent?type=return&contract=HĐ-2026-0086","support?topic=KEY_PICKUP","policies", "payments/check/SS-0086-REN", "payments/check/missing", "payments/history", "inquiries", "inquiries/HT-0091", "units/HĐ-2026-0142/deposit", "units/HĐ-2026-0086/progress", "units/HĐ-2026-0086/renewal-status",
     "overview", "units", "units/HĐ-2026-0142", "units/HĐ-2026-0086", "units/HĐ-2026-0086/renew", "units/HĐ-2026-0142/return", "units/unknown",
     "sent?type=renew&contract=HĐ-2026-0086", "reservations", "reservations/SS-20260914-0142", "reservations/none",
     "confirmation/SS-20260914-0142", "checkout/SS-20260914-0142", "checkout/SS-20260914-0142/confirm", "policies?tab=contract", "policies?tab=contract&contract=unknown", "payments", "support", "support/HT-0082", "support/unknown", "support?contract=HĐ-2026-0142&topic=SCHEDULE", "profile",
@@ -40,10 +40,11 @@ try {
   seed(true);
   window.location.hash = "#/units/HĐ-2026-0142/return";
   const returnHtml = renderToStaticMarkup(React.createElement(App));
-  for (const text of ["Hiện trạng kho", "Tải ảnh kho trống", "Tài khoản nhận hoàn", "Không thể huỷ yêu cầu", "QR/PIN khoá ngay"]) assert.ok(returnHtml.includes(text), text);
+  // D42: khách chọn cách nhận hoàn (chuyển khoản / tiền mặt tại quầy); mặc định chuyển khoản vẫn hiện ô tài khoản
+  for (const text of ["Hiện trạng kho", "Tải ảnh kho trống", "Nhận tiền hoàn · Chính chủ", "Nhận hoàn qua", "Tiền mặt tại quầy", "Số tài khoản", "Không thể huỷ yêu cầu", "QR/PIN khoá ngay", "48 giờ"]) assert.ok(returnHtml.includes(text), text);
   window.location.hash = "#/reservations/SS-20260914-0142/cancel";
   const cancelHtml = renderToStaticMarkup(React.createElement(App));
-  for (const text of ["Tài khoản nhận hoàn", "Số tài khoản", "Chủ tài khoản", "Khoản hoàn dự kiến"]) assert.ok(cancelHtml.includes(text), text);
+  for (const text of ["Nhận tiền hoàn · Chính chủ", "Tiền mặt tại quầy", "Số tài khoản", "Chủ tài khoản", "Khoản hoàn dự kiến"]) assert.ok(cancelHtml.includes(text), text);
   const { createWorkflowSeed } = await vite.ssrLoadModule("/src/features/facility-operations/workflows/workflowModel.js");
   const workflowFixture = createWorkflowSeed();
   const owner = createSeedData().user.user_id;
@@ -212,11 +213,12 @@ try {
   // C12 phản hồi nhân viên, C14 huỷ đơn, S09 thu tiền tại kho, M02 đổi trạng thái ô
   seed(true);
   const pages = [
-    ["units/HĐ-2026-0142", ["Hợp đồng và mã ra vào đã được cấp", "Đã cấp · mã hiện từ", "Mã hiện từ", "Nhận tại quầy cơ sở"]],
-    ["units/HĐ-2026-0086", ["Xem QR &amp; PIN 6 số", "Yêu cầu gia hạn", "Đăng ký trả kho"]],
+    // D36: chìa khóa vật lý giao theo yêu cầu "Nhận chìa khóa"; D40: hợp đồng chưa tới ngày thuê vẫn gửi hỗ trợ được
+    ["units/HĐ-2026-0142", ["Hợp đồng và mã ra vào đã được cấp", "Đã cấp · mã hiện từ", "Mã hiện từ", "Nhận chìa khóa"]],
+    ["units/HĐ-2026-0086", ["Xem QR &amp; PIN 6 số", "Gia hạn", "Trả kho"]],
     ["payments", ["Thanh toán", "Gia hạn B-015 · 3 tháng", "Chờ thanh toán"]],
-    ["support", ["Phản hồi của nhân viên", "Thẻ cũ bị lỗi từ"]],
-    ["reservations", ["Huỷ đơn SS-0142", "Thao tác", "phí huỷ 10% tiền cọc"]],
+    ["support", ["Phản hồi của nhân viên", "Thẻ cũ bị lỗi từ", "Yêu cầu gần đây", "Lưu ý khi gửi"]],
+    ["reservations", ["Huỷ đơn SS-0142", "Thao tác", "phí huỷ 5% tiền cọc"]], // D40
     ["find/1", ["Chỉ đường đến cơ sở", "google.com/maps/dir"]],
   ];
   for (const [r, texts] of pages) {

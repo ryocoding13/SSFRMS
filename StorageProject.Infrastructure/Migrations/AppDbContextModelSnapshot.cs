@@ -257,7 +257,7 @@ namespace StorageProject.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_evidence_photos_content_type", "[ContentType] IN ('image/jpeg','image/png')");
 
-                            t.HasCheckConstraint("CK_evidence_photos_owner_type", "[OwnerType] IN ('MOVE_OUT','RETURN_INSPECTION','INCIDENT')");
+                            t.HasCheckConstraint("CK_evidence_photos_owner_type", "[OwnerType] IN ('MOVE_OUT','RETURN_INSPECTION','INCIDENT','OVERDUE_BEFORE','OVERDUE_AFTER','SUPPORT_TICKET')");
 
                             t.HasCheckConstraint("CK_evidence_photos_size", "[SizeBytes] > 0 AND [SizeBytes] <= 5242880");
                         });
@@ -991,7 +991,7 @@ namespace StorageProject.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_policies_calculation_type", "[CalculationType] IS NULL OR [CalculationType] IN ('FIXED','PERCENTAGE','RANGE','RULE','DEPOSIT_PERCENT_PER_DAY')");
 
-                            t.HasCheckConstraint("CK_policies_policy_type", "[PolicyType] IN ('DEPOSIT','RENEWAL','CANCELLATION','RETURN','OVERDUE','EXTRA_FEE','DISCOUNT','FEE_WAIVER','PRICE_RANGE')");
+                            t.HasCheckConstraint("CK_policies_policy_type", "[PolicyType] IN ('DEPOSIT','RENEWAL','CANCELLATION','RETURN','OVERDUE','EXTRA_FEE','DISCOUNT','FEE_WAIVER','PRICE_RANGE','RELET_BUFFER')");
 
                             t.HasCheckConstraint("CK_policies_status", "[Status] IN ('DRAFT','ACTIVE','INACTIVE','EXPIRED')");
                         });

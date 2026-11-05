@@ -16,7 +16,7 @@ public static class OpsRules
     public static readonly string[] FacilityStatuses = ["ACTIVE", "INACTIVE", "TEMPORARILY_CLOSED"];
 
     public static readonly string[] PolicyTypes =
-        ["DEPOSIT", "RENEWAL", "CANCELLATION", "RETURN", "OVERDUE", "EXTRA_FEE", "DISCOUNT", "FEE_WAIVER", "PRICE_RANGE"];
+        ["DEPOSIT", "RENEWAL", "CANCELLATION", "RETURN", "OVERDUE", "EXTRA_FEE", "DISCOUNT", "FEE_WAIVER", "PRICE_RANGE", "RELET_BUFFER"];
 
     public static readonly string[] CalculationTypes = ["FIXED", "PERCENTAGE", "RANGE", "RULE", "DEPOSIT_PERCENT_PER_DAY"];
 
@@ -106,9 +106,10 @@ public static class OpsRules
 
     /// <summary>
     /// Tiền cọc theo chính sách DEPOSIT (BR21):
-    /// PERCENTAGE = % tiền thuê kỳ đầu trước giảm; FIXED ≥ 1.000 = số tiền VND;
+    /// PERCENTAGE = % của **1 tháng** tiền thuê (L11, D42: không tính trên tổng tiền thuê cả kỳ); FIXED ≥ 1.000 = số tiền VND;
     /// FIXED &lt; 1.000 = số tháng tiền thuê (cách ghi của chính sách seed ban đầu, Value = 1 nghĩa là 1 tháng).
     /// Không có chính sách áp dụng hoặc RULE → mặc định 1 tháng tiền thuê.
+    /// <paramref name="estimatedAmount"/> giữ lại cho chữ ký cũ, không còn dùng để tính cọc.
     /// </summary>
     public static decimal CalculateDeposit(Policy? policy, decimal monthlyRate, decimal estimatedAmount)
     {
@@ -116,7 +117,7 @@ public static class OpsRules
 
         return policy.CalculationType switch
         {
-            "PERCENTAGE" => Math.Round(estimatedAmount * value / 100m, 0, MidpointRounding.AwayFromZero),
+            "PERCENTAGE" => Math.Round(monthlyRate * value / 100m, 0, MidpointRounding.AwayFromZero),
             "FIXED" when value >= 1000m => value,
             "FIXED" => monthlyRate * value,
             _ => monthlyRate

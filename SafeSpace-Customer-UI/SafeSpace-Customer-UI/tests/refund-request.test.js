@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateRefundBank, validateReturnPhotos, verifyPhotoFile, MAX_PHOTO_BYTES } from '../src/shared/utils/refundRequest.js';
+import { validateRefundBank, validateReturnPhotos, verifyPhotoFile, MAX_PHOTO_BYTES, validateRefundChoice, refundChoicePayload, refundBankInput, isCashRefund, storedRefundChoice } from '../src/shared/utils/refundRequest.js';
 import { submitCancellation, submitReturnRequest } from '../src/shared/api/refundRequestApi.js';
 import { createSeedData } from '../src/app/data/appSeed.js';
 import { pendingReturn } from '../src/app/state/appSelectors.js';
@@ -62,7 +62,7 @@ test('demo huỷ đơn: chặn sau ngày bắt đầu và thiếu xác nhận; l
   assert.ok(reduce(s,{...a,payload:{...a.payload,bankConfirmed:false}},ctx).error);
   const out=reduce(s,a,ctx);assert.equal(out.error,undefined);
   const cancelled=out.state.reservations.find(x=>x.reservation_id===r.reservation_id);
-  assert.deepEqual(cancelled.refund_bank,bank);assert.equal(cancelled.refund_amount,4485000);assert.equal(cancelled.refund_status,'PENDING');
+  assert.deepEqual(cancelled.refund_bank,bank);assert.equal(cancelled.refund_amount,4542500); // D40: phí huỷ 5% cọcassert.equal(cancelled.refund_status,'PENDING');
   assert.ok(reduce(s,a,{now:new Date('2026-10-01T09:00:00+07:00')}).error);
 });
 
@@ -70,4 +70,21 @@ test('RETURN_PENDING từ server vẫn chặn thao tác khi thiết bị chưa c
   const s = createSeedData('2026-09-21'); s.returns=[]; s.contracts[0].status='RETURN_PENDING';
   const pending = pendingReturn(s,s.contracts[0].contract_id);
   assert.ok(pending); assert.equal(pending.date,undefined);
+});
+
+// D42/D44 · khách chọn tiền mặt tại quầy: không cần tài khoản nhưng phải xác nhận điều kiện 30 ngày
+test('cách nhận hoàn: chuyển khoản giữ payload cũ, tiền mặt gửi refundMethod CASH và cần xác nhận', async () => {
+  assert.equal(validateRefundChoice({method:'CASH'},'Nguyễn Thị Mai'),'Vui lòng xác nhận điều kiện nhận tiền mặt tại quầy.');
+  assert.equal(validateRefundChoice({method:'CASH',cashAccepted:true},'Nguyễn Thị Mai'),'');
+  assert.equal(validateRefundChoice({...bank,method:'BANK_TRANSFER'},'Nguyễn Thị Mai'),'');
+  assert.deepEqual(refundChoicePayload({method:'CASH',cashAccepted:true}),{refundMethod:'CASH'});
+  assert.deepEqual(refundChoicePayload({...bank,method:'BANK_TRANSFER'}),bank);
+  assert.deepEqual(refundBankInput({method:'CASH'}),{method:'CASH'});
+  assert.ok(isCashRefund(storedRefundChoice({method:'CASH'})));
+  const calls=[];
+  const api={currentRentalPolicy:async()=>({returnRequestSupported:true,cancellationBankSupported:true}),requestMoveOut:async(...a)=>calls.push(a),cancelReservation:async(...a)=>calls.push(a)};
+  await submitCancellation(api,9,'Đổi kế hoạch',{method:'CASH',cashAccepted:true},true,'Nguyễn Thị Mai');
+  assert.deepEqual(calls[0],[9,'Đổi kế hoạch',{refundMethod:'CASH'}]);
+  await submitReturnRequest(api,10,{...payload,bank:{method:'CASH',cashAccepted:true}},'Nguyễn Thị Mai',async()=>({fileName:'empty.png',contentType:'image/png',dataBase64:'abc'}));
+  assert.equal(calls[1][1].refundMethod,'CASH');assert.equal(calls[1][1].accountNumber,undefined);
 });

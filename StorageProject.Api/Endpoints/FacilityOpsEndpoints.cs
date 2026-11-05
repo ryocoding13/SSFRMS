@@ -28,9 +28,7 @@ public static class FacilityOpsEndpoints
             Run(async () => { await ops.ConfirmPaymentAsync(Actor(user), id, ct); return Done(); }))
             .WithSummary("S09 · Xác nhận đã thu: đơn PENDING_VERIFICATION → CONFIRMED, chuyển quản lý phân bổ ô");
 
-        group.MapPost("/payments/{id}/mismatch", (string id, OpsNoteRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
-            Run(async () => { await ops.ReportMismatchAsync(Actor(user), id, request, ct); return Done(); }))
-            .WithSummary("S09 · Báo sai lệch chuyển khoản (note bắt buộc)");
+        // D42: bỏ báo cáo sai lệch chuyển khoản (POST /payments/{id}/mismatch đã gỡ).
 
         group.MapPost("/verifications/{id}", (string id, OpsVerifyRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
             Run(async () => { await ops.VerifyCustomerAsync(Actor(user), id, request, ct); return Done(); }))
@@ -95,6 +93,38 @@ public static class FacilityOpsEndpoints
             Run(async () => Results.Ok(new { item = await ops.ConfirmDepositRefundAsync(Actor(user), request, ct) })))
             .WithSummary("CONFIRM_DEPOSIT_REFUND: quản lý ghi mã giao dịch → PAID; expectedVersion cũ trả 409");
 
+        // ---- D39 · Kiểm tra lại phương án khách tự dọn / tự thay / khiếu nại
+        group.MapPost("/returns/{id}/recheck", (string id, ReturnRecheckRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => { await ops.RecheckReturnAsync(Actor(user), id, request, ct); return Done(); }))
+            .WithSummary("D39 · Cơ sở kiểm tra lại: cleaningPassed / replacementPassed đạt thì không trừ khoản tương ứng; note bắt buộc");
+
+        // ---- D42 · Hoàn tiền mặt tại quầy
+        group.MapGet("/cash-refunds", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(await ops.GetCashRefundsAsync(Actor(user), ct))))
+            .WithSummary("D42 · Khoản hoàn tiền mặt của cơ sở: chờ duyệt, chờ khách nhận, cần gọi nhắc (ngày 10/20/25), đã hẹn, quá 30 ngày, đã chi");
+
+        group.MapPost("/cash-refunds/{id}/approve", (string id, OpsAssignRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(new { item = await ops.ApproveCashRefundAsync(Actor(user), id, request, ct) })))
+            .WithSummary("D42 · Quản lý duyệt chi tiền mặt và giao việc cho nhân viên (staffId \"NV-xx\"); gọi lại để giao người khác");
+
+        group.MapPost("/cash-refunds/{id}/calls", (string id, CashRefundCallRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(new { item = await ops.RecordCashRefundCallAsync(Actor(user), id, request, ct) })))
+            .WithSummary("D42/D43 · S10b ghi kết quả gọi nhắc: APPOINTMENT (kèm appointmentDate) · NO_ANSWER · SWITCH_TO_BANK · WRONG_NUMBER");
+
+        group.MapPost("/cash-refunds/{id}/pay", (string id, CashRefundPayRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(new { item = await ops.PayCashRefundAsync(Actor(user), id, request, ct) })))
+            .WithSummary("D42 · S10 nhân viên tick đủ 4 mục rồi xác nhận đã chi; không lưu ảnh / số phiếu chi");
+
+        // ---- D41 · Danh sách xung đột ô (đề xuất đổi kho) của cơ sở
+        group.MapGet("/unit-conflicts", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(await ops.GetUnitConflictsAsync(Actor(user), ct))))
+            .WithSummary("D41 · Đề xuất đổi kho do khách cũ chưa trả / chưa kiểm tra đạt: OPEN và đã xử lý 30 ngày gần đây");
+
+        // ---- D42 · Báo cáo cuối ngày cho quản lý
+        group.MapGet("/daily-report", (DateOnly? date, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(await ops.GetDailyReportAsync(Actor(user), date, ct))))
+            .WithSummary("D42 · M04-cuối ngày: tên nhân viên, số việc chưa xong (FIFO), chi tiết và lịch sử việc đã làm trong ngày");
+
         // ---- T12 · Hồ sơ quá hạn ngày 20 và biên bản xử lý đồ (D32)
         group.MapGet("/overdue-cases", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
             Run(async () => Results.Ok(await ops.GetOverdueCasesAsync(Actor(user), ct))))
@@ -135,6 +165,45 @@ public static class FacilityOpsEndpoints
             .WithTags("Facility Operations")
             .RequireAuthorization(policy => policy.RequireRole("CUSTOMER"))
             .WithSummary("CHOOSE_INCIDENT_OPTION: khách tự chọn đổi ô (TRANSFER) hoặc kết thúc + tài khoản chính chủ (TERMINATE)");
+
+        // ---- D39 · Khách xem và xác nhận khấu trừ trả kho (48 giờ)
+        routes.MapGet("/api/contracts/{contractId}/return-deduction", (string contractId, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+                Run(async () => Results.Ok(await ops.GetReturnDeductionAsync(user.GetUserId(), contractId, ct))))
+            .WithTags("Facility Operations")
+            .RequireAuthorization(policy => policy.RequireRole("CUSTOMER"))
+            .WithSummary("D39 · Khoản khấu trừ trên biên bản trả kho, hạn xác nhận 48 giờ và lựa chọn của khách");
+
+        routes.MapPost("/api/contracts/{contractId}/return-deduction", (string contractId, ReturnDeductionDecisionRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+                Run(async () => Results.Ok(await ops.DecideReturnDeductionAsync(user.GetUserId(), contractId, request, ct))))
+            .WithTags("Facility Operations")
+            .RequireAuthorization(policy => policy.RequireRole("CUSTOMER"))
+            .WithSummary("D39 · AGREE · SELF_CLEAN (có phí vệ sinh) · SELF_REPLACE (có phí hư hỏng) · DISPUTE (note bắt buộc); một lần, trong 48 giờ");
+
+        // ---- D41 · Khách xem và chọn phương án đổi kho
+        routes.MapGet("/api/unit-conflicts", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+                Run(async () => Results.Ok(await ops.GetCustomerUnitConflictsAsync(user.GetUserId(), ct))))
+            .WithTags("Facility Operations")
+            .RequireAuthorization(policy => policy.RequireRole("CUSTOMER"))
+            .WithSummary("D41 · Đề xuất đổi kho của khách (đổi ngang / nâng cấp miễn phí / không còn ô), hạn trả lời 48 giờ");
+
+        routes.MapPost("/api/contracts/{contractId}/unit-conflict", (string contractId, UnitConflictChoiceRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+                Run(async () => Results.Ok(new { item = await ops.ChooseUnitConflictAsync(user.GetUserId(), contractId, request, ct) })))
+            .WithTags("Facility Operations")
+            .RequireAuthorization(policy => policy.RequireRole("CUSTOMER"))
+            .WithSummary("D41 · ACCEPT (nhận ô đề xuất) · RESCHEDULE { newStartDate } · CANCEL { refundBank } hoàn 100%, không phí huỷ");
+
+        // ---- D44 · Khách xem khoản hoàn tiền mặt, đổi sang chuyển khoản trong 30 ngày
+        routes.MapGet("/api/cash-refunds", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+                Run(async () => Results.Ok(await ops.GetCustomerCashRefundsAsync(user.GetUserId(), ct))))
+            .WithTags("Facility Operations")
+            .RequireAuthorization(policy => policy.RequireRole("CUSTOMER"))
+            .WithSummary("D44 · Khoản hoàn tiền mặt của khách: hạn nhận 30 ngày, ngày hẹn, đã nhận / FORFEITED (quá hạn)");
+
+        routes.MapPost("/api/cash-refunds/{id}/switch-to-bank", (string id, StorageProject.Core.DTOs.Evidence.RefundBankInput request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+                Run(async () => Results.Ok(new { item = await ops.SwitchCashRefundToBankAsync(user.GetUserId(), id, request, ct) })))
+            .WithTags("Facility Operations")
+            .RequireAuthorization(policy => policy.RequireRole("CUSTOMER"))
+            .WithSummary("D44 · Trong 30 ngày đổi khoản tiền mặt sang chuyển khoản { bankName, accountNumber, accountHolder } (chính chủ)");
 
         // ---- Khách xem khoản hoàn cọc của chính mình
         routes.MapGet("/api/deposit-refunds", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
@@ -178,6 +247,10 @@ public static class FacilityOpsEndpoints
         json["inspectionEvidenceSupported"] = true;    // S04: lưu phí, vệ sinh 10% cọc, lý do, hạng mục, ảnh (T05)
         json["refundEvidenceSupported"] = true;        // M08: tài khoản chính chủ + mã giao dịch/thời điểm chuyển (T08)
         json["returnPolicyVersion"] = "D32";           // M07: khấu trừ tối đa bằng cọc, hoàn hai bước (T06, T07, T09)
+        json["deductionConfirmationSupported"] = true; // D39/D40: khách xác nhận khấu trừ 48 giờ, kiểm tra lại phương án
+        json["cashRefundSupported"] = true;            // D42: hoàn tiền mặt tại quầy (/api/ops/cash-refunds)
+        json["keyPickupOnRequest"] = true;             // D36: lịch nhận chìa khóa chỉ tạo khi khách gửi yêu cầu
+        json["dailyReportSupported"] = true;           // D42: báo cáo cuối ngày (/api/ops/daily-report)
         return json;
     }
 

@@ -8,7 +8,8 @@ public class EvidencePhoto
 {
     public long PhotoId { get; set; }
     // MOVE_OUT (khách gửi trả kho, ownerId = InspectionId), RETURN_INSPECTION (nhân viên kiểm kê, ownerId = InspectionId),
-    // INCIDENT (quản lý ghi nhận sự cố cơ sở, ownerId = IncidentId)
+    // INCIDENT (quản lý ghi nhận sự cố cơ sở, ownerId = IncidentId),
+    // OVERDUE_BEFORE / OVERDUE_AFTER (biên bản xử lý đồ quá hạn, ownerId = OverdueCaseId), SUPPORT_TICKET (ownerId = TicketId)
     public string OwnerType { get; set; } = null!;
     public long OwnerId { get; set; }
     public string FileName { get; set; } = null!;

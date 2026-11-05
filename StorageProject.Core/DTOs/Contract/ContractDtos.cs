@@ -39,7 +39,9 @@ public record ContractDetailDto(
     IReadOnlyList<RenewalDto> Renewals,
     DateTime? AccessUpdatedAt = null,
     int? PolicyVersion = null,
-    DateTime? PolicyAcceptedAt = null
+    DateTime? PolicyAcceptedAt = null,
+    // D41: ô đã có khách mới đặt từ ngày này → nút gia hạn mờ "Ô đã có khách đặt từ dd/mm"
+    DateOnly? NextBookingFrom = null
 );
 
 public record HandoverSummaryDto(
@@ -63,7 +65,8 @@ public record MoveOutRequest(
     string? AccountNumber = null,
     string? AccountHolder = null,
     bool? Emptied = null,
-    IReadOnlyList<StorageProject.Core.DTOs.Evidence.EvidencePhotoUpload>? Photos = null
+    IReadOnlyList<StorageProject.Core.DTOs.Evidence.EvidencePhotoUpload>? Photos = null,
+    string? RefundMethod = null // D42: BANK_TRANSFER (mặc định) hoặc CASH (tiền mặt tại quầy)
 );
 
 public record MoveOutResponseDto(

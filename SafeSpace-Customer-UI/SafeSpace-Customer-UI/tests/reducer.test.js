@@ -226,14 +226,14 @@ test("PayOS gia hạn (C11q → C11b): khoản gia hạn đã duyệt chuyển �
   assert.equal(out.state.contracts.find((c) => c.contract_id === row.contract_id).end_date, row.period.to);
 });
 
-test("huỷ đơn (C14a, D27): đơn đã thanh toán chưa nhận kho được huỷ và hoàn tiền trừ phí 10% tiền cọc; đơn đã nhận kho thì không", () => {
+test("huỷ đơn (C14a, D40): đơn đã thanh toán chưa nhận kho được huỷ và hoàn tiền trừ phí 5% tiền cọc; đơn đã nhận kho thì không", () => {
   const s = createSeedData(T);
   s.reservations.find(r => r.reservation_id === "SS-20260914-0142").start_date = "2026-09-22";
   const out = run(s, "CANCEL_RESERVATION", { reservation_id: "SS-20260914-0142", reason: "Đổi kế hoạch chuyển nhà", bank: {bankName:"VCB",accountNumber:"0123456789",accountHolder:s.user.full_name}, bankConfirmed:true });
   const r = out.state.reservations.find((x) => x.reservation_id === "SS-20260914-0142");
   assert.equal(r.status, "CANCELLED");
   assert.equal(r.refund_status, "PENDING");
-  assert.equal(r.refund_amount, 4600000 - 115000); // D27: phí huỷ 10% tiền cọc (cọc 1.150.000), hoàn đủ tiền thuê
+  assert.equal(r.refund_amount, 4600000 - 57500); // D40: phí huỷ 5% tiền cọc (cọc 1.150.000), hoàn đủ tiền thuê
   assert.equal(out.state.contracts.find((c) => c.reservation_id === r.reservation_id).status, "ENDED");
   assert.match(run(s, "CANCEL_RESERVATION", { reservation_id: "SS-20260615-0086" }).error.message, /nhận kho/);
 });

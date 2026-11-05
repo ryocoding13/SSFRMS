@@ -68,6 +68,10 @@ public record FacilityUnitDto(
     string? LocationDescription,
     decimal SizeM2,
     bool ClimateControlled,
-    string Status
+    string Status,
+    // D41: ô đang thuê / chờ kiểm tra trống lại từ ngày này (ngày hết hạn + ngày đệm); null = đang trống hoặc không xác định.
+    DateOnly? FreeFrom = null,
+    // D41: ô có hợp đồng quá hạn — không cho đặt trước
+    bool Overdue = false
 );
 

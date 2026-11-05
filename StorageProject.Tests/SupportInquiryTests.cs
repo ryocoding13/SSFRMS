@@ -36,9 +36,10 @@ public sealed class SupportInquiryTests
         var read=await reloaded.GetFromJsonAsync<InquiryDto>(Base+"/"+created.Id);
         Assert.Equal("Cơ sở có kho lạnh 15 m².",Assert.Single(read!.Responses).Text);Assert.Equal("staff01",read.Responses[0].By);
         var answer=await Save(reloaded,Reply(read,"Cảm ơn, cơ sở mở cửa lúc nào?"));Assert.Equal("OPEN",answer.Status);
-        var closed=await Save(staff,Reply(answer,"Theo giờ cơ sở công bố.",close:true));Assert.Equal("CLOSED",closed.Status);Assert.Equal(3,closed.Responses.Count);
-        Assert.Equal(HttpStatusCode.BadRequest,(await customer.PostAsJsonAsync(Base+"/actions",Reply(closed))).StatusCode);
-        await f.WithDb(async db=>{Assert.Single(await db.SupportInquiries.ToListAsync());Assert.Equal(3,await db.SupportInquiryReplies.CountAsync());});
+        // D43: không có thao tác đóng — cờ close của giao diện cũ bị bỏ qua, khách vẫn nhắn tiếp được.
+        var closed=await Save(staff,Reply(answer,"Theo giờ cơ sở công bố.",close:true));Assert.Equal("WAITING_CUSTOMER",closed.Status);Assert.Equal(3,closed.Responses.Count);
+        var again=await Save(customer,Reply(closed,"Cảm ơn cơ sở."));Assert.Equal("OPEN",again.Status);Assert.Equal(4,again.Responses.Count);
+        await f.WithDb(async db=>{Assert.Single(await db.SupportInquiries.ToListAsync());Assert.Equal(4,await db.SupportInquiryReplies.CountAsync());});
     }
     [Fact] public async Task ClientRequestIdPreventsDuplicateCreateAndReplyAndRejectsChangedPayload()
     {
@@ -69,7 +70,7 @@ public sealed class SupportInquiryTests
         await using var f=await AuthSupportHttpFixture.Create(withInquiries:true);
         await f.WithDb(async db=>{var u=await db.Users.SingleAsync(x=>x.Username=="staff01");var role=new Role{RoleName="MANAGER"};db.Roles.Add(role);await db.SaveChangesAsync();db.UserRoles.Add(new UserRole{UserId=u.UserId,RoleId=role.RoleId,AssignedAt=DateTime.UtcNow});await db.SaveChangesAsync();});
         using var customer=f.Client(await f.Login("customer02","Customer@123"));using var manager=f.Client(await f.Login("staff01","Staff@123"));
-        var created=await Save(customer,Create());Assert.Equal("CLOSED",(await Save(manager,Reply(created,"Đã hỗ trợ",close:true))).Status);
+        var created=await Save(customer,Create());Assert.Equal("WAITING_CUSTOMER",(await Save(manager,Reply(created,"Đã hỗ trợ",close:true))).Status);
         await f.WithDb(async db=>{(await db.UserFacilities.SingleAsync(x=>x.User.Username=="staff01")).AssignedFrom=DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)).AddDays(1);await db.SaveChangesAsync();});
         Assert.Equal(HttpStatusCode.Forbidden,(await manager.GetAsync(Base)).StatusCode);
         await f.WithDb(async db=>{(await db.Users.SingleAsync(x=>x.Username=="customer02")).Status="INACTIVE";await db.SaveChangesAsync();});

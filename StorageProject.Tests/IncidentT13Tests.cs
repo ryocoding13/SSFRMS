@@ -207,4 +207,31 @@ public sealed class IncidentT13Tests
         Assert.Equal("PAID", reread.Refund!.Status);
         Assert.Equal("FT26302000777", reread.Refund.TransactionRef);
     }
+
+    [Fact]
+    public async Task Terminate_CashChoice_GoesToCounterQueue_NotTransfer()
+    {
+        // D44: hoàn tiền do sự cố cơ sở có lựa chọn tiền mặt như huỷ đơn / trả kho
+        await using var f = await Fixture.CreateAsync();
+        var draft = Assert.Single((await f.Ops.GetIncidentsAsync(f.ManagerActor)).Items);
+        var sent = (await f.Ops.SaveIncidentAsync(f.ManagerActor, new IncidentActionRequest("SEND_INCIDENT_PROPOSAL", draft.Id, 1,
+            "Sập kệ trong kho", Iso(DateTime.UtcNow.AddHours(-1)), true, "TERMINATE"))).Incident;
+        var chosen = (await f.Ops.ChooseIncidentOptionAsync(f.Customer.UserId, sent.ContractId,
+            new IncidentActionRequest("CHOOSE_INCIDENT_OPTION", sent.Id, sent.Version, Choice: "TERMINATE", Note: "",
+                RefundBank: new RefundBankInput(null, null, null, "CASH")))).Incident;
+        Assert.Equal("CASH", chosen.RefundBank!.BankName);
+
+        var ended = (await f.Ops.FinalizeIncidentTerminationAsync(f.ManagerActor, chosen.Id,
+            new IncidentActionRequest("FINALIZE_INCIDENT_TERMINATION", chosen.Id, chosen.Version, Confirmed: true))).Incident;
+        Assert.Equal("CASH", ended.Refund!.Method);
+        Assert.StartsWith("CH-", ended.Refund.Id);
+
+        var item = Assert.Single(await f.Ops.GetDepositRefundsAsync(f.ManagerActor));
+        Assert.Equal("CASH", item.Method);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => f.Ops.ConfirmDepositRefundAsync(f.ManagerActor,
+            new DepositRefundActionRequest("CONFIRM_DEPOSIT_REFUND", item.Id, item.Version, "FT26302000778", DateTime.UtcNow, true)));
+        var cash = Assert.Single(await f.Ops.GetCashRefundsAsync(f.ManagerActor));
+        Assert.Equal("INCIDENT", cash.Source);
+        Assert.Equal(chosen.Id, cash.Reference);
+    }
 }

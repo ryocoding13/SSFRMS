@@ -142,12 +142,23 @@ public sealed class PasswordResetTests
         (await c.PostAsJsonAsync("/api/auth/login", new { username = "customer@example.com", password = "NewCustomer@123" })).EnsureSuccessStatusCode();
         await f.WithDb(async db => { Assert.NotNull((await db.PasswordResetChallenges.SingleAsync()).UsedAt); Assert.Equal("ACTIVE", (await db.Users.SingleAsync()).Status); Assert.Single(await db.UserRoles.ToListAsync()); });
     }
+    [Fact]
+    public async Task UnregisteredEmailIsReportedAsNotRegisteredAndNoMail()
+    {
+        // L24 (D40): email chưa đăng ký được báo rõ thay vì câu chung.
+        await using var f = await PasswordResetFixture.Create();
+        using var c = f.Client(); var r = await c.PostAsJsonAsync("/api/auth/password-reset/request", new { email = "missing@example.com" });
+        Assert.Equal(HttpStatusCode.NotFound, r.StatusCode);
+        var body = await r.Content.ReadAsStringAsync();
+        Assert.Contains("EMAIL_NOT_REGISTERED", body);
+        Assert.Contains("chưa đăng ký", body);
+        Assert.Empty(f.Mailbox.Messages);
+    }
     [Theory]
-    [InlineData("missing@example.com", "ACTIVE")]
     [InlineData("customer@example.com", "LOCKED")]
     [InlineData("customer@example.com", "INACTIVE")]
     [InlineData("customer@example.com", "SUSPENDED")]
-    public async Task MissingOrInactiveEmailGetsSameGenericReplyAndNoMail(string email, string status)
+    public async Task InactiveAccountGetsSameGenericReplyAndNoMail(string email, string status)
     {
         await using var f = await PasswordResetFixture.Create();
         await f.WithDb(async db => { (await db.Users.SingleAsync()).Status = status; await db.SaveChangesAsync(); });
@@ -228,8 +239,8 @@ public sealed class PasswordResetTests
     [Fact] public async Task IpRateLimitReturnsJsonAndRetryAfter()
     {
         await using var f = await PasswordResetFixture.Create(); using var c = f.Client();
-        for (var i = 0; i < 10; i++) (await c.PostAsJsonAsync("/api/auth/password-reset/request", new { email = "missing@example.com" })).EnsureSuccessStatusCode();
-        var blocked = await c.PostAsJsonAsync("/api/auth/password-reset/request", new { email = "missing@example.com" });
+        for (var i = 0; i < 10; i++) (await c.PostAsJsonAsync("/api/auth/password-reset/request", new { email = "customer@example.com" })).EnsureSuccessStatusCode();
+        var blocked = await c.PostAsJsonAsync("/api/auth/password-reset/request", new { email = "customer@example.com" });
         Assert.Equal(HttpStatusCode.TooManyRequests, blocked.StatusCode); Assert.NotNull(blocked.Headers.RetryAfter);
         Assert.True((await blocked.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("retryAfterSeconds").GetInt32() > 0);
     }

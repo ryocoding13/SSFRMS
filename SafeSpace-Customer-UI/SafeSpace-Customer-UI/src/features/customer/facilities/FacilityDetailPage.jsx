@@ -230,6 +230,7 @@ export default function FacilityDetailPage({ id, query }) {
               <p className="booking__eyebrow">Ô ĐANG CHỌN</p>
               <h2>Ô kho {unit.code} · {unit.position}</h2>
               <p className={`unit-badge unit-badge--${UNIT_STATUS[unit.status].tone}`}>{UNIT_STATUS[unit.status].label}</p>
+              {unit.status !== "FREE" && (unit.overdue ? <p className="hint">Ô đang quá hạn trả, chưa nhận đặt trước.</p> : unit.free_from ? <p className="hint">Trống từ {dateLabel(unit.free_from)} · đặt trước được từ ngày này.</p> : null)}
             </div>
           )}
           {offer ? (

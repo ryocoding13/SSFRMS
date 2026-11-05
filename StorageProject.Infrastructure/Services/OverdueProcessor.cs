@@ -9,7 +9,7 @@ namespace StorageProject.Infrastructure.Services;
 /// T11 · Xử lý tự động hợp đồng quá hạn hàng ngày (D32):
 /// 1. Cập nhật hợp đồng sắp hết hạn (EXPIRING: trong vòng 30 ngày trước EndDate).
 /// 2. Chuyển hợp đồng đã quá hạn sang OVERDUE khi qua ngày EndDate.
-/// 3. Tính phí quá hạn 5% cọc ban đầu mỗi ngày trễ, tối đa 100% cọc.
+/// 3. Tính phí quá hạn theo chính sách OVERDUE (mặc định 5% cọc ban đầu mỗi ngày trễ), tối đa 100% cọc.
 /// 4. Dừng tăng phí khi khách đã gửi yêu cầu trả kho (RETURN_PENDING).
 /// 5. Tạo và cập nhật OverdueCase với các mốc: nhắc khách (ngày 10–14), xử lý đồ (ngày 20).
 /// </summary>
@@ -22,28 +22,39 @@ public static class OverdueProcessor
         var nowUtc = DateTime.UtcNow;
         var today = DateOnly.FromDateTime(nowUtc + VnOffset);
 
-        // 1. Quét hợp đồng ACTIVE sắp hết hạn trong 30 ngày tới -> EXPIRING
-        var expiringContracts = await dbContext.RentalContracts
+        // 1. ACTIVE sắp hết hạn trong 30 ngày -> EXPIRING. Cập nhật có điều kiện trong một câu lệnh để không ghi đè
+        //    trạng thái khách vừa đổi (ví dụ vừa gửi trả kho) giữa lúc đọc và lúc lưu (S05).
+        await dbContext.RentalContracts
             .Where(c => c.Status == "ACTIVE" && c.EndDate >= today && c.EndDate <= today.AddDays(30))
-            .ToListAsync(ct);
+            .ExecuteUpdateAsync(u => u.SetProperty(c => c.Status, "EXPIRING"), ct);
+        dbContext.ChangeTracker.Clear(); // ExecuteUpdate không qua tracker; đọc lại từ DB sau bước này
 
-        foreach (var c in expiringContracts)
-        {
-            c.Status = "EXPIRING";
-        }
-
-        // 2. Quét hợp đồng quá hạn (EndDate < today) chưa kết thúc
-        var overdueContracts = await dbContext.RentalContracts
-            .Include(c => c.OverdueCases)
-            .Include(c => c.ReturnInspections)
+        // 2. Hợp đồng quá hạn (EndDate < today) chưa kết thúc
+        var overdueIds = await dbContext.RentalContracts.AsNoTracking()
             .Where(c => c.EndDate < today
                         && c.Status != "COMPLETED"
                         && c.Status != "TERMINATED"
                         && c.Status != "CANCELLED")
+            .Select(c => c.ContractId)
             .ToListAsync(ct);
 
-        foreach (var contract in overdueContracts)
+        foreach (var contractId in overdueIds)
         {
+            // S05: cùng khoá với đăng ký trả kho (ContractService.RegisterMoveOutAsync) nên không chạy chồng với yêu cầu
+            // trả kho, và nhiều instance worker xử lý cùng một hợp đồng lần lượt (SQL Server sp_getapplock).
+            dbContext.ChangeTracker.Clear();
+            await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"move-out:{contractId}", ct);
+            var contract = await dbContext.RentalContracts
+                .Include(c => c.Unit)
+                .Include(c => c.OverdueCases)
+                .Include(c => c.ReturnInspections)
+                .FirstOrDefaultAsync(c => c.ContractId == contractId, ct);
+            if (contract == null || contract.Status is "COMPLETED" or "TERMINATED" or "CANCELLED")
+            {
+                await tx.CommitAsync(ct);
+                continue;
+            }
+
             // Chuyển sang OVERDUE nếu chưa trả kho
             if (contract.Status is "ACTIVE" or "EXPIRING")
             {
@@ -65,11 +76,27 @@ public static class OverdueProcessor
             }
 
             var overdueDays = Math.Max(0, calculationDate.DayNumber - contract.EndDate.DayNumber);
-            if (overdueDays <= 0) continue;
+            if (overdueDays <= 0)
+            {
+                await dbContext.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                continue;
+            }
 
-            // Mỗi ngày trễ trừ 5% cọc ban đầu, tối đa 100% cọc
-            var rawFee = Math.Round(contract.DepositAmount * 0.05m * overdueDays, 0, MidpointRounding.AwayFromZero);
-            var overdueFee = Math.Min(contract.DepositAmount, rawFee);
+            // S05 / D32: tỷ lệ lấy từ chính sách OVERDUE đang áp dụng (B02), không ghi cứng; tối đa 100% cọc.
+            var policy = await OpsRules.FindApplicablePolicyAsync(dbContext, "OVERDUE", contract.Unit.FacilityId, contract.Unit.UnitTypeId, today, ct);
+            decimal overdueFee;
+            if (policy?.Value is decimal)
+            {
+                overdueFee = StorageProject.Core.Policies.RefundPolicy.OverdueFeeFor(policy.CalculationType, policy.Value,
+                    contract.DepositAmount, overdueDays, maxCap: contract.DepositAmount);
+            }
+            else
+            {
+                logger?.LogWarning("Chưa có chính sách OVERDUE cho hợp đồng {ContractId}; dùng mặc định {Rate}%/ngày theo D32.", contract.ContractId, OpsRules.DefaultOverdueRatePerDay);
+                overdueFee = StorageProject.Core.Policies.RefundPolicy.OverdueFeeFor("DEPOSIT_PERCENT_PER_DAY", OpsRules.DefaultOverdueRatePerDay,
+                    contract.DepositAmount, overdueDays, maxCap: contract.DepositAmount);
+            }
 
             // Tìm hồ sơ quá hạn đang mở
             var activeCase = contract.OverdueCases
@@ -81,13 +108,13 @@ public static class OverdueProcessor
                 {
                     ContractId = contract.ContractId,
                     OverdueFrom = contract.EndDate.AddDays(1),
-                    GraceDeadline = contract.EndDate.AddDays(14),
+                    GraceDeadline = contract.EndDate.AddDays(OpsRules.DefaultOverdueReminderEndDay),
                     OutstandingAmount = overdueFee,
-                    Status = overdueDays >= 20 ? "ESCALATED" : "OPEN",
+                    Status = overdueDays >= OpsRules.DefaultOverdueDisposalDay ? "ESCALATED" : "OPEN",
                     OpenedAt = nowUtc,
-                    Notes = overdueDays >= 20
+                    Notes = overdueDays >= OpsRules.DefaultOverdueDisposalDay
                         ? $"Quá hạn ngày thứ {overdueDays}. Đạt mốc ngày 20 xử lý đồ. Phí quá hạn tối đa: {overdueFee:N0} đ."
-                        : overdueDays >= 10
+                        : overdueDays >= OpsRules.DefaultOverdueReminderStartDay
                             ? $"Quá hạn ngày thứ {overdueDays}. Mốc nhắc khách ngày 10–14. Phí quá hạn: {overdueFee:N0} đ."
                             : $"Quá hạn ngày thứ {overdueDays}. Phí quá hạn: {overdueFee:N0} đ."
                 };
@@ -114,7 +141,7 @@ public static class OverdueProcessor
                 activeCase.OutstandingAmount = overdueFee;
 
                 // Mốc ngày 20: Tự động chuyển sang ESCALATED để chuẩn bị di dời đồ
-                if (overdueDays >= 20 && activeCase.Status != "ESCALATED" && activeCase.Status != "RESOLVED")
+                if (overdueDays >= OpsRules.DefaultOverdueDisposalDay && activeCase.Status != "ESCALATED" && activeCase.Status != "RESOLVED")
                 {
                     activeCase.Status = "ESCALATED";
                     activeCase.Notes = string.IsNullOrWhiteSpace(activeCase.Notes)
@@ -136,14 +163,17 @@ public static class OverdueProcessor
                         LoggedAt = nowUtc
                     });
                 }
-                else if (overdueDays >= 10 && overdueDays <= 14 && activeCase.Notes != null && !activeCase.Notes.Contains("Mốc nhắc"))
+                else if (overdueDays >= OpsRules.DefaultOverdueReminderStartDay && overdueDays <= OpsRules.DefaultOverdueReminderEndDay && activeCase.Notes != null && !activeCase.Notes.Contains("Mốc nhắc"))
                 {
                     activeCase.Notes = $"{activeCase.Notes}\n[Mốc nhắc ngày 10–14]: Cần liên hệ nhắc khách hàng.";
                 }
             }
+
+            await dbContext.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
         }
 
-        await dbContext.SaveChangesAsync(ct);
-        logger?.LogInformation("Hoàn tất quét hợp đồng quá hạn ngày {Today}: {Count} hợp đồng đã xử lý.", today, overdueContracts.Count);
+        dbContext.ChangeTracker.Clear();
+        logger?.LogInformation("Hoàn tất quét hợp đồng quá hạn ngày {Today}: {Count} hợp đồng đã xử lý.", today, overdueIds.Count);
     }
 }

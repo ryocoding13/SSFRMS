@@ -5,7 +5,7 @@ import { isReturnFee, NO_RETURN_COLLECTION } from "../../shared/utils/returnPoli
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { customerNotifications } from "../../features/customer/notifications/customerNotifications.js";
 import { submitCancellation, submitReturnRequest } from "../../shared/api/refundRequestApi.js";
-import { RETURN_SLOTS } from "../../shared/utils/refundRequest.js";
+import { RETURN_SLOTS, readPhotoData, verifyPhotoFile } from "../../shared/utils/refundRequest.js";
 import { submitRenewalWithConsent } from "../../shared/api/renewalConsentApi.js";
 import { api } from "../../shared/api/customerApi.js";
 import { ApiError, setToken } from "../../shared/api/httpClient.js";
@@ -665,6 +665,10 @@ function ApiProvider({ children }) {
             if (description.length > 1000) return fail("Mô tả không quá 1000 ký tự.");
             const c = d.contracts.find((x) => x.contract_id === p.contract_id);
             if (!c) return fail("Cần có hợp đồng thuê kho để gửi yêu cầu hỗ trợ. Vui lòng chọn kho liên quan.");
+            // D35: ảnh thật (JPG/PNG, tối đa 3) kiểm chữ ký tệp trước khi gửi; D36: giờ muốn nhận chìa khóa
+            const files = (p.photos || []).slice(0, 3);
+            for (const file of files) await verifyPhotoFile(file);
+            const photos = await Promise.all(files.map(readPhotoData));
             const dto = await api.createTicket({
               contractId: c.api_id,
               unitId: null,
@@ -672,6 +676,8 @@ function ApiProvider({ children }) {
               title,
               description,
               priority: ["ACCESS", "LOCK"].includes(p.topic) ? "HIGH" : "NORMAL",
+              ...(photos.length ? { photos } : {}),
+              ...(p.topic === "KEY_PICKUP" && p.preferred_at ? { preferredAt: `${p.preferred_at}:00` } : {}),
             });
             const names = (p.attachments || []).slice(0, 3);
             if (names.length) updateOverlay((o) => ({ ...o, attachments: { ...o.attachments, [dto.ticketId]: names } }));

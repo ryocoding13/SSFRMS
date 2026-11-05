@@ -101,12 +101,12 @@ try {
   pass('C13 lỗi mạng giữ tên đang nhập, không báo lưu thành công');
 
   await customer.goto(base + '/#/support');
-  await customer.getByRole('heading', { name: 'Bạn cần hỗ trợ điều gì?' }).waitFor();
+  await customer.getByRole('heading', { name: 'Gửi yêu cầu hỗ trợ' }).waitFor();
   await customer.getByLabel('Chủ đề', { exact: true }).selectOption('OTHER');
   await customer.getByLabel('Mô tả vấn đề').fill('Khóa cửa K01 bị kẹt.');
   await customer.getByRole('button', { name: 'Gửi yêu cầu', exact: true }).click();
   await customer.getByText('Vui lòng nhập chủ đề của bạn.', { exact: true }).waitFor();
-  await customer.getByLabel('Chủ đề của bạn *', { exact: true }).fill('Kiểm tra khóa cửa K01');
+  await customer.getByLabel('Tiêu đề *', { exact: true }).fill('Kiểm tra khóa cửa K01');
   await customer.getByLabel('Mô tả vấn đề').fill('Khóa cửa K01 bị kẹt, nhờ nhân viên kiểm tra.');
   const createdResponse = customer.waitForResponse(r => r.url().endsWith('/api/tickets') && r.request().method() === 'POST');
   await customer.getByRole('button', { name: 'Gửi yêu cầu', exact: true }).click();

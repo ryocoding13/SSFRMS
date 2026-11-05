@@ -1,5 +1,5 @@
 import { parseVnDeadline, validateDamageFiles } from "../damage/damageModel.js";
-import { cleanRefundBank, validateRefundBank } from "../../../shared/utils/refundRequest.js";
+import { isCashRefund, refundBankInput, validateRefundBank, validateRefundChoice } from "../../../shared/utils/refundRequest.js";
 export const INCIDENT_STATUS = { DRAFT:"Ghi nhận sự cố", PROPOSED:"Chờ khách chọn", TRANSFER_PENDING:"Chờ hoàn tất chuyển", TRANSFERRED:"Đã chuyển kho", TERMINATION_PENDING:"Chờ kết thúc do sự cố", TERMINATED:"Đã kết thúc · Chờ hoàn" };
 export const INCIDENT_ACTIONS = ["SAVE_INCIDENT","SEND_INCIDENT_PROPOSAL","CHOOSE_INCIDENT_OPTION","COMPLETE_INCIDENT_TRANSFER","FINALIZE_INCIDENT_TERMINATION"];
 export const incidentStatusLabel=item=>item.status==="TERMINATED"&&item.refund?.status==="PAID"?"Đã kết thúc · Đã hoàn":INCIDENT_STATUS[item.status];
@@ -45,9 +45,10 @@ export function prepareIncidentAction(item,action,payload,actor,now=new Date()) 
     if(payload.choice==="TERMINATE") {
       if(incidentRefund(item)===null)throw new Error("Chưa đủ dữ liệu khoản hoàn. Liên hệ cơ sở trước khi xác nhận.");
       if(!item.customer)throw new Error("Chưa xác định tên trên hợp đồng để đối chiếu tài khoản.");
-      const error=validateRefundBank(payload.refundBank,item.customer);if(error)throw new Error(error);
+      const error=validateRefundChoice(payload.refundBank,item.customer);if(error)throw new Error(error);
     }
-    return {...clean,choice:payload.choice,note:noteOf(payload.note),...(payload.choice==="TERMINATE"?{refundBank:cleanRefundBank(payload.refundBank)}:{targetUnitId:item.targetUnit.id,expectedTargetVersion:item.targetUnit.version})};
+    // D44: khách chọn tiền mặt tại quầy → refundBank { method: "CASH" }
+    return {...clean,choice:payload.choice,note:noteOf(payload.note),...(payload.choice==="TERMINATE"?{refundBank:refundBankInput(payload.refundBank)}:{targetUnitId:item.targetUnit.id,expectedTargetVersion:item.targetUnit.version})};
   }
   if(action==="COMPLETE_INCIDENT_TRANSFER") {
     if(item.status!=="TRANSFER_PENDING"||item.choice?.choice!=="TRANSFER")throw new Error("Khách chưa đồng ý chuyển ô hoặc đã hoàn tất.");
@@ -59,7 +60,7 @@ export function prepareIncidentAction(item,action,payload,actor,now=new Date()) 
   }
   if(item.status!=="TERMINATION_PENDING"||item.choice?.choice!=="TERMINATE")throw new Error("Khách chưa chọn kết thúc hoặc hồ sơ đã xử lý.");
   if(payload.confirmed!==true)throw new Error("Xác nhận kết thúc theo lựa chọn khách trước khi chốt.");
-  const error=validateRefundBank(item.refundBank,item.customer);if(!item.customer||error)throw new Error(error||"Thiếu tên hợp đồng.");
+  const error=isCashRefund(item.refundBank)?"":validateRefundBank(item.refundBank,item.customer);if(!item.customer||error)throw new Error(error||"Thiếu tên hợp đồng.");
   if(incidentRefund(item)===null)throw new Error("Chưa đủ dữ liệu khoản hoàn từ cơ sở.");
   return {...clean,confirmed:true};
 }
