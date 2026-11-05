@@ -41,12 +41,6 @@ test("khách chỉ phản hồi yêu cầu của chính mình, nội dung trốn
   const next = applyWorkflowAction(s, "REPLY_INQUIRY", p, actor(["CUSTOMER"]));
   assert.equal(next.inquiries[0].responses.length, 1);
 });
-test("đối soát giữ nguyên khoản thực nhận và không ghi kết quả hai lần", () => {
-  const s = createWorkflowSeed(), p = { id: "SL-0001", note: "Đã xác minh số thực nhận" };
-  const next = applyWorkflowAction(s, "RESOLVE_DISCREPANCY", p, actor(["MANAGER"]));
-  assert.equal(next.discrepancies[0].actual, 100000);
-  assert.throws(() => applyWorkflowAction(next, "RESOLVE_DISCREPANCY", p, actor(["MANAGER"])), /đã được xử lý/);
-});
 test("gia hạn tại quầy không thu hai lần", () => {
   const s = createWorkflowSeed(), p = { id: "GHQ-0142" };
   const next = applyWorkflowAction(s, "COLLECT_RENEWAL", p, actor(["STAFF"]));

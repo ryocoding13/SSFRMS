@@ -367,84 +367,8 @@ public partial class FacilityOpsService
     {
         RequireManager(actor);
         var facility = await FacilityOfAsync(actor, ct);
-        var r = await RenewalAsync(facility.FacilityId, id, ct);
-        if (r.Status != "PENDING") throw new InvalidOperationException("Yêu cầu này đã được xử lý.");
-        var contract = r.Contract;
-        if (contract.Status is not ("ACTIVE" or "EXPIRING" or "OVERDUE"))
-        {
-            throw new InvalidOperationException("Hợp đồng không còn hiệu lực để gia hạn.");
-        }
-        if (await UnitAvailability.NextBookingAsync(dbContext, contract, ct) is DateOnly bookedFrom)
-        {
-            throw new InvalidOperationException($"Ô đã có khách đặt từ {bookedFrom:dd/MM/yyyy} (D41). Từ chối gia hạn hoặc chuyển khách sang ô khác.");
-        }
-
-        var now = NowUtc;
-        var vnToday = DateOnly.FromDateTime(now + VnOffset);
-
-        // Re-check rate at approval time
-        var activeRate = await dbContext.RentalRates
-            .Where(rate => rate.FacilityId == contract.Unit.FacilityId
-                     && rate.UnitTypeId == contract.Unit.UnitTypeId
-                     && rate.EffectiveFrom <= vnToday
-                     && (rate.EffectiveTo == null || rate.EffectiveTo >= vnToday))
-            .OrderByDescending(rate => rate.EffectiveFrom)
-            .FirstOrDefaultAsync(ct);
-
-        var newRate = activeRate?.MonthlyRate ?? contract.AgreedMonthlyRate;
-        r.NewMonthlyRate = newRate;
-        r.RenewalAmount = newRate * r.RenewalPeriodMonths;
-
-        // Payment deadline: min(now + 24h, 00:00 contract expiry date in Vietnam time)
-        var contractExpiryVn = r.OldEndDate.ToDateTime(TimeOnly.MinValue);
-        var contractExpiryUtc = contractExpiryVn.AddHours(-7);
-        var deadline = now.AddHours(24);
-        if (contractExpiryUtc < deadline)
-        {
-            deadline = contractExpiryUtc;
-        }
-
-        r.PaymentDeadlineAt = deadline;
-        r.Status = "APPROVED";
-        r.ApprovedBy = actor.UserId;
-        r.ApprovedAt = now;
-        // EndDate remains OldEndDate! DO NOT CHANGE contract.EndDate on approval!
-
-        // Khoản gia hạn khách cần thanh toán (hiện ở "Thanh toán" của khách)
-        var payment = await dbContext.Payments
-            .FirstOrDefaultAsync(p => p.RenewalId == r.RenewalId && p.PaymentType == "RENEWAL", ct);
-
-        if (payment == null)
-        {
-            dbContext.Payments.Add(new Payment
-            {
-                ContractId = contract.ContractId,
-                RenewalId = r.RenewalId,
-                PaymentType = "RENEWAL",
-                Amount = r.RenewalAmount,
-                Currency = "VND",
-                PaymentMethod = "BANK_TRANSFER",
-                DueDate = r.OldEndDate,
-                Status = "PENDING",
-                CreatedAt = now,
-                UpdatedAt = now
-            });
-        }
-        else
-        {
-            payment.Amount = r.RenewalAmount;
-            payment.Status = "PENDING";
-            payment.UpdatedAt = now;
-        }
-
-        Log(actor.UserId, LogAction.RenewalApproved, LogEntity.Renewal, r.RenewalId, new {
-            renewalId = r.RenewalId,
-            contractId = contract.ContractId,
-            amount = r.RenewalAmount,
-            paymentDeadlineAt = deadline,
-            newEndDate = r.NewEndDate.ToString("yyyy-MM-dd")
-        });
-        await dbContext.SaveChangesAsync(ct);
+        // M01: cùng một đường duyệt (khoá hợp đồng rồi mới kiểm lại).
+        await RenewalApproval.ApproveAsync(dbContext, actor.UserId, ParseCode(id, "GH-", "yêu cầu gia hạn"), facility.FacilityId, ct);
     }
 
     public async Task RejectRenewalAsync(OpsActor actor, string id, OpsRejectRequest request, CancellationToken ct = default)

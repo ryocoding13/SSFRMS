@@ -24,9 +24,10 @@ test('nine support topic groups incl. key pickup and each access reissue title',
   assert.equal(Object.values(TICKET_TOPICS).filter(t=>!t.legacy).length,9);
   assert.equal(ticketTitle({topic:'KEY_PICKUP'}),'Nhận chìa khóa · lần đầu nhận kho');
   assert.equal(TICKET_TOPICS.KEY_PICKUP.issueType,'KEY_PICKUP');
-  assert.equal(ticketTitle({topic:'ACCESS',access_request:'PIN'}),'Đặt lại PIN 6 số');
-  assert.equal(ticketTitle({topic:'ACCESS',access_request:'QR'}),'Cấp lại mã QR');
-  assert.equal(ticketTitle({topic:'ACCESS',access_request:'KEY'}),'Cấp lại chìa khóa vật lý');
+  assert.equal(ticketTitle({topic:'ACCESS',access_request:'PIN'}),'Hỗ trợ ra vào kho · Đặt lại PIN 6 số');
+  assert.equal(ticketTitle({topic:'ACCESS',access_request:'QR'}),'Hỗ trợ ra vào kho · Cấp lại mã QR');
+  assert.equal(ticketTitle({topic:'ACCESS',access_request:'KEY'}),'Hỗ trợ ra vào kho · Cấp lại chìa khóa vật lý');
+  assert.equal(ticketTitle({topic:'PAYMENT',option:'VAT'}),'Thanh toán & hóa đơn · Cần hóa đơn VAT');
 });
 test('other topic requires and preserves a separate custom subject',()=>{
   const state=createSeedData(); const payload={topic:'OTHER',subject:'   ',description:'Nội dung chi tiết'};

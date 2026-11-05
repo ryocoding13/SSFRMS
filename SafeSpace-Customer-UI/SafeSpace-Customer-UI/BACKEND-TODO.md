@@ -1,5 +1,11 @@
 # BACKEND-TODO — việc backend (StorageProject.Api) còn thiếu cho giao diện SafeSpace
 
+## Phiên 6 — 06/11/2026: M01, M04, S02, S03, câu 7 (BE đã viết, chờ CI)
+
+- **Duyệt gia hạn (M01)** — 3 route `/api/ops/renewals/{GH-id}/approve`, `/api/manager/renewals/{id}/approve`, `RenewalService` dùng chung `RenewalApproval`. Lỗi 400 mới: kỳ thuê đã đổi, có yêu cầu khác chờ thanh toán, đã quá hạn duyệt. `/api/manager` trả 404 khi không thấy.
+- **Kiểm kê cũ (S03)** — `POST /api/staff/returns/{id}/inspection` trả **410** `{ code: "USE_OPS_RETURN_INSPECTION" }`.
+- **Ảnh phản hồi khấu trừ (câu 7)** — `POST /api/contracts/{id}/return-deduction` nhận thêm `photos: [{ fileName, contentType, dataBase64 }]` (tối đa 5, chỉ SELF_REPLACE / DISPUTE). `GET` trả `customerPhotos[]`; board `returns[].deductionPhotos[]`.
+
 ## Phiên 4 — 05/11/2026: D41 đặt trước theo ngày, D44 tiền mặt (BE đã viết, chờ build/test)
 
 - **Trống theo ngày (D41)** — `POST /api/availability/check` và tạo đơn tính cả ô sắp hết hạn (ngày hết hạn + đệm). `GET /api/facilities/{id}/units` thêm `freeFrom` (yyyy-MM-dd hoặc null), `overdue`. Chính sách mới `RELET_BUFFER` (FIXED, số ngày 0–60) ở B02 — FE vận hành chưa có ô nhập.

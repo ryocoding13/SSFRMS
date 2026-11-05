@@ -24,7 +24,7 @@ export function CancelReservationPage({ id }) {
   const r = data.reservations.find(x => x.reservation_id === id);
   const c = data.contracts.find(x => x.reservation_id === id);
   const paid = r?.status === "CONFIRMED";
-  const [bank, setBank] = useState(emptyRefundBank), [accepted, setAccepted] = useState(false), [reason, setReason] = useState("");
+  const [bank, setBank] = useState(emptyRefundBank), [reason, setReason] = useState("");
   const [preview, setPreview] = useState(null), [previewError, setPreviewError] = useState(""), [attempt, setAttempt] = useState(0);
   const [error, setError] = useState(""), [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false), [done, setDone] = useState(false);
   const guard = useRef(false);
@@ -42,14 +42,14 @@ export function CancelReservationPage({ id }) {
   const allowed = canCancel(data, r), ready = !paid || (support.ready && preview !== null);
   const submit = e => {
     e.preventDefault(); if (busy || !allowed || !ready) return;
-    const invalid = paid ? validateRefundChoice(bank, expectedName) || (!accepted && !isCashRefund(bank) ? "Vui lòng xác nhận đây là tài khoản chính chủ." : "") : "";
+    const invalid = paid ? validateRefundChoice(bank, expectedName) : "";
     setError(invalid); if (!invalid) setConfirm(true);
   };
   const send = async () => {
     if (guard.current || !allowed || !ready) return;
     guard.current = true; setBusy(true); setError("");
     try {
-      const res = await dispatch("CANCEL_RESERVATION", { reservation_id: id, reason: reason.trim() || "Khách hàng huỷ đặt chỗ", bank, bankConfirmed: accepted || isCashRefund(bank) });
+      const res = await dispatch("CANCEL_RESERVATION", { reservation_id: id, reason: reason.trim() || "Khách hàng huỷ đặt chỗ", bank, bankConfirmed: true }); // Thắng chốt 06/11: bỏ ô tick, tên chủ tài khoản đã được kiểm trùng hợp đồng
       if (!res.ok) { setError(res.error); setConfirm(false); return; }
       setConfirm(false); setDone(true);
     } catch { setError("Chưa xác nhận được kết quả huỷ. Hãy kiểm tra trạng thái đơn trước khi gửi lại."); setConfirm(false); }
@@ -61,7 +61,7 @@ export function CancelReservationPage({ id }) {
     {done ? <section className="panel customer-detail__card"><h2>Đã huỷ đơn {id}</h2><p>Đơn đã được huỷ thành công. {r.refund_amount > 0 ? `Khoản hoàn ${money(r.refund_amount)} được theo dõi tại danh sách đơn đặt chỗ.` : "Xem trạng thái hoàn tiền tại danh sách đơn đặt chỗ."}</p><div className="customer-detail__actions"><LinkButton to="reservations">Về đơn đặt chỗ</LinkButton></div></section> :
     <div className="customer-detail__grid">
       <form className="customer-detail__column" onSubmit={submit}>
-        {paid && <section className="panel customer-detail__card"><h2>Nhận tiền hoàn · Chính chủ</h2><RefundMethodFields value={bank} onChange={setBank} disabled={busy || !allowed} expectedName={expectedName} facility={facility} />{!isCashRefund(bank) && <label className="customer-detail__choice"><input type="checkbox" checked={accepted} disabled={busy || !allowed} onChange={e => setAccepted(e.target.checked)} /><span>Tôi xác nhận đây là tài khoản chính chủ</span></label>}</section>}
+        {paid && <section className="panel customer-detail__card"><h2>Nhận tiền hoàn · Chính chủ</h2><RefundMethodFields value={bank} onChange={setBank} disabled={busy || !allowed} expectedName={expectedName} facility={facility} /></section>}
         <section className="panel customer-detail__card"><h2>Lý do huỷ</h2><Field label="Lý do (không bắt buộc)"><input maxLength={255} value={reason} onChange={e => setReason(e.target.value)} disabled={busy || !allowed} /></Field>
           {support.demo && <Notice>Chế độ mô phỏng: thao tác chỉ lưu trong trình duyệt, không chuyển tiền thật.</Notice>}
           {paid && !support.ready && <Notice>{support.loading ? "Đang kiểm tra chức năng hoàn tiền…" : support.error || "Chức năng huỷ đơn đã thanh toán đang được cập nhật. Vui lòng liên hệ cơ sở để được hỗ trợ."}</Notice>}

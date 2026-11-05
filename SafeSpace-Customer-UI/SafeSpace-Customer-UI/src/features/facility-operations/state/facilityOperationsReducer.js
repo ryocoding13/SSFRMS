@@ -53,13 +53,7 @@ const ACTIONS = {
     next = addLog(next, now, `Đã xác nhận thu ${money(p.amount)} · Đơn ${id}`, hasUnit ? "staff" : "manager/allocate", hasUnit ? "STAFF" : "ALL");
     return { state: next, result: { id } };
   },
-  REPORT_MISMATCH(state, { id, note }, now) {
-    const p = find(state.payments, id, "khoản thanh toán");
-    if (p.status !== "PENDING") fail("Khoản này đã được xử lý.");
-    if (!String(note || "").trim()) fail("Vui lòng ghi rõ sai lệch (số tiền, nội dung hoặc thời gian).");
-    const next = { ...state, payments: patch(state.payments, id, () => ({ status: "MISMATCH", note: note.trim(), handled_at: iso(now) })) };
-    return { state: addLog(next, now, `Báo sai lệch thanh toán · Đơn ${id}`, "manager/contracts", "MANAGER"), result: { id } };
-  },
+
 
   // S02
   VERIFY_CUSTOMER(state, { id, doc_type, doc_no, photo_ok, info_ok,original_valid,booking_matched }, now) {
