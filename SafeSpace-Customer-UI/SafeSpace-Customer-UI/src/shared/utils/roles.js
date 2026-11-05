@@ -19,6 +19,19 @@ export const sortRoles = (list, key = (x) => x) =>
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
   });
 
+// DB có thể có nhiều mã cùng nghĩa "Vận hành KD" (OPERATIONS, BUSINESS_OPERATOR…). Danh sách chọn vai trò chỉ hiện
+// một mục cho mỗi nhãn; ưu tiên OPERATIONS vì đây là mã được BE cho phép lưu chính sách (RentalPolicyEndpoints).
+const PREFERRED_ROLE = { "Vận hành KD": "OPERATIONS" };
+export const uniqueRoles = (list, key = (x) => x) => {
+  const byLabel = new Map();
+  for (const item of list) {
+    const label = roleLabel(key(item));
+    const kept = byLabel.get(label);
+    if (!kept || (PREFERRED_ROLE[label] === key(item) && key(kept) !== key(item))) byLabel.set(label, item);
+  }
+  return list.filter((item) => byLabel.get(roleLabel(key(item))) === item);
+};
+
 // Vai trò gắn với một cơ sở cụ thể (BE: chỉ STAFF / MANAGER được phân công cơ sở)
 export const FACILITY_ROLES = ["STAFF", "MANAGER"];
 export const needsFacility = (roles = []) => roles.some((r) => FACILITY_ROLES.includes(r));

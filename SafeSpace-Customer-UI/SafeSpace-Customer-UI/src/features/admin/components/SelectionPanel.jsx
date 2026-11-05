@@ -1,0 +1,7 @@
+import React,{useState} from "react";
+import { Button,Empty,Modal } from "../../../shared/components/UI.jsx";
+import "./admin-selection.css";
+export default function SelectionPanel({title,description,items,value,onClose,onSelect,confirmLabel="Dùng lựa chọn này",disabled=false}) {
+ const [chosen,setChosen]=useState(value==null?"":String(value)),selected=items.find(i=>String(i.id)===chosen);
+ return <Modal title={title} size="selection" placement="drawer" onClose={disabled?undefined:onClose}><Button className="selection-panel__close" variant="outline" disabled={disabled} onClick={onClose}>Đóng</Button><p className="hint">{description}</p><div className="selection-panel__selected"><span className="hint">Đã chọn</span><strong>{selected?.label||"Chưa chọn"}</strong></div><div className="selection-panel__list">{items.map(i=><button type="button" key={i.id} className="selection-panel__item" aria-pressed={chosen===String(i.id)} disabled={disabled||i.disabled} onClick={()=>setChosen(String(i.id))}><span><strong>{i.label}</strong>{i.description&&<small>{i.description}</small>}</span><span>{i.disabled?"Đang có":chosen===String(i.id)?"Đã chọn":"Chọn"}</span></button>)}{!items.length&&<Empty title="Chưa có lựa chọn phù hợp" text="Thử tải lại danh sách."/>}</div><Button block disabled={disabled||!selected||selected.disabled} onClick={()=>onSelect(selected.id)}>{confirmLabel}</Button></Modal>;
+}

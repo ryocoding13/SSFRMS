@@ -21,7 +21,7 @@ export default function BusinessRoutes({ parts, query }) {
   else if (a === "export") { active = "business/reports"; body = <ReportExportPage />; }
   else if (a === "policy-content") { active = "business/policies"; body = <RentalPolicyEditorPage />; }
   else if (a === "policy-status") { active = "business/policies"; body = <PolicyStatusPage />; }
-  else if (a === "rates") { active = "business/pricing"; body = <FacilityRatePage />; }
+  else if (a === "rates") { active = "business/pricing"; body = query?.get("facility") ? <FacilityRatePage query={query} /> : <PricingPage />; }
   else if (a === "facilities") {
     active = "business/facilities";
     body = <FacilityManagementPage query={query} />;
@@ -44,5 +44,6 @@ export default function BusinessRoutes({ parts, query }) {
       </main>
     );
   }
-  return <BusinessLayout active={active}>{body}</BusinessLayout>;
+  // key theo đường dẫn: nội dung trang dựng lại khi đổi trang, header/menu giữ nguyên (không giật)
+  return <BusinessLayout active={active}><React.Fragment key={parts.join("/")}>{body}</React.Fragment></BusinessLayout>;
 }

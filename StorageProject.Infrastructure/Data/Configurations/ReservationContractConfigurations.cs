@@ -27,6 +27,9 @@ public class ReservationConfiguration : IEntityTypeConfiguration<Reservation>
         b.Property(r => r.RequiredDeposit).IsRequired().HasColumnType("decimal(15,2)");
         b.Property(r => r.Status).IsRequired().HasMaxLength(30).HasDefaultValue("PENDING_PAYMENT");
         b.Property(r => r.CancellationReason).HasMaxLength(500);
+        b.Property(r => r.RefundBankName).HasMaxLength(100);
+        b.Property(r => r.RefundAccountNumber).HasMaxLength(19).IsUnicode(false);
+        b.Property(r => r.RefundAccountHolder).HasMaxLength(150);
         b.Property(r => r.PaymentMethod).IsRequired().HasMaxLength(20).HasDefaultValue("PAYOS");
         b.Property(r => r.OrderCode);
         b.HasIndex(r => r.OrderCode).IsUnique().HasFilter("[OrderCode] IS NOT NULL");
@@ -151,7 +154,7 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
             t.HasCheckConstraint("CK_payments_payment_method",
                 "[PaymentMethod] IN ('CASH','BANK_TRANSFER','CARD','E_WALLET','PAYMENT_GATEWAY')");
             t.HasCheckConstraint("CK_payments_status",
-                "[Status] IN ('PENDING','PAID','FAILED','REFUNDED','PARTIALLY_REFUNDED')");
+                "[Status] IN ('PENDING','PAID','FAILED','REFUNDED','PARTIALLY_REFUNDED','CANCELLED')");
         });
         b.HasOne(p => p.Reservation).WithMany().HasForeignKey(p => p.ReservationId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(p => new { p.ReservationId, p.PaymentType }).IsUnique()

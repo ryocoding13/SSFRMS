@@ -161,7 +161,7 @@ export default function FacilityDetailPage({ id, query }) {
     const res = await dispatch("CREATE_RESERVATION", { facility_id: facility.facility_id, offer_key: offer.key, months, start_date: start, unit_code: unit?.code });
     setBusy(false);
     if (!res.ok) return setError(res.error);
-    go(`checkout/${res.reservation_id}`);
+    go(`checkout/${res.reservation_id}/confirm`);
   };
 
   const place = [facility.district, facility.city].filter(Boolean).join(", ") || facility.address;

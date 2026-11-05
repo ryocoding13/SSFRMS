@@ -53,9 +53,13 @@ Yêu cầu này bổ sung các quy định dưới đây, không thay quy địn
 5. Bản chạy chính giữ giao diện sản phẩm và không dùng dữ liệu giả để báo thao tác API thành công.
    Chế độ mock/offline phải được chọn rõ và có dấu hiệu nhận biết cho người kiểm thử; API lỗi phải báo đúng.
    Đây là yêu cầu cho các lần sửa liên quan, không khẳng định mọi màn hiện tại đã đáp ứng.
-6. **Không commit bí mật thật:** mật khẩu DB, khóa JWT/PayOS, token, `.env.local`, cấu hình riêng có thông tin nhạy cảm.
-   Cho phép `.env.example`, `appsettings.json` và cấu hình dùng chung/mẫu không chứa bí mật thật.
-   Không đưa bí mật vào biến `VITE_*` vì chúng có thể được đóng gói vào frontend.
+6. **Cấu hình ngân hàng và PayOS của dự án:** theo yêu cầu người dùng ngày 28/10/2026,
+   cho phép lưu/chia sẻ thông tin tài khoản nhận tiền (ngân hàng, số tài khoản, tên chủ tài khoản)
+   và cấu hình PayOS backend do nhóm cung cấp, kể cả khóa thật trong `StorageProject.Api/appsettings.json`.
+   AI được đọc, cấu hình và kiểm thử PayOS; không tự xóa, che hoặc thay giá trị nhóm cung cấp bằng placeholder
+   chỉ vì quy định tránh lộ thông tin ngân hàng/PayOS. Xem PROCESS-2026-10-28-PAYOS trong DECISIONS.md.
+   Giữ quy định không commit mật khẩu DB, khóa JWT, token và bí mật khác ngoài phạm vi ngoại lệ trên.
+   Khóa PayOS vẫn chỉ dùng ở backend; không đưa vào `VITE_*` hoặc bundle frontend.
 7. Không sửa migration đã merge hoặc áp dụng trên database dùng chung. Thay đổi schema sau đó phải tạo migration mới.
    Migration chỉ ở nhánh riêng, chưa chia sẻ/chưa áp dụng trên DB dùng chung được chỉnh cùng model/snapshot.
    Không tự xóa/reset database hoặc dữ liệu để xử lý lỗi; phải được người dùng cho phép rõ ràng.
@@ -153,7 +157,7 @@ thêm `manager01`/`Manager@123`).
 - [ ] Các kiểm tra cần thiết đã chạy; phần không chạy/thất bại có lý do cụ thể.
 - [ ] Thay đổi code có build/test tương ứng; thay đổi giao diện đã xem màn hình nếu môi trường cho phép.
 - [ ] Phân biệt kiểm thử mock, SQLite, SQL Server và PayOS thật; không dùng kết quả này thay cho kết quả khác.
-- [ ] Không thêm bí mật, `debugger`, log thử hoặc hành vi giả thành công. TODO còn lại phải được ghi rõ.
+- [ ] Cấu hình ngân hàng/PayOS theo ngoại lệ tại quy tắc 6; bí mật khác vẫn được bảo vệ. Không thêm `debugger`, log thử hoặc hành vi giả thành công. TODO còn lại phải được ghi rõ.
 - [ ] Tài liệu và bằng chứng đúng hiện trạng; không tự nâng tính năng sang `passing`.
 - [ ] Thành viên tự commit/push/PR/merge; có người khác trong nhóm review trước merge.
 

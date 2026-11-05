@@ -65,6 +65,171 @@
   - `git diff --check`: PASS, 0 whitespace errors.
 - **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
 
+## 2026-11-02 — F40: chốt D35–D36 và sửa FE L6, L13, L14
+
+- DECISIONS: thêm mục D35–D36 (đại diện nhóm chốt 02/11): D35 nhân viên phải xem được ảnh khách gửi (L3); D36 BE không tự tạo lịch nhận chìa khóa, chỉ tạo khi khách yêu cầu (L10, thay phần tự tạo lịch của D26); L6 quản trị không tạo tài khoản khách; L13 trước ngày thuê không hiện QR/PIN; L14 hỗ trợ gắn kho chỉ khi hợp đồng đã bắt đầu và chưa kết thúc.
+- L6 `CreateUserPage.jsx`: bỏ vai trò Khách hàng khỏi lựa chọn khi tạo tài khoản.
+- L13 `RentedUnitListPage.jsx`, `RentedUnitDetailPage.jsx`: trước StartDate nút QR đổi thành "Mã hiện từ {ngày}" (khoá), dòng trạng thái "Đã cấp · mã hiện từ {ngày}". Mã vẫn được cấp sau thanh toán (D26).
+- L14 `RentedUnitDetailPage.jsx`: kho chưa bắt đầu/đã kết thúc hiện "Gửi hỗ trợ chung" (`#/inquiries`) thay vì gửi theo kho. `SupportPage.jsx`: chỉ liệt kê hợp đồng trong kỳ thuê; không có thì báo và khoá nút gửi.
+- Test đổi theo quyết định mới: `tests/render.test.mjs` (hợp đồng mẫu HĐ-2026-0142 bắt đầu ngày mai nên kỳ vọng "Mã hiện từ" thay "Xem QR & PIN 6 số"; kịch bản đang trả kho đặt StartDate trong quá khứ; thêm kiểm tra trước ngày thuê).
+- Kiểm tra: `check:structure` PASS, `npm test` 155/155, `test:business` 9/9, `test:workflows` 12/12, `test:render` 173 route PASS, `build` PASS; Playwright `test:auth-support` 14/14, `test:batch10` 45/45. Chụp `dev:demo` (chặn API đặt hợp đồng bắt đầu sau 10 ngày): danh sách và chi tiết kho hiện "Mã hiện từ", ô Hỗ trợ chuyển sang hỗ trợ chung, màn hỗ trợ khoá gửi; admin `#/admin/new` chỉ còn Nhân viên cơ sở, Quản lý cơ sở, Vận hành KD, Quản trị. Chưa kiểm backend .NET/SQL Server thật.
+- Còn lại cần BE/nhóm: BE từ chối trả mã trước StartDate (L13) và từ chối ticket gắn hợp đồng ngoài kỳ thuê (L14, `SupportTicketService`); D35 lưu/hiện ảnh hỗ trợ; D36 bỏ tự tạo `HandoverRecord` + API/màn khách yêu cầu chìa khóa + Figma. Không đổi trạng thái tính năng.
+
+## 2026-11-02 — F40: sửa lỗi FE ngoài phạm vi task tuần 9 (L10a, L12, L15, L16, S09)
+
+- L10a `StaffTasks.jsx`: bàn giao chỉ vào "Công việc ngày" khi phiếu xác minh `DONE` (trước đây thiếu phiếu cũng bị coi là đã xác minh), khớp `pendingTaskCounts.js` và `settlementModel.js`. Không đổi việc BE tự tạo lịch bàn giao (D26, chờ nhóm chốt L10/D36).
+- L15 `ReservationListPage.jsx` `canCancel`: thêm `UNIT_ASSIGNED` (đã cấp ô + hợp đồng) — huỷ được trước StartDate khi chưa nhận chìa khóa, đúng điều kiện `ReservationService` CancelAsync và D27. `ReservationDetailPage.jsx`: thêm nút "Huỷ đơn" và dòng "hoàn 100% tiền thuê và 90% tiền cọc (phí huỷ 10% cọc)" khi còn huỷ được.
+- L12 `RentedUnitDetailPage.jsx`: trước ngày thuê, thẻ "Trả kho" đổi thành "Huỷ đơn" → `#/reservations/{mã}/cancel` (D27: trước StartDate là huỷ đơn, không phải trả kho).
+- L16 `RegisterPage.jsx`: bỏ dòng "Tài khoản mới sẽ tự động vào vai trò Khách hàng." (giữ class CSS dùng chung).
+- S09 `PaymentConfirmationPage.jsx`: khi `OpsPaymentDto` chưa trả tách thuê/cọc thì không tự chia số tiền nữa (ước tính cọc = 1 tháng lệch với chính sách DEPOSIT đang seed, L11 thuộc BE), chỉ ghi "Thuê N tháng + tiền cọc · gói".
+- Kiểm tra: `check:structure` PASS, `npm test` 155/155, `test:business` 9/9, `test:workflows` 12/12, `test:render` 173 route PASS, `build` PASS; Playwright Chromium headless `test:batch10` 45/45, `test:auth-support` 14/14. Chụp `dev:demo` (chặn API giả lập đơn UNIT_ASSIGNED bắt đầu sau 10 ngày, chưa nhận chìa khóa): danh sách và chi tiết đơn có "Huỷ đơn", chi tiết kho hiện thẻ "Huỷ đơn" thay "Trả kho"; đơn đã nhận chìa khóa không hiện nút. Chưa kiểm với backend .NET/SQL Server thật. Không đổi API, nghiệp vụ hay trạng thái tính năng.
+- Không sửa (thuộc BE/task người khác hoặc chờ nhóm chốt): L1, L2-BE, L8-BE, L11, T20, T17, L5, L6, L10 nghiệp vụ, L13, L14, D35.
+
+## 2026-11-02 — F40: đồng bộ chữ/trạng thái Figma, L4 đổi số điện thoại, T01, T22
+
+- Figma Main (13 nhóm bổ sung đã tích hợp): sửa chữ và trạng thái 4 nhóm lệch với code. QUYEN01 "Bạn không có quyền truy cập" + "Về tổng quan" (`App.jsx`); QUYEN02 khi tải danh sách vận hành bị 403 hiện "Dữ liệu ngoài cơ sở phụ trách"; QUYEN04 khi thao tác bị 403 hiện popup "Thao tác chưa được thực hiện" + "Tải lại dữ liệu" (`WorkflowComponents.jsx`, `useWorkflowData.js`). D30-11 `#/staff/overdue`: rỗng "Không có kho quá hạn đến ngày 20", popup "Lưu biên bản xử lý đồ {kho}?", "Đã lưu biên bản xử lý đồ" → "Về công việc trong ngày", lỗi "Chưa lưu được biên bản". Báo cáo sai lệch `#/manager/discrepancies`: rỗng "Không có báo cáo phù hợp", lỗi tải "Chưa tải được báo cáo" + "Tải lại danh sách", hồ sơ đã xử lý ghi "Đã đối soát" + "Mở chi tiết đối soát". D30-09 `#/manager/deposit-refunds`: rỗng "Không có đối soát chờ duyệt", popup "Ghi nhận đã chuyển {số tiền}?" / "Đã hoàn cọc {số tiền}" / "Chưa ghi nhận được chuyển khoản". 9 nhóm còn lại chưa đối chiếu chữ.
+- L4: C13 cho khách sửa số điện thoại (backend `PUT /api/auth/profile` đã nhận `Phone`), nút "Lưu thông tin". A02: tên đăng nhập không nhận `@` theo D33.
+- T01: `BACKEND-TODO.md` (7 chỗ), `BE-CONTRACT.md` mục "Đồng bộ 26/10" và con trỏ trong DECISIONS D32 đổi tham chiếu ghi nhầm "D31" thành "D32"; không đổi nội dung quyết định. T22: `OPS-FLOW-COVERAGE.md` (S02 checklist, S03 nhận chìa khóa không kích hoạt, M03 không đổi EndDate, M07 chờ hoàn, thêm 10 route mới), `ADMIN-FLOW-COVERAGE.md` A02, `CUSTOMER-FLOW-COVERAGE.md` C13.
+- Test đổi theo nhãn mới (yêu cầu thay đổi): `tests/auth-support.spec.js`, `tests/auth-support.browser.mjs`, `tests/batch10-browser.spec.js` ("Lưu thông tin", "Đã lưu thông tin", "Bạn không có quyền truy cập").
+- Kiểm tra: `check:structure` PASS, `npm test` 155/155, `test:business` 9/9, `test:workflows` 12/12, `test:render` 173 route, `build` PASS; Playwright Chromium headless: `test:batch10` 45/45 (1440/768/390, `dev:demo`), `test:auth-support` 14/14. Chụp màn `dev:demo`: lưu số điện thoại, đọc lại sau chuyển trang, báo sai định dạng. `test:approved-ui`, `test:workflow-actions`, `test:api-pending`, `test:password-reset` lỗi cả trên main 1a48fa3 (sẵn có, không do thay đổi này). Chưa kiểm với backend .NET/SQL Server thật. Không đổi API, nghiệp vụ hay trạng thái tính năng.
+
+## 2026-11-02 — F40: sửa giật/chớp khi bấm trong khu Nhân viên, Quản lý cơ sở, Vận hành KD, Quản trị
+
+- Nguyên nhân: `#main` trong `src/app/App.jsx` đổi `key` theo đường dẫn, mà header/menu (`*Layout.jsx`) và `OpsProvider` nằm trong `#main`. Mỗi lần bấm menu/nút đổi trang, cả header, menu và dữ liệu vận hành bị dựng lại: hiện "Đang tải dữ liệu vận hành…", gọi lại `/api/ops/board`, chiều cao `--site-header-height` bị xoá rồi đo lại, cộng hiệu ứng `ss-page-in` (mờ từ 0 + trượt 6 px) chạy lại cho cả màn hình. `router.js` còn cuộn lên đầu cả khi chỉ đổi `?id`/bộ lọc.
+- Sửa: khu staff/manager/business/admin giữ `key` theo khu; nội dung từng trang vẫn dựng lại nhờ `React.Fragment key` trong `AdminRoutes`, `BusinessRoutes`, `FacilityOperationsRoutes`. `OpsProvider` nhận `navKey` và nạp lại board ngầm khi đổi trang (giữ dữ liệu đang hiện, không bật màn tải). `router.js` chỉ cuộn lên đầu khi đổi đường dẫn. `motion.css`: chuyển trang chỉ mờ nhẹ 0.55→1 trong 0.15 s, bỏ trượt. Khu khách hàng giữ cách dựng lại theo đường dẫn như cũ.
+- Kiểm tra (Node 22.23, nối sau patch hiển thị 02/11): `check:structure` PASS, `npm test` 155/155, `test:business` 9/9, `test:render` 173 route PASS, `build` PASS (cảnh báo bundle >500 kB có sẵn). Đo bằng Chromium headless trên `MOCK_OPS=1 npm run dev:mock`, đăng nhập manager01, bấm 6 mục menu: bản cũ header dựng lại 5 lần, hiện màn "Đang tải…" 5 lần, 10 lần gọi board; bản sửa 0, 0 và 5 lần gọi board ngầm. Đây là mock API, chưa kiểm với backend .NET/SQL Server thật. Không đổi API, nghiệp vụ hay trạng thái tính năng.
+
+## 2026-11-02 — F40: sửa hiển thị theo Figma (M07, A02/A05, B04, C11 gia hạn)
+
+- M07 `#/manager/contracts`: "Xem hồ sơ" cuộn tới khối chi tiết (trước đó chi tiết hiện ở cuối trang nên trông như không chuyển trang); bỏ hai nút hoàn tiền lặp trong khối chi tiết, gom vào một thẻ cuối trang như Figma; thẻ hồ sơ xếp sát nhau, nhãn trạng thái và nút cùng một hàng bên phải (áp dụng mọi `RecordCard`).
+- A02 thêm tài khoản: bỏ mục "Vận hành KD" lặp (DB có cả `OPERATIONS` và `BUSINESS_OPERATOR`; giữ `OPERATIONS`); chia hai nhóm: Nhân viên/Quản lý cơ sở (cần cơ sở) ở trên, Khách hàng/Vận hành KD/Quản trị ở dưới. A05: nút "Gỡ vai trò" trong chip không còn bị bóp thành ô tròn 22 px.
+- B04: cột biểu đồ tối đa 220 px, ít cơ sở không kéo hết chiều ngang.
+- C11 theo dõi gia hạn: đã chọn thu tại quầy thì ẩn nút "Thanh toán PayOS" (BE đã huỷ link PayOS khi chọn quầy, T04).
+- Kiểm tra: `check:structure` PASS, `npm test` 155/155, `test:business` 9/9, `test:workflows` 12/12, `test:render` 173 route PASS, `build` PASS. `test:approved-ui` lỗi môi trường cả trước và sau khi sửa (không có trình duyệt). Chưa xem trên trình duyệt thật; không đổi trạng thái tính năng.
+## Phiên 2026-11-02 — Hoàn thành Task T12: Hồ sơ quá hạn ngày 20 và biên bản xử lý đồ theo D32
+
+- **Mục tiêu:** Hoàn thành trọn vẹn Task T12 thuộc phân công của Tiến (theo Kế hoạch hoàn thiện cập nhật 26–31/10/2026 và `BACKEND-TODO.md` mục D32):
+  1. **Endpoints API:**
+     - `GET /api/ops/overdue-cases`: Lấy danh sách hồ sơ quá hạn lọc theo cơ sở của người gọi (`staff`/`manager`). Trả về thông tin chi tiết: `id` (`QH-xxxx`), `facilityId`, `contractId` (`HĐ-xxxx`), `unit`, `customer`, `deposit`, `endDate`, `status` (`OPEN` / `ESCALATED` / `ASSIGNED` / `DONE`), `assignee`, `assigneeId`, `removalDay` (20), `notes`, và `record` (biên bản nếu đã lập).
+     - `POST /api/ops/overdue-cases/actions`: Xử lý 2 hành động:
+       + `ASSIGN_REMOVAL`: Dành riêng cho Quản lý cơ sở (`RequireManager`), phân công nhân viên phụ trách hồ sơ xử lý đồ quá hạn. Kiểm tra chặt chẽ nhân viên được gán phải thuộc cơ sở phụ trách (`UserFacilities`). Cập nhật `AssignedStaffId`, chuyển DTO status sang `ASSIGNED`.
+       + `RECORD_REMOVAL`: Nhân viên hoặc Quản lý cơ sở ghi nhận biên bản xử lý đồ thực tế:
+         * Kiểm tra thời gian thực hiện (`performedAt`) không được ở tương lai và phải đạt ít nhất 20 ngày quá hạn (`>= 20` ngày trễ tính theo giờ Việt Nam `+07:00` so với `EndDate`).
+         * Bắt buộc có danh mục/tình trạng đồ (`inventory`) và vị trí đưa đồ ra ngoài (`location`).
+         * Bắt buộc người dùng xác nhận (`confirmed = true`).
+         * Bắt buộc ít nhất 1 ảnh trước xử lý (`beforePhotos`) và 1 ảnh sau xử lý (`afterPhotos`). Giải mã base64 và lưu an toàn vào `EvidencePhotos` với `OwnerType = RETURN_INSPECTION` (phân loại qua tên tệp `before_` / `after_`), tuân thủ 100% check constraint và schema DB có sẵn mà không cần migration mới.
+         * Cập nhật trạng thái ô kho sang `INSPECTION` (Chờ vệ sinh / kiểm tra) hoặc `MAINTENANCE` (Bảo trì), nghiêm cấm chuyển về `AVAILABLE`. Ghi lịch sử trạng thái ô kho qua `SetUnitStatus`.
+         * Lưu thông tin biên bản vào `Notes` dưới dạng JSON, chuyển trạng thái case sang `RESOLVED` trong DB (DTO trả `DONE`), ghi nhận `ActivityLog`.
+         * Chống gửi lặp (idempotent), từ chối gửi lại biên bản nếu đã hoàn tất.
+  2. **Kiểm chứng:**
+     - `dotnet build StorageProject.slnx`: **PASS (0 Error, 18 warnings phụ thuộc có sẵn)**.
+     - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: **118/118 unit tests PASS** (gồm 6/6 tests toàn diện mới cho `OverdueCaseT12Tests`).
+     - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj`: **9/9 SQL Server integration tests PASS**.
+     - `cd SafeSpace-Customer-UI/SafeSpace-Customer-UI; npm test`: **155/155 tests PASS**.
+- **Tuân thủ AGENTS.md:** AI không commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
+
+## Phiên 2026-11-02 — Hoàn thành Task T17 (Loại bỏ gán nhân viên chéo cơ sở) & Task T11 (Overdue Worker hàng ngày theo D32)
+
+- **Mục tiêu:** Hoàn thiện 2 tasks còn lại theo phân công của Tiến (Kế hoạch hoàn thiện cập nhật 26–31/10/2026 và D32):
+  1. **Task T17 (Phân quyền & phạm vi cơ sở nghiêm ngặt):**
+     - Sửa `ContractService.RegisterMoveOutAsync`: loại bỏ hoàn toàn fallback lấy bất kỳ nhân viên STAFF của hệ thống hoặc fallback gán nhầm khách hàng (`contract.Customer`) làm nhân viên kiểm tra kho.
+     - Truy vấn lọc nghiêm ngặt `UserFacilities` theo đúng `contract.Unit.FacilityId`, trạng thái `ACTIVE` và trong thời gian hiệu lực (`AssignedFrom <= today` và `AssignedTo == null || AssignedTo >= today`).
+     - Ưu tiên gán `STAFF` của cơ sở; nếu không có thì gán `MANAGER` của cơ sở. Nếu cơ sở không có nhân sự phụ trách nào thì ném ngoại lệ rõ ràng (`InvalidOperationException: "Cơ sở hiện chưa có nhân viên phụ trách để phân công kiểm tra kho."`), không cho phép gán sai phạm vi.
+  2. **Task T11 (Tiến trình quét & xử lý hợp đồng quá hạn hàng ngày):**
+     - Tạo `OverdueProcessor.cs`: Xử lý hợp đồng theo giờ Việt Nam (`+07:00`):
+       + Chuyển hợp đồng `ACTIVE` sắp hết hạn trong 30 ngày thành `EXPIRING`.
+       + Chuyển hợp đồng quá hạn (`EndDate < today`) thành `OVERDUE`.
+       + Tính phí quá hạn: trừ 5% cọc ban đầu cho mỗi ngày trễ (`0.05 * DepositAmount * overdueDays`), khống chế trần tối đa 100% cọc ban đầu.
+       + Điểm dừng tính phí (D32): khi khách đã gửi đăng ký trả kho (`RETURN_PENDING`), ngày tính phí dừng lại tại ngày lập biên bản hẹn kiểm tra kho (`ReturnInspection.CreatedAt`).
+       + Tự động mở hoặc cập nhật `OverdueCase`: ghi nhận phí phạt luỹ kế, đánh dấu mốc nhắc khách ngày 10–14, tự động chuyển `ESCALATED` và ghi nhật ký hoạt động (`ActivityLog`) ở mốc ngày 20 để nhân viên xử lý di dời đồ. Đảm bảo tính lũy đẳng (idempotent), không nhân bản case hay phí nếu quét nhiều lần trong ngày.
+     - Tạo `OverdueWorker.cs`: `BackgroundService` sử dụng `PeriodicTimer` (5 phút/lần) khởi tạo scope DI và gọi `OverdueProcessor.ProcessDailyOverdueAsync`.
+     - Đăng ký `OverdueWorker` trong `Program.cs` hỗ trợ bật/tắt qua config `Worker:EnableOverdue`.
+     - Tạo `OverdueProcessorTests.cs`: 5 unit tests toàn diện kiểm thử đầy đủ các kịch bản chuyển đổi trạng thái, tính phí 5%/ngày, chặn trần 100%, tính lũy đẳng và dừng tính phí khi `RETURN_PENDING`.
+- **Kiểm chứng:**
+  - `dotnet build StorageProject.slnx`: **PASS (0 Error, 17 warnings phụ thuộc có sẵn)**.
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj`: **94/94 unit tests PASS** (gồm 5/5 tests mới cho OverdueProcessor).
+  - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj`: **9/9 SQL Server integration tests PASS**.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
+
+## 2026-11-02 — F40: hiệu ứng chuyển cảnh dùng chung + chốt D34
+
+- Theo yêu cầu thành viên FE: thêm `src/shared/styles/motion.css` (mới), import một lần trong `src/app/App.jsx` ngay sau `ss.css`. Chỉ thêm hiệu ứng, không đổi màu, kích thước, bố cục, route, API hay nghiệp vụ.
+- Cách 1 (hover/bấm): transition cho `.btn`, mục menu `.subnav`/`.header__nav`, ô nhập `.field` (viền xanh khi focus) và thẻ `.facility-card`. Cách 2 (khi xuất hiện): `#main` mờ dần khi đổi trang (đã đổi `key` theo đường dẫn sẵn trong App.jsx), `.overlay` mờ dần, `.modal` phóng nhẹ, drawer Admin trượt từ phải. Tôn trọng `prefers-reduced-motion`.
+- DECISIONS D34 chuyển "Đã chốt 02/11/2026": PR #54 trùng (đã vào main qua #55) nên đóng; Tiến review T13, Ngọc Mai review T05/T07/T08 và sửa T06 (hạn 05/11); giá hoàn tháng chưa dùng giữ `AgreedMonthlyRate`; ảnh giữ trong SQL Server; `damageWorkflowResolved` giữ tạm tới T23.
+- Kiểm tra trong thư mục FE (Node 22.23): `check:structure` PASS, `npm test` 155/155, `test:business` 9/9, `test:render` 173 route PASS, `build` PASS (cảnh báo bundle >500 kB có sẵn). **Chưa kiểm** trên trình duyệt thật (môi trường AI không có Chromium) và chưa chạy BE/SQL Server vì không chạm BE. Không đổi trạng thái tính năng.
+
+## 2026-10-29 — F42: BE T05/T07/T08/T13 + cờ khả năng Batch08 (nhánh feature/be-t05-t07-t08-t13-flags)
+
+- Yêu cầu của thành viên FE: gỡ chỗ FE PR #53 khoá luồng khi API thật thiếu cờ (xác minh khách, kiểm kê, hoàn tiền, huỷ đơn đã thanh toán, gửi trả kho) và làm T13. Nhánh xếp chồng trên PR #53 (`fd61df1`) để không xung đột tài liệu; merge PR #53 trước.
+- BE mới: ảnh bằng chứng (bảng `evidence_photos`, URL có chữ ký), tài khoản chính chủ (cột trên `reservations`, `return_inspections`, `facility_incidents`), kiểm kê lưu phí/ảnh, hoàn cọc hai bước + API `deposit-refunds`, M08 lưu bằng chứng chuyển khoản, checklist S02, cờ trên board và rental-policy, toàn bộ API T13. Chi tiết: BACKEND-TODO "Cập nhật BE 29/10", DECISIONS D34, docs/facility-ops-api.md mục 4b.
+- Sửa lệch tài liệu: feature_list F22/F23/F28 từ `not_started` → `active` kèm bằng chứng (chờ thành viên xác nhận để `passing`), thêm F42; BACKEND-TODO dòng U1 (main đã kiểm chuyển trạng thái ô).
+- Test mới: `StorageProject.Tests/D32RefundEvidenceTests.cs`, `IncidentT13Tests.cs` (SQLite trong bộ nhớ).
+- **Chưa kiểm chứng:** môi trường AI không có .NET SDK/NuGet nên chưa build, chưa chạy test, chưa tạo migration. Người nhận chạy `dotnet ef migrations add AddRefundEvidenceAndIncidents --project StorageProject.Infrastructure --startup-project StorageProject.Api`, thêm tên migration vào `StorageProject.IntegrationTests/Tests/SqlServerMigrationAndReadinessTests.cs`, rồi `dotnet build` + `dotnet test`, kiểm luồng trên SQL Server với FE PR #53. Còn thiếu T11/T12 (quá hạn ngày 20), T19, route cũ `/api/staff/returns` chưa nhận phí/ảnh.
+
+## 2026-10-29 — F40 Batch10: browser và kiểm giới hạn tích hợp (phiên 7)
+
+- Khôi phục đúng Batch09 từ gói chỉ định; SHA256 45698710691ba1348db454770a132b25754082ce88524ea1727149e6dedd688e,143 file khớp source. Giữ main c1a9b05/F40 active/F41 blocked; không sửa BE/schema/Figma, không commit/push/PR/merge.
+- Sửa Modal mất focus khi onClose thay đổi, stack Escape/Tab/focus/backdrop, disabled/hidden Tab và khóa cuộn; popup dài cuộn được. Sửa overflow input/select Xuất báo cáo tại768px.
+- Chromium Headless Shell156:45/45 Batch10 tại1440/768/390 +14/14 auth-support;59 ca browser demo/stub, không phải tích hợp API thật. Bao phủ25 route/5 role, lỗi/session/scope FE, drawer/popup, file input và tải CSV.2 test code Modal gốc09 tái hiện lỗi, bản sửa PASS.
+- FE155/155, business9/9, workflow12/12, SSR173, structure/build/diff đạt. Bundle>500kB còn. Không chạy init lặp hoặc BE tests khi thiếu môi trường; docs/verification/FE-batch10-browser-2026-10-29.md ghi bằng chứng/giới hạn cụ thể.
+- API5151 connection refused; chưa .NET/SQL Server/PayOS/thiết bị thật. Atomic role-change, scheduled metadata, persistence/evidence và server enforcement ở BACKEND-TODO còn blocked. Chưa coi toàn hệ thống hoàn tất/đủ điều kiện merge.
+- Xác minh chuỗi patch/checkpoint04→09; gói10 có patch nối09/cộng dồn main và chuỗi7 phiên để thành viên tự review/commit/push nhánh riêng. PowerShell chưa chạy trên Windows. Chi tiết docs/sprints/FE-figma-sync-10.md; không tạo lịch sử commit giả.
+
+## 2026-10-28 — F40 Batch09: vận hành/admin/popup (phiên 6)
+
+- Tiếp Batch08 trên main c1a9b05 đọc lại qua GitHub; giữ F40 active/F41 blocked. Không sửa BE/schema/Figma, không commit/push/PR/merge.
+- A03 chỉ xem; A02/A05 panel chọn cơ sở/đổi/cấp lại vai trò. Đổi role cần endpoint atomic đề xuất, 404 không fallback gán/gỡ. Create+assign vẫn hai request; partial tạo xong/phân công lỗi báo rõ, không tạo lần hai. Role/assignment readback, stale loader và popup guard được sửa.
+- B05 ID lạ không fallback, status không chọn sẵn/readback; policy ngừng/xóa đúng stage, publication T20 đúng version/rate/7 nội dung. Không sao chép wording Figma đảo D32. Xuất CSV đúng scope/summary, escape formula, reject non-CSV; B01/B04 không giả0 khi thiếu tiền, giữ XLSX hiện có.
+- FE155/155; business9/9; workflows12/12; SSR173 lượt + assertions; structure/build/init --fe-only/diff PASS. Hai patch incremental/main apply + byte-match PASS. Chromium thiếu executable; chưa browser/visual/API .NET/SQL Server thật. Bundle>500KB còn.
+- Chi tiết docs/sprints/FE-figma-sync-09.md; BACKEND-TODO bổ sung atomic role-change/permission legacy/assignment/report scope. Còn Batch10 browser và tích hợp, không tuyên bố hệ thống đã hoàn tất.
+
+## 2026-10-28 — F40 Batch08: nhân viên/quản lý, đối soát và hoàn tiền (phiên 5)
+
+- Tiếp Batch07, main đọc lại c1a9b05. Giữ F40 active/F41 blocked; không sửa BE/schema/Figma, không commit/push/PR/merge.
+- S02 checklist4 mục không nhập giấy tờ; chìa khóa cần xác minh +3 tick, không kích hoạt; kiểm kê cần bằng chứng hư hỏng và khấu trừ10% vệ sinh, không điền sẵn kết luận. M07 thẻ từng hồ sơ, xem biên bản/ảnh, chặn khắc phục chưa xử lý, chốt chỉ chờ hoàn.
+- Hoàn cọc/M08 cần bank chính chủ, mã/thời gian/checklist; thiếu tiền không giả0, status lạ không giảPAID. Ngày20 cần ảnh trước/sau, đúng phân công/mốc thực tế; cọc hết sớm không được dọn sớm. Demo chốt/hoàn dùng queue ops, không giao dịch thật.
+- API main chưa hỗ trợ đầy đủ; guard marker server và kiểm receipt/readback, lỗi không fallback. BACKEND-TODO mục Batch08 ghi DTO/marker/evidence/transaction. Không tự dựng số giấy tờ/owner/bank thiếu.
+- FE145/145; workflows12/12; business9/9; SSR158 lượt + assertions; structure/build/init --fe-only/diff PASS. Patch incremental/main apply + byte-match PASS. Chromium thiếu executable, chưa browser/visual/API .NET/SQL Server/PayOS thật.
+- docs/sprints/FE-figma-sync-08.md và danh mục CSV đã cập nhật. Còn2 phiên: Batch09 vận hành/admin, Batch10 browser/tích hợp.
+
+## 2026-10-28 — F40 Batch07: sự cố cơ sở (phiên 4)
+
+- Tiếp source Batch06 trên main c1a9b05 đọc lại qua GitHub; giữ F40 active/F41 blocked. Không sửa BE/schema/Figma, không commit/push/PR/merge.
+- D30-10/16/16b: manager ghi nhận/lưu nháp/gửi phương án → khách tự chọn → manager hoàn tất chuyển thực tế hoặc kết thúc theo lựa chọn. Chuyển giữ kỳ/giá/cọc, không phụ phí; chỉ hoàn tất mới đổi mã, ô cũ bảo trì. Kết thúc hoàn tháng đang thuê + tháng chưa dùng +100% cọc, tạo PENDING, không tự PAID.
+- Scope/owner/version/stage/equivalent-unit guards; ngân hàng chính chủ, ảnh, giờ VN; popup giữ kết quả sau đổi stage. 404 báo chưa hỗ trợ; 409/network/5xx/ack sai cần tải lại. Demo tách contract/ledger/QR thật; không cấp QR demo.
+- FE 137/137; business 9/9; workflows 12/12; SSR149 lượt + assertions; structure/build/init --fe-only/diff PASS. Patch after-batch06/main apply + byte-match PASS.
+- Chromium launch thiếu executable; chưa browser/visual thao tác hay API .NET/SQL Server/PayOS/thiết bị cửa thật. T13 còn chờ GET draft/candidate và các mutation/transaction/evidence/idempotency; xem BACKEND-TODO và docs/sprints/FE-figma-sync-07.md.
+- Cả 8 màn/nhánh thiếu FE ở danh mục Batch04 đã có triển khai, không đồng nghĩa tích hợp xong. Còn 3 phiên, tiếp Batch08 nhân viên/manager.
+
+## 2026-10-28 — F40 Batch06: phản hồi hư hỏng và khắc phục (phiên 3)
+
+- Tiếp source Batch05 trên main c1a9b05. Giữ F40 active/F41 blocked; không sửa BE/schema/Figma, không commit/push/PR/merge.
+- D30-13/18/18b có FE: khách phản hồi/ảnh → manager đồng ý có hạn hoặc từ chối có lý do → khách báo xong → manager kiểm đạt/chưa đạt. Đạt bỏ đúng khoản hư hỏng; không chuyển tiền/mở QR/PIN.
+- Role/owner/facility/version/stage/OPEN guards; giờ VN; giữ form khi lỗi, chống gửi lặp; acknowledgement sai/mất mạng/409 cần tải lại. Demo opt-in tách khỏi quyết toán thật; API đề xuất chưa có, lỗi không fallback.
+- FE 122/122; business 9/9; workflows 12/12; SSR 136 lượt + assertions; structure/build/init --fe-only/diff PASS. Patch incremental/cộng dồn apply + byte-match PASS.
+- Chưa browser/visual thực thi hoặc API .NET/SQL Server thật. BACKEND-TODO ghi endpoint/state machine/atomic deduction và chặn chốt khi hồ sơ còn mở; không tuyên bố toàn luồng tích hợp hoàn tất.
+- Chi tiết docs/sprints/FE-figma-sync-06.md. Còn 3 màn/nhánh sự cố chưa có FE trong danh mục đầu; còn 4 phiên, tiếp Batch07.
+
+## 2026-10-28 — F40 Batch05: chính sách trước thanh toán và xem bản đã đồng ý
+
+- Tiếp Batch04 trên main c1a9b05; không sửa Figma/BE/schema, không commit/push/PR/merge. F40 active/F41 blocked giữ nguyên.
+- Thêm C04a checkout/:id/confirm, khách tự tick và lưu server acknowledgement trước QR/quầy; guard provider cho direct URL/service/action. Lỗi/đổi policy chưa mở thanh toán; chống bấm lặp và điều hướng muộn.
+- C15/C15b 2 tab, hợp đồng/gia hạn, đọc đúng version server; thiếu evidence gốc báo rõ, không fallback bản hiện hành. Mốc áp dụng D32 giữ nguyên, không chép câu Figma mâu thuẫn.
+- T20 DTO đang có đã nối; BE vẫn cần trả consent gốc và chặn giao dịch server/thu tiền mặt, xử lý retry/idempotency. Cache client không thay bảo mật server. Xem BACKEND-TODO mục Batch05.
+- FE 110/110; business 9/9; workflows 12/12; SSR 122 route + assertions/LocalProvider guards; structure/build/init --fe-only/diff PASS. 7 test mới có HTTP mock, không phải API .NET/SQL Server/PayOS thật. Chưa browser/visual thực thi; chunk >500KB còn.
+- Patch after-batch04 và gộp main kiểm apply/byte-match. Source, route/checklist/blocker ở docs/sprints/FE-figma-sync-05.md. Còn 5 phiên tiếp theo theo kế hoạch, Batch06 hư hỏng/khắc phục.
+
+## 2026-10-28 — F40: Batch04 đối chiếu ba ZIP và Figma hiện tại
+
+- Nền main c1a9b05; giữ nhật ký mới, ghép code cộng dồn Batch03 từ 816209d. Không sửa Figma/BE/schema, không commit/push/PR/merge.
+- Sửa A02 username riêng/C13 theo Figma 28/10, ghi D33; B03 chọn cơ sở → B03a bốn loại kho, sửa giá đúng cơ sở/ngày hiệu lực và giữ form khi lỗi.
+- Sửa C08 theo DTO T20 đã merge: policyVersion số + accepted true, acknowledgement cấp ngoài cùng; giữ timestamp server. Mapper giữ PAID/EXPIRED và deadline; chặn thanh toán quá hạn, không tạo thêm gia hạn khi còn khoản đã duyệt chưa trả.
+- Giữ bank/ảnh/capability T08 của Batch03: backend cũ bị chặn, không âm thầm bỏ field. Chưa hoàn tất C04a/C15b/sự cố/khắc phục và các màn role khác.
+- Kiểm: FE 103/103; business 9/9; workflows 12/12; SSR 119 route + assertions; structure/build/init --fe-only/diff đạt. Asset kho riêng JPEG 180x228 đủ 4 file. Cảnh báo bundle >500KB còn. Chromium tải lỗi ZIP nên chưa browser; chưa API thật/SQL Server/PayOS/thiết bị cửa. Giữ F40 active/F41 blocked.
+- Kiểm kê trực tiếp Figma 163 frame Main (có trạng thái/lặp cơ sở), 8 màn/nhánh chưa có triển khai tương ứng trong 11 frame; không gọi tất cả là màn mới. Xem docs/figma-audit-2026-10-28/README.md và CSV; 7 phiên gồm phiên này.
+- Điểm cần nhóm chốt/BE review: wording C15b so với phạm vi D32; T08; atomicity T20 (RenewalService ghi renewal và consent qua hai SaveChanges). Không tự sửa nghiệp vụ phía BE.
+- ZIP có 4 đường patch cho main hiện hành có/chưa có Batch01/02/03; git apply --check, áp dụng trên bản sạch và đối chiếu byte. Thành viên tự review/commit/push/PR/merge.
+
 ## 2026-10-28 — T02, T03, T04, T20 BE: Gia hạn, PayOS, thu tại quầy & chính sách cho thuê theo D32 (Đạt)
 
 - Nền `origin/main` 0f0194b, làm trên nhánh `feature/dat-renewal-policy-d32`. Không commit/push/PR/merge; không tự ý nâng feature passing khi chưa có SQL Server/PayOS thật và thành viên phụ trách xác nhận.
@@ -81,6 +246,7 @@
   - `git diff --check`: PASS, không có trailing whitespace.
   - Tạo sprint contract `docs/sprints/dat-renewal-policy-d32.md` và tài liệu nghiệm thu chi tiết `docs/verification/dat-renewal-policy-2026-10.md`.
 - Giới hạn: Đã kiểm chứng toàn diện trên in-memory SQLite, fake clock và fake gateway; chưa chạy trên SQL Server thật của nhóm (`REQUIRE_SQLSERVER=true`) và tài khoản PayOS thật.
+
 
 ## Phiên 2026-10-26 — Hoàn thành Task T17, T15, T09 (Backend Logic Fixes) & Migration Schema mới
 
@@ -993,3 +1159,27 @@
 - Sửa hướng dẫn .NET 10/Node >=22.12, bản đồ apiMappers.js và cấu trúc FE; bỏ số test cũ và khẳng định fallback/API badge đã lỗi thời.
 - Không sửa code/config/migration, không đổi trạng thái tính năng hoặc ghi đè nhật ký cũ. Ghi quy tắc thay thế tại PROCESS-2026-10-24, không sửa quyết định lịch sử.
 - Kiểm chứng gói tài liệu: đọc diff, kiểm đường dẫn/lệnh với nguồn, kiểm whitespace, áp dụng bản vá vào bản nguồn sạch và so byte đầu ra; kiểm tính toàn vẹn ZIP. Không chạy ứng dụng, npm/dotnet build/test hoặc SQL Server vì không đổi code; không nhận kết quả từ PR khác làm bằng chứng.
+
+## 2026-10-28 — Bỏ hạn chế ngân hàng/PayOS trong quy định agent
+
+- Theo yêu cầu người dùng: sửa AGENTS.md quy tắc 6 và checklist, cho phép thông tin ngân hàng nhận tiền và cấu hình PayOS backend nhóm cung cấp, kể cả khóa thật trong appsettings.json. CLAUDE.md tham chiếu AGENTS.md nên dùng cùng quy định.
+- Thêm PROCESS-2026-10-28-PAYOS, giữ lịch sử và các bảo vệ ngoài phạm vi yêu cầu.
+- Đã đọc StorageProject.Api/appsettings.json: không có cờ bảo mật chặn ngân hàng; PayOS chỉ có ba placeholder YOUR_PAYOS_*. Không thay file config, không tự khôi phục/bịa khóa.
+- Kiểm chứng: JSON config hợp lệ; diff chỉ ba file tài liệu; git apply --check và áp dụng patch trên bản nguồn đã đọc, đối chiếu byte PASS; ZIP kiểm tra toàn vẹn PASS. Không chạy build/test ứng dụng, SQL Server hay giao dịch PayOS thật vì chỉ đổi tài liệu.
+- Bàn giao ZIP/patch để thành viên kiểm và tự áp dụng; không commit/push/PR/merge, không đổi trạng thái feature.
+
+## 2026-10-30 — F43: khôi phục gói bàn giao phần Ngọc Mai
+
+- Dựng lại trên main efc0c40 vì tệp ZIP cũ không truy cập được; giữ D31–D34/PR55 và cấu hình nhóm. Không commit/push/PR/merge. Giữ phạm vi D35: reset SMTP, T06, T19, route staff kiểm kê; không tự làm việc khác.
+- Tests142/142 qua VSTest, compile compiler SDK10 offline với dependency đã giữ từ build trước; NuGet timeout nên chưa xác nhận lại restore/build project lần này. FE timezone Việt Nam155/155, business9, workflow12, render173, structure/build; môi trường LA ban đầu trượt3 ca phụ thuộc ngày, không sửa/nới test. Chi tiết/giới hạn: docs/mai-completion-2026-10-30.md.
+- Migration mới 20261030150136_AddMaiPasswordResetInquiriesAndFeeWaiver, model drift đạt, SQL nâng cấp sinh được; không sửa migration cũ/reset DB hay tự quét hợp đồng đóng. SQL nhóm/hộp thư thật/PowerShell Windows/owner review còn chờ; không passing.
+
+
+<!-- MAI_LOCAL_DEMO_HANDOFF_V1 -->
+## 2026-11-04 — Bàn giao phần Ngọc Mai và chạy demo local
+
+- Người dùng xác nhận đã chạy thành công demo quên mật khẩu email trên SSFRMS_Demo.
+- Thêm scripts/mai-demo/local-demo.cjs và docs/ngoc-mai-local-demo.md: cấu hình SQL/Gmail một lần bằng user-secrets, giữ SMTP password/HashKey đã có; lần sau một lệnh chạy API thật và FE sau khi backend ready.
+- Giữ nội dung main và các thay đổi đã phục hồi; không sửa appsettings, migration cũ hoặc quy định D32/D35–D36. Không đổi trạng thái feature.
+- Công cụ đóng gói chạy build API, unit tests BE và bộ FE; kết quả thực tế, SHA nền và danh sách file nằm trong verification.json/manifest.json của ZIP được tạo tại máy đóng gói.
+- Chưa có kết quả SQL Integration đầy đủ, nâng cấp database dùng chung hoặc nghiệm thu toàn bộ các luồng T05/T06/T19 trong lần đóng gói này. Không tự commit/push/PR/merge.

@@ -1,0 +1,29 @@
+.customer-records { padding-top: 40px; padding-bottom: 72px; }
+.customer-records .page-header h1 { font: 700 30px/1.5 "SafeSpace Manrope", sans-serif; color: var(--text); }
+.customer-records .page-header p { margin-top: 6px; font-size: 16px; line-height: 1.5; }
+.customer-records > .customer-records__breadcrumb { margin: 0 0 6px; font-size: 14px; color: var(--muted); }
+.customer-records > .page-header { margin-top: 0; }
+.customer-records__list { display: grid; gap: 20px; }
+.record-summary { display: flex; align-items: center; gap: 16px; padding: 18px 20px; border-radius: 12px; }
+.record-summary__body { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.record-summary__body h2 { font-size: 16px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.record-summary__body p { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.record-summary > .tag { flex-shrink: 0; font-size: 13px; padding: 4px 12px; }
+.record-summary__actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-shrink: 0; }
+.record-summary__actions .btn { min-width: 120px; padding: 12px 20px; border-radius: 10px; font-size: 15px; justify-content: center; }
+.customer-records--units .record-summary__actions .btn { min-width: 161px; }
+.customer-records__footer { padding: 24px; display: grid; gap: 14px; border-radius: 12px; }
+.customer-records__footer .hint { margin: 0; max-width: none; }
+.customer-records__footer-actions { display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap; }
+@media (max-width: 1100px) {
+  .record-summary { flex-wrap: wrap; }
+  .record-summary__body { flex-basis: 65%; }
+  .record-summary__actions { width: 100%; }
+}
+@media (max-width: 600px) {
+  .customer-records .page-header { flex-wrap: wrap; }
+  .record-summary { align-items: flex-start; }
+  .record-summary__body { flex-basis: 100%; }
+  .record-summary__actions { flex-wrap: wrap; }
+  .record-summary__actions .btn, .customer-records--units .record-summary__actions .btn { flex: 1; min-width: 0; white-space: normal; }
+}

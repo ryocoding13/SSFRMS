@@ -269,7 +269,7 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 ## D32 — 2026-10-26: Khấu trừ tối đa bằng cọc, quá hạn theo cọc, sự cố cơ sở, không thu hồi mã — Đã chốt
 
 > Người dùng chốt ngày 26/10/2026 (kế hoạch hoàn thiện 26–31/10). Áp dụng cho **mọi hợp đồng**, kể cả hợp đồng đang chạy.
-> Chưa triển khai code; việc BE/FE ghi ở `SafeSpace-Customer-UI/SafeSpace-Customer-UI/BACKEND-TODO.md` mục "D31".
+> Chưa triển khai code; việc BE/FE ghi ở `SafeSpace-Customer-UI/SafeSpace-Customer-UI/BACKEND-TODO.md` mục "D32" (02/11/2026: sửa tham chiếu ghi nhầm "D31", không đổi nội dung quyết định).
 
 **Tiền khi trả kho và quá hạn**
 - Tổng khấu trừ khi trả kho (vệ sinh 10% cọc cố định, hư hỏng, quá hạn) tối đa bằng 100% cọc. Vượt cọc thì hoàn 0 đ và dừng ở đó; **không phát sinh công nợ ngoài cọc**, không tạo khoản phải thu khách sau trả kho.
@@ -310,3 +310,60 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 
 **Giao diện**
 - Mục "Chính sách" riêng trên menu khách; một mẫu popup chuẩn (560 px, 6 loại: xác nhận, xác nhận nguy hiểm, thành công, thất bại, cảnh báo, thông tin); thông báo dùng chuông, không trang riêng. Màn không ghi mã nội bộ "D30/D31"; phiên bản hiển thị dạng "11/2026".
+
+## PROCESS-2026-10-28-PAYOS — Cấu hình ngân hàng và PayOS dùng chung
+
+- Theo yêu cầu trực tiếp của người dùng ngày 28/10/2026: bỏ hạn chế tránh lộ thông tin ngân hàng/PayOS cho dự án nhóm.
+- Thay phần cấm commit khóa PayOS/cấu hình ngân hàng trong AGENTS.md quy tắc 6, checklist bàn giao và phạm vi tương ứng của PROCESS-2026-10-24. Không xóa quyết định lịch sử.
+- Cho phép lưu/chia sẻ thông tin ngân hàng nhận tiền và cấu hình PayOS backend do nhóm cung cấp, kể cả khóa thật trong StorageProject.Api/appsettings.json. Agent được đọc, cấu hình, kiểm thử; không tự xóa/che/thay thành placeholder do quy định bảo mật ngân hàng/PayOS cũ.
+- Ngoại lệ không mở rộng sang mật khẩu DB, khóa JWT, token khác hoặc khóa PayOS trong frontend/VITE_*. Không thay kiểm tra chữ ký webhook, mã đơn, số tiền hay chống ghi nhận trùng.
+- appsettings.json được kiểm tra đang chỉ có YOUR_PAYOS_CLIENT_ID, YOUR_PAYOS_API_KEY, YOUR_PAYOS_CHECKSUM_KEY; không có cờ chặn/che ngân hàng. Không sửa file này khi chưa có giá trị thật từ nhóm, không tự bịa khóa.
+- Không thay nghiệp vụ D26/D27/D32, API, schema, quyền hoặc trạng thái tính năng. Không khẳng định thanh toán thật đã hoạt động chỉ từ thay đổi quy định.
+
+
+## D33 — 28/10/2026: Tên đăng nhập riêng và Giá & phí theo cơ sở
+
+- Đồng bộ yêu cầu người dùng đã chốt khi sửa Figma ngày 28/10 và yêu cầu đối chiếu FE lần này: khách tự chọn tên đăng nhập riêng ở A02; C13 hiển thị tên đăng nhập chỉ đọc. Thay phần đăng ký `username = email` của D03/D31; giữ đăng nhập bằng email hoặc username, mật khẩu và kiểm tra quyền. FE gửi trường `Username` đã có của API, không đổi schema.
+- Tên đăng nhập bắt buộc, tối đa 50 ký tự theo cột User.Username, không chứa khoảng trắng hoặc @ để tránh nhầm định danh email; trùng username/email trả đúng lỗi từ backend. Tài khoản cũ giữ nguyên.
+- B03 chọn cơ sở trước → B03a bốn loại kho (15/30 m², thường/lạnh), có ảnh và sửa giá cho đúng cơ sở/loại kho/ngày áp dụng. Giá đọc API; không chép số minh họa Figma. Không sửa ngược giá hợp đồng. B02 giữ quản lý chính sách/phí toàn hệ thống theo D32.
+- Chỉ sửa FE, ghi nhận hợp đồng T20 backend đã merge trên main c1a9b05. Không xác nhận tích hợp SQL Server/PayOS thật và không đổi trạng thái feature.
+
+## D34 — 29/10/2026: Cách backend triển khai T05/T07/T08/T13 và cờ khả năng — Đã chốt 02/11/2026
+
+> Người dùng (FE) yêu cầu ngày 29/10 làm hộ phần BE: sự cố cơ sở (T13, kế hoạch giao Tiến) và cờ hỗ trợ Batch08 kèm T05/T07/T08 (giao Ngọc Mai). Không đổi quy tắc tiền của D27/D32; chỉ ghi các lựa chọn kỹ thuật cần nhóm biết. Nhánh `feature/be-t05-t07-t08-t13-flags`, chưa build/kiểm SQL Server.
+
+- **Ảnh bằng chứng** (trả kho, kiểm kê, sự cố): gửi JSON base64 theo hợp đồng FE, tối đa 5 ảnh JPG/PNG mỗi lần, ≤ 5 MiB/ảnh, server tự kiểm chữ ký tệp. Lưu trong bảng `evidence_photos` của SQL Server (không để thư mục web công khai). Đọc qua URL có chữ ký HMAC hết hạn 1 giờ (khoá dẫn từ `JwtSettings:Secret`).
+- **Tài khoản chính chủ** lưu cột riêng trên `reservations` (huỷ đơn), `return_inspections` (gửi trả kho) và `facility_incidents` (kết thúc do sự cố) — không ghi vào nhật ký vì admin đọc được nhật ký.
+- **Huỷ đơn đã thanh toán trước StartDate** áp dụng cả đơn đã được tự cấp hợp đồng sau thanh toán (D26, `UNIT_ASSIGNED`) khi khách chưa nhận chìa khóa: hợp đồng chuyển `CANCELLED`, ô `RESERVED` về `AVAILABLE`, mã QR/PIN do hệ thống vô hiệu (`REVOKED`) — không phải API thu hồi thủ công (giữ D32).
+- **Hoàn tiền hai bước**: khoản hoàn cọc sau trả kho và khoản hoàn do sự cố cơ sở dùng chung màn/API hoàn cọc (`/api/ops/deposit-refunds`); phiên bản khoản hoàn = 1 khi chờ hoàn, 2 khi đã hoàn. Mã giao dịch không được trùng giữa các khoản.
+- **Cờ khả năng** được bật cố định trên `GET /api/ops/board` và `GET /api/rental-policy` của nhánh này vì server đã lưu đủ dữ liệu tương ứng. `returns[].damageWorkflowResolved = true` vì BE chưa có luồng phản hồi/khắc phục hư hỏng (Batch06) nên không hồ sơ nào có thể đang mở; khi làm Batch06 phải tính lại cờ này.
+- **Sự cố cơ sở (T13)**: mã hồ sơ `SC-{mã hợp đồng}-{lần}` cấp từ lúc còn nháp; ô tương đương = cùng cơ sở + cùng loại kho (loại và diện tích), trống, không bảo trì, không trùng hợp đồng khác; ô được giữ (`RESERVED`) từ lúc gửi phương án tới khi khách chọn. Khoản hoàn khi kết thúc = tiền tháng đang thuê + các tháng nguyên chưa bắt đầu (theo giá `AgreedMonthlyRate`) + 100% cọc, chốt tại ngày quản lý xác nhận kết thúc.
+- Cần nhóm xác nhận: (1) Tiến / Ngọc Mai review vì chạm phần việc đã giao; (2) giá dùng cho tháng chưa dùng khi hợp đồng đã gia hạn với giá khác; (3) giữ ảnh trong DB hay chuyển sang lưu trữ tệp riêng sau 31/10.
+
+**Chốt ngày 02/11/2026 (đại diện nhóm):**
+
+- Code của nhánh này đã vào `main` qua PR #55. PR #54 trùng nội dung nên đóng, không merge lại.
+- (1) Review: Tiến review phần T13 (sự cố cơ sở); Ngọc Mai review T05/T07/T08 và sửa luôn T06 trên `main` (`RefundPolicy` còn trả `Debt` và còn trừ 10% vệ sinh khi khách chỉ quá hạn, trái D32). Hạn 05/11/2026.
+- (2) Giá cho tháng chưa dùng khi kết thúc do sự cố: giữ cách hiện tại, tính theo `AgreedMonthlyRate` (giá thuê ban đầu), kể cả khi hợp đồng đã gia hạn với giá khác. Giới hạn đã biết: nếu giá gia hạn khác giá gốc, số hoàn cho tháng thuộc kỳ gia hạn sẽ lệch với số khách đã trả.
+- (3) Ảnh bằng chứng tiếp tục lưu trong bảng `evidence_photos` của SQL Server, đọc qua URL ký HMAC hết hạn 1 giờ; không chuyển sang lưu trữ tệp riêng.
+- Cờ `returns[].damageWorkflowResolved = true` được giữ tạm. Khi làm T23 (BE phản hồi/khắc phục hư hỏng), bắt buộc thay bằng giá trị tính từ hồ sơ thật và chặn chốt M07 khi còn hồ sơ mở.
+
+## D35–D36 — 02/11/2026: Ảnh hỗ trợ, nhận chìa khóa theo yêu cầu, mã ra vào và hỗ trợ theo kỳ thuê — Đã chốt
+
+> Đại diện nhóm (Thắng) chốt ngày 02/11/2026 cho các lỗi L3, L6, L10, L13, L14 trong ghi chú sửa lỗi FE 02/11. Không đổi quy tắc tiền D27/D32.
+
+- **D35 · Ảnh khách gửi (L3):** nhân viên phải xem được ảnh khách đính kèm (yêu cầu hỗ trợ, trả kho) thì mới xác nhận bàn giao hoặc thu hồi kho. Thay ý "chỉ lưu tên tệp" của D04 cho ảnh hỗ trợ. Ảnh lưu theo cách D34 đã chốt (bảng `evidence_photos`, URL ký HMAC 1 giờ). Cần BE: nhận ảnh khi tạo ticket và trả danh sách ảnh trong `OpsTicketDto`; FE: gửi ảnh thật và hiện ảnh ở màn nhân viên. Chưa triển khai.
+- **D36 · Nhận chìa khóa theo yêu cầu (L10):** thay phần "tự tạo lịch bàn giao" của D26. Sau thanh toán vẫn tự cấp hợp đồng và QR/PIN, nhưng BE **không** tự tạo `HandoverRecord`; chỉ tạo khi khách gửi yêu cầu nhận chìa khóa. Huỷ đơn trước StartDate vẫn dùng điều kiện "chưa nhận chìa khóa" (D34). Cần nhóm làm tiếp: API/màn khách yêu cầu chìa khóa, Figma màn này, cách xử lý các lịch `SCHEDULED` cũ. Chưa triển khai.
+- **L6 · Quản trị tạo tài khoản:** quản trị chỉ tạo tài khoản nội bộ (nhân viên, quản lý, vận hành, quản trị); khách tự đăng ký. Màn tạo tài khoản không hiện vai trò Khách hàng.
+- **L13 · QR/PIN trước ngày thuê:** vẫn cấp mã sau thanh toán (D26) nhưng trước StartDate khách không xem được QR/PIN; giao diện ghi "Mã hiện từ {StartDate}". BE nên từ chối trả mã trước StartDate (mảng QR/PIN).
+- **L14 · Hỗ trợ gắn kho:** chỉ gửi yêu cầu hỗ trợ gắn với một kho khi hợp đồng đã bắt đầu và chưa kết thúc (gồm đang chờ trả kho, quá hạn chưa trả). Chưa bắt đầu hoặc đã kết thúc thì dùng hỗ trợ khi chưa có hợp đồng (C12-0). BE `SupportTicketService` cần chặn tương ứng.
+
+## D37 — 04/11/2026: Khôi phục phần Ngọc Mai đã triển khai ngày 30/10
+
+- Giữ toàn bộ nội dung main, D31–D36 và quy định AI/Git hiện có. Bổ sung lại phần lưu trong stash; mục D35 của bản vá ngày 30/10 được ghi ở D37 để không trùng D35–D36 của nhóm. Không dùng lại D33/F42 của ZIP cũ và không tự chuyển tính năng sang passing.
+- Theo yêu cầu người dùng, ưu tiên quên mật khẩu qua email thật, tiếp T06/T19 và kiểm T05/T07/T08/T18/C12/C13. Đây là phần triển khai bổ sung cho phạm vi quên mật khẩu trước đây để sau 31/10.
+- Quên mật khẩu: OTP 6 số, hạn 10 phút, dùng một lần; tối đa 5 email/tài khoản/giờ, cách 60 giây, 5 lần sai/mã. Lưu HMAC; SMTP/HashKey ở user-secrets hoặc môi trường backend. MailKit 4.18.2 gửi SMTP/TLS. Chỉ tài khoản ACTIVE có email khớp duy nhất; không đổi vai trò/trạng thái, không trả hoặc log OTP. Lỗi SMTP trả 503; rollback giữ mã cũ.
+- Mật khẩu mới tối thiểu 8 ký tự, tối đa 72 byte UTF-8, khác mật khẩu cũ; giữ khoảng trắng. Cập nhật BCrypt, dùng mã và đóng login history trong cùng giao dịch; JWT kiểm phiên. Login/reset dùng cùng khóa DB; không tự đăng nhập sau reset.
+- T06 theo D32: bỏ Debt; phần phí bù trong cọc là PAID, phần vượt cọc là CANCELLED kèm audit RETURN_FEE_WAIVED; không giả đã thu hoặc để PENDING/FAILED cho phí trả kho sau chốt. Không sửa RENT/RENEWAL/DEPOSIT/REFUND hay tự quét hợp đồng đã đóng. Chỉ quá hạn không tự trừ thêm 10% vệ sinh khi không cần vệ sinh.
+- T19 dùng support_inquiries/support_inquiry_replies, giữ ticket gắn hợp đồng. Khách chỉ xem của mình; STAFF/MANAGER theo phân công cơ sở hiện hành. Trạng thái OPEN/WAITING_CUSTOMER/CLOSED; chỉ phía cơ sở đóng khi trả lời. Tiêu đề 1–100, nội dung 1–1000 ký tự. Ghi cần clientRequestId UUID; phản hồi cần expectedVersion. Cùng UUID/nội dung là replay, khác nội dung hoặc phiên bản cũ trả 409.
+- Route kiểm kê staff cũ dùng service ops chuẩn; không hoàn tất khi thiếu phí/lý do/ảnh theo điều kiện. SQLite, SMTP loopback và browser không thay nghiệm thu SQL Server của nhóm và hộp thư thật. Giữ errorStatus và cách xử lý 403 mới của main khi ghép hook hỗ trợ.

@@ -179,15 +179,28 @@ public partial class FacilityOpsService
             .OrderBy(x => x.Inspection.ScheduledAt)
             .ToList();
 
+        var inspectionIds = inspections.Select(x => x.Inspection.InspectionId).ToList();
+        var inspectionPhotos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.ReturnInspection, inspectionIds, ct);
+        var moveOutPhotos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.MoveOut, inspectionIds, ct);
+        var overdueAtRequest = new Dictionary<long, decimal>();
+        foreach (var (c, i) in inspections)
+        {
+            overdueAtRequest[i.InspectionId] = await OverdueFeeAtAsync(c, fid, i.CreatedAt, ct);
+        }
+
         var returns = inspections.Select(x =>
         {
             var (c, i) = x;
             var submitted = Last(returnLogs, i.InspectionId, LogAction.ReturnInspected);
+            var overdueFee = overdueAtRequest[i.InspectionId];
             OpsReturnReportDto? report = submitted == null ? null : new OpsReturnReportDto(
-                Read(submitted, "items") ?? "", Read(submitted, "walls") ?? "", Read(submitted, "keys") ?? "", Read(submitted, "proposal") ?? "");
+                Read(submitted, "items") ?? "", Read(submitted, "walls") ?? "", Read(submitted, "keys") ?? "", Read(submitted, "proposal") ?? "",
+                i.DamageFee, i.CleaningFee, i.CleaningRequired, i.DamageItem ?? "", i.FeeReason ?? "", overdueFee,
+                PhotosOf(inspectionPhotos, i.InspectionId));
             return new OpsReturnDto(ReturnCode(i.InspectionId), ContractCode(c), c.Unit.UnitNumber, c.Customer.FullName,
                 LocalOrDate(i.ScheduledAt, c.EndDate), c.DepositAmount, Unpaid(c), i.Status == "COMPLETED" ? "SUBMITTED" : "SCHEDULED",
-                report, Local(i.InspectedAt));
+                report, Local(i.InspectedAt), Utc(i.CreatedAt), overdueFee, DamageWorkflowResolved: true,
+                MoveOutPhotos: PhotosOf(moveOutPhotos, i.InspectionId));
         }).ToList();
 
         // ---- S05 · Yêu cầu hỗ trợ
@@ -258,7 +271,14 @@ public partial class FacilityOpsService
                 var refunded = Last(contractLogs, c.ContractId, LogAction.DepositRefunded);
                 if (refunded == null) continue;
                 state = "CLOSED";
-                due = $"Hoàn cọc {Money(decimal.TryParse(Read(refunded, "refund"), System.Globalization.NumberStyles.Number, Invariant, out var rf) ? rf : 0)} sau khi trừ khoản còn nợ";
+                // D32: không còn công nợ ngoài cọc; hiển thị đúng trạng thái hoàn hai bước.
+                var refundPayment = c.Payments.Where(p => p.PaymentType == "REFUND" && p.ReservationId == null)
+                    .OrderByDescending(p => p.PaymentId).FirstOrDefault();
+                due = refundPayment == null
+                    ? "Không có khoản hoàn cọc"
+                    : refundPayment.Status == "PAID"
+                        ? $"Đã hoàn {Money(refundPayment.Amount)}"
+                        : $"Chờ hoàn {Money(refundPayment.Amount)}";
             }
             else if (c.Status == "RETURN_PENDING" && inspected)
             {
@@ -324,9 +344,70 @@ public partial class FacilityOpsService
         assignments = assignments.OrderBy(a => a.Status == "DONE" ? 1 : 0).ThenBy(a => a.When).ToList();
 
         var revenue = await RevenueAsync(fid, ct);
+        var refunds = await ReservationRefundsAsync(fid, recent, ct);
 
         return new OpsBoardDto(new OpsFacilityInfoDto(fid, facility.Name, facility.Address), me, staff, unitDtos,
-            payments, verifications, handovers, returns, ticketDtos, allocations, renewals, contractDtos, assignments, revenue);
+            payments, verifications, handovers, returns, ticketDtos, allocations, renewals, contractDtos, assignments, revenue, refunds);
+    }
+
+    /// <summary>
+    /// M08 · Đơn huỷ có khoản hoàn: chờ hoàn, hoặc đã hoàn trong thời gian gần (để đọc lại kết quả sau khi xác nhận).
+    /// Phí huỷ = đã thanh toán − số hoàn (D27: 10% cọc). Tài khoản là tài khoản chính chủ khách khai khi huỷ (T08).
+    /// </summary>
+    private async Task<List<OpsRefundDto>> ReservationRefundsAsync(long facilityId, DateTime recent, CancellationToken ct)
+    {
+        var rows = await dbContext.Payments
+            .AsNoTracking()
+            .Include(p => p.Reservation).ThenInclude(r => r.Customer)
+            .Where(p => p.PaymentType == "REFUND" && p.ReservationId != null
+                        && p.Reservation.FacilityId == facilityId && p.Reservation.Status == "CANCELLED"
+                        && (p.Status == "PENDING" || (p.PaidAt != null && p.PaidAt >= recent)))
+            .ToListAsync(ct);
+        if (rows.Count == 0) return [];
+
+        var reservationIds = rows.Select(p => p.ReservationId!.Value).Distinct().ToList();
+        var paid = await dbContext.Payments
+            .AsNoTracking()
+            .Where(p => p.ReservationId != null && reservationIds.Contains(p.ReservationId.Value) && p.Status == "PAID"
+                        && (p.PaymentType == "RENT" || p.PaymentType == "DEPOSIT"))
+            .Select(p => new { ReservationId = p.ReservationId!.Value, p.PaymentType, p.Amount })
+            .ToListAsync(ct);
+
+        return rows
+            .OrderBy(p => p.Status == "PENDING" ? 0 : 1).ThenByDescending(p => p.Reservation.CancelledAt ?? p.CreatedAt)
+            .Select(p =>
+            {
+                var r = p.Reservation;
+                var rent = paid.Where(x => x.ReservationId == r.ReservationId && x.PaymentType == "RENT").Sum(x => x.Amount);
+                var deposit = paid.Where(x => x.ReservationId == r.ReservationId && x.PaymentType == "DEPOSIT").Sum(x => x.Amount);
+                var isPaid = p.Status == "PAID";
+                return new OpsRefundDto(ReservationCode(r), r.Customer.FullName, Local(r.CancelledAt ?? p.CreatedAt)!,
+                    rent, deposit, rent + deposit, Math.Max(0, rent + deposit - p.Amount), p.Amount,
+                    isPaid ? "PAID" : p.Status, isPaid ? Local(p.PaidAt) : null, isPaid ? p.TransactionReference : null,
+                    r.RefundBankName, r.RefundAccountNumber, r.RefundAccountHolder);
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// Phí quá hạn tại thời điểm khách gửi trả kho (D32: dừng tính khi gửi thành công), tối đa bằng cọc.
+    /// Chưa cấu hình chính sách OVERDUE thì trả 0 trên bảng; bước chốt M07 vẫn báo lỗi cấu hình.
+    /// </summary>
+    private async Task<decimal> OverdueFeeAtAsync(RentalContract c, long facilityId, DateTime requestedUtc, CancellationToken ct)
+    {
+        var requestedDate = DateOnly.FromDateTime(requestedUtc + VnOffset);
+        var overdueDays = Math.Max(0, requestedDate.DayNumber - c.EndDate.DayNumber);
+        if (overdueDays == 0) return 0;
+        var policy = await OpsRules.FindApplicablePolicyAsync(dbContext, "OVERDUE", facilityId, c.Unit.UnitTypeId, requestedDate, ct);
+        try
+        {
+            return StorageProject.Core.Policies.RefundPolicy.OverdueFeeFor(policy?.CalculationType, policy?.Value,
+                c.DepositAmount, overdueDays, maxCap: c.DepositAmount);
+        }
+        catch (InvalidOperationException)
+        {
+            return 0;
+        }
     }
 
     /// <summary>

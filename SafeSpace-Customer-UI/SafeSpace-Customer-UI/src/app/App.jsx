@@ -9,6 +9,7 @@ import "@fontsource/inter/vietnamese-700.css";
 import "@fontsource/inter/latin-800.css";
 import "@fontsource/inter/vietnamese-800.css";
 import "../shared/styles/ss.css";
+import "../shared/styles/motion.css";
 import "../shared/styles/auth-support.css";
 import "../shared/styles/workflows.css";
 import { WORKFLOW_DEMO } from "../features/facility-operations/workflows/useWorkflowData.js";
@@ -17,6 +18,8 @@ import { RefundTrackingPage } from "../features/customer/payments/RefundTracking
 import { PaymentHistoryPage } from "../features/customer/history/PaymentHistoryPage.jsx";
 import { DepositLedgerPage } from "../features/customer/contracts/DepositLedgerPage.jsx";
 import { RenewalStatusPage } from "../features/customer/contracts/RenewalStatusPage.jsx";
+import { IncidentChoicePage } from "../features/customer/contracts/IncidentChoicePage.jsx";
+import { DamageResponsePage } from "../features/customer/contracts/DamageResponsePage.jsx";
 import { ReturnProgressPage } from "../features/customer/contracts/ReturnProgressPage.jsx";
 import { InquiryListPage } from "../features/customer/support/InquiryListPage.jsx";
 import { InquiryDetailPage } from "../features/customer/support/InquiryDetailPage.jsx";
@@ -27,6 +30,7 @@ import { go, parseRoute, useRoute } from "./router.js";
 import { PasswordResetPage } from "../features/auth/PasswordResetPage.jsx";
 import { LoginPage } from "../features/auth/LoginPage.jsx";
 import { RegisterPage } from "../features/auth/RegisterPage.jsx";
+import { ReservationReviewPage } from "../features/customer/payments/ReservationReviewPage.jsx";
 import { CheckoutPage } from "../features/customer/payments/CheckoutPage.jsx";
 import { CheckoutFailedPage } from "../features/customer/payments/CheckoutFailedPage.jsx";
 import { ReservationDetailPage } from "../features/customer/reservations/ReservationDetailPage.jsx";
@@ -36,6 +40,7 @@ import FacilityMapPage from "../features/customer/facilities/FacilityMapPage.jsx
 import HomePage from "../features/customer/home/HomePage.jsx";
 import CustomerDashboardPage from "../features/customer/dashboard/CustomerDashboardPage.jsx";
 import DoorScannerPage from "../features/customer/access/DoorScannerPage.jsx";
+import { PaymentStatusPage } from "../features/customer/payments/PaymentStatusPage.jsx";
 import PaymentListPage from "../features/customer/payments/PaymentListPage.jsx";
 import CustomerProfilePage from "../features/customer/profile/CustomerProfilePage.jsx";
 import { HelpPage } from "../features/customer/help/HelpPage.jsx";
@@ -45,6 +50,7 @@ import BusinessRoutes from "../features/business/BusinessRoutes.jsx";
 import { homeFor, isBusinessRoles, isManagerRoles, isOpsRoles, isStaffRoles } from "../shared/utils/roles.js";
 import FacilityOperationsRoutes from "../features/facility-operations/FacilityOperationsRoutes.jsx";
 import { OpsProvider } from "../features/facility-operations/state/FacilityOperationsProvider.jsx";
+import { CancelReservationPage } from "../features/customer/reservations/CancelReservationPage.jsx";
 import ReservationListPage from "../features/customer/reservations/ReservationListPage.jsx";
 import SupportPage from "../features/customer/support/SupportPage.jsx";
 import SupportTicketDetailPage from "../features/customer/support/SupportTicketDetailPage.jsx";
@@ -86,7 +92,7 @@ function renderPage({ page, parts, query }) {
   switch (page) {
     case "home": return <HomePage />;
     case "refunds": return <RefundTrackingPage />;
-    case "policies": return <RentalPolicyPage />;
+    case "policies": return <RentalPolicyPage key={query.toString()} query={query} />;
     case "inquiries": return a ? <InquiryDetailPage id={a} /> : <InquiryListPage />;
     case "reset-password": return <PasswordResetPage />;
     case "login": return <LoginPage query={query} />;
@@ -94,19 +100,21 @@ function renderPage({ page, parts, query }) {
     case "pricing": return <PublicPricingPage />;
     case "guide": return <HelpPage />;
     case "find": return a === "map" ? <FacilityMapPage query={query} /> : a ? <FacilityDetailPage id={a} query={query} /> : <FacilityListPage query={query} />;
-    case "checkout": return b === "failed" ? <CheckoutFailedPage id={a} /> : <CheckoutPage id={a} />;
+    case "checkout": return b === "failed" ? <CheckoutFailedPage id={a} /> : b === "confirm" ? <ReservationReviewPage key={a} id={a} /> : <CheckoutPage key={a} id={a} />;
     case "confirmation": return <ReservationDetailPage id={a} />;
     case "overview": return <CustomerDashboardPage />;
-    case "reservations": return a ? <ReservationDetailPage id={a} mode="detail" /> : <ReservationListPage />;
+    case "reservations": return a && b === "cancel" ? <CancelReservationPage key={a} id={a} /> : a ? <ReservationDetailPage id={a} mode="detail" /> : <ReservationListPage />;
     case "units":
+      if (a && b === "incident") return <IncidentChoicePage key={`${a}:${query.get("incident") || ""}`} id={a} query={query} />;
+      if (a && b === "damage") return <DamageResponsePage key={a} id={a} query={query} />;
       if (a && b === "renewal-status") return <RenewalStatusPage id={a} />;
       if (a && b === "deposit") return <DepositLedgerPage id={a} />;
       if (a && b === "progress") return <ReturnProgressPage id={a} />;
       if (a && b === "renew") return <RenewalRequestPage id={a} />;
-      if (a && b === "return") return <ReturnRequestPage id={a} />;
+      if (a && b === "return") return <ReturnRequestPage key={a} id={a} />;
       return a ? <RentedUnitDetailPage id={a} /> : <RentedUnitListPage />;
     case "sent": return <RequestSentPage query={query} />;
-    case "payments": return a === "history" ? <PaymentHistoryPage /> : <PaymentListPage />;
+    case "payments": return a === "history" ? <PaymentHistoryPage /> : a === "check" ? <PaymentStatusPage key={b} id={b} /> : <PaymentListPage />;
     case "support": return a ? <SupportTicketDetailPage id={a} /> : <SupportPage query={query} />;
     case "profile": return <CustomerProfilePage />;
     // C07r: máy quét ở cửa kho (mô phỏng), không cần đăng nhập như thiết bị gắn tại cơ sở
@@ -153,7 +161,7 @@ function Shell() {
   const businessBody = mode !== "api" ? (
     <main className="container page"><Empty title="Khu vận hành kinh doanh cần kết nối máy chủ" text="Chạy npm run dev:business để xem giao diện khi chưa có backend, hoặc bật chế độ API và chạy máy chủ của bạn." /></main>
   ) : authed && !businessAllowed ? (
-    <main className="container page"><Empty title="Không có quyền truy cập" text="Khu này dành cho tài khoản Quản lý vận hành kinh doanh."><LinkButton to={homeFor(roles)}>Về trang của tôi</LinkButton></Empty></main>
+    <main className="container page"><Empty title="Bạn không có quyền truy cập" text="Tài khoản hiện tại không được phép xem nội dung này. Khu này dành cho tài khoản Quản lý vận hành kinh doanh."><LinkButton to={homeFor(roles)}>Về tổng quan</LinkButton></Empty></main>
   ) : null;
 
   const adminBody =
@@ -165,8 +173,8 @@ function Shell() {
       </main>
     ) : authed && !isAdmin ? (
       <main className="container page">
-        <Empty title="Không có quyền truy cập" text="Khu quản trị chỉ dành cho tài khoản có vai trò Quản trị.">
-          <LinkButton to="overview">Về trang của tôi</LinkButton>
+        <Empty title="Bạn không có quyền truy cập" text="Tài khoản hiện tại không được phép xem nội dung này. Khu quản trị chỉ dành cho tài khoản có vai trò Quản trị.">
+          <LinkButton to={homeFor(roles)}>Về tổng quan</LinkButton>
         </Empty>
       </main>
     ) : null;
@@ -176,7 +184,10 @@ function Shell() {
       <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>Chuyển đến nội dung</a>
       {!(isAdminPage && !adminBody && authed) && !(isOpsPage && authed && opsAllowed) && !(isBusinessPage && !businessBody && authed) && <Header page={route.page} />}
       {(WORKFLOW_DEMO || mode === "local") && <p className="demo-banner" role="status">MÔ PHỎNG FE · Dữ liệu thử nghiệm, không thanh toán / chuyển tiền thật.</p>}
-      <div id="main" tabIndex={-1} key={route.raw.split("?")[0]}>
+      {/* Khu khách hàng: đổi key theo đường dẫn để mỗi trang dựng lại.
+          Khu Nhân viên/Quản lý/Vận hành KD/Quản trị: giữ key theo khu để header, menu và dữ liệu vận hành
+          không bị dựng lại (mất dữ liệu → hiện "Đang tải…" → giật) mỗi lần bấm; nội dung từng trang dựng lại trong *Routes. */}
+      <div id="main" tabIndex={-1} key={isAdminPage || isOpsPage || isBusinessPage ? `area:${route.page}` : route.raw.split("?")[0]}>
         {needsLogin ? null : loadError && !ready ? (
           <main className="container page">
             <Empty title="Không tải được dữ liệu" text={loadError}>
@@ -194,13 +205,13 @@ function Shell() {
           businessBody || <BusinessRoutes parts={route.parts} query={route.query} />
         ) : isOpsPage ? (
           opsAllowed ? (
-            <OpsProvider notify={notify} mode={mode} onApiError={onApiError} role={opsRole}>
+            <OpsProvider notify={notify} mode={mode} onApiError={onApiError} role={opsRole} navKey={route.raw.split("?")[0]}>
               <FacilityOperationsRoutes role={opsRole} parts={route.parts} query={route.query} />
             </OpsProvider>
           ) : (
             <main className="container page">
-              <Empty title="Không có quyền truy cập" text={route.page === "staff" ? "Khu này dành cho nhân viên và quản lý cơ sở." : "Khu này dành cho quản lý cơ sở."}>
-                <LinkButton to={homeFor(roles)}>Về trang của tôi</LinkButton>
+              <Empty title="Bạn không có quyền truy cập" text={`Tài khoản hiện tại không được phép xem nội dung này. ${route.page === "staff" ? "Khu này dành cho nhân viên và quản lý cơ sở." : "Khu này dành cho quản lý cơ sở."}`}>
+                <LinkButton to={homeFor(roles)}>Về tổng quan</LinkButton>
               </Empty>
             </main>
           )

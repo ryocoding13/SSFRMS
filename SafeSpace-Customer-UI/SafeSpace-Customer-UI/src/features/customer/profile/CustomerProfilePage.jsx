@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Button, Dialog, Field, PageHeader } from "../../../shared/components/UI.jsx";
 import { go } from "../../../app/router.js";
-import { maskPhone } from "../../../shared/utils/format.js";
+import { isPhone } from "../../../shared/utils/format.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 
 export default function CustomerProfilePage() {
@@ -9,6 +9,8 @@ export default function CustomerProfilePage() {
   const { user } = data;
   const [name, setName] = useState(user.full_name);
   const [nameError, setNameError] = useState("");
+  const [phone, setPhone] = useState(user.phone || "");
+  const [phoneError, setPhoneError] = useState("");
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
   const [pwErrors, setPwErrors] = useState({});
   const [dialog, setDialog] = useState(null);
@@ -17,20 +19,25 @@ export default function CustomerProfilePage() {
   const namePending = useRef(false);
   const passwordPending = useRef(false);
   useEffect(() => setName(user.full_name), [user.user_id, user.full_name]);
+  useEffect(() => setPhone(user.phone || ""), [user.user_id, user.phone]);
 
   const saveName = async (e) => {
     e.preventDefault();
     if (namePending.current) return;
     const fullName = name.trim();
     if (fullName.length < 2 || fullName.length > 100) return setNameError("Tên hiển thị cần từ 2 đến 100 ký tự.");
+    const phoneValue = phone.trim();
+    if (phoneValue && !isPhone(phoneValue)) return setPhoneError("Số điện thoại chưa đúng định dạng (VD: 0901234567).");
     namePending.current = true;
     setSavingName(true);
     setNameError("");
+    setPhoneError("");
     try {
-      const res = await dispatch("UPDATE_NAME", { name: fullName });
+      const res = await dispatch("UPDATE_NAME", { name: fullName, phone: phoneValue });
       if (!res.ok) return setNameError(res.error);
       setName(res.name);
-      setDialog({ title: "Đã lưu tên", message: "Tên hiển thị của bạn đã được cập nhật." });
+      if (res.phone !== undefined) setPhone(res.phone || "");
+      setDialog({ title: "Đã lưu thông tin", message: "Tên hiển thị và số điện thoại của bạn đã được cập nhật." });
     } finally {
       namePending.current = false;
       setSavingName(false);
@@ -75,22 +82,25 @@ export default function CustomerProfilePage() {
 
   return (
     <main className="container page">
-      <PageHeader title="Tài khoản của tôi" description="Quản lý tên hiển thị, thông tin liên hệ và mật khẩu đăng nhập." />
+      <PageHeader title="Tài khoản của tôi" description="Quản lý tên đăng nhập, tên hiển thị, thông tin liên hệ và mật khẩu." />
       <div className="grid grid--2">
         <form className="panel form-card" onSubmit={saveName} noValidate>
           <h2>Thông tin cá nhân</h2>
           <Field label="Tên tài khoản (hiển thị)" error={nameError}>
             <input autoComplete="name" maxLength={100} disabled={savingName} value={name} onChange={(e) => { setName(e.target.value); setNameError(""); }} />
           </Field>
+          <Field label="Tên đăng nhập">
+            <input readOnly value={user.username || ""} />
+          </Field>
           <Field label="Email">
             <input readOnly value={user.email} />
           </Field>
-          <Field label="Số điện thoại">
-            <input readOnly value={maskPhone(user.phone)} />
+          <Field label="Số điện thoại" error={phoneError}>
+            <input type="tel" inputMode="tel" autoComplete="tel" maxLength={15} disabled={savingName} value={phone} placeholder="VD: 0901234567" onChange={(e) => { setPhone(e.target.value); setPhoneError(""); }} />
           </Field>
           <h3>Thông báo</h3>
           <p className="muted">Nhận nhắc lịch hẹn, hạn hợp đồng và cập nhật thanh toán trong ứng dụng.</p>
-          <Button type="submit" disabled={savingName}>{savingName ? "Đang lưu…" : "Lưu tên tài khoản"}</Button>
+          <Button type="submit" disabled={savingName}>{savingName ? "Đang lưu…" : "Lưu thông tin"}</Button>
         </form>
 
         <form className={`panel form-card password-form${pwErrors.summary ? " password-form--missing" : ""}`} onSubmit={changePassword} noValidate>

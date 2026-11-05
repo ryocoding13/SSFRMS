@@ -43,13 +43,13 @@ try {
   pass('C13 tải hồ sơ từ API khi đăng nhập');
 
   await customer.getByLabel('Tên tài khoản (hiển thị)').fill(' ');
-  await customer.getByRole('button', { name: 'Lưu tên tài khoản', exact: true }).click();
+  await customer.getByRole('button', { name: 'Lưu thông tin', exact: true }).click();
   await customer.getByText('Tên hiển thị cần từ 2 đến 100 ký tự.').waitFor();
   await customer.getByLabel('Tên tài khoản (hiển thị)').fill('  Nguyễn Gia Thắng  ');
   const nameResponse = customer.waitForResponse(r => r.url().endsWith('/api/auth/profile') && r.request().method() === 'PUT');
-  await customer.getByRole('button', { name: 'Lưu tên tài khoản', exact: true }).click();
+  await customer.getByRole('button', { name: 'Lưu thông tin', exact: true }).click();
   assert.equal((await nameResponse).status(), 200);
-  await customer.getByRole('heading', { name: 'Đã lưu tên', exact: true }).waitFor();
+  await customer.getByRole('heading', { name: 'Đã lưu thông tin', exact: true }).waitFor();
   await closeDialog(customer);
   await customer.reload();
   await customer.getByRole('heading', { name: 'Tài khoản của tôi' }).waitFor();
@@ -94,7 +94,7 @@ try {
   // Lỗi mạng khi ghi tên: giữ nội dung để người dùng thử lại, không báo thành công.
   await customer.route('**/api/auth/profile', route => route.request().method() === 'PUT' ? route.abort() : route.continue());
   await customer.getByLabel('Tên tài khoản (hiển thị)').fill('Tên chưa lưu');
-  await customer.getByRole('button', { name: 'Lưu tên tài khoản', exact: true }).click();
+  await customer.getByRole('button', { name: 'Lưu thông tin', exact: true }).click();
   await customer.locator('.field__error').waitFor();
   assert.equal(await customer.getByLabel('Tên tài khoản (hiển thị)').inputValue(), 'Tên chưa lưu');
   await customer.unroute('**/api/auth/profile');

@@ -1,5 +1,18 @@
 # BACKEND-TODO — việc backend (StorageProject.Api) còn thiếu cho giao diện SafeSpace
 
+## Bổ sung 30/10/2026 — F43 / D35
+
+Giữ API/cờ T05/T07/T08/T13 của PR #55 trên main efc0c40. Phần mới:
+
+- Reset: POST `/api/auth/password-reset/request` `{email}` → `{message,retryAfterSeconds,expiresInSeconds}`; POST `/confirm` cùng prefix `{email,code,newPassword}` → `{message}`. Anonymous; 400 input/mã, 429 + Retry-After khi giới hạn IP, 503 khi SMTP/cấu hình lỗi. Mã 6 số/10 phút/1 lần/5 lần sai; gửi lại ≥60 giây, tối đa 5 thư/tài khoản/giờ. Chỉ lưu HMAC; không trả/log OTP. Đổi xong đóng phiên cũ. SMTP qua MailKit/TLS cần cấu hình của nhóm.
+- T06: không Debt, tổng trừ ≤cọc; PAID đúng phần bù cọc, CANCELLED phần miễn và audit RETURN_FEE_WAIVED. Không giữ phí trả kho PENDING/FAILED sau chốt; không sửa RENT/RENEWAL hoặc tự quét hợp đồng đã đóng.
+- Route T05 cũ `/api/staff/returns/{inspectionId}/inspection` dùng cùng service chuẩn ops. Cần damageFee, cleaningRequired rõ ràng; items/walls/keys/proposal, damageItem/feeReason/photos theo điều kiện của route chuẩn. Không âm thầm hoàn tất khi thiếu phí/ảnh.
+- T19: GET `/api/support/inquiries` trả mảng, GET `/{id}` trả item. CUSTOMER của mình; STAFF/MANAGER đúng phân công hiện hành, không yêu cầu hợp đồng. POST `/api/support/inquiries/actions` CREATE_INQUIRY `{facilityId,title,description,clientRequestId}` hoặc REPLY_INQUIRY `{id,note,close,expectedVersion,clientRequestId}`; phải có action trong body. POST trực tiếp `/api/support/inquiries` cũng tạo mới.
+- T19 response `{item}` gồm id TV-0001, ownerId, facilityId, customer, title, description, status, version, createdAt, responses `[{by,text,at,authorId}]`. clientRequestId UUID không rỗng bắt buộc; expectedVersion bắt buộc khi reply. Cùng UUID/nội dung trả kết quả cũ, khác nội dung/version cũ 409; sai phạm vi 404, quyền/phân công 403, thiếu phiên 401, input 400. Title 1–100, nội dung 1–1000, trim server. OPEN → WAITING_CUSTOMER khi cơ sở trả lời → OPEN khi khách trả lời; chỉ cơ sở đóng CLOSED khi trả lời. Closed không ghi tiếp. Cơ sở inactive không nhận yêu cầu mới.
+- Migration mới `20261030150136_AddMaiPasswordResetInquiriesAndFeeWaiver`: 3 bảng reset/inquiries/replies và thêm CANCELLED cho payment. Không sửa migration cũ, không tạo lại AddRefundEvidenceAndIncidents.
+- Chưa nghiệm thu SQL Server nhóm/hộp thư thật. Chi tiết: `docs/mai-completion-2026-10-30.md`, `docs/password-reset-email.md`.
+
+
 Cập nhật 01/10/2026, đối chiếu với `main` (commit `5177812`). Bổ sung 26/10/2026: mục "D32" ngay dưới đây là danh sách việc hiện hành. Giao diện đã gọi hết các endpoint backend đang có.
 Phần nào backend chưa có thì giao diện **tạm lưu trong trình duyệt** (mất khi đổi máy / xoá dữ liệu) và sẽ tự dùng
 API ngay khi backend có — không cần sửa giao diện nếu làm đúng hợp đồng dưới đây.
@@ -35,6 +48,21 @@ Mã việc khớp kế hoạch "SafeSpace — Kế hoạch hoàn thiện cập n
 
 Không làm: thu hồi QR/PIN thủ công; công nợ sau trả kho; thanh toán phí phát sinh sau trả kho qua PayOS hoặc tại quầy (`POST /api/payments/{id}/at-facility`, `feeCollections`, `POST /api/ops/fees/{id}/confirm`).
 
+### Cập nhật BE 29/10 — nhánh `feature/be-t05-t07-t08-t13-flags` (xếp chồng trên PR #53)
+
+Đã viết code BE, **chưa build / chưa chạy test / chưa tạo migration** (môi trường AI không có .NET), chưa kiểm SQL Server. Người nhận chạy `dotnet ef migrations add AddRefundEvidenceAndIncidents`, `dotnet build`, `dotnet test` rồi kiểm tích hợp với FE PR #53.
+
+| Mã | Đã có trên nhánh | Còn lại |
+|---|---|---|
+| T05 | `POST /api/ops/returns/{id}/inspection` lưu `damageFee`, `cleaningRequired` (vệ sinh = 10% cọc do server tính), `damageItem`, `feeReason`, ảnh (`photos[]` JSON base64, bắt buộc khi có hư hỏng); board trả `report` đủ phí/ảnh, `requestedAt`, `overdueFee` | Route cũ `/api/staff/returns/{id}/inspection` chưa nhận phí/ảnh |
+| T07 | M07 chỉ tạo `REFUND` `PENDING` (trả `{refund, refundStatus}`), ô cần vệ sinh/sửa giữ `MAINTENANCE`; `GET /api/ops/deposit-refunds`, `POST /api/ops/deposit-refunds/actions` (`CONFIRM_DEPOSIT_REFUND`, `expectedVersion` cũ → 409); khách `GET /api/deposit-refunds` | Khoản `DAMAGE_FEE/OVERDUE_FEE` cũ còn PENDING trên dữ liệu cũ (T06) chưa dọn |
+| T08 | Huỷ đơn đã thanh toán bắt buộc tài khoản chính chủ (kể cả đơn `UNIT_ASSIGNED` trước StartDate, mã QR/PIN hết hiệu lực); gửi trả kho bắt buộc ảnh kho trống + tài khoản + `emptied`, nhận cả hợp đồng `OVERDUE`, chặn gửi trùng; M08 lưu `transactionRef`/`transferredAt`; `GET /api/rental-policy` trả `cancellationBankSupported`, `returnRequestSupported` | — |
+| S02 | `POST /api/ops/verifications/{id}` nhận checklist 4 mục, không cần số giấy tờ; `POST /api/ops/keys/{id}/receipt` nhận checklist 3 mục | — |
+| Cờ | Board trả `verificationChecklistSupported`, `inspectionEvidenceSupported`, `refundEvidenceSupported`, `returnPolicyVersion: "D32"`, `returns[].damageWorkflowResolved`, `refunds[]` (M08) | `damageWorkflowResolved` luôn `true` vì BE chưa có luồng phản hồi hư hỏng Batch06 (không hồ sơ nào đang mở) |
+| T13 | Toàn bộ hợp đồng Batch07: `GET /api/ops/incidents`, `POST /api/ops/incidents`, `/complete-transfer`, `/terminate`, khách `GET /api/incidents`, `POST /api/contracts/{contractId}/incident-choice`; khoản hoàn sự cố xác nhận chuyển tiền ở màn hoàn cọc | Chưa có idempotency key riêng (dựa `expectedVersion` + khoá giao dịch) |
+
+Ảnh lưu trong bảng `evidence_photos` (riêng tư), đọc qua `GET /api/evidence-photos/{id}?exp=&sig=` (chữ ký HMAC, hết hạn 1 giờ). Dev FE :5173 + API :5151: link ảnh dùng `EvidencePhotos:PublicBaseUrl` (mặc định `http://localhost:5151` khi Development). Nginx `/api/` nâng `client_max_body_size 40m`.
+
 ### Bàn giao FE T10 / T15 — 26/10
 
 FE đã ẩn phí trả kho đang chờ thu ở C11, bỏ route S09f/queue/badge và adapter thu phí, gỡ adapter `REVOKE_CREDENTIAL`; vẫn giữ luồng tiền thuê/gia hạn và cấp lại mã.
@@ -62,7 +90,7 @@ tên route + tên trường JSON là giao diện chạy ngay, không phải sử
 | Q2 | `POST /api/access/scan` `{ code }` → `ScanResultDto` (cho phép không đăng nhập — máy quét ở cửa) | Tiến | Màn `#/door` báo "Máy quét chưa kết nối được hệ thống" |
 | R1 | `GET /api/tickets/{id}` trả thêm `responses[]` | Ngọc Mai | C12 không hiện dòng phản hồi |
 | H1 | **Đã viết (D27)** `GET /api/reservations/{id}/cancel-preview` → `CancelPreviewDto`; `ReservationDto` thêm `refundAmount`, `refundStatus` (`PENDING` / `COMPLETED`). Chờ nhóm build và kiểm thử | Ngọc Mai, Đạt, Thắng | C14a ghi "Theo chính sách hiện hành / Cơ sở xác nhận sau khi huỷ" |
-| U1 | **Đã nối** `PUT /api/staff/units/{mã}/status` `{ status, reason }` có sẵn trên main (nhân viên + quản lý). Còn thiếu: kiểm chuyển tiếp hợp lệ, bắt buộc lý do, trạng thái `INSPECTION` | Thắng | — |
+| U1 | **Đã nối** `PUT /api/staff/units/{mã}/status` `{ status, reason }` có sẵn trên main (nhân viên + quản lý). Cập nhật 29/10: main đã kiểm chuyển tiếp qua `UnitStatusRules.Validate`, bắt buộc lý do, chặn ô đang giữ/có hợp đồng và ghi `unit_status_history` — dòng "còn thiếu" cũ không còn đúng | Thắng | Đã có |
 
 ### P · PayOS (D19) và thanh toán tại cửa hàng
 ```json
@@ -95,7 +123,7 @@ tên route + tên trường JSON là giao diện chạy ngay, không phải sử
   "scannedAt": "2026-10-16T03:32:00Z", "reason": null }
 { "result": "DENIED", "reason": "Mã đã hết hiệu lực — hợp đồng đã trả kho.", "unitNumber": "B-015", ... }
 ```
-`code` chỉ là mã tham chiếu (không chứa bí mật). Hết hiệu lực khi biên bản trả kho được lập (S04) hoặc hợp đồng kết thúc. (D31: hết hiệu lực ngay khi khách gửi yêu cầu trả kho thành công; không có thu hồi thủ công.)
+`code` chỉ là mã tham chiếu (không chứa bí mật). Hết hiệu lực khi biên bản trả kho được lập (S04) hoặc hợp đồng kết thúc. (D32: hết hiệu lực ngay khi khách gửi yêu cầu trả kho thành công; không có thu hồi thủ công.)
 Hợp đồng quá hạn có khoá QR hay không: nhóm chốt (giao diện chỉ hiện `reason` backend trả về).
 
 ### R · Phản hồi hỗ trợ (Ngọc Mai)
@@ -159,10 +187,10 @@ Bảng trong DB đã có sẵn (`HandoverRecord`, `ReturnInspection`, `UnitAssig
 |---|---|---|---|
 | M05 | `POST /api/ops/allocations/{id}` | `{ unitCode }` | Kho phải trống, đúng loại + diện tích → tạo `UnitAssignment`, `RentalContract`, lịch xác minh + `HandoverRecord`; kho → `RESERVED` |
 | M06 | `PUT /api/ops/assignments/{id}` | `{ staffId }` | Giao việc (bàn giao / trả kho / hỗ trợ) cho nhân viên cùng cơ sở |
-| M03 | `POST /api/ops/renewals/{id}/approve` | — | `ContractRenewal` → APPROVED, cập nhật `EndDate` hợp đồng (**D31 thay: chưa đổi EndDate khi duyệt, xem T02**) |
+| M03 | `POST /api/ops/renewals/{id}/approve` | — | `ContractRenewal` → APPROVED, cập nhật `EndDate` hợp đồng (**D32 thay: chưa đổi EndDate khi duyệt, xem T02**) |
 | M03 | `POST /api/ops/renewals/{id}/reject` | `{ reason }` | `reason` rỗng → 400; gửi lý do cho khách |
 | M07 | `POST /api/ops/contracts/{id}/reminders` | `{ note }` | Ghi lịch sử nhắc khách (`OverdueCase`) |
-| M07 | `POST /api/ops/contracts/{id}/refund` | — | Chỉ sau biên bản trả kho. Hoàn cọc = cọc − khoản còn nợ; kho → `AVAILABLE`; hợp đồng đóng (**D31 thay: khấu trừ tối đa bằng cọc, REFUND `PENDING`, ô cần vệ sinh giữ `MAINTENANCE`, xem T06–T07**) |
+| M07 | `POST /api/ops/contracts/{id}/refund` | — | Chỉ sau biên bản trả kho. Hoàn cọc = cọc − khoản còn nợ; kho → `AVAILABLE`; hợp đồng đóng (**D32 thay: khấu trừ tối đa bằng cọc, REFUND `PENDING`, ô cần vệ sinh giữ `MAINTENANCE`, xem T06–T07**) |
 | M01/M02/M04 | (trong `GET /api/ops/board`) | — | `units` (12 ô của cơ sở, D17), `revenue` 6 tháng + cơ cấu theo loại kho, tỷ lệ lấp đầy tính từ `units` |
 
 Luật nghiệp vụ chi tiết (điều kiện chặn, chuyển trạng thái) xem `src/features/facility-operations/state/facilityOperationsReducer.js` — có test `tests/ops.test.js`.
@@ -184,7 +212,7 @@ Luật nghiệp vụ chi tiết (điều kiện chặn, chuyển trạng thái) 
 | Thông báo (chuông) | `GET /api/notifications`, `POST /api/notifications/read` `{ ids? }` | Lưu trong trình duyệt |
 | Hồ sơ (C13) | `PUT /api/auth/profile` `{ fullName }`, `POST /api/auth/change-password`, `POST /api/auth/forgot-password` | Đổi tên lưu cục bộ; đổi / quên mật khẩu đang khoá |
 | Đăng nhập | D32: đã bổ sung code nhận **email hoặc username** qua `{username, password}`; giữ HTTP 401 hiện có cho sai thông tin | FE login đã xử lý riêng 401; còn kiểm chứng SQL Server của nhóm |
-| Hỗ trợ (C12) | Cho gửi khi **chưa có hợp đồng** (`ContractId` không bắt buộc); nhận ảnh đính kèm (multipart, ≤3 ảnh, ≤5 MB). D31 giữ, xem T19 | Chưa có hợp đồng thì không gửi được; ảnh lưu cục bộ |
+| Hỗ trợ (C12) | Cho gửi khi **chưa có hợp đồng** (`ContractId` không bắt buộc); nhận ảnh đính kèm (multipart, ≤3 ảnh, ≤5 MB). D32 giữ, xem T19 | Chưa có hợp đồng thì không gửi được; ảnh lưu cục bộ |
 
 ## C. Ưu tiên 3 — chỉnh nhỏ
 - [ ] JSON `DateTime` trả kèm `Z` (UTC); hiện đọc từ DB không có múi giờ, giao diện phải tự coi là UTC.
@@ -374,8 +402,8 @@ Nguồn: DECISIONS.md D27. Các việc backend cần làm:
 - Hủy trước StartDate: `cancellationFee` = 10% `requiredDeposit` (không phải 10% tiền thuê như H1 cũ). `refundAmount` = tiền thuê đã thu + 90% cọc.
 - Dừng sau StartDate (Move-out): hoàn 70% cọc, giữ 30%. Tiền thuê hoàn theo phương án B: tháng đang dùng tính đủ; các tháng nguyên vẹn chưa bắt đầu được hoàn.
 - Trả kho sạch, đúng hạn: hoàn 100% cọc. Vi phạm vệ sinh cơ bản: trừ 10% cọc cố định.
-- Hư hỏng vật lý hoặc quá hạn: trừ `DamageFee` và `OverdueFee` vào phần cọc còn lại; vượt cọc thì hoàn 0 đ và ghi công nợ. (**D31 thay: không ghi công nợ, tổng khấu trừ tối đa bằng cọc.**)
-- Quá hạn: đọc tham số `OVERDUE` từ cấu hình B02, không hard-code. (D31: 5% cọc ban đầu mỗi ngày, tối đa 100% cọc, xem T09.)
+- Hư hỏng vật lý hoặc quá hạn: trừ `DamageFee` và `OverdueFee` vào phần cọc còn lại; vượt cọc thì hoàn 0 đ và ghi công nợ. (**D32 thay: không ghi công nợ, tổng khấu trừ tối đa bằng cọc.**)
+- Quá hạn: đọc tham số `OVERDUE` từ cấu hình B02, không hard-code. (D32: 5% cọc ban đầu mỗi ngày, tối đa 100% cọc, xem T09.)
 - Ghi trạng thái hoàn khi Quản lý xác nhận ở M07; chuyển khoản thủ công.
 - Đồng bộ FE: appReducer.js `CANCEL_FEE_RATE` và màn C14a phải theo công thức trên.
 
@@ -412,7 +440,7 @@ theo loại kho + diện tích (D17: cỡ M 15 m², cỡ L 30 m²) và từ ch�
 
 ## Phí phát sinh khi trả kho và công nợ (F40: S04, S09f, C11f)
 
-> **D31 (26/10/2026):** không còn công nợ sau trả kho. Chỉ giữ việc lưu phí ở biên bản (T05) và trừ trong phạm vi cọc (T06). Các mục thanh toán phí qua PayOS, trả tại quầy và `feeCollections` bên dưới **không làm**.
+> **D32 (26/10/2026):** không còn công nợ sau trả kho. Chỉ giữ việc lưu phí ở biên bản (T05) và trừ trong phạm vi cọc (T06). Các mục thanh toán phí qua PayOS, trả tại quầy và `feeCollections` bên dưới **không làm**.
 
 Giao diện đã làm theo Figma; backend cần bổ sung:
 
@@ -423,3 +451,172 @@ Giao diện đã làm theo Figma; backend cần bổ sung:
 - Khách trả phí qua PayOS: `POST /api/payments/{paymentId}/payos` cho khoản phí `PENDING` (cùng endpoint giao diện đang dùng cho gia hạn; hiện backend chưa có nên popup báo "tạm gián đoạn").
 - Khách chọn trả tại quầy (C11fc): API ghi nhận lựa chọn, ví dụ `POST /api/payments/{paymentId}/at-facility`. Giao diện tạm lưu trong trình duyệt (`overlay.feesAtCounter`).
 - Nhân viên thu tại quầy (S09f): `GET /api/ops/board` trả `feeCollections[]` `{ id, contract, customer, unit, items: [[nhãn, số tiền]], amount, due, status, requestedAt }` và `POST /api/ops/fees/{id}/confirm` chuyển các khoản sang `PAID`.
+
+## C08 / T20 — hợp đồng đã merge trên main, FE sửa trong Batch04 (28/10/2026)
+
+Thay đề xuất của Batch02: đã đối chiếu `RentalPolicyDtos.cs`, `RenewalDtos.cs`, `RenewalService.cs` trên main `c1a9b05`.
+
+- `GET /api/rental-policy` trả `{rate, sections, version, displayVersion, updatedAt}`; **không có** `renewalConsentSupported`. FE kiểm phiên bản hợp lệ và đọc lại trước POST.
+- `POST /api/contracts/{id}/renewals`: `{renewalPeriodMonths, policyVersion: number, accepted: true}`. Không gửi thời điểm client làm bằng chứng. Response `RenewalDto` có `policyVersion` và `acceptedAt` ở cấp ngoài cùng, không phải `policyConsent` lồng.
+- FE chỉ báo thành công khi version và timestamp server hợp lệ. Nếu server nhận yêu cầu nhưng thiếu evidence, refresh và yêu cầu kiểm tra hồ sơ; không tự POST lại.
+- Mapper giữ `PAID` / `EXPIRED`, `paymentDeadlineAt`, `appliedAt`, `expiredAt`; không biến hết hạn thành chờ duyệt. Gia hạn quá hạn không có nút thanh toán; backend vẫn quyết định trạng thái cuối cùng.
+- Mã BE đã có không đồng nghĩa tích hợp thật đã đạt: cần kiểm SQL Server/PayOS của nhóm, mutation khi policy đổi, yêu cầu trùng và atomicity của ghi renewal + consent. Hiện service có hai SaveChanges, chưa bọc giao dịch chung trong task FE này.
+- C04a xác nhận chính sách trước thanh toán chưa có luồng FE; C15b xem phiên bản theo hợp đồng còn thiếu mapping/DTO evidence. Không gán giả bản hiện hành thành bản khách đã đồng ý.
+- C11k dùng GET payment qua services.checkPaid, không tự xác nhận khách đã chuyển tiền.
+
+## Figma–FE đợt03 — hợp đồng tích hợp đề xuất T08 / ảnh trả kho / theo dõi hoàn
+
+Ngày 27/10/2026. **Chỉ FE đã làm; các endpoint/field bổ sung dưới đây chưa được xác nhận có trên BE.** Không bật capability trước khi server thực hiện toàn bộ điều kiện. Không thay đổi DTO/migration BE trong patch này.
+
+### Huỷ đơn đã thanh toán
+
+- `GET /api/rental-policy` bổ sung `cancellationBankSupported: true` khi endpoint huỷ hỗ trợ ngân hàng chính chủ. FE kiểm lại trước POST. Đơn chưa thanh toán vẫn dùng API cũ, không bắt buộc ngân hàng.
+- `POST /api/reservations/{id}/cancel` giữ `reason`, thêm `bankName`, `accountNumber` (chuỗi 6–19 chữ số, giữ số 0 đầu), `accountHolder`.
+- Server kiểm quyền sở hữu, ngày bắt đầu, tên tài khoản với tên lưu trên hợp đồng, trạng thái tiền thật và chống huỷ trùng. Huỷ trước StartDate hoàn 100% tiền thuê +90% cọc; không coi response preview là kết quả chuyển tiền.
+- GET reservations tiếp tục trả `refundAmount`, `refundStatus` sau khi huỷ; server lưu ngân hàng cho hồ sơ hoàn, không chỉ nhận rồi bỏ qua. UI thành công dùng số từ bản ghi đọc lại, không dùng preview để khẳng định số thực tế.
+
+### Gửi trả kho
+
+- `GET /api/rental-policy` bổ sung `returnRequestSupported: true` chỉ khi server lưu ảnh/ngân hàng và đảm bảo QR/PIN hết hiệu lực, dừng phí ngay lúc nhận thành công, không cho huỷ yêu cầu, chống gửi trùng. FE chặn server cũ.
+- `POST /api/contracts/{id}/move-out`: giữ `{date, slot, note}`; thêm `{bankName, accountNumber, accountHolder, emptied:true, photos:[{fileName,contentType,dataBase64}]}`.
+- Đây là JSON contract đề xuất để dùng HTTP client hiện tại; tối đa5 ảnh JPG/PNG, mỗi ảnh giải mã ≤5MiB. Nếu BE chọn upload riêng/signed URL, phải đổi adapter FE và kiểm tích hợp trước bật capability. Với JSON, cần giới hạn request phù hợp (khoảng35MiB), kiểm kích thước trước/sau giải mã, định dạng ảnh thực, xử lý tên tệp an toàn, lưu ảnh và yêu cầu nguyên tử; không tin MIME/đuôi tệp hoặc validation FE.
+- Không nhận hợp đồng kết thúc/chưa bắt đầu/đang gia hạn hoặc đã có yêu cầu trả; phải cho xử lý hợp đồng quá hạn. Gửi thành công dừng phí theo thời điểm server, không theo ngày kiểm tra khách chọn. Server kiểm ngày giờ Việt Nam, slot và quyền sở hữu, không phụ thuộc múi giờ thiết bị.
+- GET contracts nên trả `customerName` là tên trên hợp đồng để FE đối chiếu; thiếu snapshot FE chỉ kiểm đủ trường, server vẫn phải kiểm chính chủ. Mapper giữ trạng thái `RETURN_PENDING`, không mở gửi lại trên thiết bị khác.
+- Demo lưu ngân hàng + metadata ảnh vào trình duyệt, không lưu bytes ảnh vào localStorage. Preview dùng object URL và được thu hồi khi xoá/rời màn. Demo có thông báo rõ, không phải chứng cứ ảnh đã gửi cơ sở.
+
+### Khách xem hoàn cọc
+
+- Đề xuất `GET /api/deposit-refunds`, chỉ trả hồ sơ thuộc khách đang đăng nhập; FE không dùng `/api/ops/deposit-refunds` cho khách nữa. Staff/Manager giữ endpoint `/api/ops/*`. Không dựa vào lọc ownerId ở FE để bảo vệ dữ liệu.
+- Schema mỗi dòng: `{id, ownerId, contractId, unit, deposit, overdue, cleaning, damage, amount, status, bankName, accountNumber, requestedAt, inspectedAt, approvedAt, paidAt, refundDueDate, transactionRef, inspectionNote, photos:[{url}]}`. `PENDING` là chờ hoàn, `PAID` chỉ sau ghi nhận chuyển tiền. `amount` do server tính; không tin phép tính FE.
+- Timestamp/ảnh/ngân hàng thiếu hiển thị "Chưa có thông tin", không lấy ngày trong Figma để điền. `unpaid` legacy chỉ hiện "Khấu trừ khác (dữ liệu cũ)", không tạo nút thu hoặc công nợ; BE cần chuyển sang phân rã D32 chính xác. URL ảnh phải thuộc quyền khách, server cấp URL HTTPS có thời hạn; không trả ảnh hồ sơ khác.
+- Danh sách đơn huỷ vẫn theo refunds của reservations; màn này chỉ hoàn cọc sau trả kho. Không trộn hai nguồn để tự báo đã chuyển.
+
+Chưa kiểm API/SQL Server/PayOS thật. T08 và các điều kiện T05–T09 vẫn cần owner BE triển khai và nhóm kiểm tích hợp.
+
+
+## Batch05 — C04a, C15/C15b và giới hạn T20 (28/10/2026)
+
+### FE đã nối đúng endpoint đang có
+
+- `GET /api/rental-policy`: kiểm đủ 7 sections và version số dương; không dùng policy mẫu khi API lỗi.
+- `POST /api/reservations/{id}/policy-consent`: `{policyVersion: number, accepted: true}`; FE đọc lại policy trước POST, kiểm `consentId`, `customerId`, `policyVersion`, `acceptedAt`, `channel` từ server. Khách tự tích checkbox, chưa lưu được thì không mở QR hoặc chọn trả tại quầy.
+- FE kiểm consent ở cả UI và provider khi gọi PayOS/chọn quầy; không chỉ dựa vào nút disabled. Đồng ý cũ khác version hiện hành sẽ yêu cầu đọc lại.
+- Response xác nhận được cache trong overlay đúng user/đơn để tiếp tục thanh toán và reload trên cùng thiết bị. **Cache không phải cơ chế bảo mật của backend**. Không tự biến cache thành bằng chứng gốc theo hợp đồng.
+- `GET /api/rental-policy/versions/{version}`: tải đúng bản trong bằng chứng, kiểm version trả về; không fallback sang bản hiện hành nếu version cũ lỗi/404.
+- C15b đọc bằng chứng gia hạn đã có trong `RenewalDto`. Phân biệt rõ hồ sơ gia hạn với lần đặt chỗ/ký hợp đồng ban đầu.
+
+### BE còn thiếu / cần tích hợp trước nghiệm thu toàn luồng
+
+1. **Đọc lại bằng chứng ban đầu:** hiện `ReservationDetailDto` và `ContractDetailDto` chưa trả `policyConsent`. Đề nghị bổ sung DTO (không phải khẳng định endpoint đã có): `{consentId, customerId, policyVersion, displayVersion, acceptedAt, channel}` lấy từ dữ liệu đã lưu theo ReservationId/ContractId, lọc quyền chủ sở hữu ở server. FE đã đọc optional `policyConsent`; thiếu thì C15b hiện “Chưa có bằng chứng đồng ý”, không giả version/timestamp. Thiết bị mới mất cache checkout sẽ phải xác nhận lại có chủ ý, không tự POST khi mở trang.
+2. **Chặn giao dịch ở server:** trước tạo checkout PayOS, thu tiền mặt/thu tại quầy, phải kiểm bằng chứng khách đã đồng ý theo đơn và quy tắc version đã chốt. Không lấy cache FE, `acceptedAt` client hoặc tick từ nhân viên làm bằng chứng. FE mới chỉ chặn các lời gọi từ ứng dụng khách; API trực tiếp và màn nhân viên vẫn cần server bảo vệ. Không sửa BE trong Batch05.
+3. **Idempotency/retry:** RecordReservationConsentAsync hiện thêm một bản ghi mỗi POST; cần BE owner kiểm retry khi mạng mất phản hồi, trùng người dùng/đơn/version và lựa chọn bằng chứng được hiển thị. FE chống bấm lặp nhưng không thể bảo đảm exactly-once trên mạng.
+4. Kiểm dữ liệu policy seed/version tồn tại, foreign key của consent, owner khác, token hết hạn, đổi policy giữa GET/POST, SQL Server và cả PayOS/thu quầy thật.
+5. C15b chỉ xem lại nội dung đã đồng ý; không tự thay phạm vi D32 đang áp dụng cho hợp đồng hiện hữu. Không dùng câu “bản mới không thay đổi hợp đồng cũ” để đảo D32. Nội dung policy do backend cung cấp cần được nhóm publish nhất quán với DECISIONS.
+
+Không đánh dấu T20 toàn hệ thống đã đạt chỉ từ kiểm FE hoặc HTTP mock. Mock T20 trong `mock/mock-api.mjs` chỉ dùng môi trường opt-in, không chứng minh BE thật đã có các điều kiện trên.
+
+
+## Batch06 — hư hỏng/khắc phục: contract API ĐỀ XUẤT, chưa có trên main c1a9b05
+
+FE đã dựng ba màn D30-13/18/18b; không sửa BE/schema và không chứng minh tích hợp thật. Cần BE owner thống nhất contract trước khi nối/triển khai, không dùng capability hoặc dữ liệu demo để báo đã xử lý.
+
+- GET `/api/damage-cases` (CUSTOMER owner), GET `/api/ops/damage-cases` (MANAGER/FACILITY_MANAGER đúng cơ sở) → `{items:[DamageCase]}`.
+- DamageCase: `id`, `contractId` chuỗi; `ownerId`, `facilityId` số nguyên dương; `version` số nguyên dương; `status`, `settlementStatus: OPEN|FINALIZED`; `damageAmount` số >=0; `unit`, `item`, `customer`, `recordedBy`, `recordedAt`; `photos:[{url,caption?}]`. URL ảnh HTTPS hoặc root-relative có kiểm quyền truy cập. Không public ảnh khách trái owner/cơ sở.
+- `response:{choice:AGREE|REMEDIATE|DISPUTE,note,at,files:[{fileName}],photos?}`; `decision:{decision:ALLOW|REJECT,note,at}`, `deadline` ISO server; `remediation:{note,at,files,photos?}`; `inspection:{result:PASS|FAIL,note,at}`. Metadata và evidence được server lưu/đọc lại, không chỉ tên tệp.
+- Finance preview từ server: `deposit`, `otherDeductions`, `damageDeduction`, `refundPreview`, `refundIfRemedied` số >=0; thiếu hiện chưa có dữ liệu. Nếu nhiều hạng mục, cần định nghĩa preview đúng cấp hợp đồng, không cộng hoặc trừ lặp. Không tin số tiền/owner/facility do client gửi.
+- POST `/api/damage-cases/actions` hoặc `/api/ops/damage-cases/actions` → `{case:DamageCase}` với **version mới** và stage đúng; payload chung `{action,id,expectedVersion}`.
+
+| Action | Bổ sung | Quy tắc server |
+|---|---|---|
+| RESPOND_DAMAGE | choice, note, photos? | AWAITING_RESPONSE → AGREE: CUSTOMER_ACCEPTED; REMEDIATE/DISPUTE: RESPONSE_SUBMITTED. Note bắt buộc với 2 lựa chọn sau |
+| DECIDE_DAMAGE_RESPONSE | decision, deadline?, note | RESPONSE_SUBMITTED → ALLOW: REMEDIATION_ALLOWED + deadline tương lai; REJECT: REJECTED + lý do bắt buộc |
+| REPORT_DAMAGE_REMEDIATION | note, photos? | REMEDIATION_ALLOWED trước hạn → AWAITING_INSPECTION, note bắt buộc |
+| INSPECT_DAMAGE_REMEDIATION | result, note | AWAITING_INSPECTION → PASS: REMEDIATED + damageDeduction=0 đúng hạng mục; FAIL: REMEDIATION_FAILED giữ khoản trừ. Note bắt buộc |
+
+`photos` đề xuất là `[{fileName,contentType,dataBase64}]`, tối đa 5 ảnh JPEG/PNG, 5MiB/ảnh: validate signature/size/type và giới hạn request phía server; lưu private, trả URL có quyền. Note tối đa 1000 ký tự. Server lấy actor/time/deadline theo clock có thẩm quyền (FE nhập giờ VN +07:00), kiểm owner/facility/role, stage/version và settlement OPEN trong cùng transaction. 409 khi version cũ; không tạo duplicate khi retry; cần idempotency/receipt có thể đọc lại khi mạng lỗi. FE buộc reload khi không xác minh acknowledgement, chưa có idempotency key riêng.
+
+Khi cho khắc phục vẫn giữ deduction đến inspection PASS; bỏ đúng khoản rồi tính lại refund cap trong tiền cọc, không tạo nợ/thu thêm. Không tự đánh dấu refund PAID hoặc mở QR/PIN. Cần nối T05/T06/M07: chặn chốt trong giai đoạn phản hồi/khắc phục/kiểm tra đang mở, xử lý quá hạn minh bạch trước chốt; không tự chốt chỉ vì client hết hạn. Lưu audit/history, không cho sửa sau FINALIZED. Luồng chuyển tiền hoàn vẫn xác nhận riêng hai bước theo D32. Cần kiểm API .NET/SQL Server thật với đồng thời/retry/quyền và nhiều hạng mục.
+
+
+## Batch07 — T13 sự cố cơ sở: API ĐỀ XUẤT, chưa có trên main c1a9b05
+
+> 29/10: đã viết BE theo đúng hợp đồng dưới đây trên nhánh `feature/be-t05-t07-t08-t13-flags` (xem "Cập nhật BE 29/10" ở đầu tệp); chưa build/kiểm SQL Server.
+
+FE có D30-10/16/16b; không triển khai BE/schema và chưa chứng minh tích hợp thật. Cần BE owner thống nhất contract dưới đây; giữ các đường T13 đề xuất trước, bổ sung GET/save/send/terminate/version/evidence.
+
+### Đọc và khởi tạo nháp
+
+- GET `/api/incidents` (CUSTOMER owner, chỉ hồ sơ đã gửi) và GET `/api/ops/incidents` (MANAGER/FACILITY_MANAGER đúng cơ sở) → `{items:[IncidentCase]}`. Manager response cần gồm descriptor `DRAFT` có ID/version từ server cho hợp đồng đủ điều kiện và các candidates đúng cơ sở. FE không tự tạo ID hoặc dựng hợp đồng API. SAVE/SEND tại POST incidents mới persist ghi nhận; server phải tái kiểm điều kiện. Nếu chọn endpoint tạo draft riêng thì điều chỉnh adapter/UI chọn hợp đồng tương ứng trước tích hợp.
+- IncidentCase: chuỗi `id,contractId,oldUnitId,oldUnit,unitType,customer,startDate,endDate`; số nguyên dương `ownerId,facilityId,version,sizeM2`; `contractStatus` (`ACTIVE|EXPIRING` mới cho mutation); `monthlyRate` số VND nguyên dương, `deposit,currentMonthRent,unusedRent` số VND nguyên >=0. Số hoàn = toàn bộ tháng đang thuê + tháng nguyên chưa dùng + 100% cọc, không chia theo ngày và không phạt 30% cọc.
+- `status: DRAFT|PROPOSED|TRANSFER_PENDING|TRANSFERRED|TERMINATION_PENDING|TERMINATED`; `description,affectedAt` ISO UTC, `confirmed:true`, `proposal:TRANSFER|TERMINATE`; `photos:[{url,caption?}]`, `files:[{fileName,contentType?,size?}]`; ảnh URL private HTTPS/root-relative kiểm owner/cơ sở.
+- `candidates:[Unit]`, `targetUnit:Unit|null`; Unit `{id,code,facilityId,type,sizeM2,status,version,reservedFor?}`. Tương đương = cùng cơ sở/loại/diện tích; AVAILABLE hoặc RESERVED cho đúng incident. Dùng ID/version, không chỉ code hiển thị. Server tái kiểm tại send/choice/complete. Không phụ phí hoặc đổi kỳ/giá/cọc hợp đồng.
+- `choice:{choice:TRANSFER|TERMINATE,note,at}` do **khách tự xác nhận**, server timestamp/audit; `refundBank:{bankName,accountNumber,accountHolder}` cho TERMINATE, validate chính chủ. Không cho manager gửi thay. Note/description tối đa1000 ký tự. Ngày FE nhập theo VN +07:00, độ chính xác phút; server dùng timestamp có thẩm quyền.
+
+### Ghi, acknowledgement và transaction
+
+Payload chung có `action,id,expectedVersion`, response `{incident:IncidentCase}` version mới; client không gửi tiền/owner/facility/giá để server tin theo.
+
+| Endpoint đề xuất | Action / payload bổ sung | Stage / tác động server |
+|---|---|---|
+| POST `/api/ops/incidents` | SAVE_INCIDENT / SEND_INCIDENT_PROPOSAL; description, affectedAt, confirmed:true, proposal, targetUnitId?, expectedTargetVersion?, photos? | DRAFT→DRAFT hoặc PROPOSED. Chỉ send mới gửi khách; giữ target, chống hai hợp đồng giữ cùng ô. Không đổi credential/contract/payment |
+| POST `/api/contracts/{contractId}/incident-choice` | CHOOSE_INCIDENT_OPTION; choice, note, targetUnitId/expectedTargetVersion (TRANSFER) hoặc refundBank (TERMINATE) | PROPOSED→TRANSFER_PENDING/TERMINATION_PENDING. Đúng owner, incident và contract. Không để manager chọn thay. Chọn kết thúc giải phóng ô đề xuất đã giữ |
+| POST `/api/ops/incidents/{id}/complete-transfer` | COMPLETE_INCIDENT_TRANSFER; targetUnitId, expectedTargetVersion, movedAt, confirmed:true | TRANSFER_PENDING→TRANSFERRED sau đã chuyển đồ thực tế; currentUnit=target.code, movedAt; oldUnitStatus=MAINTENANCE; target OCCUPIED; access={oldUnit:INVALID,newUnit:ISSUED}; surcharge=0. Giữ nguyên kỳ/giá/cọc |
+| POST `/api/ops/incidents/{id}/terminate` | FINALIZE_INCIDENT_TERMINATION; confirmed:true | TERMINATION_PENDING→TERMINATED, contractStatus=ENDED, oldUnitStatus=MAINTENANCE, access.oldUnit=INVALID, tạo refund={id,amount,status:PENDING}. Không ghi PAID ở bước này |
+
+Nhánh manager đối chiếu trước khi chốt kết thúc là contract FE đề xuất, cần thống nhất với BE owner; nếu server kết thúc nguyên tử ngay khi khách chọn thì phải đổi adapter/state/receipt tương ứng, không ép receipt sai thành thành công. GET sau này được trả refund PAID với `transactionRef,paidAt` khi chuyển tiền đã được ghi nhận ở nghiệp vụ riêng; FE không tự tạo mã giao dịch.
+
+`photos` đề xuất `[{fileName,contentType,dataBase64}]`, tối đa5 JPG/PNG, mỗi ảnh5MiB; server kiểm signature/type/size/quota và lưu thật, trả metadata/URL có quyền. Lưu bổ sung ảnh không được xoá ảnh cũ khi payload không có ảnh; dedupe khi retry/save rồi send. Demo chỉ metadata, không làm bằng chứng đã lưu ảnh thật.
+
+Khóa SQL Server/transaction theo contract+incident+unit+credential/refund: ngăn gửi/chọn/complete lặp, staleversion trả409, target thay đổi trả conflict, retry idempotent không tạo 2 refund/cấp mã 2 lần. Bảo đảm chỉ xác nhận complete mới đổi mã, mã mới gắn đúng ô; server/máy quét kiểm thật. Không API thu hồi mã thủ công. Không tự set AVAILABLE cho ô bị sự cố/không đủ an toàn. Phải lưu choice, actor, timestamp, evidence và audit, GET đọc lại đúng sau mất mạng; cần idempotency key/receipt độc lập cho retry, FE hiện mới có expectedVersion và reload khi không xác minh kết quả.
+
+Contract đã ENDED/RETURN_PENDING/OVERDUE hoặc đang có xử lý xung đột không được mutation qua luồng này; backend tái kiểm chứ không dựa guard FE. Xử lý renewal/return/settlement đồng thời cần cùng khóa và quy tắc ưu tiên nghiệp vụ. Contract/list lịch sử cần còn đọc được sau kết thúc để khách theo dõi; board/map/access/cọc/refund cập nhật đồng bộ. API .NET/SQL Server/thiết bị cửa và nhiều khách/cơ sở/ô cạnh tranh chưa kiểm. Blocker BE của các batch trước giữ nguyên.
+
+
+## Batch08 — T05–T08/T11–T12, S02/M07/M08: contract FE bổ sung, chưa có đầy đủ trên main c1a9b05
+
+> 29/10: S02, S04/T05, M07/T07, M08/T08 và các cờ đã viết BE trên nhánh `feature/be-t05-t07-t08-t13-flags`; T11/T12 (quá hạn ngày 20) **chưa làm**. Cờ chỉ được giữ `true` sau khi nhóm build và kiểm luồng trên SQL Server.
+
+Không sửa BE/schema trong task này. Các marker bên dưới là đề xuất tích hợp, **server chỉ công bố sau khi đã triển khai và kiểm chứng**; không bật từ FE/env hoặc mock để giả hỗ trợ. Cờ không thay server authorization/validation/transaction.
+
+| Phần | JSON / yêu cầu server |
+|---|---|
+| S02 mới (436:13163) | Board `verificationChecklistSupported:true`. POST `/api/ops/verifications/{id}` nhận `{originalDocumentValid:true,photoMatched:true,infoMatched:true,bookingMatched:true}`; không DocNumber. Lưu actor/time/checklist, board đọc status DONE/verifiedAt/checklist. API hiện bắt DocNumber nên FE chặn; không điền giả. DTO legacy vẫn serialize được cho caller cũ, Page mới không dùng |
+| Nhận chìa khóa | POST `/api/ops/keys/{id}/receipt` thêm `{identityChecked,conditionChecked,keyDelivered}`. Kiểm xác minh thật tồn tại/DONE, hợp đồng/đã thu đúng, staff/cơ sở. Giữ idempotency, không đổi kỳ/status contract/credential QR-PIN. Board handovers trả status DONE/doneAt; đọc `policyConsent:{version,acceptedAt,channel,displayVersion?}` đúng evidence, không tạo consent từ thao tác nhân viên |
+| Kiểm kê S04 | Board `inspectionEvidenceSupported:true`. POST inspection giữ4 mục và `damageFee,cleaningFee,cleaningRequired,damageItem,feeReason,photos:[{fileName,contentType,dataBase64}]`. Server tính vệ sinh10% cọc, không tin tiền client; ảnh bắt buộc khi damage>0, kiểm signature/quota/type JPG-PNG/5ảnh/5MiB. Lưu ảnh private và DTO report trả `photos:[{url,caption?}]`, đủ phí/lý do/hạng mục. Board returns cần requestedAt/overdueFee tại thời điểm dừng, không dùng scheduledAt làm thời điểm dừng phí |
+| M07 | Giữ returnPolicyVersion:D32, thêm `returns[].damageWorkflowResolved:true` chỉ khi không còn phản hồi/khắc phục chờ xử lý. `damageCasesPending:[{contractId}]` nếu còn mở; mapper FE đổi snake_case. Kiểm ở transaction khi chốt, không tin client. POST refund trả `{refund:number,refundStatus:"PENDING"}`, board contract CLOSED; không PAID, giữ MAINTENANCE khi cần. Lưu ghi chú, khoản hoàn0 đóng NO_REFUND không tạo giao dịch chuyển tiền |
+| M08 | Board `refundEvidenceSupported:true`; `refunds[]` có `bankName,accountNumber,accountHolder` chính chủ từ T08, amount/status rõ. POST `/api/ops/reservations/{id}/refund` nhận BANK_TRANSFER/transactionRef/transferredAt(ISO UTC)/confirmed:true. Lưu đọc lại PAID/transactionRef/paidAt và thời điểm chuyển thực tế, không chỉ trả refund:number. Không giả định hoàn về tài khoản nguồn PayOS; kể cả khách trả cash cũng hoàn vào bank chính chủ |
+
+### Hoàn cọc sau đối soát — endpoint còn đề xuất
+
+GET `/api/ops/deposit-refunds` trả **array**: `[{id,facilityId,ownerId,contractId,unit,customer,version,deposit,overdue,cleaning,damage,amount,status:PENDING|PAID|NO_REFUND,inspectedAt,bankName,accountNumber,accountHolder,transactionRef?,paidAt?}]`. Không dùng unpaid/debt legacy để thu ngoài cọc. Chưa có amount thì không được biến thành0; amount=0 không chuyển tiền.
+
+POST `/api/ops/deposit-refunds/actions` `{action:"CONFIRM_DEPOSIT_REFUND",id,expectedVersion,transactionRef,transferredAt,confirmed:true}` → `{item:<refund DTO>}` với version mới, status PAID, đúng id/owner/cơ sở/contract/bank/amount và transactionRef/paidAt. FE đã kiểm những trường này khi acknowledgement; raw200/receipt sai cần reload, không giả thành công. Bank được khách khai trước, không nhập thay tại màn chuyển tiền; số tài khoản UI mask nhưng server giữ đủ để đối chiếu có quyền. Mọi hoàn tiền cần mã, giờ thực tế không tương lai/không trước đối soát, checkbox rõ; server clock/audit là nguồn bằng chứng.
+
+### Biên bản xử lý đồ — endpoint còn đề xuất
+
+GET `/api/ops/overdue-cases` trả array có facilityId, assigneeId (server userId), assignee (tên), endDate, removalDay, status và record. Tỷ lệ cap cọc không quyết định ngày được xử lý đồ. Mốc mặc định D32 là20; policy/server phải trả mốc, không xử lý sớm do đổi tỷ lệ. Cần thống nhất với BE owner cách quản lý removalDay trong OVERDUE; FE không tự sửa chính sách hệ thống.
+
+POST `/api/ops/overdue-cases/actions` `{action:"RECORD_REMOVAL",id,performedAt:ISO,inventory,location,unitStatus:INSPECTION|MAINTENANCE,confirmed:true,beforePhotos:[{fileName,contentType,dataBase64}],afterPhotos:[...]}` → `{item:<case DTO>}` status DONE, facilityId, record.savedAt/beforePhotos/afterPhotos đã lưu và truy cập có quyền. Ít nhất1 ảnh trước/1 sau; mỗi nhóm tối đa5 ảnh, 5MiB/ảnh. Server kiểm assigneeId/cơ sở/thời điểm thực hiện đủ mốc và actor; không chỉ so lúc bấm lưu. Không tự đưa ô về AVAILABLE, không suy ra quyền thanh lý tài sản.
+
+Mọi thao tác tiền/inspection/access cần transaction SQL Server, version/concurrency và idempotency (retry không chuyển/tạo khoản refund hai lần). Frontend chặn local click lặp/readback sai/network/409/5xx và buộc reload, chưa thay bảo vệ server. Cần test trạng thái trước/sau commit, reload lỗi, nhiều tab/máy, assignment/return/renewal/hư hỏng đồng thời, lưu/đọc bank/ảnh thật. Demo LocalStorage chỉ metadata ảnh và không có transaction đa thiết bị. T08 còn cần owner/bank trong returns; thiếu thì M07 demo tạo pending nhưng không đoán dữ liệu hoặc cho xác nhận chuyển tiền.
+
+
+## Batch09 — vận hành/admin: phần đang có và API cần bổ sung
+
+Không sửa backend/schema trong gói này. Main đọc lại c1a9b05.
+
+**A03 chỉ xem theo D32:** FE bỏ checkbox và request sửa PermissionCode, chỉ GET `/api/admin/roles` để đọc danh mục. Backend vẫn còn POST/DELETE `/api/admin/roles/{roleId}/permissions` trên main; BE owner cần rà/khóa/ngừng phục vụ hành động trái D32. Không coi việc ẩn UI là server đã bảo vệ. Giữ quyền theo role+facility và các check last-active-admin.
+
+**A05b atomic role-change — đề xuất, chưa có main:** POST `/api/admin/users/{id}/role-change` `{previousRoleId,roleId,expectedRoleIds:[...currentRoleIds]}`. Server phải kiểm ADMIN, user/role tồn tại, old role vẫn có, target chưa có, expected set/version đúng (409 nếu stale), last-active-admin, rồi thay đúng role trong cùng transaction; giữ các role khác. Audit trước/sau, idempotent/retry rõ, không gán role mới rồi thất bại khi gỡ role cũ. Xử lý assignment khi role thay đổi, không cấp quyền cơ sở khi chưa có assignment hợp lệ; token/phiên hiện có phải được tái kiểm theo quy định server. Return DTO user chi tiết hoặc receipt phù hợp; FE đọc GET user để verify tập roles. Route404/405 báo chưa hỗ trợ, **không fallback POST assign + DELETE revoke**.
+
+Cấp lại/gỡ role vẫn dùng POST/DELETE hiện có, GET user readback đúng tập roles; API phải giữ các role khác/last-admin. Không đổi PermissionCode qua panel. Nếu muốn có reactivation lịch sử membership thay vì xóa/gán mới, cần BE owner thống nhất DTO; FE hiện 'Cấp lại' gọi assign có sẵn cho role chưa có.
+
+**A02 create+assign:** POST users → detail DTO phải có userId>0, username/fullName/email và role đúng. POST user-facilities sau đó, GET userFacilities để verify đúng facilityId/assignedFrom/ACTIVE và không chồng assignment. Main là hai request; nếu phân công lỗi, tài khoản đã tồn tại, UI báo partial và dẫn sang chi tiết, không tạo lại. Cần BE atomic create+assignment hoặc idempotency key/lookup receipt để xử lý timeout sau create; FE không rollback/delete tài khoản để giả atomic. Bổ sung expected version/assignment consistency khi nhiều admin sửa cùng user. Cơ sở ACTIVE/role cần scope vẫn phải kiểm lại ở server; không tin catalog cache. Unknown200/readback lỗi/mạng → reload trước retry.
+
+**B05:** endpoint có sẵn; FE đọc lại GET facilities so trường sửa/status. BE cần bảo đảm read-after-write, trạng thái INACTIVE chỉ khi hết hợp đồng/đơn xử lý, giữ cơ sở và lịch sử, audit nguyên tử. Không dựa reason/field validation FE. Khi tạo, trả facilityId hoặc wrapper `{facility:{facilityId,...},warnings}` để tránh tạo trùng do200 thiếu ID.
+
+**T20 publication hiện có:** SaveRentalPolicyRequest `{action:"SAVE_RENTAL_POLICY",rate:number,sections:{7 nhóm},version:number}` → RentalPolicyDto với version mới/rate/sections/displayVersion/updatedAt. FE kiểm receipt đầy đủ; không dùng default khi GET lỗi. API hiện công bố ngay, không hỗ trợ nháp lịch công bố/effectiveDate/changeNote của Figma. Nếu nhóm muốn những metadata này, cần DTO/storage/transaction/worker/audit riêng; FE hiện không giả lưu trường không được server nhận. Bằng chứng khách giữ version cũ, phạm vi D32 hiện hành vẫn áp dụng mọi hợp đồng.
+
+**B04/CSV scope:** facilities/unit-types hiện nhận from/to/facilityId, report DTO phải trả filter đúng request và danh sách/totals. Export trả Content-Type text/csv; không JSON/HTML200. FE snapshot scope và escape formula, không coi metadata-only là có hàng dữ liệu khi summary rỗng. Revenue-trend/status hiện global, chưa nhận đầy đủ facility/date scope: muốn xuất có các filter này phải bổ sung và kiểm quyền trong report service; không bỏ qua filter mà vẫn gắn nhãn báo cáo một cơ sở. XLSX B04 hiện được tạo từ CSV/snapshot, không phải server xuất XLSX.
+
+Cần kiểm API .NET/SQL Server thật: last-admin, role+assignment đồng thời, một cơ sở mỗi thời điểm, revoke/grant giữ role khác, đọc sau ghi, create timeout và idempotency, report filter và CSV, policy409/version/time, refresh token/session. Các suite mock/helper/SSR chưa thay những kiểm chứng này.

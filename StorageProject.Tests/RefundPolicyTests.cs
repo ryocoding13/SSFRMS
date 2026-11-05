@@ -23,7 +23,7 @@ public sealed class RefundPolicyTests
         Assert.Equal(900_000m, r.DepositRefund);
         Assert.Equal(Rent, r.RentRefund);
         Assert.Equal(3_900_000m, r.Total);
-        Assert.Equal(0m, r.Debt);
+        Assert.InRange(r.FixedDeduction + r.DamageDeduction + r.OverdueDeduction, 0m, Deposit);
     }
 
     [Fact]
@@ -46,12 +46,12 @@ public sealed class RefundPolicyTests
     }
 
     [Fact]
-    public void Early_stop_damage_beyond_remaining_deposit_gives_zero_refund_and_records_debt()
+    public void Early_stop_damage_beyond_remaining_deposit_is_capped_without_debt()
     {
         var r = Calc(RefundScenario.EarlyStop, new DateOnly(2026, 12, 15), damage: 800_000m);
         Assert.Equal(700_000m, r.DamageDeduction);
         Assert.Equal(0m, r.DepositRefund);
-        Assert.Equal(100_000m, r.Debt);
+        Assert.Equal(Deposit, r.FixedDeduction + r.DamageDeduction + r.OverdueDeduction);
         Assert.Equal(1_000_000m, r.Total); // vẫn hoàn tiền thuê tháng chưa bắt đầu
     }
 
@@ -73,12 +73,12 @@ public sealed class RefundPolicyTests
     }
 
     [Fact]
-    public void Overdue_return_deducts_fixed_10_percent_plus_overdue_fee()
+    public void Overdue_without_cleaning_only_deducts_overdue_fee()
     {
         var r = Calc(RefundScenario.NormalReturn, End.AddDays(3), overdue: true, overdueFee: 150_000m);
-        Assert.Equal(100_000m, r.FixedDeduction);
+        Assert.Equal(0m, r.FixedDeduction);
         Assert.Equal(150_000m, r.OverdueDeduction);
-        Assert.Equal(750_000m, r.DepositRefund);
+        Assert.Equal(850_000m, r.DepositRefund);
     }
 
     [Fact]
@@ -86,15 +86,15 @@ public sealed class RefundPolicyTests
     {
         var r = Calc(RefundScenario.NormalReturn, End.AddDays(3), hygiene: true, overdue: true, damage: 200_000m, overdueFee: 150_000m);
         Assert.Equal(550_000m, r.DepositRefund);
-        Assert.Equal(0m, r.Debt);
+        Assert.InRange(r.FixedDeduction + r.DamageDeduction + r.OverdueDeduction, 0m, Deposit);
     }
 
     [Fact]
-    public void Damage_over_deposit_zero_refund_and_shortfall_is_debt()
+    public void Damage_over_deposit_caps_deduction_and_zero_refund()
     {
         var r = Calc(RefundScenario.NormalReturn, End, damage: 1_200_000m);
         Assert.Equal(0m, r.DepositRefund);
-        Assert.Equal(200_000m, r.Debt);
+        Assert.Equal(Deposit, r.DamageDeduction);
     }
 
     [Fact]

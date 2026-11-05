@@ -27,7 +27,7 @@ export function opsConfirmation(type, payload, ops) {
       const v = find("verifications");
       return {
         title: "Xác nhận thông tin giấy tờ?", text: "Chỉ xác nhận khi đã đối chiếu đầy đủ giấy tờ và đúng người nhận chìa khóa.", label: "Xác nhận xác minh",
-        rows: [["Khách hàng", v?.customer], ["Đơn đặt chỗ", v?.reservation_id || v?.id], ["Nội dung xác minh", `${payload.doc_type} · …${String(payload.doc_no || "").slice(-4)} · ảnh và thông tin khớp`]],
+        rows: [["Khách hàng", v?.customer], ["Đơn đặt chỗ", v?.reservation_id || v?.id], ["Nội dung xác minh", payload.doc_no?`${payload.doc_type} · …${String(payload.doc_no).slice(-4)} · ảnh và thông tin khớp`:"Đã đối chiếu đủ bốn mục tại quầy"]],
         success: { title: "Đã lưu kết quả xác minh", text: "Thông tin giấy tờ đã được xác minh. Tiếp tục ghi nhận việc nhận chìa khóa vật lý tại quầy.", action: "Tiếp tục nhận chìa khóa" },
         failure: { title: "Không lưu được kết quả xác minh", text: "Vui lòng kiểm tra lại thông tin và kết nối rồi thực hiện lại. Chưa thể chuyển sang bước nhận chìa khóa." },
       };
@@ -131,6 +131,7 @@ export function opsConfirmation(type, payload, ops) {
         success: { title: `Đã đổi trạng thái kho #${payload.code}`, text: "Lần đổi được ghi vào lịch sử trạng thái của ô.", action: "Đã hiểu" },
         failure: { title: "Không đổi trạng thái được", text: GENERIC_FAIL },
       };
+    case "CONFIRM_RESERVATION_REFUND": return {confirm:false,success:{title:"Đã ghi nhận hoàn tiền",text:"Đã lưu bằng chứng chuyển tiền cho yêu cầu này.",action:"Về yêu cầu hoàn"},failure:{title:"Chưa xác minh được kết quả hoàn tiền",text:"Tải lại và kiểm tra giao dịch; không chuyển tiền lần nữa."}};
     case "CONFIRM_REFUND": {
       return {
         confirm: false,
@@ -171,4 +172,4 @@ const REISSUE = {
 
 // Thao tác của quản lý có hộp thoại kết quả (Figma 885:*, M03a–d, kết quả M02/M07). Mục có confirm: false dùng hộp thoại
 // nhập liệu riêng trên trang (M02a, M02b, M02c, M07a, M03b) nên provider chỉ hiện kết quả. M08a tự hiện kết quả trên trang.
-export const MANAGER_CONFIRM = new Set(["ALLOCATE", "ASSIGN", "DECIDE_RENEWAL", "CREATE_UNIT", "UPDATE_UNIT", "UPDATE_UNIT_STATUS", "CONFIRM_REFUND"]);
+export const MANAGER_CONFIRM = new Set(["ALLOCATE", "ASSIGN", "DECIDE_RENEWAL", "CREATE_UNIT", "UPDATE_UNIT", "UPDATE_UNIT_STATUS", "CONFIRM_REFUND", "CONFIRM_RESERVATION_REFUND"]);

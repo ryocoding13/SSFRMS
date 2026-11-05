@@ -1,59 +1,14 @@
-import React, { useState } from "react";
-import { Button, Empty, LinkButton, Notice } from "../../../shared/components/UI.jsx";
-import { typeLabel } from "../../../shared/utils/catalog.js";
-import { dateTimeLabel } from "../../../shared/utils/format.js";
-import { go, href } from "../../../app/router.js";
+import React,{useState} from "react";
+import { Button, DetailList, Empty, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
-import { Facts } from "../../facility-operations/components/FacilityOperationsComponents.jsx";
-
-export function KeyReceiptPage({ query }) {
-  const { ops, run } = useOps();
-  const waiting = ops.handovers.filter((h) => h.status === "WAITING");
-  const h = query.get("id") ? ops.handovers.find((x) => x.id === query.get("id")) : waiting.find((x) => ops.verifications.find((v) => v.id === x.verification_id)?.status === "DONE") || waiting[0];
-  if (!h)
-    return (
-      <main className="container page">
-        <Empty title="Không có chìa khóa chờ nhận" text="Lịch nhận chìa khóa của khách sẽ hiện ở đây sau khi hợp đồng được cấp.">
-          <LinkButton to="staff">Về công việc trong ngày</LinkButton>
-        </Empty>
-      </main>
-    );
-  const unit = ops.units.find((u) => u.code === h.unit);
-  const verification = ops.verifications.find((v) => v.id === h.verification_id);
-  const ready = !verification || verification.status === "DONE";
-  const submit = async () => {
-    const r = await run("RECORD_KEY_RECEIPT", { id: h.id }, `Đã ghi nhận khách nhận chìa khóa kho ${h.unit}`);
-    if (r.ok) go("staff/keys");
-  };
-  return (
-    <main className="container page page--narrow">
-      <a className="back-link" href={href("staff/verify")}>← Danh sách xác minh</a>
-      <section className="panel ops-card">
-        <h1>Nhận chìa khóa · Kho {h.unit}</h1>
-        <Facts
-          rows={[
-            ["Khách hàng", h.customer],
-            ["Cơ sở", ops.facility.name],
-            ["Loại kho", typeLabel(unit?.type)],
-            ["Diện tích", unit ? `${unit.area} m²` : "—"],
-          ]}
-        />
-        {h.status === "DONE" ? (
-          <Notice tone="success">Đã nhận chìa khóa lúc {dateTimeLabel(h.done_at)}.</Notice>
-        ) : (
-          <>
-            <p>Đã cấp theo hợp đồng: QR + PIN 6 số</p>
-            {!ready && (
-              <Notice tone="error">
-                Khách chưa được xác minh. <a href={href(`staff/verify?id=${verification.id}`)}>Xác minh khách trước</a>.
-              </Notice>
-            )}
-            <Button block onClick={submit} disabled={!ready}>Ghi nhận đã nhận chìa khóa</Button>
-            <Notice tone="success">Nhận chìa khóa không kích hoạt hợp đồng. QR, PIN và quyền mở kho chỉ có hiệu lực trong kỳ thuê.</Notice>
-          </>
-        )}
-        <LinkButton to="staff" variant="outline" block>Về danh sách công việc</LinkButton>
-      </section>
-    </main>
-  );
+import { validateKeyReceipt } from "../../facility-operations/settlements/settlementModel.js";
+import { OpsDemo } from "../../facility-operations/settlements/SettlementComponents.jsx";
+import { timeLabel } from "../../facility-operations/damage/DamageComponents.jsx";
+import "../../../shared/styles/customer-detail.css";
+export function KeyReceiptPage({query}) {
+ const {ops,run,source,saving,needsRefresh}=useOps(),h=ops.handovers.find(h=>h.id===query.get("id")),[checks,setChecks]=useState({identity_checked:false,condition_checked:false,key_delivered:false}),[error,setError]=useState("");
+ if(!h)return <main className="container page"><Empty title="Không tìm thấy lịch nhận chìa khóa"><LinkButton to="staff/keys">Danh sách nhận chìa khóa</LinkButton></Empty></main>;
+ const v=ops.verifications.find(v=>v.id===h.verification_id),ready=v?.status==="DONE",done=h.status==="DONE",disabled=saving||needsRefresh||done||!ready,consent=h.policy_consent;
+ const submit=async()=>{try{validateKeyReceipt(ops,{id:h.id,...checks});setError("");const result=await run("RECORD_KEY_RECEIPT",{id:h.id,...checks},`Đã ghi nhận nhận chìa khóa kho ${h.unit}`);if(!result.ok)setError(result.shown||result.cancelled?"":result.error);}catch(error){setError(error.message);}};
+ return <main className="container page customer-records customer-detail"><p className="customer-records__breadcrumb">SafeSpace / Nhân viên / Xác minh</p><PageHeader title={`Giao chìa khóa · Kho ${h.unit}`} description="Hợp đồng và QR/PIN được cấp sau thanh toán. Nhận chìa khóa không phải bước kích hoạt."><Tag tone="amber">{done?"Đã nhận chìa khóa":"Chờ nhận chìa khóa"}</Tag></PageHeader><OpsDemo source={source}/><div className="customer-detail__grid"><section className="panel customer-detail__card"><h2>Đối chiếu tại quầy</h2><DetailList items={[["Khách hàng",h.customer],["Giấy tờ",v?.doc_last4?`${v.doc_type} · ••••${v.doc_last4}`:"Chưa có xác minh"],["Hợp đồng / kho",`${h.contract_id||"Chưa có mã hợp đồng"} · ${h.unit}`]]}/>{!ready&&<Notice tone="error">Thiếu hồ sơ xác minh hợp lệ. <LinkButton to={v?`staff/verify?id=${encodeURIComponent(v.id)}`:"staff/verify"}>Xác minh khách trước</LinkButton></Notice>}{done?<Notice>Đã nhận chìa khóa lúc {timeLabel(h.done_at)}.</Notice>:<>{[["identity_checked","Đã đối chiếu giấy tờ khách với hợp đồng"],["condition_checked","Đã kiểm tra tình trạng kho và chìa khóa"],["key_delivered",`Đã giao 01 chìa khóa${h.key_code?` · ${h.key_code}`:""} (khách ký nhận)`]].map(([key,label])=><label className="customer-detail__choice" key={key}><input type="checkbox" disabled={disabled} checked={checks[key]} onChange={e=>setChecks({...checks,[key]:e.target.checked})}/><span>{label}</span></label>)}{error&&<Notice tone="error">{error}</Notice>}<div className="customer-detail__actions"><Button disabled={disabled||!Object.values(checks).every(Boolean)} onClick={submit}>Ghi nhận đã giao chìa khóa</Button></div></>}</section><aside className="panel customer-detail__card customer-detail__sidebar"><h2>Đồng ý chính sách</h2>{Number.isInteger(consent?.version)&&consent.version>0&&Number.isFinite(Date.parse(consent?.accepted_at))?<DetailList items={[["Phiên bản",consent.display_version||`Phiên bản ${consent.version}`],["Thời điểm",timeLabel(consent.accepted_at)],["Kênh",consent.channel||"Chưa có dữ liệu"]]}/>:<Notice>Chưa có bằng chứng chính sách từ máy chủ. Không tự ghi đã đồng ý hoặc xác nhận thay khách.</Notice>}<p className="hint">Không đổi ngày bắt đầu hay kích hoạt lại QR/PIN khi giao chìa khóa.</p></aside></div><div className="workflow-links"><LinkButton to="staff/keys" variant="outline">Danh sách nhận chìa khóa</LinkButton></div></main>;
 }

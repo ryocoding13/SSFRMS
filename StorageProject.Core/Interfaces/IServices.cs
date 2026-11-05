@@ -38,6 +38,8 @@ public interface IReservationService
     Task<ReservationDto> CreateReservationAsync(long customerId, CreateReservationRequest request, CancellationToken ct = default);
     Task<CancelPreviewDto> GetCancelPreviewAsync(long customerId, long reservationId, CancellationToken ct = default);
     Task CancelReservationAsync(long customerId, long reservationId, string reason, CancellationToken ct = default);
+    /// <summary>Huỷ đơn kèm tài khoản chính chủ nhận hoàn (bắt buộc khi đơn đã thanh toán — D32 / T08).</summary>
+    Task CancelReservationAsync(long customerId, long reservationId, string reason, StorageProject.Core.DTOs.Evidence.RefundBankInput? bank, CancellationToken ct = default);
     Task<ReservationDto> ConfirmTransferAsync(long customerId, long reservationId, CancellationToken ct = default);
 }
 

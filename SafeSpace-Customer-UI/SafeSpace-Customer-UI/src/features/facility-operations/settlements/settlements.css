@@ -1,0 +1,4 @@
+@import "../../../shared/styles/customer-detail.css";
+.ops-verification { max-width: 600px; }
+.ops-verification h1 { font-size: 24px; margin: 0; }
+.ops-verification input[readonly] { background: var(--bg); }

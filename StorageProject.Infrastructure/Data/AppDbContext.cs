@@ -9,6 +9,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<PasswordResetChallenge> PasswordResetChallenges => Set<PasswordResetChallenge>();
+    public DbSet<SupportInquiry> SupportInquiries => Set<SupportInquiry>();
+    public DbSet<SupportInquiryReply> SupportInquiryReplies => Set<SupportInquiryReply>();
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 
@@ -51,9 +54,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     // XI. Return & Inspection
     public DbSet<ReturnInspection> ReturnInspections => Set<ReturnInspection>();
+    public DbSet<EvidencePhoto> EvidencePhotos => Set<EvidencePhoto>();
 
     // XII. Overdue Handling
     public DbSet<OverdueCase> OverdueCases => Set<OverdueCase>();
+    public DbSet<FacilityIncident> FacilityIncidents => Set<FacilityIncident>();
 
     // XIII. Support & Issue Handling
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();

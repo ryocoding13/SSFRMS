@@ -7,6 +7,7 @@ import { RESERVATION_STATUS } from "../../../shared/utils/status.js";
 import { facilityOf } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { NotFound } from "./components/ReservationNotFound.jsx";
+import { canCancel } from "./ReservationListPage.jsx";
 
 export function ReservationDetailPage({ id, mode = "confirmation" }) {
   const { data, retry } = useApp();
@@ -21,6 +22,8 @@ export function ReservationDetailPage({ id, mode = "confirmation" }) {
   const atStore = r.status === "PENDING_VERIFICATION";
   // Figma C05-chờ ô (847:10686): đã nhận tiền nhưng hệ thống chưa cấp được ô / hợp đồng
   const allocating = !isDetail && r.status === "CONFIRMED" && !contract;
+  const cancellable = isDetail && canCancel(data, r);
+  const prestartPaid = cancellable && paid;
   const statusText =
     r.status === "CANCELLED" && r.refund_status === "PENDING"
       ? "Đã huỷ · Đang hoàn tiền"
@@ -75,6 +78,8 @@ export function ReservationDetailPage({ id, mode = "confirmation" }) {
         {isDetail ? (
           <>
             {r.status === "CONFIRMED" && <LinkButton to="payments" block>Xem lịch nhận kho</LinkButton>}
+            {prestartPaid && <p className="hint">Chưa đến ngày thuê nên vẫn huỷ được đơn: hoàn 100% tiền thuê và 90% tiền cọc (phí huỷ 10% cọc).</p>}
+            {cancellable && <LinkButton to={`reservations/${r.reservation_id}/cancel`} variant="outline" block>Huỷ đơn</LinkButton>}
             <LinkButton to="reservations" variant={waiting || r.status === "CONFIRMED" ? "outline" : "primary"} block>Về đơn đặt chỗ</LinkButton>
           </>
         ) : (

@@ -19,7 +19,7 @@ export const api = {
   reservations: () => request("/api/reservations"),
   reservation: (id) => request(`/api/reservations/${id}`),
   createReservation: (body) => request("/api/reservations", { method: "POST", body }),
-  cancelReservation: (id, reason) => request(`/api/reservations/${id}/cancel`, { method: "POST", body: { reason } }),
+  cancelReservation: (id, reason, bank) => request(`/api/reservations/${id}/cancel`, { method: "POST", body: { reason, ...(bank || {}) } }),
   // Bản cũ "Tôi đã chuyển khoản" → PENDING_VERIFICATION. Giờ chỉ dùng làm dự phòng cho "Thanh toán tại cửa hàng"
   // khi backend chưa có pay-at-facility (đơn vẫn vào hàng chờ S09 để nhân viên thu tiền).
   confirmTransfer: (id) => request(`/api/reservations/${id}/confirm-transfer`, { method: "POST" }),
@@ -34,8 +34,11 @@ export const api = {
   // Hợp đồng, thanh toán, gia hạn, bàn giao, trả kho
   contracts: () => request("/api/contracts"),
   contract: (id) => request(`/api/contracts/${id}`),
-  requestRenewal: (contractId, months) =>
-    request(`/api/contracts/${contractId}/renewals`, { method: "POST", body: { renewalPeriodMonths: months } }),
+  acceptReservationPolicy: (id, policyVersion) => request(`/api/reservations/${encodeURIComponent(id)}/policy-consent`, { method: "POST", body: { policyVersion: Number(policyVersion), accepted: true } }),
+  rentalPolicyVersion: version => request(`/api/rental-policy/versions/${encodeURIComponent(version)}`, { auth: false }),
+  currentRentalPolicy: () => request("/api/rental-policy", { auth: false }),
+  requestRenewal: (contractId, months, consent) =>
+    request(`/api/contracts/${contractId}/renewals`, { method: "POST", body: { renewalPeriodMonths: months, ...(consent ? { policyVersion: Number(consent.version), accepted: true } : {}) } }),
   confirmHandover: (handoverId) => request(`/api/handovers/${handoverId}/confirm`, { method: "POST" }),
   requestMoveOut: (contractId, body) => request(`/api/contracts/${contractId}/move-out`, { method: "POST", body }),
 
