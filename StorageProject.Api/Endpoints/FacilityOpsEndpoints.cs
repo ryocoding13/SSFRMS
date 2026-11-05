@@ -123,6 +123,16 @@ public static class FacilityOpsEndpoints
             Run(async () => Results.Ok(await ops.FinalizeIncidentTerminationAsync(Actor(user), id, request, ct))))
             .WithSummary("Chốt kết thúc theo lựa chọn khách: hợp đồng kết thúc, khoản hoàn PENDING = tháng đang thuê + tháng chưa dùng + 100% cọc");
 
+        // ---- M02 · Hồ sơ phản hồi & tự khắc phục hư hỏng (B10 / D32 / D34)
+        group.MapGet("/damage-cases", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(await ops.GetDamageCasesAsync(Actor(user), ct))))
+            .WithSummary("Danh sách hồ sơ hư hỏng của cơ sở");
+
+        group.MapPost("/damage-cases/actions", (DamageCaseActionRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(await ops.HandleDamageActionAsync(Actor(user), request, ct))))
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(EvidencePhotos.RequestBodyLimit))
+            .WithSummary("DECIDE_DAMAGE_RESPONSE (quản lý cho phép/từ chối khắc phục) / INSPECT_DAMAGE_REMEDIATION (kiểm tra sau khắc phục)");
+
         // ---- T13 · Khách xem và tự chọn phương án
         routes.MapGet("/api/incidents", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
                 Run(async () => Results.Ok(await ops.GetCustomerIncidentsAsync(user.GetUserId(), ct))))
@@ -135,6 +145,20 @@ public static class FacilityOpsEndpoints
             .WithTags("Facility Operations")
             .RequireAuthorization(policy => policy.RequireRole("CUSTOMER"))
             .WithSummary("CHOOSE_INCIDENT_OPTION: khách tự chọn đổi ô (TRANSFER) hoặc kết thúc + tài khoản chính chủ (TERMINATE)");
+
+        // ---- M02 · Khách xem và thao tác hồ sơ hư hỏng của mình
+        routes.MapGet("/api/damage-cases", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+                Run(async () => Results.Ok(await ops.GetCustomerDamageCasesAsync(user.GetUserId(), ct))))
+            .WithTags("Facility Operations")
+            .RequireAuthorization(policy => policy.RequireRole("CUSTOMER"))
+            .WithSummary("Khách theo dõi hồ sơ hư hỏng (chỉ của mình)");
+
+        routes.MapPost("/api/damage-cases/actions", (DamageCaseActionRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+                Run(async () => Results.Ok(await ops.HandleCustomerDamageActionAsync(user.GetUserId(), request, ct))))
+            .WithTags("Facility Operations")
+            .RequireAuthorization(policy => policy.RequireRole("CUSTOMER"))
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(EvidencePhotos.RequestBodyLimit))
+            .WithSummary("RESPOND_DAMAGE (đồng ý/đề xuất tự sửa/khiếu nại) / REPORT_DAMAGE_REMEDIATION (báo đã khắc phục xong)");
 
         // ---- Khách xem khoản hoàn cọc của chính mình
         routes.MapGet("/api/deposit-refunds", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>

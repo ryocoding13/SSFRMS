@@ -390,13 +390,31 @@ public partial class FacilityOpsService
             throw new InvalidOperationException("Hợp đồng không còn hiệu lực để gia hạn.");
         }
 
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract:{contract.ContractId}", ct);
+
+        // Reload after lock
+        await dbContext.Entry(r).ReloadAsync(ct);
+        if (r.Status != "PENDING") throw new InvalidOperationException("Yêu cầu này đã được xử lý.");
+
+        // Kiểm tra lịch trùng
+        var hasConflict = await dbContext.Reservations
+            .AnyAsync(res => res.UnitAssignments.Any(ua => ua.UnitId == contract.UnitId && ua.Status == "ASSIGNED")
+                          && (res.Status == "CONFIRMED" || res.Status == "UNIT_ASSIGNED")
+                          && res.StartDate < r.NewEndDate
+                          && res.ExpectedEndDate > r.OldEndDate, ct);
+        if (hasConflict)
+        {
+            throw new InvalidOperationException("Kho này đã có lịch giữ chỗ của khách hàng khác trong kỳ gia hạn.");
+        }
+
         var now = NowUtc;
         var vnToday = DateOnly.FromDateTime(now + VnOffset);
 
-        // Re-check rate at approval time
+        // Re-check rate at approval time (D16: bắt buộc Status == ACTIVE)
         var activeRate = await dbContext.RentalRates
             .Where(rate => rate.FacilityId == contract.Unit.FacilityId
                      && rate.UnitTypeId == contract.Unit.UnitTypeId
+                     && rate.Status == "ACTIVE"
                      && rate.EffectiveFrom <= vnToday
                      && (rate.EffectiveTo == null || rate.EffectiveTo >= vnToday))
             .OrderByDescending(rate => rate.EffectiveFrom)
@@ -413,6 +431,11 @@ public partial class FacilityOpsService
         if (contractExpiryUtc < deadline)
         {
             deadline = contractExpiryUtc;
+        }
+
+        if (deadline <= now)
+        {
+            throw new InvalidOperationException("Hợp đồng đã quá hạn để gia hạn.");
         }
 
         r.PaymentDeadlineAt = deadline;
@@ -456,6 +479,7 @@ public partial class FacilityOpsService
             newEndDate = r.NewEndDate.ToString("yyyy-MM-dd")
         });
         await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task RejectRenewalAsync(OpsActor actor, string id, OpsRejectRequest request, CancellationToken ct = default)
@@ -517,6 +541,20 @@ public partial class FacilityOpsService
             throw new InvalidOperationException("Hợp đồng đã ghi nhận hoàn tiền.");
         }
 
+        decimal effectiveDamageFee = inspection.DamageFee;
+        if (inspection.DamageFee > 0)
+        {
+            var damageState = await GetDamageWorkflowStateAsync(inspection.InspectionId, ct);
+            if (damageState.Status is "AWAITING_RESPONSE" or "RESPONSE_SUBMITTED" or "REMEDIATION_ALLOWED" or "AWAITING_INSPECTION")
+            {
+                throw new InvalidOperationException("Chưa thể chốt quyết toán do phản hồi hư hỏng chưa hoàn tất.");
+            }
+            if (damageState.Status == "REMEDIATED")
+            {
+                effectiveDamageFee = 0m;
+            }
+        }
+
         var now = NowUtc;
         // D32 / T09: Dừng tính phí quá hạn khi gửi trả kho thành công (inspection.CreatedAt là thời điểm khách gửi move-out).
         var moveOutDate = DateOnly.FromDateTime((inspection.CreatedAt != default ? inspection.CreatedAt : (inspection.InspectedAt ?? now)) + VnOffset);
@@ -531,15 +569,16 @@ public partial class FacilityOpsService
             overdueFee = RefundPolicy.OverdueFeeFor(policy?.CalculationType, policy?.Value, contract.DepositAmount, overdueDays, maxCap: contract.DepositAmount);
         }
         var rentPaid = contract.Payments.Where(p => p.PaymentType == "RENT" && p.Status == "PAID").Sum(p => p.Amount);
+        var hygieneViolation = inspection.CleaningRequired || inspection.ConditionStatus == "DIRTY";
         var result = RefundPolicy.Calculate(new RefundInput(scenario, contract.DepositAmount, rentPaid,
             contract.StartDate, contract.EndDate, returnDate,
-            HygieneViolation: inspection.CleaningRequired || inspection.CleaningFee > 0 || inspection.ConditionStatus == "DIRTY",
-            Overdue: overdueDays > 0, DamageFee: inspection.DamageFee, OverdueFee: overdueFee));
+            HygieneViolation: hygieneViolation,
+            Overdue: overdueDays > 0, DamageFee: effectiveDamageFee, OverdueFee: overdueFee));
 
         // D32: chỉ phần bù từ cọc là PAID; phần còn lại được miễn, không giữ công nợ.
         SettleFromDeposit(contract, "DAMAGE_FEE", result.DamageDeduction, now, actor.UserId);
         SettleFromDeposit(contract, "OVERDUE_FEE", result.OverdueDeduction, now, actor.UserId);
-        var cleaningBudget = inspection.CleaningRequired || inspection.CleaningFee > 0 || inspection.ConditionStatus == "DIRTY"
+        var cleaningBudget = hygieneViolation
             ? Math.Min(result.FixedDeduction, CleaningFeeFor(contract.DepositAmount)) : 0m;
         SettleFromDeposit(contract, "CLEANING_FEE", cleaningBudget, now, actor.UserId);
 
@@ -596,9 +635,10 @@ public partial class FacilityOpsService
         {
             var settled = Math.Min(p.Amount, budget);
             budget -= settled;
+            var refId = p.PaymentId != 0 ? p.PaymentId.ToString() : Guid.NewGuid().ToString("N")[..8];
             if (settled == p.Amount)
             {
-                p.Status = "PAID"; p.PaidAt = now; p.UpdatedAt = now; p.TransactionReference = $"DEPOSIT:{contract.ContractId}:{p.PaymentId}";
+                p.Status = "PAID"; p.PaidAt = now; p.UpdatedAt = now; p.TransactionReference = $"DEPOSIT:{contract.ContractId}:{refId}:{Guid.NewGuid():N}";
                 continue;
             }
             if (settled > 0)
@@ -607,13 +647,13 @@ public partial class FacilityOpsService
                 {
                     ContractId = p.ContractId, ReservationId = p.ReservationId, PaymentType = p.PaymentType,
                     Amount = settled, Currency = p.Currency, PaymentMethod = p.PaymentMethod,
-                    TransactionReference = $"DEPOSIT:{contract.ContractId}:{p.PaymentId}", DueDate = p.DueDate,
+                    TransactionReference = $"DEPOSIT:{contract.ContractId}:{refId}:{Guid.NewGuid():N}", DueDate = p.DueDate,
                     PaidAt = now, Status = "PAID", CreatedAt = now, UpdatedAt = now
                 });
                 p.Amount -= settled;
             }
             p.Status = "CANCELLED"; p.PaidAt = null; p.UpdatedAt = now;
-            p.TransactionReference = $"WAIVED:{contract.ContractId}:{p.PaymentId}";
+            p.TransactionReference = $"WAIVED:{contract.ContractId}:{refId}:{Guid.NewGuid():N}";
             Log(actorId, "RETURN_FEE_WAIVED", LogEntity.Contract, contract.ContractId,
                 new { paymentId = p.PaymentId, paymentType = p.PaymentType, waivedAmount = p.Amount });
         }

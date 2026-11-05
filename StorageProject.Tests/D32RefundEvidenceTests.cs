@@ -207,6 +207,10 @@ public sealed class D32RefundEvidenceTests
         Assert.Equal("Cửa cuốn", inspection.DamageItem);
         Assert.Equal(1, await f.Db.EvidencePhotos.CountAsync(p => p.OwnerType == EvidencePhotos.ReturnInspection && p.OwnerId == move.InspectionId));
 
+        // M02 / T23: Khách đồng ý khấu trừ hư hỏng trước khi chốt M07
+        await f.Ops.HandleCustomerDamageActionAsync(f.Customer.UserId,
+            new DamageCaseActionRequest("RESPOND_DAMAGE", $"HH-{move.InspectionId:0000}", 1, Choice: "AGREE"));
+
         // M07: chốt → chờ hoàn, chưa PAID; ô giữ MAINTENANCE
         var contractCode = $"HĐ-{c.StartDate.Year}-{c.ContractId:0000}";
         var settled = await f.Ops.ConfirmRefundAsync(f.ManagerActor, contractCode, "Đối chiếu đủ ảnh");
@@ -336,6 +340,8 @@ public sealed class D32RefundEvidenceTests
         Payment Fee(string type,decimal amount,string status="PENDING")=>new(){ContractId=c.ContractId,PaymentType=type,Amount=amount,PaymentMethod="CASH",Status=status,CreatedAt=DateTime.UtcNow,UpdatedAt=DateTime.UtcNow};
         var rent=Fee("RENT",1_000_000m,"PAID");var renewal=Fee("RENEWAL",500_000m);
         f.Db.Payments.AddRange(Fee("DAMAGE_FEE",1_500_000m),Fee("OVERDUE_FEE",3_000_000m,"FAILED"),Fee("CLEANING_FEE",1_000_000m),rent,renewal);await f.Db.SaveChangesAsync();
+        await f.Ops.HandleCustomerDamageActionAsync(f.Customer.UserId,
+            new DamageCaseActionRequest("RESPOND_DAMAGE", $"HH-{move.InspectionId:0000}", 1, Choice: "AGREE"));
         var result=await f.Ops.ConfirmRefundAsync(f.ManagerActor,$"HĐ-{c.StartDate.Year}-{c.ContractId:0000}");
         Assert.Equal("NO_REFUND",result.RefundStatus);Assert.Equal(0m,result.Refund);
         var fees=await f.Db.Payments.Where(p=>p.ContractId==c.ContractId&&(p.PaymentType=="DAMAGE_FEE"||p.PaymentType=="OVERDUE_FEE"||p.PaymentType=="CLEANING_FEE")).ToListAsync();

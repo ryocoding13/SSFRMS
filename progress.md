@@ -1,3 +1,44 @@
+## 2026-11-05 — Hoàn thành toàn diện 6 Task Quản lý cơ sở (Tiến: M01 -> M06) trên nhánh feature/tien-manager-fixes
+
+- **Nhiệm vụ:** Rà soát và giải quyết dứt điểm 6 việc thuộc Sheet `Manager` trong `SSFRMS-User-Mainflow-Issues-No-BusinessOps-2026-11-04.xlsx` (Tiến phụ trách) theo đúng trình tự nghiêm ngặt M01 -> M02 -> M03 -> M04 -> M05 -> M06, tuân thủ D32, D34 và AGENTS.md.
+- **Chi tiết kết quả 6 Task:**
+  1. **M01 (B06 — Duyệt gia hạn hợp đồng):**
+     - Đồng bộ điều kiện duyệt giữa `RenewalService` và `ManagerService` (ủy quyền cho `IRenewalService` chuẩn).
+     - Bổ sung lọc giá `RentalRates.Status == "ACTIVE"` để không lấy nhầm giá cũ.
+     - Sau khi lock hợp đồng bằng `CheckoutTransaction.BeginAsync`, gọi `ReloadAsync` và kiểm tra xung đột lịch đặt trước (`Reservations`).
+     - Tuân thủ D32/T02: Duyệt gia hạn chỉ tạo khoản `RENEWAL` `PENDING`, giữ nguyên `EndDate` (chỉ gia hạn khi đã thanh toán đủ).
+  2. **M02 (B10 — Quy trình phản hồi và tự khắc phục hư hỏng):**
+     - Tạo DTOs `DamageCaseDtos.cs` và phương thức service `FacilityOpsService.DamageCases.cs` hỗ trợ `GET /api/ops/damage-cases`, `POST /api/ops/damage-cases/actions`, `GET /api/damage-cases`, `POST /api/damage-cases/actions`.
+     - Xử lý 4 hành động: `RESPOND_DAMAGE` (khách đồng ý/đề xuất tự sửa), `DECIDE_DAMAGE_RESPONSE` (quản lý duyệt/từ chối), `REPORT_DAMAGE_REMEDIATION` (khách báo đã sửa kèm ảnh), `INSPECT_DAMAGE_REMEDIATION` (nhân viên/quản lý nghiệm thu PASS/FAIL).
+     - Thay thế cờ tĩnh `damageWorkflowResolved: true` trên Board bằng kiểm tra trạng thái thực tế.
+     - Chặn quyết toán hoàn cọc (`ConfirmRefundAsync`) khi hồ sơ hư hỏng chưa được xử lý xong; khi PASS tự động miễn trừ phí hư hỏng (`DamageFee = 0`).
+  3. **M03 (B02 / B10 / B14 — Quyết toán hoàn cọc an toàn):**
+     - Sửa lỗi đụng độ TransactionReference duy nhất trong `SettleFromDeposit`: gắn `:Guid.NewGuid():N` cho cả `DEPOSIT:` và `WAIVED:` transaction references.
+     - Siết chặt điều kiện vệ sinh D32: `hygieneViolation = inspection.CleaningRequired || inspection.ConditionStatus == "DIRTY"`.
+  4. **M04 (B09 / S05 — Worker quét quá hạn):**
+     - `OverdueProcessor.cs`: Thay thế 5% cứng bằng truy vấn động từ bảng `Policies` (`PolicyType = "OVERDUE"`, `CalculationType = "DEPOSIT_PERCENT_PER_DAY"` theo D32 / T09).
+     - Thay thế các ngưỡng ngày cứng 10, 14, 20 bằng `MinValue`/`MaxValue` của policy.
+     - Thêm phân tán giao dịch `CheckoutTransaction.BeginAsync` kèm `ReloadAsync` cho từng hợp đồng để tránh tranh chấp khi quét đồng thời.
+  5. **M05 (Backlog đối soát — Báo sai lệch & làm rõ):**
+     - Tạo DTOs `DiscrepancyDtos.cs` và triển khai `FacilityOpsService.Discrepancies.cs`.
+     - Cung cấp `GET /api/ops/discrepancies` và `POST /api/ops/discrepancies/actions` (`REPORT_DISCREPANCY` và `RESOLVE_DISCREPANCY`).
+     - Khi nhân viên báo sai lệch, trạng thái khoản thu trên Board chuyển sang `MISMATCH`.
+     - Khi quản lý làm rõ có kết luận (`note`), ghi nhận `PaymentMismatchResolved`, trả trạng thái thanh toán trên Board về `PENDING` để nhân viên tiếp tục xác nhận.
+     - Ngăn chặn xử lý lặp (`InvalidOperationException`) và phân quyền đúng (nhân viên báo, chỉ quản lý giải quyết).
+  6. **M06 (T13 / D34 — E2E Sự cố cơ sở):**
+     - Hoàn thiện xử lý change tracking trong `FacilityOpsService.Incidents.cs` (chỉ thêm entity vào DB sau khi vượt qua tất cả validation).
+     - Viết bộ test E2E toàn diện `FacilityIncidentE2ETests.cs` kiểm chứng:
+       + Luồng chuyển ô (TRANSFER): Chỉ chọn ô tương đương cùng loại/diện tích; giữ ô `RESERVED`; khách đồng ý; quản lý hoàn tất chuyển ô -> ô cũ `MAINTENANCE`, ô mới `OCCUPIED`, thu hồi mã cũ và cấp 2 mã mới (QR, PIN), không phụ phí, không đổi kỳ/giá; retry bị chặn (không sinh thừa mã).
+       + Luồng kết thúc (TERMINATE): Giải phóng ngay ô `RESERVED` về `AVAILABLE`; xác thực tài khoản chính chủ; tạo khoản hoàn 2 bước `REFUND` `PENDING` = tháng đang thuê + tháng chưa dùng + 100% cọc; xác nhận chuyển tiền -> `PAID`; retry bị chặn (không hoàn tiền 2 lần).
+- **Kiểm chứng toàn bộ:**
+  - Backend Build: `dotnet build StorageProject.slnx` -> **PASS (0 Errors)**.
+  - Backend Unit Tests: `dotnet test StorageProject.Tests/StorageProject.Tests.csproj` -> **162/162 PASS (100%)**.
+  - Backend Integration Tests: `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj` -> **11/11 PASS (100%)**.
+  - Frontend Unit & Workflow Tests: `npm test` -> **155/155 PASS (100%)**.
+  - Frontend Render Tests: `npm run test:render` -> **173/173 routes PASS (100%)**.
+  - Frontend Build: `npm run build` -> **PASS**.
+- **Quy tắc AGENTS.md:** AI tuân thủ Rule 12 — không commit, không push, không tạo PR, không merge. Bàn giao đầy đủ trên nhánh `feature/tien-manager-fixes`.
+
 ## 2026-11-02 — F40: chốt D35–D36 và sửa FE L6, L13, L14
 
 - DECISIONS: thêm mục D35–D36 (đại diện nhóm chốt 02/11): D35 nhân viên phải xem được ảnh khách gửi (L3); D36 BE không tự tạo lịch nhận chìa khóa, chỉ tạo khi khách yêu cầu (L10, thay phần tự tạo lịch của D26); L6 quản trị không tạo tài khoản khách; L13 trước ngày thuê không hiện QR/PIN; L14 hỗ trợ gắn kho chỉ khi hợp đồng đã bắt đầu và chưa kết thúc.

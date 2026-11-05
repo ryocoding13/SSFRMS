@@ -107,6 +107,7 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
         var activeRate = await dbContext.RentalRates
             .Where(r => r.FacilityId == contract.Unit.FacilityId 
                      && r.UnitTypeId == contract.Unit.UnitTypeId 
+                     && r.Status == "ACTIVE"
                      && r.EffectiveFrom <= today 
                      && (r.EffectiveTo == null || r.EffectiveTo >= today))
             .OrderByDescending(r => r.EffectiveFrom)
@@ -374,13 +375,32 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
 
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract:{contract.ContractId}", ct);
 
+        // Recheck status after lock
+        await dbContext.Entry(renewal).ReloadAsync(ct);
+        if (renewal.Status != "PENDING")
+        {
+            throw new InvalidOperationException("Yêu cầu này đã được xử lý.");
+        }
+
+        // Kiểm tra lịch trùng: Kho này có giữ chỗ cho khách khác trong khoảng [OldEndDate, NewEndDate)?
+        var hasConflict = await dbContext.Reservations
+            .AnyAsync(res => res.UnitAssignments.Any(ua => ua.UnitId == contract.UnitId && ua.Status == "ASSIGNED")
+                          && (res.Status == "CONFIRMED" || res.Status == "UNIT_ASSIGNED")
+                          && res.StartDate < renewal.NewEndDate
+                          && res.ExpectedEndDate > renewal.OldEndDate, ct);
+        if (hasConflict)
+        {
+            throw new InvalidOperationException("Kho này đã có lịch giữ chỗ của khách hàng khác trong kỳ gia hạn.");
+        }
+
         var now = DateTime.UtcNow;
         var vnToday = DateOnly.FromDateTime(now.AddHours(7));
 
-        // Re-check rate at approval time
+        // Re-check rate at approval time (D16: bắt buộc Status == ACTIVE)
         var activeRate = await dbContext.RentalRates
             .Where(r => r.FacilityId == contract.Unit.FacilityId
                      && r.UnitTypeId == contract.Unit.UnitTypeId
+                     && r.Status == "ACTIVE"
                      && r.EffectiveFrom <= vnToday
                      && (r.EffectiveTo == null || r.EffectiveTo >= vnToday))
             .OrderByDescending(r => r.EffectiveFrom)
@@ -397,6 +417,11 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
         if (contractExpiryUtc < deadline)
         {
             deadline = contractExpiryUtc;
+        }
+
+        if (deadline <= now)
+        {
+            throw new InvalidOperationException("Hợp đồng đã quá hạn để gia hạn.");
         }
 
         renewal.PaymentDeadlineAt = deadline;

@@ -50,4 +50,14 @@ public interface IFacilityOpsService
     // T12 · Hồ sơ quá hạn ngày 20 và biên bản xử lý đồ (D32)
     Task<IReadOnlyList<OverdueCaseDto>> GetOverdueCasesAsync(OpsActor actor, CancellationToken ct = default);
     Task<OverdueCaseDto> HandleOverdueCaseActionAsync(OpsActor actor, OverdueCaseActionRequest request, CancellationToken ct = default);
+
+    // M02 · Luồng phản hồi & tự khắc phục hư hỏng (B10 / D32 / D34)
+    Task<DamageCaseListDto> GetDamageCasesAsync(OpsActor actor, CancellationToken ct = default);
+    Task<DamageCaseListDto> GetCustomerDamageCasesAsync(long customerId, CancellationToken ct = default);
+    Task<DamageCaseReceiptDto> HandleDamageActionAsync(OpsActor actor, DamageCaseActionRequest request, CancellationToken ct = default);
+    Task<DamageCaseReceiptDto> HandleCustomerDamageActionAsync(long customerId, DamageCaseActionRequest request, CancellationToken ct = default);
+
+    // M05 · Quản lý đối soát sai lệch (Backlog đối soát)
+    Task<IReadOnlyList<DiscrepancyDto>> GetDiscrepanciesAsync(OpsActor actor, CancellationToken ct = default);
+    Task<DiscrepancyDto> HandleDiscrepancyActionAsync(OpsActor actor, DiscrepancyActionRequest request, CancellationToken ct = default);
 }

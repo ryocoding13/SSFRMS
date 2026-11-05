@@ -144,6 +144,7 @@ public partial class FacilityOpsService(AppDbContext dbContext) : IFacilityOpsSe
         public const string RenewalRejected = "RENEWAL_REJECTED";
         public const string OverdueReminder = "OVERDUE_REMINDER";
         public const string DepositRefunded = "DEPOSIT_REFUNDED";
+        public const string PaymentMismatchResolved = "PAYMENT_MISMATCH_RESOLVED";
     }
 
     private static class LogEntity
@@ -154,6 +155,7 @@ public partial class FacilityOpsService(AppDbContext dbContext) : IFacilityOpsSe
         public const string Ticket = "SUPPORT_TICKET";
         public const string Renewal = "CONTRACT_RENEWAL";
         public const string Contract = "RENTAL_CONTRACT";
+        public const string Discrepancy = "DISCREPANCY";
     }
 
     private void Log(long userId, string action, string entityType, long entityId, object value) =>

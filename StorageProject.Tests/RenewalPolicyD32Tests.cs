@@ -55,7 +55,7 @@ public sealed class RenewalPolicyD32Tests
         public RentalContract Contract = null!;
 
         public RenewalService RenewalSvc => new(Db, Gateway);
-        public ManagerService ManagerSvc => new(Db, new StaffService(Db));
+        public ManagerService ManagerSvc => new(Db, new StaffService(Db), RenewalSvc);
         public RentalPolicyService PolicySvc => new(Db);
         public PayOSService PayOSSvc => new(Db, Gateway, Microsoft.Extensions.Logging.Abstractions.NullLogger<PayOSService>.Instance);
 
@@ -479,6 +479,40 @@ public sealed class RenewalPolicyD32Tests
         Assert.Equal("FAILED", payment.Status);
 
         // Contract EndDate remains unchanged
+        var contract = await f.Db.RentalContracts.FindAsync(f.Contract.ContractId);
+        Assert.Equal(f.Contract.EndDate, contract!.EndDate);
+    }
+
+    [Fact]
+    public async Task ApproveRenewal_IgnoresInactiveRate_AndChecksConflict_M01_B06()
+    {
+        await using var f = await Fixture.CreateAsync();
+
+        // Add an INACTIVE rate with higher price
+        f.Db.RentalRates.Add(new RentalRate
+        {
+            FacilityId = f.Facility.FacilityId,
+            UnitTypeId = f.Unit.UnitTypeId,
+            SetBy = f.ManagerUser.UserId,
+            MonthlyRate = 9_999_999m,
+            EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10)),
+            EffectiveTo = null,
+            Status = "INACTIVE"
+        });
+        await f.Db.SaveChangesAsync();
+
+        var request = new CreateRenewalRequest(RenewalPeriodMonths: 1, PolicyVersion: 1, Accepted: true);
+        var renewalDto = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, request);
+
+        // Approve via ManagerSvc
+        await f.ManagerSvc.ApproveRenewalAsync(f.ManagerUser.UserId, renewalDto.RenewalId.ToString());
+
+        var approved = await f.Db.ContractRenewals.FindAsync(renewalDto.RenewalId);
+        Assert.NotNull(approved);
+        Assert.Equal("APPROVED", approved.Status);
+        Assert.NotEqual(9_999_999m, approved.NewMonthlyRate); // D16: INACTIVE rate must be ignored!
+
+        // Contract EndDate remains OldEndDate upon approval (D32)
         var contract = await f.Db.RentalContracts.FindAsync(f.Contract.ContractId);
         Assert.Equal(f.Contract.EndDate, contract!.EndDate);
     }

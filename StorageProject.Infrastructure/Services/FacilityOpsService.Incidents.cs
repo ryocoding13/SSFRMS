@@ -92,7 +92,8 @@ public partial class FacilityOpsService
         var now = NowUtc;
         var incident = await IncidentQuery().AsSplitQuery()
             .FirstOrDefaultAsync(i => i.CaseCode == request.Id && i.FacilityId == facility.FacilityId, ct);
-        if (incident == null)
+        var isNew = incident == null;
+        if (isNew)
         {
             var contract = await dbContext.RentalContracts
                                .Include(c => c.Customer)
@@ -111,14 +112,13 @@ public partial class FacilityOpsService
                 Status = "DRAFT", Version = 1, CreatedBy = actor.UserId, CreatedAt = now, UpdatedAt = now,
                 Contract = contract, OldUnit = contract.Unit
             };
-            dbContext.FacilityIncidents.Add(incident);
         }
         else
         {
-            if (request.ExpectedVersion != incident.Version) throw new OpsConflictException("Hồ sơ đã thay đổi. Tải lại trước khi gửi tiếp.");
+            if (request.ExpectedVersion != incident!.Version) throw new OpsConflictException("Hồ sơ đã thay đổi. Tải lại trước khi gửi tiếp.");
             if (incident.Status != "DRAFT") throw new InvalidOperationException("Phương án đã gửi; không sửa lựa chọn khách đã nhận.");
         }
-        RequireIncidentContract(incident.Contract);
+        RequireIncidentContract(incident!.Contract);
 
         StorageUnit? target = null;
         if (proposal == "TRANSFER")
@@ -144,6 +144,10 @@ public partial class FacilityOpsService
         }
         incident.Version += 1;
         incident.UpdatedAt = now;
+        if (isNew)
+        {
+            dbContext.FacilityIncidents.Add(incident);
+        }
         await dbContext.SaveChangesAsync(ct);
 
         var existing = await dbContext.EvidencePhotos.AsNoTracking()

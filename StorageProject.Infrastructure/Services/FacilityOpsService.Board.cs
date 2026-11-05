@@ -120,7 +120,7 @@ public partial class FacilityOpsService
         foreach (var r in reservations)
         {
             var reported = Last(reservationLogs, r.ReservationId, LogAction.TransferReported);
-            var decision = Last(reservationLogs, r.ReservationId, LogAction.PaymentConfirmed, LogAction.PaymentMismatch);
+            var decision = Last(reservationLogs, r.ReservationId, LogAction.PaymentConfirmed, LogAction.PaymentMismatch, LogAction.PaymentMismatchResolved);
             string status;
             if (r.Status is "PENDING_AT_FACILITY" or "PENDING_VERIFICATION")
             {
@@ -182,6 +182,11 @@ public partial class FacilityOpsService
         var inspectionIds = inspections.Select(x => x.Inspection.InspectionId).ToList();
         var inspectionPhotos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.ReturnInspection, inspectionIds, ct);
         var moveOutPhotos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.MoveOut, inspectionIds, ct);
+        var damageLogs = await dbContext.ActivityLogs
+            .AsNoTracking()
+            .Where(l => l.EntityType == "DAMAGE_CASE" && l.EntityId != null && inspectionIds.Contains(l.EntityId.Value))
+            .OrderBy(l => l.LoggedAt)
+            .ToListAsync(ct);
         var overdueAtRequest = new Dictionary<long, decimal>();
         foreach (var (c, i) in inspections)
         {
@@ -197,9 +202,17 @@ public partial class FacilityOpsService
                 Read(submitted, "items") ?? "", Read(submitted, "walls") ?? "", Read(submitted, "keys") ?? "", Read(submitted, "proposal") ?? "",
                 i.DamageFee, i.CleaningFee, i.CleaningRequired, i.DamageItem ?? "", i.FeeReason ?? "", overdueFee,
                 PhotosOf(inspectionPhotos, i.InspectionId));
+
+            bool damageWorkflowResolved = true;
+            if (i.DamageFee > 0)
+            {
+                var state = ExtractDamageWorkflowState(damageLogs, i.InspectionId);
+                damageWorkflowResolved = state.Status is "CUSTOMER_ACCEPTED" or "REJECTED" or "REMEDIATED" or "REMEDIATION_FAILED";
+            }
+
             return new OpsReturnDto(ReturnCode(i.InspectionId), ContractCode(c), c.Unit.UnitNumber, c.Customer.FullName,
                 LocalOrDate(i.ScheduledAt, c.EndDate), c.DepositAmount, Unpaid(c), i.Status == "COMPLETED" ? "SUBMITTED" : "SCHEDULED",
-                report, Local(i.InspectedAt), Utc(i.CreatedAt), overdueFee, DamageWorkflowResolved: true,
+                report, Local(i.InspectedAt), Utc(i.CreatedAt), overdueFee, DamageWorkflowResolved: damageWorkflowResolved,
                 MoveOutPhotos: PhotosOf(moveOutPhotos, i.InspectionId));
         }).ToList();
 

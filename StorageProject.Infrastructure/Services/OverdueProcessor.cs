@@ -1,17 +1,19 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using StorageProject.Core.Entities;
+using StorageProject.Core.Policies;
 using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
 /// <summary>
-/// T11 · Xử lý tự động hợp đồng quá hạn hàng ngày (D32):
+/// T11 · Xử lý tự động hợp đồng quá hạn hàng ngày (D32 / B02 / B09):
 /// 1. Cập nhật hợp đồng sắp hết hạn (EXPIRING: trong vòng 30 ngày trước EndDate).
 /// 2. Chuyển hợp đồng đã quá hạn sang OVERDUE khi qua ngày EndDate.
-/// 3. Tính phí quá hạn 5% cọc ban đầu mỗi ngày trễ, tối đa 100% cọc.
+/// 3. Tính phí quá hạn theo chính sách OVERDUE (B02: DEPOSIT_PERCENT_PER_DAY), tối đa 100% cọc.
 /// 4. Dừng tăng phí khi khách đã gửi yêu cầu trả kho (RETURN_PENDING).
 /// 5. Tạo và cập nhật OverdueCase với các mốc: nhắc khách (ngày 10–14), xử lý đồ (ngày 20).
+/// 6. Đồng thời bảo vệ tính toàn vẹn với CheckoutTransaction khóa theo từng hợp đồng.
 /// </summary>
 public static class OverdueProcessor
 {
@@ -29,11 +31,19 @@ public static class OverdueProcessor
 
         foreach (var c in expiringContracts)
         {
-            c.Status = "EXPIRING";
+            await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract:{c.ContractId}", ct);
+            await dbContext.Entry(c).ReloadAsync(ct);
+            if (c.Status == "ACTIVE" && c.EndDate >= today && c.EndDate <= today.AddDays(30))
+            {
+                c.Status = "EXPIRING";
+                await dbContext.SaveChangesAsync(ct);
+            }
+            await tx.CommitAsync(ct);
         }
 
         // 2. Quét hợp đồng quá hạn (EndDate < today) chưa kết thúc
         var overdueContracts = await dbContext.RentalContracts
+            .Include(c => c.Unit)
             .Include(c => c.OverdueCases)
             .Include(c => c.ReturnInspections)
             .Where(c => c.EndDate < today
@@ -44,6 +54,14 @@ public static class OverdueProcessor
 
         foreach (var contract in overdueContracts)
         {
+            await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract:{contract.ContractId}", ct);
+            await dbContext.Entry(contract).ReloadAsync(ct);
+            if (contract.Status is "COMPLETED" or "TERMINATED" or "CANCELLED")
+            {
+                await tx.CommitAsync(ct);
+                continue;
+            }
+
             // Chuyển sang OVERDUE nếu chưa trả kho
             if (contract.Status is "ACTIVE" or "EXPIRING")
             {
@@ -65,11 +83,40 @@ public static class OverdueProcessor
             }
 
             var overdueDays = Math.Max(0, calculationDate.DayNumber - contract.EndDate.DayNumber);
-            if (overdueDays <= 0) continue;
+            if (overdueDays <= 0)
+            {
+                await dbContext.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                continue;
+            }
 
-            // Mỗi ngày trễ trừ 5% cọc ban đầu, tối đa 100% cọc
-            var rawFee = Math.Round(contract.DepositAmount * 0.05m * overdueDays, 0, MidpointRounding.AwayFromZero);
-            var overdueFee = Math.Min(contract.DepositAmount, rawFee);
+            // M04: Đọc chính sách OVERDUE áp dụng cho cơ sở / toàn hệ thống thay vì hardcode 0.05m
+            var policy = await dbContext.Policies
+                .AsNoTracking()
+                .Where(p => p.PolicyType == "OVERDUE" && p.Status == "ACTIVE"
+                    && p.EffectiveFrom <= today
+                    && (p.EffectiveTo == null || p.EffectiveTo >= today)
+                    && (p.FacilityId == null || (contract.Unit != null && p.FacilityId == contract.Unit.FacilityId)))
+                .OrderByDescending(p => p.FacilityId)
+                .ThenByDescending(p => p.EffectiveFrom)
+                .FirstOrDefaultAsync(ct);
+
+            decimal overdueFee;
+            if (policy != null && policy.Value.HasValue)
+            {
+                overdueFee = RefundPolicy.OverdueFeeFor(policy.CalculationType, policy.Value, contract.DepositAmount, overdueDays, maxCap: contract.DepositAmount);
+            }
+            else
+            {
+                // Mặc định D32: 5% cọc ban đầu mỗi ngày trễ, tối đa 100% cọc
+                var rawFee = Math.Round(contract.DepositAmount * 0.05m * overdueDays, 0, MidpointRounding.AwayFromZero);
+                overdueFee = Math.Min(contract.DepositAmount, rawFee);
+            }
+
+            // Ngưỡng mốc: mặc định ngày 20 xử lý đồ, ngày 10-14 nhắc khách
+            int removalDay = (policy?.MaxValue.HasValue == true && policy.MaxValue.Value > 0) ? (int)policy.MaxValue.Value : 20;
+            int reminderDayStart = (policy?.MinValue.HasValue == true && policy.MinValue.Value > 0) ? (int)policy.MinValue.Value : 10;
+            int reminderDayEnd = 14;
 
             // Tìm hồ sơ quá hạn đang mở
             var activeCase = contract.OverdueCases
@@ -81,14 +128,14 @@ public static class OverdueProcessor
                 {
                     ContractId = contract.ContractId,
                     OverdueFrom = contract.EndDate.AddDays(1),
-                    GraceDeadline = contract.EndDate.AddDays(14),
+                    GraceDeadline = contract.EndDate.AddDays(reminderDayEnd),
                     OutstandingAmount = overdueFee,
-                    Status = overdueDays >= 20 ? "ESCALATED" : "OPEN",
+                    Status = overdueDays >= removalDay ? "ESCALATED" : "OPEN",
                     OpenedAt = nowUtc,
-                    Notes = overdueDays >= 20
-                        ? $"Quá hạn ngày thứ {overdueDays}. Đạt mốc ngày 20 xử lý đồ. Phí quá hạn tối đa: {overdueFee:N0} đ."
-                        : overdueDays >= 10
-                            ? $"Quá hạn ngày thứ {overdueDays}. Mốc nhắc khách ngày 10–14. Phí quá hạn: {overdueFee:N0} đ."
+                    Notes = overdueDays >= removalDay
+                        ? $"Quá hạn ngày thứ {overdueDays}. Đạt mốc ngày {removalDay} xử lý đồ. Phí quá hạn tối đa: {overdueFee:N0} đ."
+                        : overdueDays >= reminderDayStart
+                            ? $"Quá hạn ngày thứ {overdueDays}. Mốc nhắc khách ngày {reminderDayStart}–{reminderDayEnd}. Phí quá hạn: {overdueFee:N0} đ."
                             : $"Quá hạn ngày thứ {overdueDays}. Phí quá hạn: {overdueFee:N0} đ."
                 };
 
@@ -113,13 +160,13 @@ public static class OverdueProcessor
                 // Cập nhật phí quá hạn lũy kế
                 activeCase.OutstandingAmount = overdueFee;
 
-                // Mốc ngày 20: Tự động chuyển sang ESCALATED để chuẩn bị di dời đồ
-                if (overdueDays >= 20 && activeCase.Status != "ESCALATED" && activeCase.Status != "RESOLVED")
+                // Mốc xử lý đồ (mặc định ngày 20): Tự động chuyển sang ESCALATED để chuẩn bị di dời đồ
+                if (overdueDays >= removalDay && activeCase.Status != "ESCALATED" && activeCase.Status != "RESOLVED")
                 {
                     activeCase.Status = "ESCALATED";
                     activeCase.Notes = string.IsNullOrWhiteSpace(activeCase.Notes)
-                        ? $"Quá hạn ngày thứ {overdueDays}. Đạt mốc ngày 20 cần xử lý đồ. Phí phạt tối đa {overdueFee:N0} đ."
-                        : $"{activeCase.Notes}\n[Mốc ngày 20]: Đã đạt mốc 20 ngày xử lý đồ. Phí phạt tối đa {overdueFee:N0} đ.";
+                        ? $"Quá hạn ngày thứ {overdueDays}. Đạt mốc ngày {removalDay} cần xử lý đồ. Phí phạt tối đa {overdueFee:N0} đ."
+                        : $"{activeCase.Notes}\n[Mốc ngày {removalDay}]: Đã đạt mốc {removalDay} ngày xử lý đồ. Phí phạt tối đa {overdueFee:N0} đ.";
 
                     dbContext.ActivityLogs.Add(new ActivityLog
                     {
@@ -131,19 +178,21 @@ public static class OverdueProcessor
                             contractId = contract.ContractId,
                             overdueDays,
                             overdueFee,
-                            reason = "REMOVAL_DAY_20"
+                            reason = $"REMOVAL_DAY_{removalDay}"
                         }),
                         LoggedAt = nowUtc
                     });
                 }
-                else if (overdueDays >= 10 && overdueDays <= 14 && activeCase.Notes != null && !activeCase.Notes.Contains("Mốc nhắc"))
+                else if (overdueDays >= reminderDayStart && overdueDays <= reminderDayEnd && activeCase.Notes != null && !activeCase.Notes.Contains("Mốc nhắc"))
                 {
-                    activeCase.Notes = $"{activeCase.Notes}\n[Mốc nhắc ngày 10–14]: Cần liên hệ nhắc khách hàng.";
+                    activeCase.Notes = $"{activeCase.Notes}\n[Mốc nhắc ngày {reminderDayStart}–{reminderDayEnd}]: Cần liên hệ nhắc khách hàng.";
                 }
             }
+
+            await dbContext.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
         }
 
-        await dbContext.SaveChangesAsync(ct);
         logger?.LogInformation("Hoàn tất quét hợp đồng quá hạn ngày {Today}: {Count} hợp đồng đã xử lý.", today, overdueContracts.Count);
     }
 }
