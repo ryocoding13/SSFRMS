@@ -77,6 +77,8 @@ export function policyValueLabel(p, unit = "") {
   const v = p.value === null || p.value === undefined ? null : Number(p.value);
   const tail = unit ? ` ${unit}` : "";
   switch (p.calculationType) {
+    case "DEPOSIT_PERCENT_PER_DAY":
+      return v === null ? "—" : `${comma(v, Number.isInteger(v) ? 0 : 1)}% cọc${tail}`;
     case "PERCENTAGE":
       return v === null ? "—" : `${comma(v, Number.isInteger(v) ? 0 : 1)}%`;
     case "RANGE":

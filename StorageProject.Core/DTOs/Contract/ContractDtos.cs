@@ -37,7 +37,9 @@ public record ContractDetailDto(
     HandoverSummaryDto? Handover,
     IReadOnlyList<PaymentDto> Payments,
     IReadOnlyList<RenewalDto> Renewals,
-    DateTime? AccessUpdatedAt = null
+    DateTime? AccessUpdatedAt = null,
+    int? PolicyVersion = null,
+    DateTime? PolicyAcceptedAt = null
 );
 
 public record HandoverSummaryDto(

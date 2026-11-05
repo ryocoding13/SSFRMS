@@ -71,6 +71,12 @@ public static class ContractProvisioning
         }
         foreach (var payment in await db.Payments.Where(p => p.ReservationId == reservation.ReservationId).ToListAsync(ct))
             payment.Contract = contract;
+
+        // BO07: Liên kết các bằng chứng PolicyConsent từ đơn sang hợp đồng được cấp
+        var consents = await db.PolicyConsents
+            .Where(c => c.ReservationId == reservation.ReservationId && c.ContractId == null)
+            .ToListAsync(ct);
+        foreach (var c in consents) c.Contract = contract;
         reservation.Status = "UNIT_ASSIGNED";
         if (changed) ReservationSettlement.Audit(db, actor, "CONTRACT_AUTO_ISSUED", reservation.ReservationId,
             new { unit = contract.Unit.UnitNumber, system = true, access = "QR_PIN6", physicalKey = "AT_COUNTER" });

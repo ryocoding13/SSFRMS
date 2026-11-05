@@ -44,7 +44,8 @@ function EditFacilityDialog({ facility, onClose, onSaved, runChange }) {
       successTitle: creating ? `Đã thêm cơ sở ${body.name}` : "Đã lưu thông tin cơ sở",
       successText: creating ? "Cơ sở chưa có bảng giá, ô kho và nhân sự nên khách chưa đặt được." : "Bản đồ Tìm kho dùng vị trí mới ngay.",
       perform: async () => {
-        const res=await checkedFacilityWrite(businessApi,()=>creating?businessApi.createFacility(body):businessApi.updateFacility(facility.facilityId,body),body,facility?.facilityId);
+        const payload = creating ? { ...body, operationId: form.operationId || (form.operationId = crypto.randomUUID()) } : body;
+        const res = await checkedFacilityWrite(businessApi, () => creating ? businessApi.createFacility(payload) : businessApi.updateFacility(facility.facilityId, body), body, facility?.facilityId);
         warnings = res?.warnings || [];
         return res;
       },

@@ -339,6 +339,15 @@ public class StaffService(AppDbContext dbContext) : IStaffService
         if (found.PaidAt != null) { await tx.CommitAsync(ct); return; }
         if (found.Status != "PENDING_AT_FACILITY" || found.ExpiresAt <= DateTime.UtcNow)
             throw new InvalidOperationException("Đơn không còn chờ thu tại kho hoặc đã hết hạn.");
+
+        // BO07: Nhân viên không tự đồng ý thay khách khi thu tiền mặt; bắt buộc có consent từ phía khách
+        var hasReservationConsent = await dbContext.PolicyConsents
+            .AnyAsync(c => c.ReservationId == found.ReservationId && c.CustomerId == found.CustomerId, ct);
+        if (!hasReservationConsent)
+        {
+            throw new InvalidOperationException("Khách hàng chưa hoàn tất chấp thuận chính sách cho thuê cho đơn đặt chỗ này. Nhân viên không được thu tiền khi chưa có xác nhận từ khách.");
+        }
+
         await ReservationSettlement.RecordAsync(dbContext, found, "CASH", $"CASH:{found.ReservationId}", userId, ct);
         await dbContext.SaveChangesAsync(ct);
         await ContractProvisioning.EnsureAsync(dbContext, found, userId, ct);

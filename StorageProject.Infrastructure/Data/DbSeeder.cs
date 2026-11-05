@@ -58,6 +58,7 @@ public static partial class DbSeeder
         var creatorId = admin?.UserId ?? 1;
         await EnsureCatalogAsync(context, creatorId);
         await EnsurePoliciesAsync(context, creatorId);
+        await EnsureRentalPolicyVersionsAsync(context, creatorId);
         await FacilityCoordinateSeeder.SeedAsync(context);
     }
 
@@ -343,9 +344,9 @@ public static partial class DbSeeder
                 {
                     PolicyName = "Tiền đặt cọc tiêu chuẩn",
                     PolicyType = "DEPOSIT",
-                    CalculationType = "PERCENTAGE",
-                    Value = 100.0m, // 100% của 1 tháng tiền thuê
-                    RuleDescription = "Khách hàng phải thanh toán tiền cọc tương đương 1 tháng tiền thuê khi ký hợp đồng",
+                    CalculationType = "FIXED",
+                    Value = 1.0m, // 1 tháng tiền thuê (D09, D32)
+                    RuleDescription = "Khách hàng phải thanh toán tiền cọc tương đương 1 tháng tiền thuê khi ký hợp đồng (D09, D32)",
                     EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
                     Status = "ACTIVE",
                     CreatedAt = DateTime.UtcNow,

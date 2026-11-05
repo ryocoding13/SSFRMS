@@ -3,7 +3,7 @@ export const POLICY_SECTIONS = [
   {title:'Đặt cọc',fields:[{key:'deposit',label:'Mức đặt cọc mặc định',type:'DEPOSIT',numeric:true},{key:'refund',label:'Hoàn cọc trong vòng',type:'RETURN'}]},
   {title:'Gia hạn',fields:[{key:'reminder',label:'Thông báo trước khi hết hạn',type:'RENEWAL',numeric:true},{key:'renewals',label:'Số lần gia hạn tối đa',type:'RENEWAL'}]},
   {title:'Huỷ đặt chỗ & Trả kho',fields:[{key:'cancel',label:'Phí huỷ trước ngày nhận kho',type:'CANCELLATION'},{key:'inspection',label:'Thời gian kiểm tra sau khi trả kho',type:'RETURN'}]},
-  {title:'Xử lý quá hạn',fields:[{key:'grace',label:'Số ngày ân hạn trước khi khoá quyền truy cập',type:'OVERDUE'},{key:'overdue',label:'Phí phạt quá hạn / ngày',type:'OVERDUE',numeric:true}]},
+  {title:'Xử lý quá hạn',fields:[{key:'grace',label:'Mốc xử lý quá hạn (D32: nhắc ngày 10–14, xử lý đồ ngày 20; không ân hạn truy cập)',type:'OVERDUE'},{key:'overdue',label:'Phí phạt quá hạn / ngày',type:'OVERDUE',numeric:true}]},
 ];
 export const policyFields = POLICY_SECTIONS.flatMap(s=>s.fields);
 export function fieldPolicy(policies,field,day){
@@ -25,8 +25,9 @@ export function fieldValue(p,field){
 function numericValue(p,field,text){
   const raw=text.replace(/tháng tiền thuê|(?:\/\s*)?ngày|[đ₫%]/g,'').trim();
   if(!/^[\d.,\s]+$/.test(raw))throw new Error(`${field.label}: nhập một mức cụ thể, ví dụ 500.000đ hoặc 1 tháng tiền thuê.`);
-  const n=(field.key==='deposit' && /tháng/.test(text) || p?.calculationType==='PERCENTAGE')?Number(raw.replace(',','.')):parseMoney(raw);
-  if(!Number.isFinite(n)||n<0||p?.calculationType==='PERCENTAGE'&&n>100)throw new Error(`${field.label}: giá trị không hợp lệ.`);
+  const isPercent=p?.calculationType==='PERCENTAGE' || p?.calculationType==='DEPOSIT_PERCENT_PER_DAY';
+  const n=(field.key==='deposit' && /tháng/.test(text) || isPercent)?Number(raw.replace(',','.')):parseMoney(raw);
+  if(!Number.isFinite(n)||n<0||isPercent&&n>100)throw new Error(`${field.label}: giá trị không hợp lệ.`);
   return n;
 }
 // One job per policy TYPE/scope, matching the API's conflict rule. Extra guidance

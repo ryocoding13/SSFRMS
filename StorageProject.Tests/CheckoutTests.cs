@@ -60,7 +60,11 @@ public sealed class CheckoutTests
                 StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)), ExpectedEndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(3)),
                 RentalPeriodMonths = 3, EstimatedAmount = 3000000, RequiredDeposit = 1000000, QuotedMonthlyRate = 1000000,
                 Status = "PENDING_PAYMENT", OrderCode = 12345, ExpiresAt = DateTime.UtcNow.AddMinutes(15), CreatedAt = DateTime.UtcNow };
-            f.Db.Reservations.Add(f.Order); await f.Db.SaveChangesAsync(); return f;
+            f.Db.Reservations.Add(f.Order); await f.Db.SaveChangesAsync();
+            var policyVer = new RentalPolicyVersion { Version = 1, DisplayVersion = "11/2026", Rate = 5m, SectionsJson = "{}", PublishedBy = user.UserId, PublishedAt = DateTime.UtcNow, IsCurrent = true };
+            f.Db.RentalPolicyVersions.Add(policyVer); await f.Db.SaveChangesAsync();
+            f.Db.PolicyConsents.Add(new PolicyConsent { CustomerId = customer.UserId, PolicyVersionId = policyVer.PolicyVersionId, ReservationId = f.Order.ReservationId, AcceptedAt = DateTime.UtcNow });
+            await f.Db.SaveChangesAsync(); return f;
         }
         public async ValueTask DisposeAsync() { await Db.DisposeAsync(); await Connection.DisposeAsync(); }
     }

@@ -32,7 +32,7 @@ export function FacilityRatePage({ query }) {
     guard.current = true; setBusy(true); setError(""); setEdit(null);
     try {
       const out = await runChange({ action: "Lưu giá thuê", scope: `${facility.name} · ${draft.type.typeName}`, content: `${money(parseMoney(draft.monthlyRate))} / tháng · từ ${draft.effectiveFrom}`,
-        perform: async () => { await businessApi.setRate({ facilityId: Number(facilityId), unitTypeId: draft.type.unitTypeId, monthlyRate: parseMoney(draft.monthlyRate), effectiveFrom: draft.effectiveFrom }); return true; } });
+        perform: async () => { await businessApi.setRate({ facilityId: Number(facilityId), unitTypeId: draft.type.unitTypeId, monthlyRate: parseMoney(draft.monthlyRate), effectiveFrom: draft.effectiveFrom, expectedRevisionToken: draft.expectedRevisionToken || null }); return true; } });
       if (out.ok) await load.reload();
       else { setEdit(draft); if (out.error) { setError(out.error.message); onApiError(out.error); } }
     } finally { guard.current = false; setBusy(false); }
@@ -51,7 +51,7 @@ export function FacilityRatePage({ query }) {
           <img className="facility-pricing__unit-image" src={`${import.meta.env.BASE_URL}images/pricing/${slot.file}`} alt={`${slot.title} ${slot.cold ? "lạnh" : "thường"} ${slot.area} m²`} width="180" height="228" />
           <div className="facility-pricing__rate-content"><Tag tone="blue">{slot.cold ? "Kho lạnh" : "Kho thường"}</Tag><h2>{slot.title}</h2><p className="muted">Diện tích {slot.area} m²</p>
             <strong className="facility-pricing__price">{rate ? money(rate.monthlyRate) : "Chưa có mức giá"}</strong>
-            <div className="facility-pricing__rate-bottom"><span className="muted">/ tháng</span><Button variant="outline" disabled={busy || !type} onClick={() => { setError(""); setEdit({ type, monthlyRate: rate ? String(rate.monthlyRate) : "", effectiveFrom: today() }); }}>{rate ? "Sửa giá" : "Thêm giá"}</Button></div>
+            <div className="facility-pricing__rate-bottom"><span className="muted">/ tháng</span><Button variant="outline" disabled={busy || !type} onClick={() => { setError(""); setEdit({ type, monthlyRate: rate ? String(rate.monthlyRate) : "", effectiveFrom: today(), expectedRevisionToken: rate?.revisionToken || null }); }}>{rate ? "Sửa giá" : "Thêm giá"}</Button></div>
             {!type && <small className="muted">Chưa có loại kho này trong danh mục.</small>}
           </div>
         </article>;
@@ -65,4 +65,5 @@ export function FacilityRatePage({ query }) {
       </form></Modal>}
     </>}</LoadState>{flow}
   </main>;
+
 }

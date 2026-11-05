@@ -54,65 +54,181 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
         var status = NormalizeFacilityStatus(request.Status) ?? "ACTIVE";
         var now = DateTime.UtcNow;
 
-        var facility = new Facility
+        var requestHash = OpsRules.ComputeFacilityRequestHash(request);
+
+        // BO14: Idempotency theo OperationId
+        if (!string.IsNullOrWhiteSpace(request.OperationId))
         {
-            Name = input.Name,
-            Address = input.Address,
-            ContactPhone = input.Phone,
-            OpeningTime = input.Opening,
-            ClosingTime = input.Closing,
-            Latitude = input.Latitude,
-            Longitude = input.Longitude,
-            Status = status,
-            CreatedAt = now,
-            UpdatedAt = now
-        };
+            var opKey = request.OperationId.Trim();
+            if (opKey.Length > 100) opKey = opKey[..100];
 
-        dbContext.Facilities.Add(facility);
-        await dbContext.SaveChangesAsync(ct);
+            await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"facility_create:{opKey}", ct);
 
-        Log(userId, "FACILITY_CREATE", "FACILITY", facility.FacilityId, null, FacilitySnapshot(facility));
-        await dbContext.SaveChangesAsync(ct);
+            var existingReceipt = await dbContext.ActivityLogs.AsNoTracking()
+                .FirstOrDefaultAsync(l => l.EntityType == "IDEMPOTENCY_FACILITY_CREATE" && l.Action == opKey, ct);
 
-        var warnings = await FacilityWarningsAsync(facility, ct);
-        return new FacilitySaveResult((await ToFacilityDtosAsync([facility], ct))[0], warnings);
+            if (existingReceipt != null)
+            {
+                string? storedHash = null;
+                try
+                {
+                    using var doc = JsonDocument.Parse(existingReceipt.NewValue ?? "{}");
+                    if (doc.RootElement.TryGetProperty("RequestHash", out var prop))
+                    {
+                        storedHash = prop.GetString();
+                    }
+                }
+                catch
+                {
+                    // ignored
+                }
+
+                if (storedHash != requestHash)
+                {
+                    throw new OperationConflictException(
+                        "Đã tồn tại yêu cầu tạo cơ sở với cùng OperationId nhưng nội dung yêu cầu khác nhau.",
+                        new { operationId = opKey, existingFacilityId = existingReceipt.EntityId });
+                }
+
+                if (existingReceipt.EntityId.HasValue)
+                {
+                    var existingFacility = await GetFacilityAsync(existingReceipt.EntityId.Value, ct);
+                    if (existingFacility != null)
+                    {
+                        var existingWarnings = await FacilityWarningsAsync(
+                            await dbContext.Facilities.AsNoTracking().FirstAsync(f => f.FacilityId == existingReceipt.EntityId.Value, ct), ct);
+                        return new FacilitySaveResult(existingFacility, existingWarnings);
+                    }
+                }
+            }
+
+            var facility = new Facility
+            {
+                Name = input.Name,
+                Address = input.Address,
+                ContactPhone = input.Phone,
+                OpeningTime = input.Opening,
+                ClosingTime = input.Closing,
+                Latitude = input.Latitude,
+                Longitude = input.Longitude,
+                Status = status,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            dbContext.Facilities.Add(facility);
+            await dbContext.SaveChangesAsync(ct);
+
+            Log(userId, "FACILITY_CREATE", "FACILITY", facility.FacilityId, null, FacilitySnapshot(facility));
+
+            dbContext.ActivityLogs.Add(new ActivityLog
+            {
+                UserId = userId,
+                Action = opKey,
+                EntityType = "IDEMPOTENCY_FACILITY_CREATE",
+                EntityId = facility.FacilityId,
+                NewValue = JsonSerializer.Serialize(new { FacilityId = facility.FacilityId, RequestHash = requestHash }),
+                LoggedAt = now
+            });
+
+            await dbContext.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+
+            var warnings = await FacilityWarningsAsync(facility, ct);
+            return new FacilitySaveResult((await ToFacilityDtosAsync([facility], ct))[0], warnings);
+        }
+        else
+        {
+            // Không có OperationId: tạo facility và audit trong cùng transaction
+            await using var tx = await dbContext.Database.BeginTransactionAsync(ct);
+
+            var facility = new Facility
+            {
+                Name = input.Name,
+                Address = input.Address,
+                ContactPhone = input.Phone,
+                OpeningTime = input.Opening,
+                ClosingTime = input.Closing,
+                Latitude = input.Latitude,
+                Longitude = input.Longitude,
+                Status = status,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            dbContext.Facilities.Add(facility);
+            await dbContext.SaveChangesAsync(ct);
+
+            Log(userId, "FACILITY_CREATE", "FACILITY", facility.FacilityId, null, FacilitySnapshot(facility));
+            await dbContext.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+
+            var warnings = await FacilityWarningsAsync(facility, ct);
+            return new FacilitySaveResult((await ToFacilityDtosAsync([facility], ct))[0], warnings);
+        }
     }
 
     public async Task<FacilitySaveResult> UpdateFacilityAsync(long facilityId, UpsertFacilityRequest request, long userId, CancellationToken ct = default)
     {
-        var facility = await dbContext.Facilities.FirstOrDefaultAsync(f => f.FacilityId == facilityId, ct)
-            ?? throw new KeyNotFoundException($"Không tìm thấy cơ sở với ID: {facilityId}");
-
-        var input = ValidateFacility(request);
-        var before = FacilitySnapshot(facility);
-
-        facility.Name = input.Name;
-        facility.Address = input.Address;
-        facility.ContactPhone = input.Phone;
-        facility.OpeningTime = input.Opening;
-        facility.ClosingTime = input.Closing;
-        facility.Latitude = input.Latitude;
-        facility.Longitude = input.Longitude;
-        facility.UpdatedAt = DateTime.UtcNow;
-
         var newStatus = NormalizeFacilityStatus(request.Status);
-        if (newStatus != null && newStatus != facility.Status)
+
+        // BO13: Mọi đường đổi sang INACTIVE, kể cả PUT thông tin kèm status, lấy inventory:{facilityId} trước đọc lại facility và đếm đơn/hợp đồng
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? lockTx = null;
+        if (newStatus == "INACTIVE")
         {
-            await EnsureStatusChangeAllowedAsync(facility, newStatus, ct);
-            facility.Status = newStatus;
+            lockTx = await CheckoutTransaction.BeginAsync(dbContext, $"inventory:{facilityId}", ct);
         }
 
-        Log(userId, "FACILITY_UPDATE", "FACILITY", facility.FacilityId, before, FacilitySnapshot(facility));
-        await dbContext.SaveChangesAsync(ct);
+        try
+        {
+            var facility = await dbContext.Facilities.FirstOrDefaultAsync(f => f.FacilityId == facilityId, ct)
+                ?? throw new KeyNotFoundException($"Không tìm thấy cơ sở với ID: {facilityId}");
 
-        var warnings = await FacilityWarningsAsync(facility, ct);
-        return new FacilitySaveResult((await ToFacilityDtosAsync([facility], ct))[0], warnings);
+            var input = ValidateFacility(request);
+            var before = FacilitySnapshot(facility);
+
+            facility.Name = input.Name;
+            facility.Address = input.Address;
+            facility.ContactPhone = input.Phone;
+            facility.OpeningTime = input.Opening;
+            facility.ClosingTime = input.Closing;
+            facility.Latitude = input.Latitude;
+            facility.Longitude = input.Longitude;
+            facility.UpdatedAt = DateTime.UtcNow;
+
+            if (newStatus != null && newStatus != facility.Status)
+            {
+                await EnsureStatusChangeAllowedAsync(facility, newStatus, ct);
+                facility.Status = newStatus;
+            }
+
+            Log(userId, "FACILITY_UPDATE", "FACILITY", facility.FacilityId, before, FacilitySnapshot(facility));
+            await dbContext.SaveChangesAsync(ct);
+
+            if (lockTx != null)
+            {
+                await lockTx.CommitAsync(ct);
+            }
+
+            var warnings = await FacilityWarningsAsync(facility, ct);
+            return new FacilitySaveResult((await ToFacilityDtosAsync([facility], ct))[0], warnings);
+        }
+        finally
+        {
+            if (lockTx != null)
+            {
+                await lockTx.DisposeAsync();
+            }
+        }
     }
 
     public async Task<FacilitySaveResult> ChangeFacilityStatusAsync(long facilityId, ChangeFacilityStatusRequest request, long userId, CancellationToken ct = default)
     {
         var status = NormalizeFacilityStatus(request.Status)
             ?? throw new ArgumentException("Trạng thái phải là ACTIVE, INACTIVE hoặc TEMPORARILY_CLOSED.");
+
+        // BO13: Đồng bộ protocol khóa dùng chung inventory:{facilityId} với luồng đặt chỗ
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"inventory:{facilityId}", ct);
 
         var facility = await dbContext.Facilities.FirstOrDefaultAsync(f => f.FacilityId == facilityId, ct)
             ?? throw new KeyNotFoundException($"Không tìm thấy cơ sở với ID: {facilityId}");
@@ -132,6 +248,7 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
             new { Status = oldStatus },
             new { Status = status, Reason = request.Reason?.Trim() });
         await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
         var warnings = await FacilityWarningsAsync(facility, ct);
         return new FacilitySaveResult((await ToFacilityDtosAsync([facility], ct))[0], warnings);
@@ -163,7 +280,7 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
     private async Task<List<OpsFacilityDto>> ToFacilityDtosAsync(List<Facility> facilities, CancellationToken ct)
     {
         var ids = facilities.Select(f => f.FacilityId).ToList();
-        var today = OpsRules.TodayUtc;
+        var today = OpsRules.TodayLocal;
 
         var units = await dbContext.StorageUnits.AsNoTracking()
             .Where(u => ids.Contains(u.FacilityId))
@@ -234,7 +351,7 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
 
         if (facility.Status == "ACTIVE")
         {
-            var today = OpsRules.TodayUtc;
+            var today = OpsRules.TodayLocal;
             var hasRate = await dbContext.RentalRates.AnyAsync(r => r.FacilityId == facility.FacilityId
                 && r.Status == "ACTIVE" && r.EffectiveFrom <= today && (r.EffectiveTo == null || r.EffectiveTo >= today), ct);
             var hasUnit = await dbContext.StorageUnits.AnyAsync(u => u.FacilityId == facility.FacilityId, ct);
@@ -441,7 +558,7 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
         if (policy.Status == "ACTIVE") throw new InvalidOperationException("Chính sách đang được áp dụng.");
         if (policy.Status == "EXPIRED") throw new InvalidOperationException("Chính sách đã hết hiệu lực, không thể kích hoạt lại. Hãy tạo phiên bản mới.");
 
-        var today = OpsRules.TodayUtc;
+        var today = OpsRules.TodayLocal;
         if (policy.EffectiveTo.HasValue && policy.EffectiveTo.Value < today)
         {
             throw new InvalidOperationException("Ngày kết thúc hiệu lực đã qua, không thể kích hoạt.");
@@ -449,6 +566,9 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
 
         // Kiểm tra đầy đủ tham số trước khi áp dụng (UC20 A3: thiếu tham số thì giữ DRAFT)
         await ValidatePolicyAsync(ToRequest(policy), strict: true, ct);
+
+        // BO06: Khóa cùng scope policy TRƯỚC KHI đọc conflicts để ngăn chặn race condition kích hoạt/thay thế chồng lấn
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"policy:{policy.PolicyType}:{policy.FacilityId}:{policy.UnitTypeId}", ct);
 
         // Xung đột cùng mức ưu tiên = cùng loại + cùng phạm vi (BR20) + khoảng hiệu lực giao nhau
         var sameScope = await dbContext.Policies
@@ -469,8 +589,6 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
                 "Gửi lại với replaceExisting=true để kết thúc hiệu lực bản cũ và áp dụng bản mới.",
                 new { conflictingPolicyIds = conflicts.Select(c => c.PolicyId).ToList() });
         }
-
-        await using var tx = await dbContext.Database.BeginTransactionAsync(ct);
 
         var now = DateTime.UtcNow;
         foreach (var old in conflicts)
@@ -568,6 +686,19 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
         }
 
         decimal? value = request.Value, min = request.MinValue, max = request.MaxValue;
+
+        // BO01 / D32: Chính sách DEPOSIT cố định tương đương 1 tháng tiền thuê (FIXED = 1 hoặc FIXED = monthlyRate)
+        if (type == "DEPOSIT")
+        {
+            if (calc != "FIXED")
+            {
+                throw new ArgumentException("Theo chính sách D32, tiền cọc cố định bằng 1 tháng tiền thuê. Cách tính phải là FIXED.");
+            }
+            if (strict && (value == null || value <= 0))
+            {
+                throw new ArgumentException("Giá trị tiền cọc phải lớn hơn 0 (nhập 1 đại diện cho 1 tháng tiền thuê hoặc số tiền cố định).");
+            }
+        }
 
         if (value < 0 || min < 0 || max < 0) throw new ArgumentException("Giá trị không được âm.");
 
@@ -691,7 +822,7 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
 
     public async Task<IReadOnlyList<OpsRateDto>> GetRatesAsync(long? facilityId, long? unitTypeId, bool includeHistory, CancellationToken ct = default)
     {
-        var today = OpsRules.TodayUtc;
+        var today = OpsRules.TodayLocal;
 
         var query = dbContext.RentalRates.AsNoTracking().AsQueryable();
         if (facilityId.HasValue) query = query.Where(r => r.FacilityId == facilityId);
@@ -702,22 +833,46 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
             query = query.Where(r => r.Status == "ACTIVE" && (r.EffectiveTo == null || r.EffectiveTo >= today));
         }
 
-        return await query
+        var rawRates = await query
             .OrderBy(r => r.Facility.Name)
             .ThenBy(r => r.UnitType.Area)
             .ThenByDescending(r => r.EffectiveFrom)
-            .Select(r => new OpsRateDto(
+            .Select(r => new
+            {
                 r.RateId,
                 r.FacilityId,
-                r.Facility.Name,
+                FacilityName = r.Facility.Name,
                 r.UnitTypeId,
-                r.UnitType.TypeName,
+                UnitTypeName = r.UnitType.TypeName,
                 r.MonthlyRate,
                 r.EffectiveFrom,
                 r.EffectiveTo,
                 r.Status,
-                r.Status == "ACTIVE" && r.EffectiveFrom <= today && (r.EffectiveTo == null || r.EffectiveTo >= today)))
+                IsCurrent = r.Status == "ACTIVE" && r.EffectiveFrom <= today && (r.EffectiveTo == null || r.EffectiveTo >= today)
+            })
             .ToListAsync(ct);
+
+        // BO08: Nhóm theo cặp (FacilityId, UnitTypeId) để tính RevisionToken phát hiện stale form
+        var tokens = rawRates
+            .GroupBy(r => (r.FacilityId, r.UnitTypeId))
+            .ToDictionary(
+                g => g.Key,
+                g => OpsRules.ComputeRateRevisionToken(g.Select(x => (x.RateId, x.MonthlyRate, x.EffectiveFrom, x.EffectiveTo, x.Status)))
+            );
+
+        return rawRates.Select(r => new OpsRateDto(
+            r.RateId,
+            r.FacilityId,
+            r.FacilityName,
+            r.UnitTypeId,
+            r.UnitTypeName,
+            r.MonthlyRate,
+            r.EffectiveFrom,
+            r.EffectiveTo,
+            r.Status,
+            r.IsCurrent,
+            tokens.GetValueOrDefault((r.FacilityId, r.UnitTypeId), "EMPTY")
+        )).ToList();
     }
 
     public async Task<OpsRateDto> SetRateAsync(SetRateRequest request, long userId, CancellationToken ct = default)
@@ -725,7 +880,7 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
         if (request.MonthlyRate <= 0) throw new ArgumentException("Giá thuê tháng phải lớn hơn 0.");
         if (request.MonthlyRate % 1000 != 0) throw new ArgumentException("Giá thuê tháng phải là bội số của 1.000 VND.");
 
-        var today = OpsRules.TodayUtc;
+        var today = OpsRules.TodayLocal;
         var from = request.EffectiveFrom ?? today;
         if (from < today)
         {
@@ -736,6 +891,9 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
             ?? throw new ArgumentException("Cơ sở không tồn tại.");
         var unitType = await dbContext.UnitTypes.AsNoTracking().FirstOrDefaultAsync(t => t.UnitTypeId == request.UnitTypeId, ct)
             ?? throw new ArgumentException("Loại kho không tồn tại.");
+
+        // BO08: Khóa phân tán rate:{facilityId}:{unitTypeId} TRƯỚC KHI đọc PRICE_RANGE và existing rates để ngăn race condition
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"rate:{facility.FacilityId}:{unitType.UnitTypeId}", ct);
 
         // Giá phải nằm trong khung PRICE_RANGE đang áp dụng (UC21 bước 5)
         var range = await OpsRules.FindApplicablePolicyAsync(dbContext, "PRICE_RANGE", facility.FacilityId, unitType.UnitTypeId, from, ct);
@@ -748,16 +906,40 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
                 $"({range.MinValue?.ToString("N0") ?? "—"} – {range.MaxValue?.ToString("N0") ?? "—"} VND).");
         }
 
-        await using var tx = await dbContext.Database.BeginTransactionAsync(ct);
-
-        var existing = await dbContext.RentalRates
+        var allActiveRates = await dbContext.RentalRates
             .Where(r => r.FacilityId == facility.FacilityId
                         && r.UnitTypeId == unitType.UnitTypeId
-                        && r.Status == "ACTIVE"
-                        && (r.EffectiveTo == null || r.EffectiveTo >= from))
+                        && r.Status == "ACTIVE")
+            .OrderBy(r => r.EffectiveFrom)
             .ToListAsync(ct);
 
-        foreach (var old in existing)
+        var currentRevisionToken = OpsRules.ComputeRateRevisionToken(
+            allActiveRates.Select(r => (r.RateId, r.MonthlyRate, r.EffectiveFrom, r.EffectiveTo, r.Status)));
+
+        // BO08: Kiểm tra stale form nếu caller gửi ExpectedRevisionToken
+        if (!string.IsNullOrWhiteSpace(request.ExpectedRevisionToken) && request.ExpectedRevisionToken != currentRevisionToken)
+        {
+            throw new OperationConflictException(
+                "Bảng giá cho loại kho này đã được cập nhật bởi người khác. Vui lòng tải lại trang để xem mức giá mới nhất.",
+                new { currentRevisionToken, expectedRevisionToken = request.ExpectedRevisionToken, facilityId = facility.FacilityId, unitTypeId = unitType.UnitTypeId });
+        }
+
+        // BO08: Idempotent retry: nếu đã có một rate ACTIVE trùng đúng EffectiveFrom và MonthlyRate
+        var exactMatch = allActiveRates.FirstOrDefault(r => r.EffectiveFrom == from && r.MonthlyRate == request.MonthlyRate);
+        if (exactMatch != null)
+        {
+            await tx.CommitAsync(ct);
+            return new OpsRateDto(
+                exactMatch.RateId, facility.FacilityId, facility.Name, unitType.UnitTypeId, unitType.TypeName,
+                exactMatch.MonthlyRate, exactMatch.EffectiveFrom, exactMatch.EffectiveTo, exactMatch.Status, exactMatch.EffectiveFrom <= today, currentRevisionToken);
+        }
+
+        var existingToModify = allActiveRates
+            .Where(r => r.EffectiveTo == null || r.EffectiveTo >= from)
+            .ToList();
+
+        var now = DateTime.UtcNow;
+        foreach (var old in existingToModify)
         {
             var before = RateSnapshot(old);
             if (old.EffectiveFrom >= from)
@@ -782,7 +964,7 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
             MonthlyRate = request.MonthlyRate,
             EffectiveFrom = from,
             Status = "ACTIVE",
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = now
         };
         dbContext.RentalRates.Add(rate);
         await dbContext.SaveChangesAsync(ct);
@@ -791,9 +973,13 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
+        var finalActive = allActiveRates.Where(r => r.Status == "ACTIVE").Concat([rate]).ToList();
+        var newRevisionToken = OpsRules.ComputeRateRevisionToken(
+            finalActive.Select(r => (r.RateId, r.MonthlyRate, r.EffectiveFrom, r.EffectiveTo, r.Status)));
+
         return new OpsRateDto(
             rate.RateId, facility.FacilityId, facility.Name, unitType.UnitTypeId, unitType.TypeName,
-            rate.MonthlyRate, rate.EffectiveFrom, rate.EffectiveTo, rate.Status, rate.EffectiveFrom <= today);
+            rate.MonthlyRate, rate.EffectiveFrom, rate.EffectiveTo, rate.Status, rate.EffectiveFrom <= today, newRevisionToken);
     }
 
     private static object RateSnapshot(RentalRate r) => new
