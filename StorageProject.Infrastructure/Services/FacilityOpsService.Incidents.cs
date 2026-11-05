@@ -195,10 +195,10 @@ public partial class FacilityOpsService
         }
         else
         {
-            // D32: hoàn vào tài khoản chính chủ, tên trùng tên trên hợp đồng.
-            var bank = RefundBank.Validate(request.RefundBank, incident.Contract.Customer.FullName);
+            // D32: hoàn vào tài khoản chính chủ, tên trùng tên trên hợp đồng. D44: hoặc nhận tiền mặt tại quầy (refundBank.method = "CASH").
+            var bank = RefundBank.Validate(request.RefundBank, incident.Contract.Customer.FullName, allowCash: true);
             incident.RefundBankName = bank.BankName;
-            incident.RefundAccountNumber = bank.AccountNumber;
+            incident.RefundAccountNumber = bank.AccountNumber.Length > 0 ? bank.AccountNumber : null;
             incident.RefundAccountHolder = bank.AccountHolder;
             if (incident.TargetUnit is { Status: "RESERVED" })
             {
@@ -323,8 +323,9 @@ public partial class FacilityOpsService
         }
         var contract = incident.Contract;
         RequireIncidentContract(contract);
-        if (!RefundBank.IsComplete(incident.RefundBankName, incident.RefundAccountNumber, incident.RefundAccountHolder)
-            || RefundBank.NormalizeHolder(incident.RefundAccountHolder) != RefundBank.NormalizeHolder(contract.Customer.FullName))
+        var cash = RefundBank.IsCash(incident.RefundBankName);
+        if (!cash && (!RefundBank.IsComplete(incident.RefundBankName, incident.RefundAccountNumber, incident.RefundAccountHolder)
+            || RefundBank.NormalizeHolder(incident.RefundAccountHolder) != RefundBank.NormalizeHolder(contract.Customer.FullName)))
         {
             throw new InvalidOperationException("Thiếu tài khoản nhận hoàn chính chủ của khách.");
         }
@@ -334,7 +335,8 @@ public partial class FacilityOpsService
         var refund = new Payment
         {
             ContractId = contract.ContractId, PaymentType = "REFUND", Amount = amounts.Total, Currency = "VND",
-            PaymentMethod = "BANK_TRANSFER", DueDate = RefundDueDate(now), Status = "PENDING", CreatedAt = now, UpdatedAt = now
+            // D44: khách chọn tiền mặt → quản lý duyệt chi ở /api/ops/cash-refunds (nguồn INCIDENT), không ghi chuyển khoản.
+            PaymentMethod = cash ? CashMethod : "BANK_TRANSFER", DueDate = RefundDueDate(now), Status = "PENDING", CreatedAt = now, UpdatedAt = now
         };
         dbContext.Payments.Add(refund);
         contract.Status = "TERMINATED";
@@ -354,7 +356,10 @@ public partial class FacilityOpsService
         incident.UpdatedAt = now;
         await dbContext.SaveChangesAsync(ct);
         incident.RefundPaymentId = refund.PaymentId;
-        LogIncident(actor.UserId, "FINALIZE_INCIDENT_TERMINATION", incident, new { refund = amounts.Total, payment = $"HC-{refund.PaymentId:0000}" });
+        LogIncident(actor.UserId, "FINALIZE_INCIDENT_TERMINATION", incident, new
+        {
+            refund = amounts.Total, payment = cash ? CashRefundCode(refund.PaymentId) : $"HC-{refund.PaymentId:0000}", method = cash ? CashMethod : "BANK_TRANSFER"
+        });
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return new IncidentReceiptDto(await IncidentDtoAsync(incident.CaseCode, ct));
@@ -526,8 +531,10 @@ public partial class FacilityOpsService
         if (i?.RefundPaymentId is long pid && extras.Refunds.TryGetValue(pid, out var p))
         {
             var paid = p.Status == "PAID";
-            refund = new IncidentRefundDto($"HC-{p.PaymentId:0000}", p.Amount, paid ? "PAID" : p.Status,
-                paid ? p.TransactionReference : null, paid ? Iso(p.PaidAt) : null);
+            var cashRefund = p.PaymentMethod == CashMethod;
+            refund = new IncidentRefundDto(cashRefund ? CashRefundCode(p.PaymentId) : $"HC-{p.PaymentId:0000}", p.Amount, paid ? "PAID" : p.Status,
+                paid && !cashRefund ? p.TransactionReference : null, paid ? Iso(p.PaidAt) : null,
+                cashRefund ? CashMethod : "BANK_TRANSFER");
         }
         var access = status switch
         {

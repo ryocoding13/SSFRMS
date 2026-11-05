@@ -36,3 +36,22 @@ public record DailyStaffRowDto(
     IReadOnlyList<DailyTaskDto> PendingTasks, IReadOnlyList<DailyTaskDto> History);
 
 public record DailyTaskDto(string Kind, string Reference, string Label, string At, bool Late = false);
+
+// ---------------------------------------------------------------------------------------------
+// Phiên 4 · D41 — xung đột ô do khách cũ chưa trả / chưa kiểm tra đạt trước ngày nhận kho của khách mới
+// ---------------------------------------------------------------------------------------------
+
+/// <summary>
+/// Đề xuất đổi kho (mốc 5 ngày trước ngày nhận kho). Option: SWAP (đổi ngang cùng loại) · UPGRADE (nâng cấp miễn phí,
+/// giữ giá và cọc) · NONE (không còn ô phù hợp → dời ngày hoặc huỷ hoàn 100%). Status: OPEN · RESOLVED.
+/// Resolution: SWAP · UPGRADE · AUTO_SWAP · AUTO_UPGRADE (quá 48 giờ) · RESCHEDULE · CANCEL.
+/// </summary>
+public record UnitConflictDto(
+    string Id, string ContractId, string Customer, string? Phone, string StartDate, string EndDate,
+    string OldUnit, string? ProposedUnit, string? ProposedUnitType, decimal? ProposedArea, string Option, string Reason,
+    string? BlockingContractId, string DetectedAt, string? ExpiresAt, string Status, string? Resolution, string? ResolvedAt,
+    string? NewUnit, string? NewStartDate, string? EarliestFreeDate);
+
+/// <summary>Choice: ACCEPT (nhận ô đề xuất) · RESCHEDULE (kèm newStartDate) · CANCEL (kèm refundBank; method "CASH" = tiền mặt).</summary>
+public record UnitConflictChoiceRequest(string? Choice, DateOnly? NewStartDate = null,
+    StorageProject.Core.DTOs.Evidence.RefundBankInput? RefundBank = null);

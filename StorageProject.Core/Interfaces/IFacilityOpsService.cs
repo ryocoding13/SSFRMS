@@ -63,6 +63,19 @@ public interface IFacilityOpsService
     Task<CashRefundDto> RecordCashRefundCallAsync(OpsActor actor, string id, CashRefundCallRequest request, CancellationToken ct = default);
     Task<CashRefundDto> PayCashRefundAsync(OpsActor actor, string id, CashRefundPayRequest request, CancellationToken ct = default);
 
+    // D44 · Khách xem / đổi sang chuyển khoản trong 30 ngày; quá 30 ngày chưa nhận thì mất khoản hoàn
+    Task<IReadOnlyList<CashRefundDto>> GetCustomerCashRefundsAsync(long customerId, CancellationToken ct = default);
+    Task<CashRefundDto> SwitchCashRefundToBankAsync(long customerId, string id, StorageProject.Core.DTOs.Evidence.RefundBankInput bank, CancellationToken ct = default);
+    /// <summary>Tiến trình nền: khoản tiền mặt đã duyệt quá 30 ngày chưa nhận → CANCELLED (FORFEITED).</summary>
+    Task<int> ForfeitExpiredCashRefundsAsync(CancellationToken ct = default);
+
+    // D41 · Xung đột ô do khách cũ quá hạn / chưa kiểm tra đạt (mốc 5 ngày trước ngày nhận kho)
+    Task<int> DetectUnitConflictsAsync(CancellationToken ct = default);
+    Task<int> ExpireUnitConflictsAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<UnitConflictDto>> GetCustomerUnitConflictsAsync(long customerId, CancellationToken ct = default);
+    Task<UnitConflictDto> ChooseUnitConflictAsync(long customerId, string contractCode, UnitConflictChoiceRequest request, CancellationToken ct = default);
+    Task<IReadOnlyList<UnitConflictDto>> GetUnitConflictsAsync(OpsActor actor, CancellationToken ct = default);
+
     // D42 · Báo cáo việc tồn cuối ngày (22:00)
     Task<DailyStaffReportDto> GetDailyReportAsync(OpsActor actor, DateOnly? date = null, CancellationToken ct = default);
     /// <summary>Tiến trình nền: từ 22:00 giờ Việt Nam ghi báo cáo một lần mỗi cơ sở mỗi ngày.</summary>

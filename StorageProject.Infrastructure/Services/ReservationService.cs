@@ -146,20 +146,11 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
 
         // Check availability
         var expectedEndDate = request.StartDate.AddMonths(request.RentalPeriodMonths);
-        var availableUnitsCount = await dbContext.StorageUnits
-            .CountAsync(u => u.FacilityId == request.FacilityId 
-                          && u.UnitTypeId == request.UnitTypeId 
-                          && u.Status == "AVAILABLE", ct);
+        // D41: ô trống theo ngày + ngày đệm; ô đang quá hạn không đặt trước được
+        var bookable = await UnitAvailability.CountBookableAsync(dbContext, request.FacilityId, request.UnitTypeId,
+            request.StartDate, expectedEndDate, ct);
 
-        var existingReservationsCount = await dbContext.Reservations
-            .CountAsync(r => r.FacilityId == request.FacilityId 
-                          && r.UnitTypeId == request.UnitTypeId
-                          && (r.Status == "CONFIRMED" || ((r.Status == "PENDING_PAYMENT" || r.Status == "PENDING_VERIFICATION" || r.Status == "PENDING_AT_FACILITY") && r.ExpiresAt > DateTime.UtcNow))
-                          && !r.UnitAssignments.Any(a => a.Status == "ACTIVE")
-                          && r.StartDate < expectedEndDate
-                          && r.ExpectedEndDate > request.StartDate, ct);
-
-        if (availableUnitsCount - existingReservationsCount <= 0)
+        if (bookable <= 0)
         {
             throw new InvalidOperationException("Hiện tại đã hết kho trống cho loại kho và khoảng thời gian yêu cầu.");
         }

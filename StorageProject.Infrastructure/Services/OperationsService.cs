@@ -687,6 +687,14 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
 
         decimal? value = request.Value, min = request.MinValue, max = request.MaxValue;
 
+        // D41: số ngày đệm sau ngày hết hạn trước khi ô được đặt cho khách mới (mặc định 3)
+        if (type == UnitAvailability.BufferPolicyType)
+        {
+            if (calc != "FIXED") throw new ArgumentException("Ngày đệm cho thuê lại (RELET_BUFFER) dùng cách tính FIXED, giá trị là số ngày.");
+            if (strict && (value == null || value < 0 || value > 60 || value != decimal.Truncate(value.Value)))
+                throw new ArgumentException("Số ngày đệm là số nguyên từ 0 đến 60.");
+        }
+
         // BO01 / D32: Chính sách DEPOSIT cố định tương đương 1 tháng tiền thuê (FIXED = 1 hoặc FIXED = monthlyRate)
         if (type == "DEPOSIT")
         {

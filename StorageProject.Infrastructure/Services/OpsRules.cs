@@ -16,7 +16,7 @@ public static class OpsRules
     public static readonly string[] FacilityStatuses = ["ACTIVE", "INACTIVE", "TEMPORARILY_CLOSED"];
 
     public static readonly string[] PolicyTypes =
-        ["DEPOSIT", "RENEWAL", "CANCELLATION", "RETURN", "OVERDUE", "EXTRA_FEE", "DISCOUNT", "FEE_WAIVER", "PRICE_RANGE"];
+        ["DEPOSIT", "RENEWAL", "CANCELLATION", "RETURN", "OVERDUE", "EXTRA_FEE", "DISCOUNT", "FEE_WAIVER", "PRICE_RANGE", "RELET_BUFFER"];
 
     public static readonly string[] CalculationTypes = ["FIXED", "PERCENTAGE", "RANGE", "RULE", "DEPOSIT_PERCENT_PER_DAY"];
 

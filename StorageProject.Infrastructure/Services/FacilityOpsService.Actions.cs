@@ -374,6 +374,10 @@ public partial class FacilityOpsService
         {
             throw new InvalidOperationException("Hợp đồng không còn hiệu lực để gia hạn.");
         }
+        if (await UnitAvailability.NextBookingAsync(dbContext, contract, ct) is DateOnly bookedFrom)
+        {
+            throw new InvalidOperationException($"Ô đã có khách đặt từ {bookedFrom:dd/MM/yyyy} (D41). Từ chối gia hạn hoặc chuyển khách sang ô khác.");
+        }
 
         var now = NowUtc;
         var vnToday = DateOnly.FromDateTime(now + VnOffset);
@@ -489,8 +493,22 @@ public partial class FacilityOpsService
     {
         RequireManager(actor);
         var facility = await FacilityOfAsync(actor, ct);
-        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract-settlement:{facility.FacilityId}:{id}", ct);
+        var contractId = ParseCode(id, "HĐ-", "hợp đồng");
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract-settlement:{contractId}", ct);
         var contract = await ContractAsync(facility.FacilityId, id, ct);
+        var result = await SettleReturnAsync(contract, facility.FacilityId, actor.UserId, note, ct);
+        await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        return result;
+    }
+
+    /// <summary>
+    /// Lõi chốt quyết toán trả kho (M07), dùng chung cho quản lý và hệ thống tự chốt sau 48 giờ (D40, D44: actorId = null).
+    /// Gọi trong khoá contract-settlement:{contractId}; người gọi lưu và commit.
+    /// Cột bắt buộc người thao tác (lịch sử trạng thái ô) dùng mã khách của hợp đồng khi hệ thống chốt, như ContractProvisioning.
+    /// </summary>
+    private async Task<OpsSettlementResult> SettleReturnAsync(RentalContract contract, long facilityId, long? actorId, string? note, CancellationToken ct)
+    {
         var inspection = contract.ReturnInspections.Where(i => i.Status == "COMPLETED")
             .OrderByDescending(i => i.InspectedAt ?? i.CreatedAt).FirstOrDefault();
         if (contract.Status != "RETURN_PENDING" || inspection == null)
@@ -504,7 +522,7 @@ public partial class FacilityOpsService
 
         var now = NowUtc;
         // D39/D40: có khấu trừ thì chờ khách xác nhận (48 giờ) hoặc cơ sở kiểm tra lại phương án khách chọn.
-        await RequireDeductionSettledAsync(inspection, actor.UserId, now, ct);
+        await RequireDeductionSettledAsync(inspection, actorId, now, ct);
         // D32 / T09: Dừng tính phí quá hạn khi gửi trả kho thành công (inspection.CreatedAt là thời điểm khách gửi move-out).
         var moveOutDate = DateOnly.FromDateTime((inspection.CreatedAt != default ? inspection.CreatedAt : (inspection.InspectedAt ?? now)) + VnOffset);
         var returnDate = DateOnly.FromDateTime((inspection.InspectedAt ?? now) + VnOffset);
@@ -513,7 +531,7 @@ public partial class FacilityOpsService
         decimal overdueFee = 0;
         if (overdueDays > 0)
         {
-            var policy = await OpsRules.FindApplicablePolicyAsync(dbContext, "OVERDUE", facility.FacilityId,
+            var policy = await OpsRules.FindApplicablePolicyAsync(dbContext, "OVERDUE", facilityId,
                 contract.Unit.UnitTypeId, moveOutDate, ct);
             overdueFee = RefundPolicy.OverdueFeeFor(policy?.CalculationType, policy?.Value, contract.DepositAmount, overdueDays, maxCap: contract.DepositAmount);
         }
@@ -524,11 +542,11 @@ public partial class FacilityOpsService
             Overdue: overdueDays > 0, DamageFee: inspection.DamageFee, OverdueFee: overdueFee));
 
         // D32: chỉ phần bù từ cọc là PAID; phần còn lại được miễn, không giữ công nợ.
-        SettleFromDeposit(contract, "DAMAGE_FEE", result.DamageDeduction, now, actor.UserId);
-        SettleFromDeposit(contract, "OVERDUE_FEE", result.OverdueDeduction, now, actor.UserId);
+        SettleFromDeposit(contract, "DAMAGE_FEE", result.DamageDeduction, now, actorId);
+        SettleFromDeposit(contract, "OVERDUE_FEE", result.OverdueDeduction, now, actorId);
         var cleaningBudget = inspection.CleaningRequired || inspection.CleaningFee > 0 || inspection.ConditionStatus == "DIRTY"
             ? Math.Min(result.FixedDeduction, CleaningFeeFor(contract.DepositAmount)) : 0m;
-        SettleFromDeposit(contract, "CLEANING_FEE", cleaningBudget, now, actor.UserId);
+        SettleFromDeposit(contract, "CLEANING_FEE", cleaningBudget, now, actorId);
 
         var refund = result.Total;
         var refundStatus = refund > 0 ? "PENDING" : "NO_REFUND";
@@ -551,16 +569,16 @@ public partial class FacilityOpsService
             oc.ResolvedAt = now;
         }
         var needsWork = inspection.CleaningRequired || inspection.MaintenanceRequired || inspection.DamageFee > 0;
-        SetUnitStatus(contract.Unit, needsWork ? "MAINTENANCE" : "AVAILABLE", actor.UserId,
+        // D41: ô đã có khách mới đặt trước thì về RESERVED (đến ngày bắt đầu UnitStartActivation đổi sang OCCUPIED).
+        var nextBooked = !needsWork && await UnitAvailability.NextBookingAsync(dbContext, contract, ct) != null;
+        SetUnitStatus(contract.Unit, needsWork ? "MAINTENANCE" : nextBooked ? "RESERVED" : "AVAILABLE", actorId ?? contract.CustomerId,
             needsWork ? $"Cần vệ sinh / sửa sau trả kho · {ContractCode(contract)}" : $"Đã trả kho, chốt hoàn cọc · {ContractCode(contract)}");
-        Log(actor.UserId, LogAction.DepositRefunded, LogEntity.Contract, contract.ContractId, new
+        Log(actorId, LogAction.DepositRefunded, LogEntity.Contract, contract.ContractId, new
         {
             refund, refundStatus, scenario = scenario.ToString(), rentRefund = result.RentRefund, depositRefund = result.DepositRefund,
             fixedDeduction = result.FixedDeduction, damage = result.DamageDeduction, overdue = result.OverdueDeduction,
-            overdueDays, note = Clip(note, 500)
+            overdueDays, note = Clip(note, 500), system = actorId == null
         });
-        await dbContext.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
         return new OpsSettlementResult(refund, refundStatus);
     }
 
@@ -577,7 +595,7 @@ public partial class FacilityOpsService
     }
 
     // Giữ tổng tiền ghi nhận: tách phần bù cọc và phần miễn, không giả đã thu toàn bộ.
-    private void SettleFromDeposit(RentalContract contract, string type, decimal budget, DateTime now, long actorId)
+    private void SettleFromDeposit(RentalContract contract, string type, decimal budget, DateTime now, long? actorId)
     {
         foreach (var p in contract.Payments.Where(p => p.PaymentType == type && (p.Status == "PENDING" || p.Status == "FAILED"))
                      .OrderBy(p => p.PaymentId).ToList())

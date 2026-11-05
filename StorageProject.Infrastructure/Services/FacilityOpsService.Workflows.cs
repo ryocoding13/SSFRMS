@@ -33,6 +33,8 @@ public partial class FacilityOpsService
         public const string CashApproved = "CASH_REFUND_APPROVED";
         public const string CashCall = "CASH_REFUND_CALL";
         public const string CashPaid = "CASH_REFUND_PAID";
+        public const string CashForfeited = "CASH_REFUND_FORFEITED";
+        public const string CashSwitchedToBank = "CASH_REFUND_SWITCHED_TO_BANK";
         public const string DailyReport = "DAILY_STAFF_REPORT";
     }
 
@@ -72,7 +74,7 @@ public partial class FacilityOpsService
     }
 
     /// <summary>Chặn chốt hoàn cọc (M07) khi khách còn trong hạn xác nhận hoặc phương án thay thế chưa được kiểm tra lại.</summary>
-    private async Task RequireDeductionSettledAsync(ReturnInspection inspection, long actorId, DateTime now, CancellationToken ct)
+    private async Task RequireDeductionSettledAsync(ReturnInspection inspection, long? actorId, DateTime now, CancellationToken ct)
     {
         var logs = await LogsAsync(LogEntity.Return, [inspection.InspectionId], ct);
         var (status, deadline) = DeductionStateOf(inspection, logs, now);
@@ -85,7 +87,7 @@ public partial class FacilityOpsService
                 throw new InvalidOperationException("Khách đã chọn phương án khác. Kiểm tra lại kho trước khi chốt hoàn cọc.");
             case "AUTO_AGREED" when !logs.Any(l => l.Action == FlowAction.DeductionAutoAgreed):
                 Log(actorId, FlowAction.DeductionAutoAgreed, LogEntity.Return, inspection.InspectionId,
-                    new { deadline = Local(deadline), note = "Quá 48 giờ khách chưa xác nhận, chốt theo biên bản nhân viên" });
+                    new { deadline = Local(deadline), note = "Quá 48 giờ khách chưa xác nhận, chốt theo biên bản nhân viên", system = actorId == null });
                 break;
         }
     }
@@ -211,42 +213,47 @@ public partial class FacilityOpsService
     }
 
     /// <summary>
-    /// D40: quá 48 giờ khách chưa xác nhận → hệ thống tự chốt hoàn cọc theo biên bản (tạo khoản hoàn PENDING như M07).
-    /// Thao tác ghi dưới tên quản lý đang được phân công cơ sở; cơ sở chưa có quản lý thì bỏ qua, quản lý chốt tay sau.
+    /// D40 + D44 (cách B): hệ thống tự chốt hoàn cọc theo biên bản (tạo khoản hoàn PENDING như M07), ghi nhật ký là
+    /// "Hệ thống" (UserId = null, system = true) — không cần cơ sở có quản lý.
+    /// Chốt khi: quá 48 giờ khách chưa trả lời (AUTO_AGREED) hoặc khách đã bấm "Đồng ý khấu trừ · hoàn tất hoàn cọc" (AGREED).
+    /// Phương án khác (tự dọn / tự thay / khiếu nại) chờ cơ sở kiểm tra lại rồi quản lý chốt ở M07.
     /// </summary>
     public async Task<int> AutoSettleExpiredDeductionsAsync(CancellationToken ct = default)
     {
         var now = NowUtc;
-        var cutoff = now - DeductionWindow;
         var candidates = await dbContext.ReturnInspections.AsNoTracking()
-            .Where(i => i.Status == "COMPLETED" && i.InspectedAt != null && i.InspectedAt <= cutoff
+            .Where(i => i.Status == "COMPLETED" && i.InspectedAt != null
                         && (i.CleaningFee > 0 || i.DamageFee > 0 || i.CleaningRequired)
                         && i.Contract.Status == "RETURN_PENDING"
                         && !i.Contract.Payments.Any(p => p.PaymentType == "REFUND"))
-            .Select(i => new { i.InspectionId, i.ContractId, i.Contract.StartDate, i.Contract.Unit.FacilityId })
+            .Select(i => new { i.InspectionId, i.ContractId, FacilityId = i.Contract.Unit.FacilityId })
             .ToListAsync(ct);
         if (candidates.Count == 0) return 0;
 
-        var decided = await dbContext.ActivityLogs.AsNoTracking()
-            .Where(l => l.EntityType == LogEntity.Return && l.EntityId != null
-                        && (l.Action == FlowAction.DeductionDecision || l.Action == FlowAction.DeductionRecheck))
-            .Select(l => l.EntityId!.Value)
-            .ToListAsync(ct);
         var settled = 0;
-        foreach (var x in candidates.Where(x => !decided.Contains(x.InspectionId)))
+        foreach (var x in candidates)
         {
-            var managerId = await FacilityManagerIdAsync(x.FacilityId, ct);
-            if (managerId == null) continue;
             try
             {
-                var code = $"HĐ-{x.StartDate.Year}-{x.ContractId:0000}";
-                await ConfirmRefundAsync(new OpsActor(managerId.Value, true), code,
-                    "Tự chốt: quá 48 giờ khách chưa xác nhận khấu trừ (D40)", ct);
+                await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract-settlement:{x.ContractId}", ct);
+                var contract = await dbContext.RentalContracts
+                    .Include(c => c.Unit).Include(c => c.Payments).Include(c => c.ReturnInspections)
+                    .Include(c => c.OverdueCases).Include(c => c.AccessCredentials)
+                    .FirstAsync(c => c.ContractId == x.ContractId, ct);
+                var inspection = contract.ReturnInspections.Where(i => i.Status == "COMPLETED")
+                    .OrderByDescending(i => i.InspectedAt ?? i.CreatedAt).First();
+                var logs = await LogsAsync(LogEntity.Return, [inspection.InspectionId], ct);
+                var (status, _) = DeductionStateOf(inspection, logs, now);
+                if (status is not ("AUTO_AGREED" or "AGREED")) continue;
+                await SettleReturnAsync(contract, x.FacilityId, null,
+                    status == "AGREED" ? "Hệ thống chốt: khách đồng ý khấu trừ (D39)" : "Hệ thống chốt: quá 48 giờ khách chưa xác nhận (D40)", ct);
+                await dbContext.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
                 settled++;
             }
             catch (InvalidOperationException)
             {
-                // Đã có người chốt cùng lúc / trạng thái đổi — lần quét sau bỏ qua.
+                // Quản lý vừa chốt cùng lúc / trạng thái đổi / chưa cấu hình chính sách — lần quét sau xem lại.
             }
             finally
             {
@@ -286,7 +293,7 @@ public partial class FacilityOpsService
 
     /// <summary>
     /// WAITING_APPROVAL (chờ quản lý duyệt) · READY (chờ khách đến quầy) · REMIND (đến mốc 10/20/25, cần gọi nhắc) ·
-    /// APPOINTMENT (đã hẹn ngày đến) · EXPIRED (quá 30 ngày, cơ sở liên hệ chuyển khoản) · PAID.
+    /// APPOINTMENT (đã hẹn ngày đến) · FORFEITED (D44: quá 30 ngày chưa nhận, khách mất khoản hoàn) · PAID.
     /// </summary>
     private static CashState CashStateOf(Payment p, IEnumerable<ActivityLog> logs, DateOnly today)
     {
@@ -298,13 +305,16 @@ public partial class FacilityOpsService
         var lastCall = list.LastOrDefault(l => l.Action == FlowAction.CashCall);
         long? staffId = assigned != null && long.TryParse(Read(assigned, "staffId"), out var s) ? s : null;
         if (p.Status == "PAID") return new CashState("PAID", approved?.LoggedAt, staffId, null, 0, null, null, lastCall, paid);
+        var forfeited = list.LastOrDefault(l => l.Action == FlowAction.CashForfeited);
         if (approved == null) return new CashState("WAITING_APPROVAL", null, null, null, 0, null, null, lastCall, null);
 
         var approvedDay = DateOnly.FromDateTime(approved.LoggedAt + VnOffset);
         var deadline = approvedDay.AddDays(CashRefundDays);
         var days = today.DayNumber - approvedDay.DayNumber;
         DateOnly? appointment = lastCall != null && DateOnly.TryParseExact(Read(lastCall, "appointmentDate"), "yyyy-MM-dd", Invariant, System.Globalization.DateTimeStyles.None, out var a) ? a : null;
-        if (days > CashRefundDays) return new CashState("EXPIRED", approved.LoggedAt, staffId, deadline, days, null, appointment, lastCall, null);
+        // D44: quá 30 ngày (tính từ lần duyệt đầu) chưa nhận → khách mất khoản hoàn; hết hạn hiện ngay, worker ghi sổ sau.
+        if (forfeited != null || p.Status == "CANCELLED" || days > CashRefundDays)
+            return new CashState("FORFEITED", approved.LoggedAt, staffId, deadline, days, null, appointment, lastCall, forfeited);
         if (appointment.HasValue && appointment.Value >= today)
         {
             return new CashState("APPOINTMENT", approved.LoggedAt, staffId, deadline, days, null, appointment, lastCall, null);
@@ -322,10 +332,23 @@ public partial class FacilityOpsService
         return new CashState("READY", approved.LoggedAt, staffId, deadline, days, null, appointment, lastCall, null);
     }
 
-    private static (string Source, string Reference, User Customer) CashOwner(Payment p) =>
+    private static (string Source, string Reference, User Customer) CashOwner(Payment p,
+        IReadOnlyDictionary<long, string>? incidentCodes = null) =>
         p.ReservationId != null
             ? ("RESERVATION", ReservationCode(p.Reservation), p.Reservation.Customer)
-            : ("DEPOSIT", ContractCode(p.Contract), p.Contract.Customer);
+            : incidentCodes != null && incidentCodes.TryGetValue(p.PaymentId, out var caseCode)
+                ? ("INCIDENT", caseCode, p.Contract.Customer)
+                : ("DEPOSIT", ContractCode(p.Contract), p.Contract.Customer);
+
+    /// <summary>D44: khoản hoàn do sự cố cơ sở (T13) — mã hồ sơ sự cố theo id khoản REFUND.</summary>
+    private async Task<Dictionary<long, string>> IncidentCodesAsync(IEnumerable<long> paymentIds, CancellationToken ct)
+    {
+        var ids = paymentIds.ToList();
+        if (ids.Count == 0) return [];
+        return await dbContext.FacilityIncidents.AsNoTracking()
+            .Where(i => i.RefundPaymentId != null && ids.Contains(i.RefundPaymentId.Value))
+            .ToDictionaryAsync(i => i.RefundPaymentId!.Value, i => i.CaseCode, ct);
+    }
 
     private async Task<IReadOnlyList<CashRefundDto>> ToCashDtosAsync(List<Payment> rows, CancellationToken ct)
     {
@@ -334,10 +357,11 @@ public partial class FacilityOpsService
         var staffIds = logs.Where(l => l.Action == FlowAction.CashPaid && l.UserId != null).Select(l => l.UserId!.Value).Distinct().ToList();
         var names = await dbContext.Users.AsNoTracking().Where(u => staffIds.Contains(u.UserId))
             .ToDictionaryAsync(u => u.UserId, u => u.FullName, ct);
+        var incidents = await IncidentCodesAsync(rows.Select(p => p.PaymentId), ct);
         return rows.Select(p =>
             {
                 var st = CashStateOf(p, logs, today);
-                var (source, reference, customer) = CashOwner(p);
+                var (source, reference, customer) = CashOwner(p, incidents);
                 var call = st.LastCall == null ? null
                     : $"{Read(st.LastCall, "result")} · {Local(st.LastCall.LoggedAt)}{(Read(st.LastCall, "note") is { Length: > 0 } n ? " · " + n : "")}";
                 string? paidBy = st.Paid?.UserId is long uid && names.TryGetValue(uid, out var nm) ? nm : null;
@@ -383,7 +407,7 @@ public partial class FacilityOpsService
         if (p.Status != "PENDING" || p.Amount <= 0) throw new InvalidOperationException("Khoản hoàn không còn chờ xử lý.");
         var logs = await LogsAsync(PaymentEntity, [p.PaymentId], ct);
         var state = CashStateOf(p, logs, VnToday);
-        if (state.Status == "EXPIRED") throw new InvalidOperationException("Đã quá 30 ngày. Liên hệ khách để chuyển khoản.");
+        if (state.Status == "FORFEITED") throw new InvalidOperationException("Đã quá 30 ngày, khách không còn nhận khoản hoàn này (D44).");
         // Duyệt lại chỉ để giao cho nhân viên khác; hạn 30 ngày vẫn tính từ lần duyệt đầu (CashStateOf).
         Log(actor.UserId, FlowAction.CashApproved, PaymentEntity, p.PaymentId, new
         {
@@ -412,7 +436,7 @@ public partial class FacilityOpsService
         var p = await CashPaymentAsync(facility.FacilityId, id, ct);
         var logs = await LogsAsync(PaymentEntity, [p.PaymentId], ct);
         var state = CashStateOf(p, logs, today);
-        if (state.Status is "PAID" or "WAITING_APPROVAL") throw new InvalidOperationException("Khoản hoàn không ở bước chờ khách nhận.");
+        if (state.Status is "PAID" or "WAITING_APPROVAL" or "FORFEITED") throw new InvalidOperationException("Khoản hoàn không ở bước chờ khách nhận.");
         if (result == "APPOINTMENT" && state.Deadline.HasValue && request.AppointmentDate > state.Deadline)
         {
             throw new ArgumentException($"Ngày hẹn phải trong hạn nhận tiền ({state.Deadline.Value:dd/MM/yyyy}).");
@@ -445,7 +469,7 @@ public partial class FacilityOpsService
         {
             case "PAID": throw new InvalidOperationException("Khoản hoàn đã được chi.");
             case "WAITING_APPROVAL": throw new InvalidOperationException("Quản lý cơ sở chưa duyệt chi khoản này.");
-            case "EXPIRED": throw new InvalidOperationException("Đã quá 30 ngày nhận tiền mặt. Báo quản lý liên hệ khách để chuyển khoản.");
+            case "FORFEITED": throw new InvalidOperationException("Đã quá 30 ngày nhận tiền mặt, khách không còn nhận khoản hoàn này (D44).");
         }
         if (!actor.IsManager && state.AssignedStaffId.HasValue && state.AssignedStaffId != actor.UserId)
         {
@@ -470,6 +494,124 @@ public partial class FacilityOpsService
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return (await ToCashDtosAsync([p], ct))[0];
+    }
+
+    // =====================================================================
+    // D44 · Khách đổi sang chuyển khoản trong 30 ngày; quá 30 ngày chưa nhận thì mất khoản hoàn
+    // =====================================================================
+
+    private IQueryable<Payment> CustomerCashQuery(long customerId) => dbContext.Payments
+        .Include(p => p.Reservation).ThenInclude(r => r.Customer)
+        .Include(p => p.Contract).ThenInclude(c => c.Unit)
+        .Include(p => p.Contract).ThenInclude(c => c.Customer)
+        .Include(p => p.Contract).ThenInclude(c => c.ReturnInspections)
+        .Where(p => p.PaymentType == "REFUND" && p.PaymentMethod == CashMethod
+                    && ((p.ReservationId != null && p.Reservation.CustomerId == customerId)
+                        || (p.ReservationId == null && p.ContractId != null && p.Contract.CustomerId == customerId)));
+
+    /// <summary>Khách xem khoản hoàn tiền mặt của mình (hạn nhận, ngày hẹn, đã nhận / đã mất).</summary>
+    public async Task<IReadOnlyList<CashRefundDto>> GetCustomerCashRefundsAsync(long customerId, CancellationToken ct = default)
+    {
+        var rows = await CustomerCashQuery(customerId).AsNoTracking().AsSplitQuery().OrderBy(p => p.CreatedAt).ToListAsync(ct);
+        return await ToCashDtosAsync(rows, ct);
+    }
+
+    /// <summary>
+    /// D44: trong 30 ngày khách đổi khoản tiền mặt sang chuyển khoản vào tài khoản chính chủ (tên trùng hợp đồng).
+    /// Khoản trở về luồng chuyển khoản (M08 / hoàn cọc / sự cố) để quản lý ghi mã giao dịch; việc chi tiền mặt và gọi nhắc dừng.
+    /// </summary>
+    public async Task<CashRefundDto> SwitchCashRefundToBankAsync(long customerId, string id, StorageProject.Core.DTOs.Evidence.RefundBankInput bank,
+        CancellationToken ct = default)
+    {
+        var paymentId = ParseCode(id, "CH-", "khoản hoàn tiền mặt");
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"cash-refund:{paymentId}", ct);
+        var p = await CustomerCashQuery(customerId).AsSplitQuery().FirstOrDefaultAsync(x => x.PaymentId == paymentId, ct)
+                ?? throw new KeyNotFoundException("Không tìm thấy khoản hoàn tiền mặt của bạn.");
+        var logs = await LogsAsync(PaymentEntity, [p.PaymentId], ct);
+        var state = CashStateOf(p, logs, VnToday);
+        switch (state.Status)
+        {
+            case "PAID": throw new InvalidOperationException("Bạn đã nhận tiền mặt tại quầy.");
+            case "FORFEITED": throw new InvalidOperationException("Đã quá 30 ngày nhận tiền mặt nên không đổi được sang chuyển khoản.");
+        }
+        if (p.Status != "PENDING") throw new InvalidOperationException("Khoản hoàn không còn chờ xử lý.");
+        var (source, reference, customer) = CashOwner(p, await IncidentCodesAsync([p.PaymentId], ct));
+        var account = RefundBank.Validate(bank with { Method = null }, customer.FullName);
+
+        var now = NowUtc;
+        switch (source)
+        {
+            case "RESERVATION":
+                p.Reservation.RefundBankName = account.BankName;
+                p.Reservation.RefundAccountNumber = account.AccountNumber;
+                p.Reservation.RefundAccountHolder = account.AccountHolder;
+                break;
+            case "INCIDENT":
+                var incident = await dbContext.FacilityIncidents.FirstAsync(i => i.RefundPaymentId == p.PaymentId, ct);
+                incident.RefundBankName = account.BankName;
+                incident.RefundAccountNumber = account.AccountNumber;
+                incident.RefundAccountHolder = account.AccountHolder;
+                break;
+            default:
+                var inspection = LatestInspection(p.Contract)
+                                 ?? throw new InvalidOperationException("Không tìm thấy biên bản trả kho của khoản hoàn này.");
+                inspection.RefundBankName = account.BankName;
+                inspection.RefundAccountNumber = account.AccountNumber;
+                inspection.RefundAccountHolder = account.AccountHolder;
+                break;
+        }
+        p.PaymentMethod = "BANK_TRANSFER";
+        p.DueDate = RefundDueDate(now);
+        p.UpdatedAt = now;
+        Log(customerId, FlowAction.CashSwitchedToBank, PaymentEntity, p.PaymentId, new
+        {
+            source, reference, amount = p.Amount, bank = account.BankName,
+            accountLast4 = account.AccountNumber.Length > 4 ? account.AccountNumber[^4..] : account.AccountNumber,
+            previousStatus = state.Status
+        });
+        await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+        return new CashRefundDto(CashRefundCode(p.PaymentId), source, reference, customer.FullName, customer.Phone, p.Amount,
+            "SWITCHED_TO_BANK", Local(state.ApprovedAt), state.Deadline?.ToString("yyyy-MM-dd"), Math.Max(0, state.Days),
+            null, null, null, null, null);
+    }
+
+    /// <summary>
+    /// D44 · Tiến trình nền: khoản tiền mặt đã duyệt quá 30 ngày chưa nhận → khách mất khoản hoàn.
+    /// Khoản REFUND chuyển CANCELLED (tham chiếu FORFEITED:{id}), ghi nhật ký hệ thống; không chi, không chuyển khoản.
+    /// </summary>
+    public async Task<int> ForfeitExpiredCashRefundsAsync(CancellationToken ct = default)
+    {
+        var cutoffUtc = UtcFromLocal(VnToday.AddDays(-CashRefundDays), 0); // duyệt trước ngày này (giờ VN) thì đã quá 30 ngày
+        var ids = await dbContext.ActivityLogs.AsNoTracking()
+            .Where(l => l.EntityType == PaymentEntity && l.Action == FlowAction.CashApproved && l.EntityId != null)
+            .GroupBy(l => l.EntityId!.Value)
+            .Where(g => g.Min(l => l.LoggedAt) < cutoffUtc)
+            .Select(g => g.Key)
+            .ToListAsync(ct);
+        var forfeited = 0;
+        foreach (var paymentId in ids)
+        {
+            await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"cash-refund:{paymentId}", ct);
+            var p = await dbContext.Payments.FirstOrDefaultAsync(x => x.PaymentId == paymentId && x.PaymentType == "REFUND"
+                                                                      && x.PaymentMethod == CashMethod && x.Status == "PENDING", ct);
+            if (p == null) continue;
+            var logs = await LogsAsync(PaymentEntity, [p.PaymentId], ct);
+            if (CashStateOf(p, logs, VnToday).Status != "FORFEITED") continue;
+            var now = NowUtc;
+            p.Status = "CANCELLED";
+            p.TransactionReference = $"FORFEITED:{p.PaymentId}";
+            p.UpdatedAt = now;
+            Log(null, FlowAction.CashForfeited, PaymentEntity, p.PaymentId, new
+            {
+                amount = p.Amount, system = true, reason = "Quá 30 ngày khách không đến nhận tiền mặt (D44)"
+            });
+            await dbContext.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            forfeited++;
+        }
+        dbContext.ChangeTracker.Clear();
+        return forfeited;
     }
 
     // =====================================================================

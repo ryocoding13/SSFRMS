@@ -65,7 +65,12 @@ public sealed partial class D32RefundEvidenceTests
         var refund = await f.Db.Payments.SingleAsync(p => p.ContractId == c.ContractId && p.PaymentType == "REFUND");
         Assert.Equal(900_000m, refund.Amount); // 1.000.000 − vệ sinh 10% cọc
         Assert.Equal("BANK_TRANSFER", refund.PaymentMethod);
-        Assert.Single(await f.Db.ActivityLogs.Where(l => l.Action == "RETURN_DEDUCTION_AUTO_AGREED").ToListAsync());
+        // D44 (cách B): ghi nhật ký là Hệ thống, không gắn tên quản lý
+        var auto = Assert.Single(await f.Db.ActivityLogs.Where(l => l.Action == "RETURN_DEDUCTION_AUTO_AGREED").ToListAsync());
+        Assert.Null(auto.UserId);
+        var settledLog = await f.Db.ActivityLogs.SingleAsync(l => l.Action == "DEPOSIT_REFUNDED");
+        Assert.Null(settledLog.UserId);
+        Assert.Contains("\"system\":true", settledLog.NewValue);
         Assert.Equal(0, await f.Ops.AutoSettleExpiredDeductionsAsync());
     }
 
@@ -208,9 +213,19 @@ public sealed partial class D32RefundEvidenceTests
 
         await MoveApproval(31);
         f.Db.ChangeTracker.Clear();
-        Assert.Equal("EXPIRED", Assert.Single(await f.Ops.GetCashRefundsAsync(f.StaffActor)).Status);
+        // D44: quá 30 ngày chưa nhận → khách mất khoản hoàn; không chi, không đổi sang chuyển khoản
+        Assert.Equal("FORFEITED", Assert.Single(await f.Ops.GetCashRefundsAsync(f.StaffActor)).Status);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             f.Ops.PayCashRefundAsync(f.StaffActor, cashId, new CashRefundPayRequest(true, true, true, true)));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => f.Ops.SwitchCashRefundToBankAsync(f.Customer.UserId, cashId,
+            new RefundBankInput("Vietcombank", "0123456789", "NGUYEN VAN AN")));
+        Assert.Equal(1, await f.Ops.ForfeitExpiredCashRefundsAsync());
+        Assert.Equal(0, await f.Ops.ForfeitExpiredCashRefundsAsync());
+        var forfeitedPayment = await f.Db.Payments.AsNoTracking().SingleAsync(p => p.ContractId == c.ContractId && p.PaymentType == "REFUND");
+        Assert.Equal("CANCELLED", forfeitedPayment.Status);
+        Assert.StartsWith("FORFEITED:", forfeitedPayment.TransactionReference);
+        Assert.Null((await f.Db.ActivityLogs.SingleAsync(l => l.Action == "CASH_REFUND_FORFEITED")).UserId);
+        Assert.Equal("FORFEITED", Assert.Single(await f.Ops.GetCustomerCashRefundsAsync(f.Customer.UserId)).Status);
     }
 
     [Fact]
@@ -251,6 +266,37 @@ public sealed partial class D32RefundEvidenceTests
         Assert.Equal(code, cash.Reference);
         // Sự cố cơ sở (T13) không có lựa chọn tiền mặt
         Assert.Throws<ArgumentException>(() => RefundBank.Validate(new RefundBankInput(null, null, null, "CASH"), "Nguyễn Văn An", allowCash: false));
+    }
+
+    [Fact]
+    public async Task CashRefund_CustomerSwitchesToBankWithin30Days_ThenManagerRecordsTransfer()
+    {
+        await using var f = await Fixture.CreateAsync();
+        var c = await f.ActiveContractAsync(deposit: 1_000_000m);
+        await InspectAsync(f, c, cleaning: false, damage: 0, CashMoveOut(Photo(Jpeg)));
+        await f.Ops.ConfirmRefundAsync(f.ManagerActor, Code(c));
+        f.Db.ChangeTracker.Clear();
+        var cashId = Assert.Single(await f.Ops.GetCustomerCashRefundsAsync(f.Customer.UserId)).Id;
+        await f.Ops.ApproveCashRefundAsync(f.ManagerActor, cashId, new OpsAssignRequest($"NV-{f.Staff.UserId:00}"));
+        f.Db.ChangeTracker.Clear();
+
+        // Tên chủ tài khoản phải trùng hợp đồng; khách khác không đổi được
+        await Assert.ThrowsAsync<ArgumentException>(() => f.Ops.SwitchCashRefundToBankAsync(f.Customer.UserId, cashId,
+            new RefundBankInput("Vietcombank", "0123456789", "TRAN VAN B")));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => f.Ops.SwitchCashRefundToBankAsync(f.Staff.UserId, cashId,
+            new RefundBankInput("Vietcombank", "0123456789", "NGUYEN VAN AN")));
+        var switched = await f.Ops.SwitchCashRefundToBankAsync(f.Customer.UserId, cashId,
+            new RefundBankInput("Vietcombank", "0123456789", "Nguyen Van An"));
+        Assert.Equal("SWITCHED_TO_BANK", switched.Status);
+        f.Db.ChangeTracker.Clear();
+
+        Assert.Empty(await f.Ops.GetCashRefundsAsync(f.StaffActor)); // nhân viên không còn việc chi / gọi nhắc
+        var item = Assert.Single(await f.Ops.GetDepositRefundsAsync(f.ManagerActor));
+        Assert.Equal("BANK_TRANSFER", item.Method);
+        Assert.Equal("0123456789", item.AccountNumber);
+        var paid = await f.Ops.ConfirmDepositRefundAsync(f.ManagerActor,
+            new DepositRefundActionRequest("CONFIRM_DEPOSIT_REFUND", item.Id, item.Version, "FT26309000001", DateTime.UtcNow, true));
+        Assert.Equal("PAID", paid.Status);
     }
 
     // ------------------------------------------------------------------ D35 / D36 · hỗ trợ

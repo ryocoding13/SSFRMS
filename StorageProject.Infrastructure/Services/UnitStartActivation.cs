@@ -15,7 +15,9 @@ public static class UnitStartActivation
     {
         var today = OpsRules.TodayLocal;
         var contracts = await db.RentalContracts.Include(c => c.Unit)
-            .Where(c => (c.Status == "ACTIVE" || c.Status == "EXPIRING") && c.StartDate <= today && c.Unit.Status == "RESERVED")
+            // D41: ô đặt trước của khách cũ có thể về AVAILABLE trước ngày bắt đầu — cũng chuyển sang OCCUPIED
+            .Where(c => (c.Status == "ACTIVE" || c.Status == "EXPIRING") && c.StartDate <= today
+                        && (c.Unit.Status == "RESERVED" || c.Unit.Status == "AVAILABLE"))
             .OrderBy(c => c.ContractId).Take(200).ToListAsync(ct);
         if (contracts.Count == 0) return 0;
 
@@ -25,7 +27,7 @@ public static class UnitStartActivation
             // Thay đổi tự động ghi theo khách của hợp đồng (khóa ngoại user), giống ContractProvisioning.
             db.UnitStatusHistories.Add(new UnitStatusHistory
             {
-                Unit = c.Unit, ChangedBy = c.CustomerId, OldStatus = "RESERVED", NewStatus = "OCCUPIED",
+                Unit = c.Unit, ChangedBy = c.CustomerId, OldStatus = c.Unit.Status, NewStatus = "OCCUPIED",
                 ChangedAt = now, Reason = $"Đến ngày bắt đầu thuê của hợp đồng #{c.ContractId}"
             });
             c.Unit.Status = "OCCUPIED";

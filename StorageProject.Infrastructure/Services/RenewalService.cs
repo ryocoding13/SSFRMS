@@ -70,6 +70,12 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
             throw new InvalidOperationException("Hợp đồng đã đến hoặc quá ngày hết hạn, không thể gửi yêu cầu gia hạn.");
         }
 
+        // D41: ô đã có khách mới đặt trước từ ngày hết hạn → khoá gia hạn ô này (khách có thể chuyển sang ô khác còn trống)
+        if (await UnitAvailability.NextBookingAsync(dbContext, contract, ct) is DateOnly bookedFrom)
+        {
+            throw new InvalidOperationException($"Ô đã có khách đặt từ {bookedFrom:dd/MM/yyyy}, không gia hạn được ô này. Liên hệ cơ sở để chuyển sang ô khác còn trống.");
+        }
+
         // Check if there is already a pending or approved renewal open
         var hasOpenRenewal = await dbContext.ContractRenewals
             .AnyAsync(r => r.ContractId == contractId && (r.Status == "PENDING" || r.Status == "APPROVED"), ct);
@@ -403,6 +409,10 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
         }
 
         var contract = renewal.Contract;
+        if (await UnitAvailability.NextBookingAsync(dbContext, contract, ct) is DateOnly bookedFrom)
+        {
+            throw new InvalidOperationException($"Ô đã có khách đặt từ {bookedFrom:dd/MM/yyyy} (D41). Từ chối gia hạn hoặc chuyển khách sang ô khác.");
+        }
         if (contract.Status is not ("ACTIVE" or "EXPIRING" or "OVERDUE"))
         {
             throw new InvalidOperationException("Hợp đồng không còn hiệu lực để gia hạn.");

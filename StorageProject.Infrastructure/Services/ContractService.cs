@@ -135,7 +135,8 @@ public class ContractService(AppDbContext dbContext) : IContractService
                 Guid.TryParseExact(a.CredentialReference[3..], "N", out _))
                 .Select(a => (DateTime?)a.IssuedAt).Max(),
             consent?.PolicyVersion?.Version,
-            consent?.AcceptedAt
+            consent?.AcceptedAt,
+            await UnitAvailability.NextBookingAsync(dbContext, c, ct)
         );
     }
 
