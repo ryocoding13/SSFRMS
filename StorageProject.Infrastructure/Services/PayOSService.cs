@@ -33,6 +33,15 @@ public class PayOSService(
         if (r.Status != "PENDING_PAYMENT" || r.PaymentMethod != "PAYOS" || r.PaidAt != null)
             throw new InvalidOperationException("Đơn không còn ở trạng thái chờ PayOS.");
         if (r.ExpiresAt <= DateTime.UtcNow) throw new InvalidOperationException("Đơn đã hết thời gian giữ chỗ.");
+
+        // BO07: Kiểm tra bằng chứng đồng ý chính sách trước khi tạo link/mã thanh toán PayOS
+        var hasConsent = await dbContext.PolicyConsents
+            .AnyAsync(c => c.ReservationId == r.ReservationId && c.CustomerId == customerId, ct);
+        if (!hasConsent)
+        {
+            throw new InvalidOperationException("Bạn cần hoàn tất chấp thuận chính sách cho thuê trước khi tạo mã thanh toán.");
+        }
+
         var amount = ReservationSettlement.Amount(r);
         if (amount <= 0 || amount != decimal.Truncate(amount) || amount > int.MaxValue)
             throw new InvalidOperationException("Số tiền thanh toán VND không hợp lệ.");
@@ -83,6 +92,15 @@ public class PayOSService(
         if (r.PaidAt != null || r.Status != "PENDING_PAYMENT")
             throw new InvalidOperationException("Đơn đã được xử lý, không thể đổi sang thanh toán tại kho.");
         if (r.ExpiresAt <= DateTime.UtcNow) throw new InvalidOperationException("Đơn đã hết thời gian giữ chỗ.");
+
+        // BO07: Kiểm tra bằng chứng đồng ý chính sách trước khi chọn thanh toán tại cơ sở
+        var hasFacilityConsent = await dbContext.PolicyConsents
+            .AnyAsync(c => c.ReservationId == r.ReservationId && c.CustomerId == customerId, ct);
+        if (!hasFacilityConsent)
+        {
+            throw new InvalidOperationException("Bạn cần hoàn tất chấp thuận chính sách cho thuê trước khi chọn thanh toán tại cơ sở.");
+        }
+
         // Do not announce a switch until PayOS confirms cancellation. Keep OrderCode for delayed webhooks.
         if (r.OrderCode.HasValue)
         {
@@ -125,6 +143,14 @@ public class PayOSService(
         if (renewal.PaymentDeadlineAt.HasValue && now >= renewal.PaymentDeadlineAt.Value)
         {
             throw new InvalidOperationException("Yêu cầu gia hạn đã hết hạn thanh toán.");
+        }
+
+        // BO07: Kiểm tra bằng chứng đồng ý chính sách trước khi tạo mã thanh toán gia hạn
+        var hasRenewalConsent = await dbContext.PolicyConsents
+            .AnyAsync(c => c.RenewalId == renewal.RenewalId && c.CustomerId == customerId, ct);
+        if (!hasRenewalConsent || !renewal.PolicyVersion.HasValue)
+        {
+            throw new InvalidOperationException("Bạn cần hoàn tất chấp thuận chính sách cho thuê trước khi tạo mã thanh toán.");
         }
 
         // Return existing active checkout if available

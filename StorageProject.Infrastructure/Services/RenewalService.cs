@@ -79,29 +79,24 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
             throw new InvalidOperationException("Hợp đồng đã có yêu cầu gia hạn đang chờ xử lý hoặc chờ thanh toán.");
         }
 
-        // Policy consent verification
-        int? consentVersion = null;
-        DateTime? consentAcceptedAt = null;
-        if (request.PolicyVersion.HasValue)
+        // Policy consent verification (D32 / BO07: bắt buộc accepted/policyVersion khi gửi gia hạn)
+        if (!request.PolicyVersion.HasValue || request.Accepted != true)
         {
-            if (request.Accepted != true)
-            {
-                throw new ArgumentException("Bạn phải đồng ý với chính sách cho thuê để gửi yêu cầu gia hạn.");
-            }
-
-            var currentPolicy = await dbContext.RentalPolicyVersions
-                .OrderByDescending(v => v.Version)
-                .FirstOrDefaultAsync(v => v.IsCurrent, ct);
-
-            var expectedVersion = currentPolicy?.Version ?? 1;
-            if (request.PolicyVersion.Value != expectedVersion)
-            {
-                throw new InvalidOperationException("Phiên bản chính sách không còn hiệu lực. Vui lòng tải lại trang để chấp thuận bản mới nhất.");
-            }
-
-            consentVersion = expectedVersion;
-            consentAcceptedAt = DateTime.UtcNow;
+            throw new ArgumentException("Bạn phải đồng ý với chính sách cho thuê hiện hành để gửi yêu cầu gia hạn.");
         }
+
+        var currentPolicy = await dbContext.RentalPolicyVersions
+            .OrderByDescending(v => v.Version)
+            .FirstOrDefaultAsync(v => v.IsCurrent, ct);
+
+        var expectedVersion = currentPolicy?.Version ?? 1;
+        if (request.PolicyVersion.Value != expectedVersion)
+        {
+            throw new InvalidOperationException("Phiên bản chính sách không còn hiệu lực. Vui lòng tải lại trang để chấp thuận bản mới nhất.");
+        }
+
+        int? consentVersion = expectedVersion;
+        DateTime? consentAcceptedAt = DateTime.UtcNow;
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var activeRate = await dbContext.RentalRates
@@ -185,6 +180,14 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
         if (renewal.Status != "APPROVED")
         {
             throw new InvalidOperationException($"Chỉ yêu cầu gia hạn ở trạng thái 'APPROVED' mới có thể chọn thanh toán tại quầy. Trạng thái hiện tại: {renewal.Status}");
+        }
+
+        // BO07: Kiểm tra khách hàng đã có bằng chứng đồng ý chính sách trước khi cho phép chọn trả tại quầy
+        var hasConsent = await dbContext.PolicyConsents
+            .AnyAsync(c => c.RenewalId == renewal.RenewalId && c.CustomerId == customerId, ct);
+        if (!hasConsent || !renewal.PolicyVersion.HasValue)
+        {
+            throw new InvalidOperationException("Bạn cần hoàn tất chấp thuận chính sách cho thuê trước khi chọn thanh toán tại quầy.");
         }
 
         var now = DateTime.UtcNow;
@@ -320,6 +323,14 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
         if (renewal.Contract.Unit.FacilityId != userFacility.FacilityId)
         {
             throw new UnauthorizedAccessException("Yêu cầu gia hạn không thuộc cơ sở do bạn phụ trách.");
+        }
+
+        // BO07: Nhân viên không tự đồng ý thay khách khi thu tiền mặt; bắt buộc có consent từ phía khách
+        var hasCustomerConsent = await dbContext.PolicyConsents
+            .AnyAsync(c => c.RenewalId == renewal.RenewalId && c.CustomerId == renewal.Contract.CustomerId, ct);
+        if (!hasCustomerConsent || !renewal.PolicyVersion.HasValue)
+        {
+            throw new InvalidOperationException("Khách hàng chưa hoàn tất chấp thuận chính sách cho thuê cho kỳ gia hạn này. Nhân viên không được thu tiền khi chưa có xác nhận từ khách.");
         }
 
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract:{renewal.ContractId}", ct);

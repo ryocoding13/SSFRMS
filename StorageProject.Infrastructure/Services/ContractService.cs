@@ -99,6 +99,12 @@ public class ContractService(AppDbContext dbContext) : IContractService
             ))
             .ToList();
 
+        var consent = await dbContext.PolicyConsents
+            .Include(cp => cp.PolicyVersion)
+            .Where(cp => (cp.ContractId == c.ContractId || cp.ReservationId == c.ReservationId) && cp.CustomerId == customerId)
+            .OrderByDescending(cp => cp.AcceptedAt)
+            .FirstOrDefaultAsync(ct);
+
         return new ContractDetailDto(
             c.ContractId,
             c.ReservationId,
@@ -121,7 +127,9 @@ public class ContractService(AppDbContext dbContext) : IContractService
             c.AccessCredentials.Where(a => a.Status == "ACTIVE" && a.CredentialType == "ACCESS_CODE" &&
                 a.CredentialReference != null && a.CredentialReference.Length > 3 &&
                 Guid.TryParseExact(a.CredentialReference[3..], "N", out _))
-                .Select(a => (DateTime?)a.IssuedAt).Max()
+                .Select(a => (DateTime?)a.IssuedAt).Max(),
+            consent?.PolicyVersion?.Version,
+            consent?.AcceptedAt
         );
     }
 

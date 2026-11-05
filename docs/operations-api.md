@@ -16,9 +16,9 @@ Quy ước chung:
 |---|---|---|---|
 | GET | `/api/operations/facilities` | `?status=ACTIVE&search=quận 7` | Gồm cả cơ sở INACTIVE / TEMPORARILY_CLOSED |
 | GET | `/api/operations/facilities/{id}` | — | |
-| POST | `/api/operations/facilities` | `{ name, address, contactPhone, openingTime, closingTime, status?, latitude?, longitude? }` | `201` + `{ facility, warnings[] }` |
+| POST | `/api/operations/facilities` | `{ name, address, contactPhone, openingTime, closingTime, status?, latitude?, longitude?, operationId? }` | `201` + `{ facility, warnings[] }` (idempotent theo `operationId` hoặc header `Idempotency-Key` / `X-Operation-Id`) |
 | PUT | `/api/operations/facilities/{id}` | như trên | Sửa thông tin; `status` nếu gửi thì đi qua cùng kiểm tra như endpoint dưới |
-| PUT | `/api/operations/facilities/{id}/status` | `{ status, reason? }` | `ACTIVE` · `TEMPORARILY_CLOSED` · `INACTIVE` |
+| PUT | `/api/operations/facilities/{id}/status` | `{ status, reason? }` | `ACTIVE` · `TEMPORARILY_CLOSED` · `INACTIVE` (khoá `inventory:{id}`, 409 nếu còn đơn/hợp đồng mở) |
 
 Một cơ sở trả về:
 
@@ -105,7 +105,7 @@ Body tạo / sửa:
 | Phương thức | Đường dẫn | Body / query | Ghi chú |
 |---|---|---|---|
 | GET | `/api/operations/rates` | `?facilityId=&unitTypeId=&includeHistory=false` | Mặc định: giá đang áp dụng + giá đã lên lịch |
-| POST | `/api/operations/rates` | `{ facilityId, unitTypeId, monthlyRate, effectiveFrom? }` | `effectiveFrom` bỏ trống = hôm nay |
+| POST | `/api/operations/rates` | `{ facilityId, unitTypeId, monthlyRate, effectiveFrom?, expectedRevisionToken? }` | Chặn chồng chéo lịch; kiểm soát optimistic concurrency (409 nếu lệch token); `effectiveFrom` bỏ trống = hôm nay |
 
 - `monthlyRate > 0`, bội số 1.000 VND; `effectiveFrom` không được ở quá khứ.
 - Giá cũ của cùng cơ sở + loại kho tự kết thúc ngay trước ngày giá mới bắt đầu (BR19, không chồng giá).
@@ -141,6 +141,10 @@ Bộ lọc chung: `from`, `to` (`yyyy-MM-dd`, giờ Việt Nam; mặc định t�
 | `occupancyRate` | `unitsInUse / operableUnits × 100`; `null` = Không áp dụng |
 | `activeContracts` | Hợp đồng ACTIVE, EXPIRING, OVERDUE, RETURN_PENDING |
 | `overdueCases`, `overdueContracts` | Số case quá hạn chưa xử lý và số hợp đồng quá hạn (không trùng) |
+| `depositRefunded` | Tiền hoàn cọc trong kỳ (sau trả kho M07 hoặc huỷ đơn/sự cố) |
+| `rentalRefunded` | Tiền hoàn tiền thuê/phí trong kỳ do sự cố (chấm dứt hợp đồng) |
+| `unclassifiedRefunded` | Tiền hoàn legacy chưa thể phân loại |
+| `pendingRefunds` | Tiền hoàn đang chờ chuyển (PENDING) |
 
 - `totals` luôn bằng tổng các dòng trong cùng bộ lọc (điểm nghiệm thu UC22).
 - Trạng thái kho là **hiện tại**, không phải lịch sử — giao diện ghi rõ "Số liệu kho tại thời điểm …" từ `snapshotAt`.
@@ -148,8 +152,13 @@ Bộ lọc chung: `from`, `to` (`yyyy-MM-dd`, giờ Việt Nam; mặc định t�
   ô bắt đầu bằng `= + - @` được chặn công thức. Giao diện gọi với **cùng bộ lọc** đang xem rồi tải tệp
   (`Content-Disposition` có tên tệp `bao-cao-...csv`).
 
-Giả định của bản cơ bản (D16): bảng `payments` chưa có `original_payment_id`, và hoàn tiền hiện chỉ có hoàn cọc sau trả kho,
-nên mọi khoản REFUND trừ vào "Cọc còn giữ"; "Doanh thu thuê và phí" không trừ REFUND.
+Cập nhật theo D32 và gói W7: Báo cáo phân loại hoàn tiền dựa trên hồ sơ nguồn:
+- `depositRefunded`: Hoàn cọc (sau trả kho M07 hoặc huỷ đơn/kết thúc sự cố)
+- `rentalRefunded`: Hoàn tiền thuê/phí do sự cố (chấm dứt hợp đồng)
+- `unclassifiedRefunded`: Hoàn tiền legacy chưa phân loại được ghi nhận minh bạch
+- `pendingRefunds`: Tiền hoàn đang chờ xử lý (`PENDING`), không bao giờ bị tính vào công nợ khách (`outstanding`)
+- `depositHeld`: Tính theo snapshot as-of trên các hợp đồng/đơn đang mở; cọc của hợp đồng đã kết thúc (`COMPLETED`, `TERMINATED`) không bị giữ vô thời hạn
+- `outstanding`: Loại bỏ triệt để các khoản `REFUND` và các khoản của hợp đồng/đơn đã kết thúc (`COMPLETED`, `CANCELLED`, `TERMINATED`).
 
 ### Toạ độ cơ sở (B05a, C02m)
 - `latitude`, `longitude` (số thập phân, 6 chữ số) có trong `POST`/`PUT /api/operations/facilities`, `GET /api/operations/facilities`
@@ -157,3 +166,14 @@ nên mọi khoản REFUND trừ vào "Cọc còn giữ"; "Doanh thu thuê và ph
 - `PUT` ghi đè toạ độ theo đúng giá trị gửi lên (gửi `null` cả hai = xoá toạ độ). Form B05a luôn gửi lại toạ độ đang có.
 - Khi khởi động, `FacilityCoordinateSeeder` điền toạ độ cho 12 cơ sở SafeSpace còn trống (không ghi đè toạ độ đã sửa).
 
+
+## 5. Phiên bản chính sách cho thuê (`/api/rental-policy/*`) — D32 (T20)
+
+Quản lý phiên bản chính sách bất biến cho toàn hệ thống.
+
+| Phương thức | Đường dẫn | Body / query | Ghi chú |
+|---|---|---|---|
+| GET | `/api/rental-policy` | — | Công khai: Lấy phiên bản chính sách bất biến hiện hành (`RentalPolicyDto`: `rate`, `sections`, `version`, `displayVersion`, `updatedAt`) |
+| GET | `/api/rental-policy/versions/{version}` | — | Công khai: Lấy phiên bản chính sách lịch sử theo số version |
+| POST | `/api/rental-policy/actions` | `{ action: "SAVE_RENTAL_POLICY", rate, sections, version }` | Role `OPERATIONS` hoặc `ADMIN`: Tạo phiên bản mới, kiểm tra optimistic concurrency theo version (409 nếu đã có người cập nhật trước), đồng bộ rate sang bảng `policies` |
+| POST | `/api/reservations/{id}/policy-consent` | `{ policyVersion, accepted }` | Khách hàng xác nhận đồng ý chính sách cho đơn đặt chỗ (kênh WEB hoặc tại quầy) |

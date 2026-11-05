@@ -67,6 +67,12 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         var assignedUnit = r.UnitAssignments.OrderByDescending(a => a.AssignedAt).FirstOrDefault()?.Unit?.UnitNumber;
         var contract = r.RentalContract;
 
+        var consent = await dbContext.PolicyConsents
+            .Include(c => c.PolicyVersion)
+            .Where(c => c.ReservationId == r.ReservationId && c.CustomerId == customerId)
+            .OrderByDescending(c => c.AcceptedAt)
+            .FirstOrDefaultAsync(ct);
+
         return new ReservationDetailDto(
             r.ReservationId,
             r.FacilityId,
@@ -86,7 +92,9 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             contract?.ContractId,
             contract?.Status,
             r.CreatedAt,
-                r.PaymentMethod
+            r.PaymentMethod,
+            consent?.PolicyVersion?.Version,
+            consent?.AcceptedAt
         );
     }
 
@@ -126,6 +134,15 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             ?? throw new InvalidOperationException("Chưa có bảng giá áp dụng cho cơ sở và loại kho này.");
 
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"inventory:{request.FacilityId}", ct);
+
+        // BO13: Đọc lại trạng thái cơ sở sau khi lấy khóa để tránh race condition với việc ngừng hoạt động/tạm đóng
+        var facilityInLock = await dbContext.Facilities.FirstOrDefaultAsync(f => f.FacilityId == request.FacilityId, ct)
+            ?? throw new InvalidOperationException("Không tìm thấy cơ sở kho.");
+        if (facilityInLock.Status != "ACTIVE")
+        {
+            throw new InvalidOperationException("Cơ sở này đang tạm ngừng nhận đặt chỗ mới. Vui lòng chọn cơ sở khác.");
+        }
+
         // Check availability
         var expectedEndDate = request.StartDate.AddMonths(request.RentalPeriodMonths);
         var availableUnitsCount = await dbContext.StorageUnits

@@ -1,3 +1,70 @@
+## 2026-11-05 — Hoàn thành Gói W8: Tích hợp FE, Tài liệu, Rà soát B01–B05 và Bàn giao tổng thể
+
+- **Mục tiêu:** Thực hiện Gói W8 theo kế hoạch `SSFRMS-Business-Operator-Implementation-Plan.md`, hoàn tất toàn diện 9 gói công việc (W0–W8) phục vụ vai trò Quản lý Vận hành Kinh doanh (Business Operator):
+  1. **Rà soát & Hoàn thiện Màn B01–B05:**
+     - **B02 (Chính sách):** Cập nhật `policyFields.js` và `businessFormat.js`: loại bỏ triệt để wording "ân hạn quyền truy cập" trái với D32 (D32 quy định quyền mở cửa khoá ngay khi hợp đồng hết hạn); thay bằng mốc xử lý quá hạn rõ ràng (nhắc nhở ngày 10–14, lập biên bản và di dời tài sản ngày 20). Chuẩn hoá nhập liệu và hiển thị kiểu tính `DEPOSIT_PERCENT_PER_DAY` (5% cọc ban đầu/ngày), không để bộ parse tiền làm sai lệch số thập phân hoặc biến tỷ lệ thành tiền mặt.
+     - **B03 (Quản lý giá thuê):** Kết nối `expectedRevisionToken` từ bản ghi giá vào form chỉnh sửa trong `FacilityRatePage.jsx`. Khi gửi cập nhật giá lên `POST /api/operations/rates`, gửi kèm revision token để backend thực thi optimistic concurrency; nếu có người khác cập nhật trước đó, server trả HTTP 409 Conflict và giao diện giữ nguyên form, hướng dẫn tải lại dữ liệu mới nhất.
+     - **B05 (Quản lý mạng lưới cơ sở):** Khi tạo cơ sở mới, `FacilityManagementPage.jsx` sinh và gửi `operationId` (UUID v4) trong payload; hỗ trợ retry an toàn và đảm bảo idempotency nguyên tử ở backend W6. Đổi trạng thái sang `INACTIVE` tiếp tục nhận diện chính xác 409 Conflict với số lượng đơn/hợp đồng đang mở (bao gồm `PENDING_AT_FACILITY`).
+     - **B04 & B05 (Báo cáo & Xuất dữ liệu):** Đồng bộ các chỉ tiêu phân loại tiền mới (`depositRefunded`, `rentalRefunded`, `unclassifiedRefunded`, `pendingRefunds`) vào mô hình báo cáo; xuất CSV và OOXML XLSX (.xlsx) giữ UTF-8 có BOM và chống formula injection an toàn.
+  2. **Cập nhật Tài liệu Kỹ thuật & Hợp đồng API:**
+     - Cập nhật `docs/operations-api.md`: ghi nhận đầy đủ các endpoint cơ sở, bảng giá, báo cáo phân loại hoàn tiền, kiểm soát concurrency 409 và bổ sung mục 5 quản lý phiên bản chính sách cho thuê (`/api/rental-policy/*`) theo D32.
+     - Cập nhật `BACKEND-TODO.md`: ghi nhận hoàn thành T20 BE (phiên bản chính sách và consent).
+- **Kiểm chứng Toàn diện:**
+  - **Backend Build:** `dotnet build StorageProject.slnx -c Release --no-restore -m:1` → PASS, 0 Error.
+  - **Backend Unit Tests:** `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` → PASS 138/138 tests.
+  - **Backend Integration Tests:** `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release` → PASS 9/9 tests trên SQL Server thật (`.\SQLEXPRESS`).
+  - **EF Core Migrations:** `dotnet ef migrations has-pending-model-changes` → PASS, 0 pending model changes.
+  - **Frontend Tests:**
+    + `npm test`: PASS 86/86 tests.
+    + `npm run test:business`: PASS 9/9 tests.
+    + `npm run test:workflows`: PASS 11/11 tests.
+    + `npm run check:structure`: PASS.
+    + `npm run build`: PASS, bundle Vite production thành công.
+  - **Git Diff:** `git diff --check` → PASS, 0 whitespace errors.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
+
+## 2026-11-05 — Hoàn thành Gói W7: Báo cáo phân loại tiền đúng (BO10–BO11)
+
+- **Mục tiêu:** Thực hiện Gói W7 theo kế hoạch `SSFRMS-Business-Operator-Implementation-Plan.md` (BO10–BO11):
+  1. **BO10 (Chuẩn hoá công nợ và cọc còn giữ):**
+     - Sửa predicate `IsOutstanding` trong cả `Compute` và `GetFacilityContractsAsync` để đồng bộ 100%: loại bỏ triệt để các khoản `REFUND` (tiền hoàn đang chờ chuyển `PENDING` không phải nợ của khách), đơn đặt chỗ đã huỷ/hết hạn, hợp đồng đã đóng/huỷ/chấm dứt (`COMPLETED`, `CANCELLED`, `TERMINATED` — theo D32 không phát sinh công nợ ngoài cọc), và các khoản thanh toán gia hạn `RENEWAL` đã hết hạn (`EXPIRED`/`REJECTED`).
+     - Sửa cách tính `DepositHeld` (Cọc còn giữ): tính chính xác tại thời điểm chụp dữ liệu (as-of / snapshot) dựa trên các hợp đồng đang mở (`ACTIVE`, `EXPIRING`, `OVERDUE`, `RETURN_PENDING`, `DRAFT`) và đơn giữ chỗ độc lập chưa tất toán; cọc của hợp đồng đã kết thúc (`COMPLETED`, `TERMINATED`) không bị giữ vô thời hạn (kể cả khi có khấu trừ phí trả kho).
+  2. **BO11 (Mô hình phân loại hoàn tiền Refund Allocation):**
+     - Bổ sung `DepositRefunded`, `RentalRefunded`, `UnclassifiedRefunded`, `PendingRefunds` vào `ReportMetrics` (tương thích ngược 100%).
+     - Triển khai `ClassifyRefund` suy phân bổ hoàn tiền qua chứng minh hồ sơ nguồn:
+       + Hoàn cọc sau trả kho (M07) phân bổ đúng vào tiền cọc `DepositRefunded`.
+       + Hoàn tiền sự cố chấm dứt hợp đồng phân biệt rõ phần hoàn tiền thuê `RentalRefunded` và phần hoàn cọc `DepositRefunded`; giữ nguyên định nghĩa Doanh thu thuê và phí (`RentalAndFeeRevenue`) dạng Gross theo D16.
+       + Khoản hoàn tiền legacy không chứng minh được nguồn phân bổ được ghi nhận minh bạch vào `UnclassifiedRefunded`.
+     - Đồng bộ validation bộ lọc: Kiểm tra `facilityId` và `unitTypeId` không tồn tại nhất quán trên toàn bộ các phương thức báo cáo (`GetSystemReportAsync`, `GetUnitTypeReportAsync`, `GetRevenueTrendAsync`, `GetRentalStatusAsync`, `GetFacilityContractsAsync`, `ExportCsvAsync`) ném `KeyNotFoundException`.
+- **Kiểm chứng:**
+  - `dotnet build StorageProject.slnx -c Release --no-restore -m:1`: PASS, 0 Error.
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release`: PASS 138/138 tests (bổ sung 7 tests mới trong `OperationsReportW7Tests.cs` kiểm chứng trọn vẹn 5 ca theo fixture kế hoạch và các ca lọc/công nợ).
+  - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release`: PASS 9/9 tests trên SQL Server thật (`.\SQLEXPRESS`).
+  - `dotnet ef migrations has-pending-model-changes`: PASS, 0 pending changes.
+  - `git diff --check`: PASS, 0 whitespace errors.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
+
+## 2026-11-04 — Hoàn thành Gói W6: Quản lý Cơ sở, Trạng thái & Idempotency (BO12–BO14)
+
+- **Mục tiêu:** Thực hiện Gói W6 theo kế hoạch `SSFRMS-Business-Operator-Implementation-Plan.md` (BO12–BO14):
+  1. **BO12 (Trạng thái đơn còn mở):** Bổ sung `PENDING_AT_FACILITY` vào `OpsRules.OpenReservationStatuses` (`["PENDING_PAYMENT", "PENDING_AT_FACILITY", "PENDING_VERIFICATION", "CONFIRMED", "UNIT_ASSIGNED"]`). Đơn đặt chỗ thanh toán tại quầy chưa bàn giao hoặc chưa kích hoạt chặn hoàn toàn việc chuyển cơ sở sang `INACTIVE`.
+  2. **BO13 (Protocol khóa & race condition ngừng hoạt động):**
+     - Mọi đường đổi trạng thái cơ sở sang `INACTIVE` (kể cả qua PUT `/api/operations/facilities/{id}` cập nhật thông tin kèm status) đều lấy khóa phân tán `inventory:{facilityId}` trước khi đọc lại cơ sở và đếm đơn/hợp đồng đang mở.
+     - `ReservationService.CreateReservationAsync`: Đọc lại trạng thái cơ sở sau khi lấy khóa `inventory:{facilityId}` để tránh race condition với luồng đóng/tạm đóng cơ sở; ném `InvalidOperationException` nếu cơ sở không còn `ACTIVE`.
+     - `TEMPORARILY_CLOSED`: Cho phép chuyển sang tạm đóng để chặn đặt chỗ mới nhưng tiếp tục phục vụ hợp đồng và đơn hiện hữu.
+  3. **BO14 (Tạo cơ sở nguyên tử & Idempotency theo OperationId):**
+     - Thêm `string? OperationId` vào `UpsertFacilityRequest` (tương thích ngược; hỗ trợ nhận qua body hoặc header `Idempotency-Key` / `X-Operation-Id`).
+     - `OpsRules.ComputeFacilityRequestHash`: Tính mã băm SHA-256 từ thông tin cơ sở đã chuẩn hoá.
+     - `CreateFacilityAsync`: Lưu `Facility` và `ActivityLog` (`FACILITY_CREATE` và receipt `IDEMPOTENCY_FACILITY_CREATE`) trong cùng transaction nguyên tử; nếu audit log lỗi thì rollback toàn bộ.
+     - Xử lý retry: Nếu gửi lại cùng `OperationId` với cùng payload, trả về đúng bản ghi cơ sở đã tạo mà không tạo thêm bản ghi trùng lặp; nếu cùng `OperationId` nhưng khác payload, ném `OperationConflictException` (HTTP 409 Conflict).
+- **Kiểm chứng:**
+  - `dotnet build StorageProject.slnx -c Release --no-restore -m:1`: PASS, 0 Error.
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release`: PASS 131/131 tests (bổ sung 7 tests mới trong `FacilityManagementW6Tests.cs`).
+  - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release`: PASS 9/9 tests trên SQL Server thật (`.\SQLEXPRESS`).
+  - `dotnet ef migrations has-pending-model-changes`: PASS, 0 pending changes.
+  - `git diff --check`: PASS, 0 whitespace errors.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
+
 ## 2026-10-28 — T02, T03, T04, T20 BE: Gia hạn, PayOS, thu tại quầy & chính sách cho thuê theo D32 (Đạt)
 
 - Nền `origin/main` 0f0194b, làm trên nhánh `feature/dat-renewal-policy-d32`. Không commit/push/PR/merge; không tự ý nâng feature passing khi chưa có SQL Server/PayOS thật và thành viên phụ trách xác nhận.

@@ -33,10 +33,16 @@ public static class OperationsEndpoints
             }))
             .WithSummary("Chi tiết một cơ sở");
 
-        group.MapPost("/facilities", (UpsertFacilityRequest request, ClaimsPrincipal user, IOperationsService ops, CancellationToken ct) =>
+        group.MapPost("/facilities", (HttpContext httpContext, UpsertFacilityRequest request, ClaimsPrincipal user, IOperationsService ops, CancellationToken ct) =>
             Run(async () =>
             {
-                var result = await ops.CreateFacilityAsync(request, user.GetUserId(), ct);
+                var operationId = request.OperationId
+                    ?? httpContext.Request.Headers["Idempotency-Key"].FirstOrDefault()
+                    ?? httpContext.Request.Headers["X-Operation-Id"].FirstOrDefault();
+                var reqWithOpId = !string.IsNullOrWhiteSpace(operationId) && request.OperationId != operationId
+                    ? request with { OperationId = operationId }
+                    : request;
+                var result = await ops.CreateFacilityAsync(reqWithOpId, user.GetUserId(), ct);
                 return Results.Created($"/api/operations/facilities/{result.Facility.FacilityId}", result);
             }))
             .WithSummary("Thêm cơ sở mới; trả kèm cảnh báo (tên gần giống, thiếu giá/ô kho/nhân sự)");

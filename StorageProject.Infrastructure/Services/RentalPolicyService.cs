@@ -1,3 +1,4 @@
+using StorageProject.Core.Exceptions;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using StorageProject.Core.DTOs.Policy;
@@ -99,9 +100,14 @@ public class RentalPolicyService(AppDbContext dbContext) : IRentalPolicyService
             {
                 throw new ArgumentException($"Phần '{sec}' trong chính sách không được để trống.");
             }
+            if (content.Length > 3000)
+            {
+                throw new ArgumentException($"Nội dung phần '{sec}' không được vượt quá 3.000 ký tự.");
+            }
         }
 
-        await using var tx = await dbContext.Database.BeginTransactionAsync(ct);
+        // BO04: Khóa phân tán policy:publish để ngăn chặn race condition publish đồng thời tạo nhiều IsCurrent = 1
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, "policy:publish", ct);
 
         var current = await dbContext.RentalPolicyVersions
             .OrderByDescending(v => v.Version)
@@ -109,7 +115,9 @@ public class RentalPolicyService(AppDbContext dbContext) : IRentalPolicyService
 
         if (request.Version.HasValue && current != null && current.Version != request.Version.Value)
         {
-            throw new InvalidOperationException("Phiên bản chính sách đã được thay đổi bởi người khác. Vui lòng tải lại trang.");
+            throw new OperationConflictException(
+                "Phiên bản chính sách đã được thay đổi bởi người khác. Vui lòng tải lại trang.",
+                new { currentVersion = current.Version, expectedVersion = request.Version.Value });
         }
 
         if (current != null)
@@ -136,7 +144,7 @@ public class RentalPolicyService(AppDbContext dbContext) : IRentalPolicyService
 
         dbContext.RentalPolicyVersions.Add(newPolicyVersion);
 
-        // Keep OVERDUE policy table in sync with the new rate
+        // Keep OVERDUE policy table in sync with the new rate (BO02/BO03)
         var overduePolicy = await dbContext.Policies
             .FirstOrDefaultAsync(p => p.PolicyType == "OVERDUE" && p.Status == "ACTIVE", ct);
 
@@ -144,6 +152,22 @@ public class RentalPolicyService(AppDbContext dbContext) : IRentalPolicyService
         {
             overduePolicy.Value = rate;
             overduePolicy.UpdatedAt = now;
+        }
+        else
+        {
+            dbContext.Policies.Add(new Policy
+            {
+                PolicyName = "Phí phạt quá hạn thanh toán",
+                PolicyType = "OVERDUE",
+                CalculationType = "DEPOSIT_PERCENT_PER_DAY",
+                Value = rate,
+                RuleDescription = "Phí quá hạn: trừ % cọc ban đầu mỗi ngày theo D32",
+                EffectiveFrom = DateOnly.FromDateTime(now),
+                Status = "ACTIVE",
+                CreatedBy = userId,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
         }
 
         // Audit log
@@ -190,6 +214,22 @@ public class RentalPolicyService(AppDbContext dbContext) : IRentalPolicyService
             throw new InvalidOperationException("Phiên bản chính sách không còn hiệu lực. Vui lòng tải lại trang để chấp thuận bản mới nhất.");
         }
 
+        // Idempotency check: tránh tạo trùng bản ghi consent cùng chủ thể, đơn và version (BO07)
+        var existingConsent = await dbContext.PolicyConsents
+            .Include(c => c.PolicyVersion)
+            .FirstOrDefaultAsync(c => c.ReservationId == reservationId && c.CustomerId == customerId && c.PolicyVersion.Version == expectedVersion, ct);
+        if (existingConsent != null)
+        {
+            return new PolicyConsentDto(
+                ConsentId: existingConsent.ConsentId,
+                CustomerId: customerId,
+                PolicyVersion: expectedVersion,
+                DisplayVersion: existingConsent.PolicyVersion?.DisplayVersion ?? currentVersion?.DisplayVersion ?? "11/2026",
+                AcceptedAt: existingConsent.AcceptedAt,
+                Channel: existingConsent.Channel
+            );
+        }
+
         var consent = new PolicyConsent
         {
             CustomerId = customerId,
@@ -232,6 +272,25 @@ public class RentalPolicyService(AppDbContext dbContext) : IRentalPolicyService
         if (request.PolicyVersion != expectedVersion)
         {
             throw new InvalidOperationException("Phiên bản chính sách không còn hiệu lực. Vui lòng tải lại trang để chấp thuận bản mới nhất.");
+        }
+
+        // Idempotency check: tránh tạo trùng bản ghi consent cùng chủ thể, gia hạn và version (BO07)
+        var existingConsent = await dbContext.PolicyConsents
+            .Include(c => c.PolicyVersion)
+            .FirstOrDefaultAsync(c => c.RenewalId == renewalId && c.CustomerId == customerId && c.PolicyVersion.Version == expectedVersion, ct);
+        if (existingConsent != null)
+        {
+            renewal.PolicyVersion = expectedVersion;
+            renewal.AcceptedAt = existingConsent.AcceptedAt;
+            await dbContext.SaveChangesAsync(ct);
+            return new PolicyConsentDto(
+                ConsentId: existingConsent.ConsentId,
+                CustomerId: customerId,
+                PolicyVersion: expectedVersion,
+                DisplayVersion: existingConsent.PolicyVersion?.DisplayVersion ?? currentVersion?.DisplayVersion ?? "11/2026",
+                AcceptedAt: existingConsent.AcceptedAt,
+                Channel: existingConsent.Channel
+            );
         }
 
         var consent = new PolicyConsent
