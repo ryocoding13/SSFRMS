@@ -1,3 +1,10 @@
+## 2026-11-05 — Sửa CI PR #68 (Backend + SQL Server Integration đỏ)
+
+- `CheckoutTests.PaidOrderAutomaticallyIssuesQrAndPinBeforeKeyReceiptButRejectsEarlyUse` (đỏ từ Phiên 3): test lọc nhầm `CredentialType == "QR"`; mã được lưu là `ACCESS_CODE` + tham chiếu `QR-…` → sửa điều kiện lọc trong test, không đổi code chạy.
+- `Conflict_NoUnit_CustomerReschedulesOrCancelsWithFullRefundNoFee` (Phiên 4): `Read` trả `""` cho giá trị JSON null nên `ProposedUnit` = `""` thay vì null → `FacilityOpsService.Conflicts.cs` thêm `Text()` đổi chuỗi rỗng thành null cho ô đề xuất / ô mới / ngày mới.
+- `SqlServerMigrationAndReadinessTests`: thêm 2 migration mới `20261105120000_Phien3EvidenceOwnerTypes`, `20261105220000_Phien4ReletBufferPolicy` vào danh sách mong đợi (CI báo 10 ≠ 12).
+- **Kiểm tra:** đọc log CI thật (job Backend: 2/224 test đỏ; SQL Server Integration: 1/11). Sửa xong mới biên dịch Roslyn với stub; chưa chạy lại `dotnet test` (NuGet chặn) → chờ CI lần sau xác nhận, nhất là bước kiểm tra model drift.
+
 ## 2026-11-05 — Phiên 5b: đồng bộ màn khách với Figma (D30-07, D30-03, D30-13, C-D41a, C12, C07b)
 
 - **FE** `RefundMethodFields`: thẻ "Nhận tiền hoàn · Chính chủ", hàng chọn "Nhận hoàn qua" (chuyển khoản / tiền mặt) như D30-07, D30-03; câu tiền mặt ghi tên cơ sở + giờ mở cửa, giữ điều kiện D44 (quá 30 ngày mất khoản hoàn, tick xác nhận, đổi được sang chuyển khoản). Dùng ở huỷ đơn, trả kho, sự cố cơ sở, đổi kho.

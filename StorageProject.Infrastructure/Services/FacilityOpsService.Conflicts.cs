@@ -281,11 +281,11 @@ public partial class FacilityOpsService
             result.Add(new UnitConflictDto(
                 $"XD-{st.Proposal.LogId:0000}", ContractCode(c), c.Customer.FullName, c.Customer.Phone,
                 c.StartDate.ToString("yyyy-MM-dd"), c.EndDate.ToString("yyyy-MM-dd"),
-                Read(st.Proposal, "oldUnit") ?? c.Unit.UnitNumber, Read(st.Proposal, "proposedUnit"), Read(st.Proposal, "proposedType"), area,
+                Read(st.Proposal, "oldUnit") ?? c.Unit.UnitNumber, Text(st.Proposal, "proposedUnit"), Text(st.Proposal, "proposedType"), area,
                 st.Option, Read(st.Proposal, "reason") ?? "", blocking.HasValue ? $"HĐ-{blocking.Value:0000}" : null,
                 Local(st.Proposal.LoggedAt)!, st.ExpiresAt.HasValue ? Local(st.ExpiresAt) : null,
                 st.Open ? "OPEN" : "RESOLVED", st.Resolution != null ? Read(st.Resolution, "resolution") : null, Local(st.Resolution?.LoggedAt),
-                st.Resolution != null ? Read(st.Resolution, "newUnit") : null, st.Resolution != null ? Read(st.Resolution, "newStartDate") : null,
+                st.Resolution != null ? Text(st.Resolution, "newUnit") : null, st.Resolution != null ? Text(st.Resolution, "newStartDate") : null,
                 earliest));
         }
         return result;
@@ -432,4 +432,7 @@ public partial class FacilityOpsService
         }
         return new { resolution = "CANCEL", refund = paid, method = RefundBank.IsCash(account.BankName) ? CashMethod : "BANK_TRANSFER" };
     }
+
+    /// <summary>Trường chữ trong log: JSON null / rỗng → null (Read trả "" cho JSON null).</summary>
+    private static string? Text(ActivityLog log, string field) => Read(log, field) is { Length: > 0 } v ? v : null;
 }

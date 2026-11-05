@@ -222,7 +222,7 @@ public sealed class CheckoutTests
         Assert.True(await f.PayOS.ProcessWebhookAsync("{}", null));
         var c = await f.Db.RentalContracts.Include(c => c.HandoverRecord).SingleAsync();
         Assert.Equal("ACTIVE", c.Status); Assert.Null(c.HandoverRecord); // D36: lịch chỉ tạo khi khách yêu cầu chìa khóa
-        Assert.Single(await f.Db.AccessCredentials.Where(a => a.CredentialType == "QR").ToListAsync()); // mã cấp sẵn (D26)
+        Assert.Single(await f.Db.AccessCredentials.Where(a => a.CredentialType == "ACCESS_CODE" && a.CredentialReference!.StartsWith("QR-")).ToListAsync()); // mã cấp sẵn (D26)
         var access = Access(f.Db);
         // L13: trước ngày bắt đầu thuê không trả QR/PIN cho khách.
         await Assert.ThrowsAsync<InvalidOperationException>(() => access.GetQrAsync(f.Order.CustomerId, c.ContractId));
