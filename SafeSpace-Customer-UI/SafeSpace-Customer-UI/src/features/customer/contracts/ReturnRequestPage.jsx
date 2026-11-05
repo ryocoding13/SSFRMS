@@ -2,10 +2,10 @@ import React, { useRef, useState } from "react";
 import { DatePicker, Select } from "../../../shared/components/Pickers.jsx";
 import { Button, DetailList, Field, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
-import RefundBankFields from "../../../shared/components/RefundBankFields.jsx";
+import RefundMethodFields from "../../../shared/components/RefundMethodFields.jsx";
 import ReturnPhotoInput from "../../../shared/components/ReturnPhotoInput.jsx";
 import { useRefundSupport } from "../../../shared/hooks/useRefundSupport.js";
-import { RETURN_SLOTS, emptyRefundBank, validateRefundBank, validateReturnPhotos } from "../../../shared/utils/refundRequest.js";
+import { RETURN_SLOTS, emptyRefundBank, isCashRefund, validateRefundChoice, validateReturnPhotos } from "../../../shared/utils/refundRequest.js";
 import { addDays, dateLabel, money, today } from "../../../shared/utils/format.js";
 import { earlyStopKeep, isEarlyStop, unusedRent } from "../../../shared/utils/returnPolicy.js";
 import { go } from "../../../app/router.js";
@@ -21,13 +21,13 @@ function RefundPreview({ c }) {
   const early = isEarlyStop(c.end_date, now), keep = early ? earlyStopKeep(deposit) : 0;
   const rent = early ? unusedRent(c.monthly_rate, c.start_date, c.end_date, now) : 0;
   const rows = [["Cọc ban đầu", known ? money(deposit) : "Chưa có dữ liệu"]];
-  if (early) rows.push(["Trả trước hạn · giữ 30% cọc", `− ${money(keep)}`]);
+  if (early) rows.push(["Trả trước hạn · giữ 30% cọc", <span className="money-deduct">− {money(keep)}</span>]);
   rows.push(["Tiền thuê tháng chưa bắt đầu", money(rent)], [early ? "Khấu trừ hư hỏng" : "Khấu trừ (vệ sinh, hư hỏng, quá hạn)", "Sau kiểm tra"]);
   return <section className="panel customer-detail__card return-refund">
     <h2>Khoản hoàn dự kiến</h2>
     <DetailList items={rows} />
     <div className="return-refund__total"><span>Dự kiến hoàn</span><strong>{known ? money(Math.max(0, deposit - keep) + rent) : "Chưa có dữ liệu"}</strong></div>
-    <p className="hint">{early ? `Trả trước ngày ${dateLabel(c.end_date)}: hoàn 70% cọc và tiền thuê các tháng chưa bắt đầu; tháng đang dùng tính đủ.` : "Trả đúng hạn, kho sạch: hoàn đủ cọc."} Số chính thức xác nhận sau kiểm tra kho; tổng khấu trừ tối đa bằng cọc. Hoàn trong 3–5 ngày làm việc vào tài khoản chính chủ.</p>
+    <p className="hint">{early ? `Trả trước ngày ${dateLabel(c.end_date)}: hoàn 70% cọc và tiền thuê các tháng chưa bắt đầu; tháng đang dùng tính đủ.` : "Trả đúng hạn, kho đạt tiêu chuẩn: hoàn đủ cọc."} Số chính thức xác nhận sau kiểm tra kho; tổng khấu trừ tối đa bằng cọc. Chuyển khoản trong 3–5 ngày làm việc hoặc nhận tiền mặt tại quầy theo lựa chọn của bạn.</p>
   </section>;
 }
 export function ReturnRequestPage({ id }) {
@@ -43,7 +43,7 @@ export function ReturnRequestPage({ id }) {
   const expectedName = c.customer_name || (mode === "local" ? data.user?.full_name : null);
   const hasReturn = data.returns.some(r => r.contract_id === id && !["CANCELLED", "REJECTED"].includes(r.status));
   const blocked = ["ENDED", "RETURN_PENDING"].includes(c.status) || c.start_date > today() || hasReturn || Boolean(pendingRenewal(data, id));
-  const validate = () => validateRefundBank(bank, expectedName) || validateReturnPhotos(photos) || (!emptied ? "Vui lòng xác nhận đã chuyển hết đồ ra khỏi kho." : "") || (!date || date < today() ? "Ngày kiểm tra không được ở quá khứ." : "");
+  const validate = () => validateRefundChoice(bank, expectedName) || validateReturnPhotos(photos) || (!emptied ? "Vui lòng xác nhận đã chuyển hết đồ ra khỏi kho." : "") || (!date || date < today() ? "Ngày kiểm tra không được ở quá khứ." : "");
   const submit = e => { e.preventDefault(); if (busy || reading || blocked || !support.ready) return; const invalid = validate(); setError(invalid); if (!invalid) setConfirm(true); };
   const send = async () => {
     if (guard.current || blocked || !support.ready) return;
@@ -68,8 +68,8 @@ export function ReturnRequestPage({ id }) {
           <Field label="Ghi chú cho nhân viên (không bắt buộc)"><input maxLength={300} value={notes} onChange={e => setNotes(e.target.value)} /></Field>
           <label className="customer-detail__choice"><input type="checkbox" checked={emptied} onChange={e => setEmptied(e.target.checked)} /><span>Tôi xác nhận đã chuyển hết đồ ra khỏi kho</span></label>
         </fieldset>
-        <section className="panel customer-detail__card"><h2>2 · Tài khoản nhận hoàn · Chính chủ</h2>
-          <RefundBankFields value={bank} onChange={setBank} expectedName={expectedName} disabled={busy || blocked} />
+        <section className="panel customer-detail__card"><h2>2 · Cách nhận hoàn</h2>
+          <RefundMethodFields value={bank} onChange={setBank} expectedName={expectedName} disabled={busy || blocked} />
           {support.demo && <Notice>Chế độ mô phỏng: ngân hàng và thông tin tệp lưu trong trình duyệt; ảnh chỉ xem trước trong phiên này, chưa gửi tới cơ sở.</Notice>}
           {!support.ready && <Notice>{support.loading ? "Đang kiểm tra chức năng gửi trả kho…" : support.error || "Chức năng gửi trả kho đang được cập nhật. Vui lòng liên hệ cơ sở để được hỗ trợ."}</Notice>}
           {support.error && <Button variant="outline" onClick={support.reload}>Tải lại</Button>}
@@ -81,9 +81,9 @@ export function ReturnRequestPage({ id }) {
       <aside className="customer-detail__column customer-detail__sidebar">
         <section className="panel customer-detail__card"><h2>Hợp đồng {id}</h2><DetailList items={[["Kho", c.unit_number], ["Dùng đến hết", `${dateLabel(c.end_date)} · 23:59`], ["Cọc đang giữ", money(c.deposit)]]} /></section>
         <RefundPreview c={c} />
-        <section className="panel customer-detail__card return-request__warning"><h2>Sau khi gửi thành công</h2><ul><li>Dừng tính phí quá hạn ngay.</li><li>QR/PIN khoá ngay, không mở lại.</li><li>Không thể huỷ yêu cầu.</li><li>Đồ còn lại do nhân viên dọn; cơ sở không nhận bảo quản.</li></ul><p className="hint">Số hoàn được xác nhận sau kiểm tra. Tổng khấu trừ tối đa bằng tiền cọc, không thu thêm ngoài cọc.</p></section>
+        <section className="panel customer-detail__card return-request__warning"><h2>Sau khi gửi thành công</h2><ul><li>Trong 3 ngày nhân viên gửi biên bản và số tiền hoàn dự kiến; theo dõi chuông/email để xác nhận khấu trừ trong 48 giờ (quá hạn tự hoàn theo biên bản).</li><li>Dừng tính phí quá hạn ngay.</li><li>QR/PIN khoá ngay, không mở lại.</li><li>Không thể huỷ yêu cầu.</li><li>Đồ còn lại do nhân viên dọn; cơ sở không nhận bảo quản.</li></ul><p className="hint">Số hoàn được xác nhận sau kiểm tra. Tổng khấu trừ tối đa bằng tiền cọc, không thu thêm ngoài cọc.</p></section>
       </aside>
     </div>
-    {confirm && <ConfirmDialog title="Xác nhận gửi trả kho?" tone="warning" text="QR/PIN sẽ hết hiệu lực ngay khi gửi thành công, phí quá hạn dừng và bạn không thể huỷ yêu cầu." rows={[["Kho", c.unit_number], ["Lịch kiểm tra", `${dateLabel(date)} · ${slot}`], ["Ảnh kho trống", photos.length], ["Ngân hàng", bank.bankName], ["Tài khoản", bank.accountNumber], ["Chủ tài khoản", bank.accountHolder]]} busy={busy} onCancel={() => setConfirm(false)} onConfirm={send} label="Xác nhận trả kho" />}
+    {confirm && <ConfirmDialog title="Xác nhận gửi trả kho?" tone="warning" text="QR/PIN sẽ hết hiệu lực ngay khi gửi thành công, phí quá hạn dừng và bạn không thể huỷ yêu cầu." rows={[["Kho", c.unit_number], ["Lịch kiểm tra", `${dateLabel(date)} · ${slot}`], ["Ảnh kho trống", photos.length], ...(isCashRefund(bank) ? [["Cách nhận hoàn", "Tiền mặt tại quầy · trong 30 ngày"]] : [["Ngân hàng", bank.bankName], ["Tài khoản", bank.accountNumber], ["Chủ tài khoản", bank.accountHolder]])]} busy={busy} onCancel={() => setConfirm(false)} onConfirm={send} label="Xác nhận trả kho" />}
   </main>;
 }

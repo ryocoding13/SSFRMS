@@ -1,5 +1,13 @@
 # BACKEND-TODO — việc backend (StorageProject.Api) còn thiếu cho giao diện SafeSpace
 
+## Phiên 4 — 05/11/2026: D41 đặt trước theo ngày, D44 tiền mặt (BE đã viết, chờ build/test)
+
+- **Trống theo ngày (D41)** — `POST /api/availability/check` và tạo đơn tính cả ô sắp hết hạn (ngày hết hạn + đệm). `GET /api/facilities/{id}/units` thêm `freeFrom` (yyyy-MM-dd hoặc null), `overdue`. Chính sách mới `RELET_BUFFER` (FIXED, số ngày 0–60) ở B02 — FE vận hành chưa có ô nhập.
+- **Đề xuất đổi kho (D41)** — khách `GET /api/unit-conflicts` → `[{ id, contractId, customer, phone, startDate, endDate, oldUnit, proposedUnit, proposedUnitType, proposedArea, option: SWAP|UPGRADE|NONE, reason, blockingContractId, detectedAt, expiresAt, status: OPEN|RESOLVED, resolution, resolvedAt, newUnit, newStartDate, earliestFreeDate }]`; `POST /api/contracts/{contractId}/unit-conflict { choice: ACCEPT|RESCHEDULE|CANCEL, newStartDate?, refundBank? }` → `{ item }`. Quản lý/nhân viên `GET /api/ops/unit-conflicts`.
+- **Khoá gia hạn (D41)** — chi tiết hợp đồng khách thêm `nextBookingFrom`; gửi / duyệt gia hạn trả 400 "Ô đã có khách đặt từ dd/mm…".
+- **Tiền mặt (D44)** — khách `GET /api/cash-refunds` (cùng dạng `/api/ops/cash-refunds`; `status` thêm `FORFEITED`, `SWITCHED_TO_BANK`), `POST /api/cash-refunds/{id}/switch-to-bank { bankName, accountNumber, accountHolder }` → `{ item }`. Sự cố: `refundBank: { method: "CASH" }`; `incident.refund.method`, id `CH-xxxx` khi tiền mặt.
+- **Hệ thống tự chốt (D40/D44)** — khi khách đồng ý hoặc quá 48 giờ; log `DEPOSIT_REFUNDED` có `system: true`, `userId` null.
+
 ## Phiên 3 — 05/11/2026: API mới cho D39/D40, D36, D35, D42, D43 (BE đã viết, chờ build/test)
 
 FE làm ở Phiên 5 (khách) và Phiên 6 (nhân viên, quản lý). Ngày giờ trả về là giờ Việt Nam `yyyy-MM-ddTHH:mm:ss`.

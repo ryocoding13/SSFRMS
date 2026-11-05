@@ -118,7 +118,7 @@
 /* D30-03 · Khoản hoàn dự kiến */
 .return-refund__total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-top: 14px; border-top: 1px solid var(--line); }
 .return-refund__total span { font-weight: 600; }
-.return-refund__total strong { color: var(--green); font-size: 24px; font-weight: 700; }
+.return-refund__total strong { color: var(--money-total); font-size: 28px; font-weight: 700; }
 .return-refund .hint { margin: 0; }
 .inspect-cleaning { align-items: flex-start; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; transition: border-color var(--ss-fast, .15s) ease, background-color var(--ss-fast, .15s) ease; }
 .inspect-cleaning:has(input:checked) { border-color: var(--blue); background: var(--soft); }
@@ -130,3 +130,21 @@
 .inspect-cleaning > span { display: grid; gap: 2px; }
 .inspect-cleaning strong { font-weight: 600; }
 .inspect-cleaning small { color: var(--muted); font-size: 13px; }
+
+/* D42/D44 · Cách nhận hoàn: chuyển khoản / tiền mặt tại quầy */
+.refund-method { display: grid; gap: 14px; }
+.refund-method__options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.refund-method__option { display: flex; gap: 10px; align-items: flex-start; padding: 14px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; background: var(--white); }
+.refund-method__option.is-active { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue) inset; background: var(--soft); }
+.refund-method__option span { display: grid; gap: 4px; min-width: 0; }
+.refund-method__option strong { font-size: 15px; }
+.refund-method__option small { font-size: 13px; color: var(--muted, #64748b); line-height: 1.4; }
+.refund-method__cash { display: grid; gap: 10px; }
+@media (max-width: 640px) { .refund-method__options { grid-template-columns: 1fr; } }
+
+/* D39 · Xác nhận khấu trừ trả kho · D41 · Đề xuất đổi kho */
+.deduction-options { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; }
+.deduction-options .refund-method__option { align-items: flex-start; }
+.deadline-banner { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; }
+.money-deduct { color: var(--money-deduct); }
+.money-total { color: var(--money-total); font-weight: 700; }

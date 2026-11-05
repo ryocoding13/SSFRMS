@@ -10,6 +10,10 @@
   --soft: #edf3ff;
   --ink: #10152a;
   --green: #047857;
+  /* Quy ước số tiền (docs/conventions.md): tổng xanh dương, khoản trừ đỏ, dòng thường màu chữ */
+  --money-total: #2563eb;
+  --money-deduct: #b42318;
+  --money-text: #202a3c;
   --green-bg: #ecfdf5;
   --amber: #92400e;
   --amber-bg: #fffbeb;

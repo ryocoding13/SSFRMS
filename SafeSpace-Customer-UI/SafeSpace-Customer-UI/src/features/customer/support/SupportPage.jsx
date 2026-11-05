@@ -57,8 +57,8 @@ export default function SupportPage({ query }) {
   const [busy, setBusy] = useState(false);
   const preContract = query.get("contract");
   const preTopic = query.get("topic");
-  // D35–D36 · L14: chỉ gắn hỗ trợ với hợp đồng đã bắt đầu và chưa kết thúc
-  const supportable = data.contracts.filter((c) => c.start_date <= today() && contractStatus(c) !== "ENDED");
+  // D40 (thay L14 cũ): hợp đồng đã thanh toán, kể cả chưa tới ngày bắt đầu, được gửi hỗ trợ; đã kết thúc thì không
+  const supportable = data.contracts.filter((c) => contractStatus(c) !== "ENDED" && !["DRAFT", "CANCELLED"].includes(c.api_status || c.status));
   const noContract = supportable.length === 0;
   const blockedContract = noContract && data.contracts.length > 0;
   const [form, setForm] = useState({
@@ -67,6 +67,7 @@ export default function SupportPage({ query }) {
     description: "",
     subject: "",
     access_request: "QR",
+    preferred_at: "",
   });
   const [files, setFiles] = useState([]);
   const [errors, setErrors] = useState({});
@@ -83,7 +84,8 @@ export default function SupportPage({ query }) {
     if (form.topic === "OTHER" && !form.subject.trim()) return setErrors({ subject: "Vui lòng nhập chủ đề của bạn." });
     if (!form.description.trim()) return setErrors({ description: "Vui lòng mô tả vấn đề bạn đang gặp." });
     setBusy(true);
-    const res = await dispatch("CREATE_TICKET", { ...form, attachments: files.map((f) => f.name) });
+    // D35: gửi ảnh thật (tối đa 3) để nhân viên xem được; D36: giờ muốn nhận chìa khóa (không bắt buộc)
+    const res = await dispatch("CREATE_TICKET", { ...form, photos: files, attachments: files.map((f) => f.name) });
     setBusy(false);
     if (!res.ok) return setErrors({ form: res.error });
     setSent(res.ticket_id);
@@ -113,7 +115,7 @@ export default function SupportPage({ query }) {
               {noContract && <option value="">{blockedContract ? "Không có kho đang trong kỳ thuê" : mode === "api" ? "Bạn chưa có hợp đồng thuê kho" : "Vấn đề chung (chưa thuê kho)"}</option>}
             </Select>
           </Field>
-          {blockedContract && <Notice>Chỉ gửi yêu cầu theo kho khi hợp đồng đang trong kỳ thuê. Kho chưa đến ngày thuê hoặc đã kết thúc, vui lòng dùng <a href={href("inquiries")}>hỗ trợ chung</a>.</Notice>}
+          {blockedContract && <Notice>Chỉ gửi yêu cầu theo kho khi hợp đồng đã thanh toán và chưa kết thúc. Kho đã kết thúc, vui lòng dùng <a href={href("inquiries")}>hỗ trợ chung</a>.</Notice>}
           <Field label="Chủ đề">
             <Select value={form.topic} onChange={(e) => set("topic", e.target.value)}>
               {Object.entries(TICKET_TOPICS).filter(([, t]) => !t.legacy).map(([k, t]) => (
@@ -128,6 +130,11 @@ export default function SupportPage({ query }) {
             </div>
             <p className="hint">QR và PIN được cấp theo hợp đồng. Chìa khóa vật lý nhận tại quầy cơ sở.</p>
           </div>}
+          {form.topic === "KEY_PICKUP" && <>
+            <Field label="Thời gian muốn nhận chìa khóa (không bắt buộc)" hint="Bỏ trống: cơ sở xếp lịch từ 08:00 ngày bắt đầu thuê. Mang CCCD trùng tên hợp đồng khi đến quầy.">
+              <input type="datetime-local" min={`${today()}T00:00`} value={form.preferred_at} onChange={e => set("preferred_at", e.target.value)} />
+            </Field>
+          </>}
           {form.topic === "OTHER" && <Field label="Chủ đề của bạn *" error={errors.subject} hint="Nhập tiêu đề ngắn gọn, tối đa 100 ký tự. Vui lòng không để trống.">
             <input required maxLength={100} placeholder="VD: Cập nhật thông tin người liên hệ" value={form.subject} onChange={e => set("subject", e.target.value)} />
           </Field>}

@@ -21,6 +21,9 @@ import { DepositLedgerPage } from "../features/customer/contracts/DepositLedgerP
 import { RenewalStatusPage } from "../features/customer/contracts/RenewalStatusPage.jsx";
 import { IncidentChoicePage } from "../features/customer/contracts/IncidentChoicePage.jsx";
 import { DamageResponsePage } from "../features/customer/contracts/DamageResponsePage.jsx";
+import { ReturnDeductionPage } from "../features/customer/contracts/ReturnDeductionPage.jsx";
+import { UnitChangePage } from "../features/customer/contracts/UnitChangePage.jsx";
+import { CashRefundPage } from "../features/customer/payments/CashRefundPage.jsx";
 import { ReturnProgressPage } from "../features/customer/contracts/ReturnProgressPage.jsx";
 import { InquiryListPage } from "../features/customer/support/InquiryListPage.jsx";
 import { InquiryDetailPage } from "../features/customer/support/InquiryDetailPage.jsx";
@@ -92,7 +95,7 @@ function renderPage({ page, parts, query }) {
   const [a, b] = parts;
   switch (page) {
     case "home": return <HomePage />;
-    case "refunds": return <RefundTrackingPage />;
+    case "refunds": return a === "cash" ? <CashRefundPage /> : <RefundTrackingPage />;
     case "policies": return <RentalPolicyPage key={query.toString()} query={query} />;
     case "inquiries": return a ? <InquiryDetailPage id={a} /> : <InquiryListPage />;
     case "reset-password": return <PasswordResetPage />;
@@ -108,6 +111,8 @@ function renderPage({ page, parts, query }) {
     case "units":
       if (a && b === "incident") return <IncidentChoicePage key={`${a}:${query.get("incident") || ""}`} id={a} query={query} />;
       if (a && b === "damage") return <DamageResponsePage key={a} id={a} query={query} />;
+      if (a && b === "deduction") return <ReturnDeductionPage key={a} id={a} />;
+      if (a && b === "unit-change") return <UnitChangePage key={a} id={a} />;
       if (a && b === "renewal-status") return <RenewalStatusPage id={a} />;
       if (a && b === "deposit") return <DepositLedgerPage id={a} />;
       if (a && b === "progress") return <ReturnProgressPage id={a} />;

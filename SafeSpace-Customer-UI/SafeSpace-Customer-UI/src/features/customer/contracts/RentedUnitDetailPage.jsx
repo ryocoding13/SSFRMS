@@ -26,6 +26,8 @@ export function RentedUnitDetailPage({ id }) {
   const issued = c.access_issued ?? c.status !== "DRAFT";
   const prestart = c.start_date > today();
   const busy = Boolean(renewal || ret);
+  // D41: ô đã có khách mới đặt từ ngày hết hạn → khoá gia hạn ô này
+  const bookedFrom = c.next_booking_from && !ended ? c.next_booking_from : null;
   // Trước StartDate (D27) khách huỷ đơn để được hoàn 100% tiền thuê + 90% cọc, không đi luồng trả kho
   const reservation = c.reservation_id ? data.reservations.find((x) => x.reservation_id === c.reservation_id) : null;
   const cancellable = prestart && !ended && reservation && canCancel(data, reservation);
@@ -52,7 +54,7 @@ export function RentedUnitDetailPage({ id }) {
             <h2>QR, PIN & chìa khóa</h2>
             <DetailList items={[
               ["QR & PIN 6 số", ended || ret || c.end_date <= today() ? "Đã hết hiệu lực" : issued ? (prestart ? `Đã cấp · mã hiện từ ${dateLabel(c.start_date)}` : `Đã cấp · hiệu lực từ ${dateLabel(c.start_date)}`) : "Chưa được cấp"],
-              ["Chìa khóa vật lý", c.handed_over ? "Đã nhận tại quầy" : "Nhận tại quầy cơ sở"],
+              ["Chìa khóa vật lý", c.handed_over ? "Đã nhận tại quầy" : "Gửi yêu cầu “Nhận chìa khóa” để cơ sở xếp lịch"],
               ...(pickupText ? [["Lịch nhận chìa khóa", pickupText]] : []),
             ]} />
             <p className="hint">{issued && !ended ? "Hợp đồng và mã ra vào đã được cấp. " : ""}QR và PIN chỉ mở được cửa trong kỳ thuê; mã tự hết hiệu lực khi hết hạn hoặc gửi trả kho thành công.</p>
@@ -68,12 +70,14 @@ export function RentedUnitDetailPage({ id }) {
         <aside className="panel customer-detail__card customer-detail__sidebar">
           <h2>Bạn cần làm gì?</h2>
           {renewal && <Notice>Yêu cầu gia hạn thêm {renewal.months} tháng đang chờ cơ sở duyệt.</Notice>}
+          {c.status === "RETURN_PENDING" && <Notice>Nhân viên gửi biên bản trả kho trong 3 ngày. Khi có biên bản, bạn có 48 giờ để xác nhận khoản khấu trừ. <a href={`#/units/${encodeURIComponent(id)}/deduction`}>Xem biên bản & xác nhận</a></Notice>}
+          {prestart && !ended && <Notice>Nếu kho chưa sẵn sàng 5 ngày trước ngày nhận, SafeSpace gửi đề xuất đổi kho. <a href={`#/units/${encodeURIComponent(id)}/unit-change`}>Xem đề xuất đổi kho</a></Notice>}
           {ret && <Notice>{ret.date ? `Yêu cầu trả kho ngày ${dateLabel(ret.date)} đang chờ cơ sở xác nhận.` : "Yêu cầu trả kho đã được ghi nhận; chưa có thông tin lịch kiểm tra."}</Notice>}
-          <div className="customer-detail__task"><div><h3>Gia hạn</h3><p>Gửi trước ngày hết hạn, thanh toán sau khi được duyệt.</p></div>
-            {issued && !ended && !busy && c.end_date > today() ? <LinkButton to={`units/${id}/renew`} variant="outline">Yêu cầu gia hạn</LinkButton> : <Button variant="outline" disabled>Yêu cầu gia hạn</Button>}
+          <div className="customer-detail__task"><div><h3>Gia hạn</h3><p>{bookedFrom ? `Ô đã có khách đặt từ ${dateLabel(bookedFrom)}. Liên hệ cơ sở để chuyển sang ô khác còn trống.` : ret ? "Đã gửi trả kho nên không gia hạn được." : "Gửi trước ngày hết hạn, thanh toán sau khi được duyệt."}</p></div>
+            {issued && !ended && !busy && !bookedFrom && c.end_date > today() ? <LinkButton to={`units/${id}/renew`} variant="outline">Yêu cầu gia hạn</LinkButton> : <Button variant="outline" disabled>Yêu cầu gia hạn</Button>}
           </div>
           {prestart && !ended ? (
-            <div className="customer-detail__task"><div><h3>Huỷ đơn</h3><p>Chưa đến ngày thuê: hoàn 100% tiền thuê và 90% tiền cọc.</p></div>
+            <div className="customer-detail__task"><div><h3>Huỷ đơn</h3><p>Chưa đến ngày thuê: hoàn 100% tiền thuê và 95% tiền cọc (phí huỷ 5% cọc).</p></div>
               {cancellable ? <LinkButton to={`reservations/${c.reservation_id}/cancel`} variant="outline">Huỷ đơn</LinkButton> : <Button variant="outline" disabled>Huỷ đơn</Button>}
             </div>
           ) : (
@@ -81,16 +85,16 @@ export function RentedUnitDetailPage({ id }) {
               {issued && !ended && !busy ? <LinkButton to={`units/${id}/return`} variant="outline">Đăng ký trả kho</LinkButton> : <Button variant="outline" disabled>Đăng ký trả kho</Button>}
             </div>
           )}
-          {/* D35–D36 · L14: hỗ trợ gắn kho chỉ khi đã bắt đầu và chưa kết thúc */}
-          {!prestart && !ended
-            ? <div className="customer-detail__task"><div><h3>Hỗ trợ</h3><p>QR, PIN, chìa khóa, thanh toán.</p></div><LinkButton to={`support?contract=${encodeURIComponent(id)}`} variant="outline">Gửi yêu cầu hỗ trợ</LinkButton></div>
-            : <div className="customer-detail__task"><div><h3>Hỗ trợ</h3><p>{prestart ? "Kho chưa đến ngày thuê." : "Hợp đồng đã kết thúc."} Cần hỏi thêm? Gửi hỗ trợ chung.</p></div><LinkButton to="inquiries" variant="outline">Gửi hỗ trợ chung</LinkButton></div>}
+          {/* D40 (thay L14): hợp đồng đã thanh toán, kể cả chưa đến ngày thuê, được gửi hỗ trợ theo kho; đã kết thúc thì dùng hỗ trợ chung */}
+          {!ended
+            ? <div className="customer-detail__task"><div><h3>Hỗ trợ</h3><p>{c.handed_over ? "QR, PIN, chìa khóa, thanh toán." : "Lần đầu nhận chìa khóa: gửi yêu cầu để cơ sở xếp lịch."}</p></div><LinkButton to={c.handed_over ? `support?contract=${encodeURIComponent(id)}` : `support?contract=${encodeURIComponent(id)}&topic=KEY_PICKUP`} variant="outline">{c.handed_over ? "Gửi yêu cầu hỗ trợ" : "Yêu cầu nhận chìa khóa"}</LinkButton></div>
+            : <div className="customer-detail__task"><div><h3>Hỗ trợ</h3><p>Hợp đồng đã kết thúc. Cần hỏi thêm? Gửi hỗ trợ chung.</p></div><LinkButton to="inquiries" variant="outline">Gửi hỗ trợ chung</LinkButton></div>}
           {ended && <LinkButton to="find">Thuê kho mới</LinkButton>}
           {!issued && !ended && <LinkButton to="payments" variant="outline">Xem lịch nhận chìa khóa</LinkButton>}
           <p className="hint">{ended ? "Hợp đồng đã kết thúc. Tiền cọc được hoàn theo biên bản trả kho." : "Tiền cọc được đối chiếu sau kiểm tra kho. Nhận chìa khóa không kích hoạt hợp đồng."}</p>
         </aside>
       </div>
-      <div className="workflow-links"><LinkButton to={`units/${encodeURIComponent(id)}/incident`} variant="outline">Hỗ trợ do sự cố cơ sở</LinkButton><LinkButton to={`units/${encodeURIComponent(id)}/damage`} variant="outline">Đối chiếu hư hỏng</LinkButton><LinkButton to={`units/${encodeURIComponent(id)}/renewal-status`} variant="outline">Theo dõi gia hạn</LinkButton><LinkButton to={`units/${encodeURIComponent(id)}/deposit`} variant="outline">Lịch khấu trừ cọc</LinkButton><LinkButton to={`units/${encodeURIComponent(id)}/progress`} variant="outline">Tiến độ trả kho / hoàn cọc</LinkButton><LinkButton to="payments/history" variant="outline">Lịch sử thanh toán</LinkButton><LinkButton to="policies" variant="outline">Chính sách cho thuê</LinkButton></div>
+      <div className="workflow-links"><LinkButton to={`units/${encodeURIComponent(id)}/incident`} variant="outline">Hỗ trợ do sự cố cơ sở</LinkButton><LinkButton to={`units/${encodeURIComponent(id)}/deduction`} variant="outline">Xác nhận khấu trừ trả kho</LinkButton><LinkButton to={`units/${encodeURIComponent(id)}/renewal-status`} variant="outline">Theo dõi gia hạn</LinkButton><LinkButton to={`units/${encodeURIComponent(id)}/deposit`} variant="outline">Lịch khấu trừ cọc</LinkButton><LinkButton to={`units/${encodeURIComponent(id)}/progress`} variant="outline">Tiến độ trả kho / hoàn cọc</LinkButton><LinkButton to="payments/history" variant="outline">Lịch sử thanh toán</LinkButton><LinkButton to="policies" variant="outline">Chính sách cho thuê</LinkButton></div>
       {qrOpen && <AccessQrModal c={c} facility={f} onClose={() => setQrOpen(false)} />}
     </main>
   );

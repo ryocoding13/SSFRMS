@@ -83,6 +83,9 @@ export function unitsFor(facility, stock = null, realUnits = null) {
       monthly_rate: offer?.monthly_rate || 0,
       position: `Tầng trệt · Dãy ${row}`,
       status,
+      // D41: ô đang thuê trống lại từ ngày này (ngày hết hạn + ngày đệm); ô quá hạn không nhận đặt trước
+      free_from: real?.freeFrom || null,
+      overdue: Boolean(real?.overdue),
     };
   });
 }

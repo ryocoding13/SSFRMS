@@ -45,6 +45,8 @@ export const TICKET_STATUS = {
 
 export const TICKET_TOPICS = {
   ACCESS: { label: "Ra vào kho · QR, PIN & chìa khóa", title: "Hỗ trợ ra vào kho", issueType: "ACCESS_CODE" },
+  // D36: lần đầu nhận chìa khóa — gửi yêu cầu thì cơ sở mới xếp lịch giao chìa (BE lưu tiêu đề cố định)
+  KEY_PICKUP: { label: "Nhận chìa khóa · lần đầu nhận kho", title: "Nhận chìa khóa · lần đầu nhận kho", issueType: "KEY_PICKUP" },
   PAYMENT: { label: "Thanh toán & hóa đơn", title: "Thanh toán & hóa đơn", issueType: "PAYMENT" },
   RENEWAL: { label: "Gia hạn hợp đồng", title: "Gia hạn hợp đồng", issueType: "OTHER" },
   RETURN: { label: "Trả kho & kết thúc hợp đồng", title: "Trả kho & kết thúc hợp đồng", issueType: "OTHER" },

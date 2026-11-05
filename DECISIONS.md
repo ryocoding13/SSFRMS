@@ -434,3 +434,25 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Tiền mặt (D42): lưu `RefundBankName = "CASH"`, số tài khoản để trống, người nhận là khách trên hợp đồng; quản lý duyệt lại được để giao nhân viên khác, hạn 30 ngày tính từ lần duyệt đầu. Quá 30 ngày: trạng thái `EXPIRED`, không chi tiền mặt nữa; việc chuyển sang chuyển khoản chưa có API (cần nhóm chốt cách khách khai tài khoản).
 - Lựa chọn tiền mặt không áp dụng cho hoàn tiền do sự cố cơ sở (T13) vì D42 chỉ nêu huỷ đơn và trả kho.
 - Yêu cầu nhận chìa khóa (D36) lưu ticket loại `ACCESS_CARD` với tiêu đề cố định để không phải đổi CHECK của `support_tickets`.
+
+## D44 — 05/11/2026: Tiền mặt quá 30 ngày, đổi sang chuyển khoản, tiền mặt cho sự cố cơ sở, hệ thống tự chốt 48 giờ — Đã chốt
+
+> Thắng chốt ngày 05/11/2026 19:21–19:25 khi xem mục IMPL-2026-11-05-P3. Thay các ý tương ứng của D42 và IMPL-2026-11-05-P3; giữ nguyên lịch sử ở trên.
+
+- **Quá 30 ngày chưa nhận tiền mặt:** khách **mất khoản hoàn** (không chi, không chuyển khoản). Thay câu "Quá 30 ngày cơ sở liên hệ để chuyển khoản" của D42 và trạng thái `EXPIRED` của IMPL-P3. Khách phải tick xác nhận điều này khi chọn tiền mặt; chính sách ghi rõ.
+- **Trong 30 ngày** khách được đổi lại sang chuyển khoản (tài khoản chính chủ, tên trùng hợp đồng); khoản chuyển về luồng chuyển khoản, quản lý ghi mã giao dịch; việc chi tiền mặt và gọi nhắc dừng.
+- **Hoàn tiền do sự cố cơ sở (T13)** cũng có lựa chọn tiền mặt như huỷ đơn / trả kho (thay ý cuối của IMPL-P3).
+- **Tự chốt hoàn cọc sau 48 giờ (D40):** ghi là **Hệ thống** (không gắn tên quản lý), luôn tự chốt kể cả cơ sở chưa có quản lý (thay ý thứ hai của IMPL-P3).
+- Thắng nêu: mọi cơ sở luôn có nhân viên và quản lý. Thêm dữ liệu tài khoản cho 11 cơ sở còn thiếu trong seed — Thắng làm sau, chưa thuộc phiên này.
+
+## IMPL-2026-11-05-P4 — Cách triển khai Phiên 4–5 cho D41, D44 — Chờ nhóm xác nhận
+
+> Claude đề xuất khi viết code Phiên 4–5; chưa phải quyết định nghiệp vụ. Nhóm xác nhận hoặc sửa trước khi merge.
+
+- Ngày đệm cho thuê lại (D41) là chính sách mới `RELET_BUFFER` (FIXED, đơn vị ngày, 0–60; không có chính sách thì 3 ngày). Cần 1 migration đổi CHECK `policies.PolicyType`. Màn chính sách của Vận hành KD (B02) chưa có ô nhập — làm ở phiên FE vận hành.
+- Khách bấm **"Đồng ý khấu trừ · hoàn tất hoàn cọc"** thì hệ thống tự chốt hoàn cọc luôn (không chờ quản lý bấm M07), theo đúng chữ trên nút D39.
+- Hệ thống chốt / đổi ô tự động thì nhật ký ghi Hệ thống (UserId = null); riêng cột bắt buộc người thao tác (lịch sử trạng thái ô, người cấp mã) dùng mã khách của hợp đồng như cách `ContractProvisioning` đang làm — không đổi schema.
+- Đề xuất đổi kho (D41): ưu tiên ô cùng loại đang trống thật, sau đó ô lớn hơn (cùng kho lạnh/thường trước, nhỏ nhất trước). Giữ ô đề xuất bằng trạng thái `RESERVED` không có hợp đồng; quá 48 giờ hệ thống tự nhận ô đề xuất. Không có ô phù hợp thì không tự làm gì, chờ khách dời ngày / huỷ hoặc quản lý xử lý.
+- Dời ngày (D41): giữ độ dài kỳ thuê, trong 90 ngày, giữ ô cũ nếu ô cũ trống kịp; giá và cọc giữ nguyên. Huỷ do xung đột: hoàn 100% tiền thuê + cọc đã trả, cách nhận hoàn theo D42/D44.
+- **Chưa làm:** gửi email/chuông riêng cho đề xuất đổi kho (chưa có bảng thông báo; khách xem ở chi tiết kho và `#/units/:id/unit-change`); giá khi gia hạn sau nâng cấp (khách chọn giá ô lớn hoặc chuyển về loại cũ) — cần nhóm chốt cách tính trong `RenewalService`.
+- Quá hạn tiền mặt: tiến trình nền đổi khoản REFUND sang `CANCELLED` (tham chiếu `FORFEITED:{id}`) để không còn hiện "chờ hoàn"; giữ dòng tiền, không xoá.
