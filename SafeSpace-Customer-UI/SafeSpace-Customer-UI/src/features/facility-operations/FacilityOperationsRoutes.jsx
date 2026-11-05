@@ -1,10 +1,12 @@
 import React from "react";
-import { PaymentDiscrepancyPage } from "../staff/payments/PaymentDiscrepancyPage.jsx";
 import { RenewalCollectionPage } from "../staff/payments/RenewalCollectionPage.jsx";
+import { CashRefundCounterPage } from "../staff/payments/CashRefundCounterPage.jsx";
+import { ReturnRecheckPage } from "../staff/returns/ReturnRecheckPage.jsx";
+import { CashRefundApprovalPage } from "../manager/cash/CashRefundApprovalPage.jsx";
+import { DailyStaffReportPage } from "../manager/reports/DailyStaffReportPage.jsx";
+import { UnitConflictListPage } from "../manager/conflicts/UnitConflictListPage.jsx";
 import { OverdueRemovalPage } from "../staff/overdue/OverdueRemovalPage.jsx";
 import { StaffInquiryPage } from "../staff/support/StaffInquiryPage.jsx";
-import { DiscrepancyListPage } from "../manager/discrepancies/DiscrepancyListPage.jsx";
-import { DiscrepancyDetailPage } from "../manager/discrepancies/DiscrepancyDetailPage.jsx";
 import { OverdueCasePage } from "../manager/overdue/OverdueCasePage.jsx";
 import { IncidentManagementPage } from "../manager/incidents/IncidentManagementPage.jsx";
 import { DamageReviewPage } from "../manager/damage/DamageReviewPage.jsx";
@@ -41,8 +43,9 @@ function StaffTab({ kind, Detail, query }) {
 
 // #/staff/...  (Figma S01–S09)      #/manager/...  (Figma M01–M08)
 const STAFF = {
-  mismatch: [PaymentDiscrepancyPage, "staff/reconcile"],
   "renewal-payments": [RenewalCollectionPage, "staff/reconcile"],
+  "cash-refunds": [CashRefundCounterPage, "staff/reconcile"],
+  recheck: [ReturnRecheckPage, "staff/return"],
   overdue: [OverdueRemovalPage, "staff"],
   inquiries: [StaffInquiryPage, "staff/support"],
   "": [StaffDashboardPage, "staff"],
@@ -58,9 +61,10 @@ const MANAGER = {
   incidents: [IncidentManagementPage, "manager/contracts"],
   "damage-responses": [DamageReviewPage, "manager/contracts"],
   "damage-inspections": [DamageInspectionPage, "manager/contracts"],
-  discrepancies: [DiscrepancyListPage, "manager/contracts"],
-  "discrepancy-detail": [DiscrepancyDetailPage, "manager/contracts"],
   overdue: [OverdueCasePage, "manager/contracts"],
+  "cash-refunds": [CashRefundApprovalPage, "manager/contracts"],
+  "unit-conflicts": [UnitConflictListPage, "manager/contracts"],
+  "daily-report": [DailyStaffReportPage, "manager/report"],
   "deposit-refunds": [DepositRefundPage, "manager/contracts"],
   "": [ManagerDashboardPage, "manager"],
   units: [UnitManagementPage, "manager/units"],

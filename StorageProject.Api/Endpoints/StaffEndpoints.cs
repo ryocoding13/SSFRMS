@@ -80,25 +80,11 @@ public static class StaffEndpoints
             }
         });
 
-        // 5. Return Inspection
-        group.MapPost("/returns/{id}/inspection", async (string id, ReturnInspectionRequest request, ClaimsPrincipal user, IStaffService staffService, CancellationToken ct) =>
-        {
-            var role = user.GetUserRole();
-            if (role.Equals("CUSTOMER", StringComparison.OrdinalIgnoreCase)) return Results.Forbid();
-
-            try
-            {
-                var userId = user.GetUserId();
-                await staffService.SubmitReturnInspectionAsync(userId, id, request, ct);
-                return Results.Ok(new { message = "Lưu biên bản kiểm tra trả kho thành công." });
-            }
-            catch (UnauthorizedAccessException ex) { return Results.Json(new { error = ex.Message }, statusCode: 403); }
-            catch (KeyNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
-            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-            {
-                return Results.BadRequest(new { error = ex.Message });
-            }
-        });
+        // 5. Return Inspection — S03: route cũ ngừng dùng để không bỏ qua ảnh/phí/checklist của luồng chuẩn.
+        // FE và mọi client dùng POST /api/ops/returns/{id}/inspection (FacilityOpsService.SubmitReturnInspectionAsync).
+        group.MapPost("/returns/{id}/inspection", (string id) =>
+            Results.Json(new { error = "Đường kiểm tra trả kho này đã ngừng. Dùng POST /api/ops/returns/{id}/inspection.", code = "USE_OPS_RETURN_INSPECTION" },
+                statusCode: StatusCodes.Status410Gone));
 
         // 6. Support Tickets
         group.MapPost("/tickets/{id}/responses", async (string id, TicketResponseRequest request, ClaimsPrincipal user, IStaffService staffService, CancellationToken ct) =>

@@ -52,7 +52,9 @@ public record OpsReturnDto(
     // D40: nhân viên quá 3 ngày chưa gửi biên bản (chỉ gắn nhãn, không đổi thứ tự FIFO)
     bool LateInspection = false,
     // D39: tình trạng khách xác nhận khấu trừ (NONE, WAITING, AGREED, AUTO_AGREED, SELF_CLEAN, SELF_REPLACE, DISPUTE, RECHECKED)
-    string DeductionStatus = "NONE", string? DeductionDeadlineAt = null);
+    string DeductionStatus = "NONE", string? DeductionDeadlineAt = null,
+    // Câu 7: ảnh khách gửi khi tự thay thế / khiếu nại, để nhân viên kiểm tra lại
+    IReadOnlyList<EvidencePhotoDto>? DeductionPhotos = null);
 
 /// <summary>M08 · Đơn huỷ chờ hoàn / đã hoàn (D27, D32). Tài khoản là tài khoản chính chủ khách khai khi huỷ.</summary>
 public record OpsRefundDto(

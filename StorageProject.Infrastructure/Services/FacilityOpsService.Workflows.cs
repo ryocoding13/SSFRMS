@@ -120,6 +120,7 @@ public partial class FacilityOpsService
         var decision = logs.LastOrDefault(l => l.Action == FlowAction.DeductionDecision);
         var recheck = logs.LastOrDefault(l => l.Action == FlowAction.DeductionRecheck);
         var photos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.ReturnInspection, [i.InspectionId], ct);
+        var customerPhotos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.ReturnDeduction, [i.InspectionId], ct);
         // D30-13: phí quá hạn tính đến lúc khách gửi trả kho (D32), hiển thị cùng khoản khấu trừ.
         var overdueDays = Math.Max(0, DateOnly.FromDateTime(i.CreatedAt + VnOffset).DayNumber - c.EndDate.DayNumber);
         var overdueFee = c.Unit != null ? await OverdueFeeAtAsync(c, c.Unit.FacilityId, i.CreatedAt, ct) : 0;
@@ -129,7 +130,8 @@ public partial class FacilityOpsService
             Local(i.InspectedAt), Local(deadline), status == "WAITING",
             status, decision != null ? Read(decision, "decision") : null, decision != null ? Read(decision, "note") : null,
             Local(decision?.LoggedAt), recheck != null ? Read(recheck, "note") : null,
-            overdueFee, overdueDays, i.Staff?.FullName);
+            overdueFee, overdueDays, i.Staff?.FullName,
+            customerPhotos.TryGetValue(i.InspectionId, out var mine) ? mine : []);
     }
 
     public async Task<ReturnDeductionDto> GetReturnDeductionAsync(long customerId, string contractCode, CancellationToken ct = default)
@@ -145,6 +147,10 @@ public partial class FacilityOpsService
         if (!DeductionDecisions.Contains(decision)) throw new ArgumentException("Chọn một phương án xác nhận khấu trừ.");
         var note = Clip(request.Note, 1000);
         if (decision == "DISPUTE" && note.Length == 0) throw new ArgumentException("Ghi rõ nội dung khiếu nại.");
+        // Câu 7: ảnh hoá đơn / vật dụng thay thế (không bắt buộc), chỉ cho tự thay thế hoặc khiếu nại.
+        if (request.Photos?.Count > 0 && decision is not ("SELF_REPLACE" or "DISPUTE"))
+            throw new ArgumentException("Chỉ đính kèm ảnh khi tự thay thế vật dụng hoặc khiếu nại.");
+        var photos = EvidencePhotos.Decode(request.Photos, required: false, "hoá đơn / vật dụng thay thế");
 
         var contractId = CustomerContractId(contractCode);
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"move-out:{contractId}", ct);
@@ -166,7 +172,8 @@ public partial class FacilityOpsService
         if (decision == "SELF_REPLACE" && i.DamageFee <= 0) throw new ArgumentException("Biên bản không có phí hư hỏng.");
 
         Log(customerId, FlowAction.DeductionDecision, LogEntity.Return, i.InspectionId,
-            new { decision, note, cleaningFee = i.CleaningFee, damageFee = i.DamageFee });
+            new { decision, note, cleaningFee = i.CleaningFee, damageFee = i.DamageFee, photos = photos.Count });
+        EvidencePhotos.Attach(dbContext, photos, EvidencePhotos.ReturnDeduction, i.InspectionId, customerId, NowUtc);
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return await ToDeductionDtoAsync(c, i, ct);

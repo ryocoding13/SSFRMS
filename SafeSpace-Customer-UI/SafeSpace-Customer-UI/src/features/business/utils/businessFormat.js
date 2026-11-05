@@ -53,6 +53,7 @@ export const POLICY_TYPES = {
   DISCOUNT: "Giảm giá",
   FEE_WAIVER: "Miễn phí",
   PRICE_RANGE: "Khung giá",
+  RELET_BUFFER: "Ngày đệm cho thuê lại",
 };
 
 // Loại chính sách mà giá trị FIXED là số tiền (đ). Loại khác (gia hạn, trả kho…) là số ngày / giờ ghi trong mô tả.

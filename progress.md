@@ -1,3 +1,13 @@
+## 2026-11-06 — Phiên 6: M01, M04, M06, S02, S03, S07, FE nhân viên / quản lý, B02, câu 1, 2, 4, 7, D30-15b
+
+- **BE** `RenewalApproval.cs` (mới, M01): một đường duyệt gia hạn cho 3 route, khoá rồi mới kiểm lại (kỳ thuê, yêu cầu khác đang chờ, hạn, ô đã có khách đặt, giá ACTIVE). `ManagerService.AddContractReminderAsync` (M04) dùng khoá `move-out`, không tạo trùng hồ sơ quá hạn. `RenewalService.CollectCounterRenewalAsync` (S02) kiểm consent đúng phiên bản. Route kiểm kê cũ `/api/staff/returns/{id}/inspection` trả 410 (S03). Câu 7: `ReturnDeductionDecisionRequest.Photos`, `ReturnDeductionDto.CustomerPhotos`, `OpsReturnDto.DeductionPhotos`; migration viết tay `20261106120000_Phien6DeductionPhotos` (chỉ đổi CHECK `evidence_photos.OwnerType`).
+- Test BE mới: `RenewalPolicyD32Tests.M01.cs` (3 test M01 + 1 test M04), `IncidentT13Tests.M06.cs` (2 test bấm lại không cấp mã / hoàn hai lần), `D32RefundEvidenceTests.Phien6.cs` (S07 khác cơ sở + bấm lại; câu 7 ảnh). Integration test thêm migration thứ 13.
+- **FE nhân viên:** bỏ màn và nút báo sai lệch (D42); `staff/cash-refunds` (S10/S10b gọi nhắc + chi tiền 4 mục); `staff/recheck` (kiểm tra lại sau tự dọn / tự thay / khiếu nại, xem ảnh khách gửi); việc hỗ trợ "Nhận chìa khóa" ghi rõ trong danh sách; đổi chữ "Kho bẩn / cần vệ sinh" thành "chưa đạt tiêu chuẩn vệ sinh".
+- **FE quản lý:** bỏ màn đối soát sai lệch và cảnh báo MISMATCH; `manager/cash-refunds` (duyệt + giao nhân viên), `manager/daily-report`, `manager/unit-conflicts`. **B02:** ô "Ngày đệm cho thuê lại" (`RELET_BUFFER`, 0–60 ngày).
+- **FE khách:** tiêu đề hỗ trợ ghép chủ đề (câu 1); bỏ nút Huỷ yêu cầu hỗ trợ (câu 2); bỏ ô tick chính chủ ở huỷ đơn (câu 4); tải ảnh khi tự thay thế / khiếu nại (câu 7); `#/refunds/cash` làm lại theo Figma D30-15b + 3 popup.
+- **Kiểm tra:** `npm test` 156/156, `test:render` 181 route PASS, `test:business` 10/10, `test:workflows` 11/11 (bỏ 1 test đối soát sai lệch đã gỡ), `check:structure` PASS, `build` OK. BE: biên dịch Roslyn với stub; **chưa chạy `dotnet test`** (NuGet chặn) → chờ CI. Màn nhân viên / quản lý mới chỉ có dữ liệu ở chế độ API → chưa xem bằng ảnh.
+- **Chưa làm (cần chốt, xem IMPL-2026-11-06-P6):** gia hạn sang ô khác, gia hạn sau nâng cấp, chuông + email đổi kho, tiền mặt quá 30 ngày tính doanh thu.
+
 ## 2026-11-05 — Sửa CI PR #68 (Backend + SQL Server Integration đỏ)
 
 - `CheckoutTests.PaidOrderAutomaticallyIssuesQrAndPinBeforeKeyReceiptButRejectsEarlyUse` (đỏ từ Phiên 3): test lọc nhầm `CredentialType == "QR"`; mã được lưu là `ACCESS_CODE` + tham chiếu `QR-…` → sửa điều kiện lọc trong test, không đổi code chạy.

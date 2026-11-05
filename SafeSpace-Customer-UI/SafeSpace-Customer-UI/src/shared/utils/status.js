@@ -59,7 +59,7 @@ export const TICKET_TOPICS = {
 };
 
 export const ACCESS_REQUESTS = { QR: "Cấp lại mã QR", PIN: "Đặt lại PIN 6 số", KEY: "Cấp lại chìa khóa vật lý" };
-// Figma C12-* · câu hỏi thứ hai theo chủ đề; lựa chọn trở thành tiêu đề yêu cầu (như "HT-0082 · Cấp lại mã QR").
+// Figma C12-* · câu hỏi thứ hai theo chủ đề; ghép với chủ đề thành tiêu đề yêu cầu.
 export const TICKET_OPTIONS = {
   ACCESS: { question: "Bạn cần hỗ trợ gì?", options: ACCESS_REQUESTS, hint: "Mã QR/PIN cũ ngừng hoạt động ngay khi cơ sở cấp mã mới." },
   PAYMENT: { question: "Vấn đề thanh toán", options: { NOT_RECORDED: "Đã trả nhưng chưa ghi nhận", VAT: "Cần hóa đơn VAT", WRONG_AMOUNT: "Số tiền bị trừ sai" }, hint: "Đính kèm ảnh biên lai hoặc sao kê. Không gửi số thẻ, mã OTP hay mật khẩu ngân hàng." },
@@ -72,6 +72,8 @@ export const TICKET_OPTIONS = {
 export const firstOption = topic => Object.keys(TICKET_OPTIONS[topic]?.options || {})[0] || "";
 export function ticketTitle(form) {
   if (form.topic === "OTHER") return String(form.subject || "").trim();
-  if (form.topic === "ACCESS") return ACCESS_REQUESTS[form.access_request || form.option] || TICKET_TOPICS.ACCESS.title;
-  return TICKET_OPTIONS[form.topic]?.options[form.option] || TICKET_TOPICS[form.topic]?.title || "";
+  // Thắng chốt 06/11: tiêu đề = chủ đề · lựa chọn (vd "Thanh toán & hóa đơn · Cần hóa đơn VAT")
+  const topic = TICKET_TOPICS[form.topic]?.title || "";
+  const option = TICKET_OPTIONS[form.topic]?.options[form.topic === "ACCESS" ? (form.access_request || form.option) : form.option];
+  return option ? `${topic} · ${option}` : topic;
 }

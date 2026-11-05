@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Select } from "../../../shared/components/Pickers.jsx";
-import { Button, Dialog, Field, Modal, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
+import { Button, Dialog, Field, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import { dateLabel, dateTimeLabel, today } from "../../../shared/utils/format.js";
 import { TICKET_OPTIONS, TICKET_STATUS, TICKET_TOPICS, firstOption } from "../../../shared/utils/status.js";
 import { go, href } from "../../../app/router.js";
@@ -15,14 +15,8 @@ const MAX_FILES = 3;
 const KEY_SLOTS = { MORNING: ["Sáng", "08:00–11:00", "08:00"], AFTERNOON: ["Chiều", "13:00–17:00", "13:00"], OTHER: ["Ngày khác · ghi trong mô tả", "", ""] };
 
 // Figma C12 · "Yêu cầu gần đây": mã · tiêu đề, trạng thái · thời gian, nút Xem
+// Thắng chốt 06/11 (D43): hỗ trợ là cuộc trò chuyện, khách không huỷ yêu cầu — chỉ có nút Xem.
 function TicketItem({ t }) {
-  const { dispatch, notify } = useApp();
-  const [confirm, setConfirm] = useState(false);
-  const cancel = async () => {
-    const res = await dispatch("CANCEL_TICKET", { ticket_id: t.ticket_id });
-    setConfirm(false);
-    notify(res.ok ? "Đã huỷ yêu cầu hỗ trợ." : res.error, res.ok ? "success" : "error");
-  };
   const [label, tone] = TICKET_STATUS[t.status] || ["Đang xử lý", "amber"];
   const last = t.responses?.at(-1);
   return <article className="support-recent__item">
@@ -33,13 +27,8 @@ function TicketItem({ t }) {
       {t.responses_error && <Notice tone="error">Chưa tải được phản hồi. Vui lòng cập nhật lại yêu cầu.</Notice>}
     </div>
     <div className="support-recent__actions">
-      {t.status === "OPEN" && <Button variant="outline" onClick={() => setConfirm(true)}>Huỷ</Button>}
       <Button variant="outline" onClick={() => go(`support/${encodeURIComponent(t.ticket_id)}`)}>Xem</Button>
     </div>
-    {confirm && <Modal title="Huỷ yêu cầu hỗ trợ?" onClose={() => setConfirm(false)}>
-      <p className="modal__text">Yêu cầu {t.ticket_id} sẽ bị huỷ. Bạn có thể gửi yêu cầu mới bất cứ lúc nào.</p>
-      <div className="modal__actions"><Button variant="outline" onClick={() => setConfirm(false)}>Giữ lại</Button><Button variant="danger" onClick={cancel}>Huỷ yêu cầu</Button></div>
-    </Modal>}
   </article>;
 }
 

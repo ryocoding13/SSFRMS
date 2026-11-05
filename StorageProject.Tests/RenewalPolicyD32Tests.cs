@@ -9,7 +9,7 @@ using Xunit;
 
 namespace StorageProject.Tests;
 
-public sealed class RenewalPolicyD32Tests
+public sealed partial class RenewalPolicyD32Tests
 {
     private sealed class TestDb(DbContextOptions<AppDbContext> options) : AppDbContext(options)
     {

@@ -95,7 +95,7 @@ function renderPage({ page, parts, query }) {
   const [a, b] = parts;
   switch (page) {
     case "home": return <HomePage />;
-    case "refunds": return a === "cash" ? <CashRefundPage /> : <RefundTrackingPage />;
+    case "refunds": return a === "cash" ? <CashRefundPage query={query} /> : <RefundTrackingPage />;
     case "policies": return <RentalPolicyPage key={query.toString()} query={query} />;
     case "inquiries": return a ? <InquiryDetailPage id={a} /> : <InquiryListPage />;
     case "reset-password": return <PasswordResetPage />;

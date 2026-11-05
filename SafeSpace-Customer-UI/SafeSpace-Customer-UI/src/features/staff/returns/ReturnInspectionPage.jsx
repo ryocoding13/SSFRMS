@@ -59,7 +59,7 @@ export function buildInspectionReport(form, deposit) {
   const damageFee = flags.damaged ? (raw === "" ? NaN : Number(raw)) : 0;
   const note = String(form.note || "").trim();
   const reasons = [
-    form.cleaning_required && "Kho cần vệ sinh (10% cọc)",
+    form.cleaning_required && "Kho chưa đạt tiêu chuẩn vệ sinh (10% cọc)",
     flags.damaged && damageFee > 0 && `Hư hỏng · ${flags.damageItem}`,
     note && `Ghi chú: ${note}`,
   ].filter(Boolean);

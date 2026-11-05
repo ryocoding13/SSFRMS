@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Button, DetailList, Empty, Field, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
+import ReturnPhotoInput from "../../../shared/components/ReturnPhotoInput.jsx";
 import { money } from "../../../shared/utils/format.js";
 import { hoursLeft, vnStamp } from "../../../shared/utils/vnTime.js";
 import { contractOf } from "../../../app/state/appSelectors.js";
@@ -30,6 +31,7 @@ export function ReturnDeductionPage({ id }) {
   const load = useReturnDeduction(c?.api_id ?? id);
   const [decision, setDecision] = useState(""), [note, setNote] = useState(""), [error, setError] = useState("");
   const [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false), [done, setDone] = useState(false);
+  const [files, setFiles] = useState([]), [reading, setReading] = useState(false);
   const guard = useRef(false);
   if (!c) return <NotFound />;
   const d = load.data;
@@ -46,7 +48,7 @@ export function ReturnDeductionPage({ id }) {
   const send = async () => {
     if (guard.current) return;
     guard.current = true; setBusy(true);
-    try { await load.decide(decision, note.trim() || null); setConfirm(false); setDone(true); await load.reload(); }
+    try { await load.decide(decision, note.trim() || null, ["SELF_REPLACE", "DISPUTE"].includes(decision) ? files : []); setConfirm(false); setDone(true); await load.reload(); }
     catch (e) { setError(e?.message || "Chưa gửi được lựa chọn. Tải lại trước khi gửi lại."); setConfirm(false); }
     finally { guard.current = false; setBusy(false); }
   };
@@ -79,13 +81,15 @@ export function ReturnDeductionPage({ id }) {
               {options.map(k => <label key={k} className="choice-list__item"><input type="radio" name="deduction" checked={decision === k} onChange={() => { setDecision(k); setError(""); }} /><span>{choiceText(k)}</span></label>)}
             </fieldset>
             {decision && <Field label={NOTE_LABEL[decision]}><textarea rows={3} maxLength={1000} value={note} disabled={busy} onChange={e => { setNote(e.target.value); setError(""); }} /></Field>}
+            {["SELF_REPLACE", "DISPUTE"].includes(decision) && <ReturnPhotoInput files={files} onChange={setFiles} onReading={setReading} disabled={busy} required={false} max={5} label="Đính kèm ảnh / hoá đơn · không bắt buộc" />}
             <p className="hint">Bạn có 48 giờ để xác nhận{d.deadlineAt ? ` (đến ${vnStamp(d.deadlineAt)})` : ""}. Quá 48 giờ không phản hồi, hệ thống tự hoàn cọc theo biên bản của nhân viên. Cơ sở luôn chấp nhận phương án tự dọn dẹp; kiểm tra lại đạt thì không trừ phí vệ sinh.</p>
             {error && <Notice tone="error">{error}</Notice>}
-            <div className="customer-detail__actions"><Button type="submit" disabled={busy}>Gửi phản hồi cho cơ sở</Button></div>
+            <div className="customer-detail__actions"><Button type="submit" disabled={busy || reading}>Gửi phản hồi cho cơ sở</Button></div>
           </form>
           : <section className="panel customer-detail__card"><h2>Kết quả</h2>
             {done && <Notice tone="success">Đã gửi phản hồi của bạn.</Notice>}
             <DetailList items={[["Trạng thái", label], ...(d.decision ? [["Bạn đã chọn", DECISIONS[d.decision] || d.decision], ["Lúc", vnStamp(d.decidedAt)]] : []), ...(d.decisionNote ? [["Ghi chú", d.decisionNote]] : []), ...(d.recheckNote ? [["Kết quả kiểm tra lại", d.recheckNote]] : [])]} />
+            {d.customerPhotos?.length > 0 && <ul className="deduction-photos" aria-label="Ảnh bạn đã gửi">{d.customerPhotos.filter(p => safeUrl(p.url)).map((p, i) => <li key={i}><a href={p.url} target="_blank" rel="noreferrer"><img src={p.url} alt={`Ảnh bạn gửi ${i + 1}`} loading="lazy" /></a></li>)}</ul>}
             {d.status === "NONE" && <p className="hint">Biên bản không có khoản trừ nên không cần xác nhận; cơ sở chốt hoàn cọc theo quy trình.</p>}
           </section>}
         </div>

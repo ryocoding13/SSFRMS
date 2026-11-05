@@ -12,7 +12,7 @@ using Xunit;
 namespace StorageProject.Tests;
 
 /// <summary>T13 · Sự cố do cơ sở (D32). SQLite trong bộ nhớ — chưa thay cho kiểm SQL Server / thiết bị cửa thật.</summary>
-public sealed class IncidentT13Tests
+public sealed partial class IncidentT13Tests
 {
     private sealed class TestDb(DbContextOptions<AppDbContext> options) : AppDbContext(options)
     {

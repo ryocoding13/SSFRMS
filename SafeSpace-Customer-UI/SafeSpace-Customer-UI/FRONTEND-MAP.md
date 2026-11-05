@@ -288,7 +288,12 @@ Giới hạn/test/node Figma ở docs/sprints/FE-figma-sync-09.md; endpoint/mark
 |---|---|---|
 | `#/units/:id/deduction` | `src/features/customer/contracts/ReturnDeductionPage.jsx` (+ `useReturnDeduction.js`) | D30-13 · D39/D40: biên bản, khoản trừ, hạn 48 giờ, 4 phương án; API `/api/contracts/{id}/return-deduction` |
 | `#/units/:id/unit-change` | `src/features/customer/contracts/UnitChangePage.jsx` (+ `useUnitConflicts.js`) | D41: đổi ngang / nâng cấp / dời ngày / huỷ hoàn 100%; API `/api/unit-conflicts`, `/api/contracts/{id}/unit-conflict` |
-| `#/refunds/cash` | `src/features/customer/payments/CashRefundPage.jsx` (+ `useCashRefunds.js`) | D42/D44: hạn 30 ngày, ngày hẹn, đổi sang chuyển khoản; API `/api/cash-refunds` |
+| `#/refunds/cash` | `src/features/customer/payments/CashRefundPage.jsx` (+ `useCashRefunds.js`) | D42/D44 · Figma D30-15b: hạn 30 ngày, đổi sang chuyển khoản + popup; API `/api/cash-refunds` |
+| `#/staff/cash-refunds` | `src/features/staff/payments/CashRefundCounterPage.jsx` | S10/S10b: gọi nhắc, chi tiền 4 mục; API `/api/ops/cash-refunds/{id}/calls`, `/pay` |
+| `#/staff/recheck` | `src/features/staff/returns/ReturnRecheckPage.jsx` | D39/D40: kiểm tra lại sau tự dọn / tự thay / khiếu nại; API `/api/ops/returns/{id}/recheck` |
+| `#/manager/cash-refunds` | `src/features/manager/cash/CashRefundApprovalPage.jsx` | D42: duyệt chi tiền mặt, giao nhân viên |
+| `#/manager/daily-report` | `src/features/manager/reports/DailyStaffReportPage.jsx` | D42: báo cáo cuối ngày |
+| `#/manager/unit-conflicts` | `src/features/manager/conflicts/UnitConflictListPage.jsx` | D41 · Figma M-D41: xung đột lịch đặt kho |
 
 - Chọn cách nhận hoàn dùng chung `src/shared/components/RefundMethodFields.jsx` (huỷ đơn, trả kho, sự cố cơ sở); hàm `validateRefundChoice`, `refundChoicePayload`, `refundBankInput` ở `src/shared/utils/refundRequest.js`.
 - Dữ liệu khách đọc thẳng BE qua `src/shared/hooks/useCustomerData.js`; chế độ lưu trình duyệt báo "mô phỏng chưa có dữ liệu", không giả thành công. Giờ VN từ BE hiển thị bằng `src/shared/utils/vnTime.js`.

@@ -456,3 +456,28 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Dời ngày (D41): giữ độ dài kỳ thuê, trong 90 ngày, giữ ô cũ nếu ô cũ trống kịp; giá và cọc giữ nguyên. Huỷ do xung đột: hoàn 100% tiền thuê + cọc đã trả, cách nhận hoàn theo D42/D44.
 - **Chưa làm:** gửi email/chuông riêng cho đề xuất đổi kho (chưa có bảng thông báo; khách xem ở chi tiết kho và `#/units/:id/unit-change`); giá khi gia hạn sau nâng cấp (khách chọn giá ô lớn hoặc chuyển về loại cũ) — cần nhóm chốt cách tính trong `RenewalService`.
 - Quá hạn tiền mặt: tiến trình nền đổi khoản REFUND sang `CANCELLED` (tham chiếu `FORFEITED:{id}`) để không còn hiện "chờ hoàn"; giữ dòng tiền, không xoá.
+
+## D45 — 06/11/2026: Thắng chốt các điểm treo sau Phiên 5b và IMPL-P4 — Đã chốt
+
+> Thắng trả lời lúc 06/11/2026 00:10. Thay các ý tương ứng của IMPL-2026-11-05-P3/P4 và Phiên 5b; giữ nguyên lịch sử ở trên.
+
+- **Hỗ trợ (C12):** tiêu đề yêu cầu = chủ đề · lựa chọn (vd "Thanh toán & hóa đơn · Cần hóa đơn VAT"). **Bỏ nút Huỷ** yêu cầu hỗ trợ của khách (đúng Figma, D43). Giờ nhận chìa khóa lần đầu: Sáng = 08:00, Chiều = 13:00 ngày bắt đầu thuê, "Ngày khác" không gửi giờ.
+- **Huỷ đơn chuyển khoản:** bỏ ô tick "tài khoản chính chủ"; chỉ dựa vào kiểm tên chủ tài khoản trùng hợp đồng.
+- **Figma:** D30-07 sửa theo D44 (quá 30 ngày mất khoản hoàn); vẽ màn khách tiền mặt + đổi sang chuyển khoản (D30-15b) kèm popup xác nhận / thành công / thất bại.
+- **Khấu trừ (D30-13):** khách đính kèm ảnh hoá đơn / vật dụng khi chọn tự thay thế (và khiếu nại), làm ở Phiên 6.
+- **Gia hạn sang ô khác (C07b-D41 "Chọn ô khác"):** làm luồng mới — khách chọn ô trống cùng loại, gia hạn sang ô đó, cấp lại QR/PIN. **Gia hạn sau nâng cấp miễn phí (D41):** khách chọn giá ô lớn hoặc chuyển về loại cũ nếu còn ô. Cả hai cần code thêm.
+- **Thông báo đề xuất đổi kho (D41):** làm thêm chuông + email.
+- **Giữ** các ý IMPL-P4: khách "Đồng ý khấu trừ" thì chốt hoàn cọc ngay; `RELET_BUFFER` (thêm ô nhập ở B02); nhật ký thao tác tự động ghi Hệ thống / mã khách ở cột bắt buộc, không đổi DB.
+- **Tiền mặt quá 30 ngày chưa nhận:** tự động **cộng vào doanh thu** (thay ý "chỉ chuyển REFUND sang CANCELLED" của IMPL-P4; báo cáo doanh thu cần tính khoản này).
+- **Phạm vi patch:** M01 (một đường duyệt gia hạn có khoá), M04 (hồ sơ quá hạn dùng chung khoá), M06 (test E2E sự cố) làm cùng PR #68.
+
+## IMPL-2026-11-06-P6 — Cách triển khai Phiên 6 — Chờ nhóm xác nhận
+
+> Claude đề xuất khi viết code ngày 06/11/2026; chưa phải quyết định nghiệp vụ.
+
+- **M01:** `RenewalApproval.ApproveAsync` là đường duyệt duy nhất (`/api/ops`, `/api/manager`, `RenewalService`). Khoá `contract:{id}` rồi mới đọc lại; từ chối khi kỳ thuê đã đổi sau khi khách gửi, khi có yêu cầu gia hạn khác đang chờ thanh toán, khi hạn thanh toán đã qua, khi ô đã có khách đặt (D41). Giá lấy từ bảng giá **ACTIVE**, không có thì dùng giá đang thuê.
+- **M04:** ghi nhắc quá hạn của quản lý dùng khoá `move-out:{id}` như tiến trình nền; đã có hồ sơ mở thì ghi thêm ghi chú, không tạo hồ sơ thứ hai; `OverdueFrom` = ngày sau ngày hết hạn.
+- **S03:** route cũ `POST /api/staff/returns/{id}/inspection` trả 410, chỉ dùng `/api/ops/returns/{id}/inspection`.
+- **S02/C11:** thu gia hạn tại quầy kiểm consent đúng phiên bản chính sách khách đã đồng ý.
+- **Câu 7:** ảnh lưu loại mới `RETURN_DEDUCTION` (migration `20261106120000_Phien6DeductionPhotos`, chỉ đổi CHECK), tối đa 5 ảnh.
+- **Chưa làm, cần nhóm chốt trước khi code:** gia hạn sang ô khác và gia hạn sau nâng cấp (ngày chuyển ô hợp đồng — ngay khi thanh toán hay từ ngày đầu kỳ mới; cọc khi ô mới khác giá; mã ô cũ hết hiệu lực lúc nào; khách tự chuyển đồ hay hẹn nhân viên); chuông + email đề xuất đổi kho (chưa có bảng thông báo / dịch vụ email); tính tiền mặt quá 30 ngày vào doanh thu (cần chốt ghi vào khoản nào của báo cáo).

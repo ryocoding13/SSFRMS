@@ -175,6 +175,7 @@ public static class FacilityOpsEndpoints
 
         routes.MapPost("/api/contracts/{contractId}/return-deduction", (string contractId, ReturnDeductionDecisionRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
                 Run(async () => Results.Ok(await ops.DecideReturnDeductionAsync(user.GetUserId(), contractId, request, ct))))
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(EvidencePhotos.RequestBodyLimit))
             .WithTags("Facility Operations")
             .RequireAuthorization(policy => policy.RequireRole("CUSTOMER"))
             .WithSummary("D39 · AGREE · SELF_CLEAN (có phí vệ sinh) · SELF_REPLACE (có phí hư hỏng) · DISPUTE (note bắt buộc); một lần, trong 48 giờ");

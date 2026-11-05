@@ -182,6 +182,7 @@ public partial class FacilityOpsService
         var inspectionIds = inspections.Select(x => x.Inspection.InspectionId).ToList();
         var inspectionPhotos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.ReturnInspection, inspectionIds, ct);
         var moveOutPhotos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.MoveOut, inspectionIds, ct);
+        var deductionPhotos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.ReturnDeduction, inspectionIds, ct);
         var overdueAtRequest = new Dictionary<long, decimal>();
         foreach (var (c, i) in inspections)
         {
@@ -203,7 +204,8 @@ public partial class FacilityOpsService
                 report, Local(i.InspectedAt), Utc(i.CreatedAt), overdueFee, DamageWorkflowResolved: true,
                 MoveOutPhotos: PhotosOf(moveOutPhotos, i.InspectionId),
                 LateInspection: i.Status != "COMPLETED" && now - i.CreatedAt > InspectionSla,
-                DeductionStatus: deduction.Status, DeductionDeadlineAt: Local(deduction.DeadlineUtc));
+                DeductionStatus: deduction.Status, DeductionDeadlineAt: Local(deduction.DeadlineUtc),
+                DeductionPhotos: PhotosOf(deductionPhotos, i.InspectionId));
         }).ToList();
 
         // ---- S05 · Yêu cầu hỗ trợ
