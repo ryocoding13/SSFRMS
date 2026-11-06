@@ -481,3 +481,29 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - **S02/C11:** thu gia hạn tại quầy kiểm consent đúng phiên bản chính sách khách đã đồng ý.
 - **Câu 7:** ảnh lưu loại mới `RETURN_DEDUCTION` (migration `20261106120000_Phien6DeductionPhotos`, chỉ đổi CHECK), tối đa 5 ảnh.
 - **Chưa làm, cần nhóm chốt trước khi code:** gia hạn sang ô khác và gia hạn sau nâng cấp (ngày chuyển ô hợp đồng — ngay khi thanh toán hay từ ngày đầu kỳ mới; cọc khi ô mới khác giá; mã ô cũ hết hiệu lực lúc nào; khách tự chuyển đồ hay hẹn nhân viên); chuông + email đề xuất đổi kho (chưa có bảng thông báo / dịch vụ email); tính tiền mặt quá 30 ngày vào doanh thu (cần chốt ghi vào khoản nào của báo cáo).
+
+## D46 — 06/11/2026: Gia hạn sang ô khác và gia hạn sau nâng cấp miễn phí — Đã chốt, chưa triển khai
+
+> Thắng chốt lúc 06/11/2026 19:28, trả lời 4 điểm còn treo ở IMPL-2026-11-06-P6. Bổ sung D41 / D45 (ý "gia hạn sang ô khác", "gia hạn sau nâng cấp"); giữ nguyên lịch sử ở trên. Triển khai ở phiên sau (BE trước, FE sau).
+
+- **Lúc chuyển ô:** ô mới được giữ cho khách từ lúc khách trả đủ tiền gia hạn; khách chuyển đồ trong **3 ngày cuối kỳ cũ**; kỳ mới tính từ ngày sau ngày hết hạn cũ.
+- **Cọc và hợp đồng:** giữ **cùng hợp đồng**, chỉ đổi ô; cọc cũ chuyển sang ô mới. Ô mới có mức cọc cao hơn thì thu thêm phần chênh, thấp hơn thì hoàn phần chênh khi kết thúc hợp đồng.
+- **QR/PIN:** mã ô mới có từ lúc trả tiền; mã ô cũ khoá ngay khi khách bấm "Đã chuyển đồ", chậm nhất hết hiệu lực lúc hết kỳ cũ.
+- **Chuyển đồ:** khách tự chuyển. Nhân viên kiểm tra ô cũ như kiểm tra trả kho (D38) nhưng không hoàn cọc vì cọc đã chuyển; hư hỏng trừ vào cọc. Chưa chuyển kịp thì ô cũ tính quá hạn theo D32.
+- **Chưa chốt rõ, sẽ làm theo cách sau nếu nhóm không nói khác:** phần cọc chênh thu thêm gộp vào khoản thanh toán gia hạn (cùng hạn 24 giờ). Gia hạn sau nâng cấp miễn phí: khách chọn về loại cũ thì đi luồng gia hạn sang ô khác; khách giữ ô lớn thì chỉ đổi sang giá ô lớn, không chuyển đồ.
+
+## D47 — 06/11/2026: Chi tiền mặt tại quầy không dùng số phiếu chi — Đã chốt
+
+> Thắng chốt lúc 06/11/2026 19:14 khi xem Figma Phiên 8. Bổ sung D42 / D44; giữ nguyên lịch sử ở trên.
+
+- **Không có ô "Số phiếu chi".** Nhân viên tick đủ 4 mục khi chi tiền (đúng CCCD, đúng mã đơn và SĐT, đã đếm đủ tiền, khách đã nhận và ký sổ chi) là đủ ghi nhận.
+- **Quản lý không đổi được cách nhận hoàn khách đã chọn** (chuyển khoản / tiền mặt); quản lý chỉ duyệt và giao nhân viên chi.
+- Figma: popup duyệt chi mới `M08-tiền mặt · Popup · Duyệt chi tiền mặt` theo đúng ý trên; popup cũ `M08a2-tiền mặt` (có số phiếu chi, cho chọn lại cách hoàn) lỗi thời, chờ Thắng đồng ý xoá.
+
+## IMPL-2026-11-06-P7 — Cách triển khai Phiên 7 — Chờ nhóm xác nhận
+
+> Claude đề xuất khi viết code ngày 06/11/2026; chưa phải quyết định nghiệp vụ.
+
+- **Đơn chờ thanh toán trực tuyến quá hạn:** `UnpaidReservationExpiry` (chạy cùng tiến trình 1 phút của `ExpiredCashHoldWorker`) chuyển đơn `PENDING_PAYMENT` quá `ExpiresAt` mà chưa trả tiền sang `EXPIRED`, ghi lý do và log `RESERVATION_PAYMENT_EXPIRED`. Không đụng `PENDING_VERIFICATION` (khách đã báo chuyển khoản, nhân viên đối chiếu). Tiền PayOS về muộn vẫn đi nhánh `PAYMENT_REVIEW_REQUIRED` như cũ; khách bấm "Đã chuyển khoản" sau khi đơn bị chuyển `EXPIRED` vẫn nhận mã lỗi `EXPIRED`. Không đổi schema.
+- **CI:** thêm bước chặn chữ "sạch / bẩn / sai lệch" trong file `.jsx`; nhãn trạng thái `MISMATCH` cũ trong reducer giữ lại để đọc dữ liệu lịch sử.
+- **Dependabot** mỗi thứ Hai 08:00 giờ Việt Nam, gộp bản vá nhỏ; PR của Dependabot vẫn qua CI và review như mọi PR.

@@ -39,6 +39,14 @@ jobs:
       - name: Check structure & naming conventions
         run: npm run check:structure
 
+      # Phiên 7: chặn chữ đã bỏ trong giao diện (đạt/chưa đạt tiêu chuẩn thay sạch/bẩn; D42 bỏ luồng báo sai lệch)
+      - name: Check forbidden UI wording
+        run: |
+          if grep -rnE "sạch|bẩn|[Ss]ai lệch" src --include=*.jsx; then
+            echo "::error::Giao diện còn chữ đã bỏ: dùng 'đạt/chưa đạt tiêu chuẩn' thay 'sạch/bẩn'; luồng báo sai lệch đã bỏ theo D42."
+            exit 1
+          fi
+
       - name: Run unit & integration tests
         run: npm test
 

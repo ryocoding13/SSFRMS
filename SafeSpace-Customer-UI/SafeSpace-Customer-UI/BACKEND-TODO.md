@@ -1,5 +1,10 @@
 # BACKEND-TODO — việc backend (StorageProject.Api) còn thiếu cho giao diện SafeSpace
 
+## Phiên 7 — 06/11/2026: tự huỷ đơn chờ thanh toán quá hạn (BE đã viết, chờ CI)
+
+- Không thêm / đổi API. Tiến trình nền 1 phút chuyển đơn `PENDING_PAYMENT` quá `expiresAt` chưa trả tiền sang `EXPIRED` (`cancellationReason` = "Quá thời gian giữ chỗ chưa thanh toán"). FE đọc trạng thái này như đơn hết hạn hiện có.
+- **Còn chờ (D46):** gia hạn sang ô khác / sau nâng cấp — API mới sẽ ghi ở phiên làm BE.
+
 ## Phiên 6 — 06/11/2026: M01, M04, S02, S03, câu 7 (BE đã viết, chờ CI)
 
 - **Duyệt gia hạn (M01)** — 3 route `/api/ops/renewals/{GH-id}/approve`, `/api/manager/renewals/{id}/approve`, `RenewalService` dùng chung `RenewalApproval`. Lỗi 400 mới: kỳ thuê đã đổi, có yêu cầu khác chờ thanh toán, đã quá hạn duyệt. `/api/manager` trả 404 khi không thấy.
