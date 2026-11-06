@@ -1,3 +1,14 @@
+## 2026-11-06 — Sửa lỗi tính tỷ trọng doanh thu 0/0 (NaN%) ở Báo cáo Facility Manager
+
+- **Vấn đề:** Trong `FacilityReportPage.jsx`, khi doanh thu các loại kho đều bằng 0 (`typeTotal = 0`), phép tính `(t.value / typeTotal) * 100` ra `NaN`, dẫn đến nhãn hiển thị `NaN%` và thanh hiển thị `style="width: NaN%"`.
+- **Khắc phục:** Tính tỷ trọng một lần `const share = typeTotal > 0 ? (t.value / typeTotal) * 100 : 0;` và dùng chung cho nhãn `Math.round(share)%` và chiều rộng thanh `style={{ width: `${share}%` }}`.
+- **Kiểm chứng:**
+  - Bổ sung kiểm tra trong `render.test.mjs` cho 2 trường hợp:
+    1. Doanh thu 0 và 0: hiển thị `0,0 triệu đ · 0%`, thanh `style="width:0%"`, không có `NaN`. Tỷ lệ lấp đầy kho vẫn tính riêng.
+    2. Doanh thu 3 và 1 triệu: hiển thị `3,0 triệu đ · 75%` và `1,0 triệu đ · 25%`, thanh tương ứng `75%` và `25%`.
+  - `npm run test:render`: PASS 181 routes.
+  - `npm test`: PASS 158/158 tests, `test:business` PASS 10/10, `test:workflows` PASS 11/11, `check:structure` PASS, `build` OK.
+
 ## 2026-11-06 — Khôi phục khóa QR khi trả kho ở chế độ demo
 
 - Sau bản sửa cache, hợp đồng demo vẫn ở `ACTIVE` và lưu yêu cầu riêng trong `returns`, nên bộ kiểm tra render thấy nút QR không còn bị khóa. `pendingReturn` giữ kiểm tra trạng thái server cho hợp đồng API và đọc yêu cầu cục bộ cho hợp đồng demo. Không đổi test hay đưa cache cũ trở lại chế độ API.
