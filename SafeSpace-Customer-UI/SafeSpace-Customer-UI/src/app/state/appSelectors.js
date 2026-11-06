@@ -33,9 +33,18 @@ export const unpaidCount = (data) => data.ledger.filter((l) => l.status === "UNP
 export const pendingRenewal = (data, contractId) =>
   data.renewals.find((r) => r.contract_id === contractId && (r.status === "PENDING" || (r.status === "APPROVED" && !data.ledger.some(l => l.kind === "RENEWAL" && l.contract_id === contractId && l.period?.to === r.new_end && l.status === "RECONCILED"))));
 
-export const pendingReturn = (data, contractId) =>
-  data.returns.find((r) => r.contract_id === contractId && ["PENDING", "SCHEDULED"].includes(r.status)) ||
-  (data.contracts.some(c => c.contract_id === contractId && c.status === "RETURN_PENDING") ? { contract_id: contractId, status: "PENDING" } : undefined);
+export const pendingReturn = (data, contractId) => {
+  if (!data) return undefined;
+  const contract = data.contracts?.find((c) => c.contract_id === contractId || c.api_id === contractId);
+  if (contract) {
+    if (contract.status === "RETURN_PENDING") {
+      const match = data.returns?.find((r) => (r.contract_id === contract.contract_id || r.api_id === contract.api_id) && ["PENDING", "SCHEDULED"].includes(r.status));
+      return match || { contract_id: contract.contract_id, status: "PENDING" };
+    }
+    return undefined;
+  }
+  return data.returns?.find((r) => (r.contract_id === contractId || r.api_id === contractId) && ["PENDING", "SCHEDULED"].includes(r.status));
+};
 
 export const latestReservation = (data) =>
   [...data.reservations].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];

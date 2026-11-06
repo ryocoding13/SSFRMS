@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { composeData, mapCatalog, parseUtc, reservationCode, reservationsToExpire, usernameFromEmail } from "../src/shared/api/apiMappers.js";
+import { pendingReturn } from "../src/app/state/appSelectors.js";
 
 const NOW = new Date("2026-09-22T05:00:00Z");
 const catalogDto = {
@@ -109,12 +110,36 @@ test("hợp đồng, thanh toán, gia hạn, lịch nhận kho, hỗ trợ", () 
   assert.equal(d.tickets[0].title, "Kiểm tra nhiệt độ phòng kho");
 });
 
-test("phần lưu cục bộ: tên hiển thị, lịch trả kho, thông báo được ghép vào", () => {
-  const d = compose({ name: "An Nguyễn", phone: "0912345678", returns: [{ return_id: "TK-0001", contract_id: "HĐ-2026-0001", status: "PENDING" }], notifications: [{ id: "N-1", read: false }] });
+test("phần lưu cục bộ: tên hiển thị, lịch trả kho, thông báo được ghép vào ở chế độ demo/offline", () => {
+  const d = composeData({ catalog, remote: null, overlay: { name: "An Nguyễn", phone: "0912345678", returns: [{ return_id: "TK-0001", contract_id: "HĐ-2026-0001", status: "PENDING" }], notifications: [{ id: "N-1", read: false }] }, session });
   assert.equal(d.user.full_name, "An Nguyễn");
   assert.equal(d.user.phone, "0912345678");
   assert.equal(d.returns.length, 1);
   assert.equal(d.notifications.length, 1);
+});
+
+test("chế độ API: hợp đồng ACTIVE không nhận overlay.returns cũ trùng mã hợp đồng sau khi reset DB", () => {
+  const overlay = {
+    returns: [{ return_id: "TK-0001", contract_id: "HĐ-2026-0001", date: "2026-10-29", slot: "Sáng", status: "PENDING" }],
+  };
+  const d = compose(overlay);
+  assert.equal(d.contracts[0].status, "ACTIVE");
+  assert.equal(d.returns.length, 0);
+  assert.equal(pendingReturn(d, "HĐ-2026-0001"), undefined);
+});
+
+test("chế độ API: hợp đồng RETURN_PENDING thật từ máy chủ có trạng thái chờ, không cần overlay", () => {
+  const remoteWithReturnPending = {
+    ...remote,
+    contracts: [{ ...remote.contracts[0], status: "RETURN_PENDING" }],
+  };
+  const d = composeData({ catalog, remote: remoteWithReturnPending, overlay: {}, session, timeoutSeconds: 60, now: NOW });
+  assert.equal(d.contracts[0].status, "RETURN_PENDING");
+  assert.equal(d.returns.length, 1);
+  const ret = pendingReturn(d, "HĐ-2026-0001");
+  assert.ok(ret);
+  assert.equal(ret.status, "PENDING");
+  assert.equal(ret.date, undefined);
 });
 
 test("toạ độ cơ sở: lấy latitude / longitude từ backend, thiếu thì để null", () => {

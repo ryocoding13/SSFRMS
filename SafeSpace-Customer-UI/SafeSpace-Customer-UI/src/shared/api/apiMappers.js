@@ -177,7 +177,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
     ledger: [],
     appointments: [...overlay.appointments],
     renewals: [],
-    returns: [...overlay.returns],
+    returns: remote ? [] : [...overlay.returns],
     tickets: [],
     notifications: [...overlay.notifications],
     activities: [...overlay.activities],
@@ -414,12 +414,26 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
     };
   });
 
+  // Chế độ API: trạng thái trả kho lấy từ hợp đồng máy chủ, không lấy từ overlay.returns cũ
+  const returns = [];
+  for (const c of contracts) {
+    if (c.status === "RETURN_PENDING") {
+      returns.push({
+        return_id: `TK-${c.api_id}`,
+        contract_id: c.contract_id,
+        api_id: c.api_id,
+        status: "PENDING",
+      });
+    }
+  }
+
   return {
     ...base,
     reservations,
     contracts,
     ledger,
     renewals,
+    returns,
     tickets,
     appointments: [...appointments, ...base.appointments],
   };

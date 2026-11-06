@@ -1,3 +1,24 @@
+## 2026-11-06 — Sửa lỗi gán nhầm yêu cầu trả kho cũ từ cache (overlay.returns) sau khi reset DB
+
+- **Mục tiêu:** Khắc phục lỗi hợp đồng mới tạo sau reset DB bị cache `overlay.returns` cũ trong localStorage làm hiển thị cảnh báo trả kho cũ, khóa QR/PIN và vô hiệu hóa nút gia hạn/trả kho.
+- **Nguyên nhân gốc rễ:**
+  - Ở chế độ API (`VITE_USE_API=true`), `composeData` trước đây ghép toàn bộ `overlay.returns` từ localStorage vào `base.returns`.
+  - Hàm `pendingReturn(data, contractId)` lấy `data.returns.find(r => r.contract_id === contractId && r.status === "PENDING")` mà không kiểm tra trạng thái thực tế của hợp đồng trên server (`contract.status`).
+  - Sau khi reset DB, ID người dùng và mã hợp đồng (`HĐ-2026-0001`) được tái sử dụng trong khi localStorage vẫn lưu yêu cầu trả kho của chu kỳ trước đó.
+- **Giải pháp triển khai:**
+  1. `appSelectors.js` (`pendingReturn`): Kiểm tra trạng thái thực tế của hợp đồng. Nếu `contract.status !== "RETURN_PENDING"` (ví dụ `ACTIVE`), lập tức trả về `undefined`, không phụ thuộc vào `returns` cache.
+  2. `apiMappers.js` (`composeData`): Ở chế độ API (`remote` có mặt), không lấy `returns` từ `overlay.returns` của localStorage. `returns` chỉ được tổng hợp từ danh sách hợp đồng thực tế từ backend có trạng thái `RETURN_PENDING`.
+  3. `useAccessQr.js` & `AppProvider.jsx`: Kiểm tra trực tiếp `contract.status === "RETURN_PENDING"` thay vì kiểm tra mảng `data.returns` từ cache. Hợp đồng `ACTIVE` gọi thẳng API lấy QR nếu backend cấp hợp lệ.
+  4. `ReturnProgressPage.jsx` & `ReturnRequestPage.jsx`: Sử dụng `pendingReturn(data, id)` để kiểm tra. Với trường hợp `RETURN_PENDING` từ server mà không có ngày hẹn trong cache/hồ sơ, hiển thị thông báo chung "Yêu cầu trả kho · Đã ghi nhận · chờ cơ sở xác nhận" và ẩn dòng ngày hẹn.
+  5. `AppProvider.jsx` (`REQUEST_RETURN`): Sau khi gọi API trả kho thành công, đồng bộ lại dữ liệu. Nếu reload thất bại, thông báo rõ yêu cầu đã gửi thành công và hướng dẫn tải lại trang thay vì báo lỗi gửi thất bại. Nếu API trả kho thất bại, không tự cập nhật trạng thái chờ giả.
+  6. Thêm regression tests trong `tests/api-mappers.test.js`:
+     - Chế độ API: hợp đồng `ACTIVE` không nhận `overlay.returns` cũ.
+     - Chế độ API: hợp đồng `RETURN_PENDING` thật từ máy chủ có trạng thái chờ, không cần overlay.
+- **Kiểm chứng:**
+  - Frontend: `npm test` PASS 158/158 tests, `test:business` PASS 10/10 tests, `test:workflows` PASS 11/11 tests, `check:structure` PASS, `npm run build` PASS.
+  - Backend: `dotnet build StorageProject.slnx -c Release --no-restore -m:1` PASS (0 errors, 2 warnings sẵn có), `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release --no-build` PASS 257/257 tests.
+  - Whitespace check: `git diff --check` PASS (0 whitespace errors).
+
 ## 2026-11-06 — Hoàn thành Gói KH-01, KH-04, KH-08: Chuẩn hoá Đăng ký, Nhận chìa khóa D36, QR/PIN và Hỗ trợ kèm ảnh D35
 
 - **Mục tiêu:** Thực hiện các gói công việc theo kế hoạch `SSFRMS-Customer-Flow-Implementation-Plan.md` (C01, C06, C07, C16, C17):
