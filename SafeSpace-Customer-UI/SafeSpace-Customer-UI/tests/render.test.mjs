@@ -199,6 +199,45 @@ try {
     assert.ok(renderToStaticMarkup(React.createElement(App)).includes(text), `${r}: thiếu "${text}"`);
     count++;
   }
+  // Báo cáo doanh thu Manager: kiểm tra trường hợp doanh thu 0/0 và 3/1
+  seed(true, OPS_ACCOUNTS[1]);
+  const zeroReportOps = {
+    ...createOpsData(),
+    revenue: {
+      months: [{ month: 9, year: 2026, value: 0, label: "Tháng 9" }],
+      by_type: [
+        { label: "Kho thường", value: 0 },
+        { label: "Kho lạnh", value: 0 },
+      ],
+    },
+  };
+  memory.set(OPS_KEY, JSON.stringify(zeroReportOps));
+  window.location.hash = "#/manager/report";
+  const zeroHtml = renderToStaticMarkup(React.createElement(App));
+  assert.ok(!zeroHtml.includes("NaN"), "Báo cáo doanh thu 0/0 không được có NaN");
+  assert.ok(zeroHtml.includes("Kho thường") && zeroHtml.includes("0,0 triệu đ · 0%"));
+  assert.ok(zeroHtml.includes("Kho lạnh") && zeroHtml.includes("0,0 triệu đ · 0%"));
+  assert.ok(zeroHtml.includes('style="width:0%"'), "Thanh doanh thu 0% có chiều rộng 0%");
+  assert.ok(zeroHtml.includes("Tỷ lệ lấp đầy kho"), "Tỷ lệ lấp đầy kho là chỉ số riêng");
+
+  const shareReportOps = {
+    ...createOpsData(),
+    revenue: {
+      months: [{ month: 9, year: 2026, value: 4, label: "Tháng 9" }],
+      by_type: [
+        { label: "Kho thường", value: 3 },
+        { label: "Kho lạnh", value: 1 },
+      ],
+    },
+  };
+  memory.set(OPS_KEY, JSON.stringify(shareReportOps));
+  window.location.hash = "#/manager/report";
+  const shareHtml = renderToStaticMarkup(React.createElement(App));
+  assert.ok(shareHtml.includes("3,0 triệu đ · 75%"));
+  assert.ok(shareHtml.includes("1,0 triệu đ · 25%"));
+  assert.ok(shareHtml.includes('style="width:75%"'));
+  assert.ok(shareHtml.includes('style="width:25%"'));
+
   memory.delete(OPS_KEY);
   // Khách hàng chưa có kho → một dòng thông báo (C01/C06/C14-trống)
   const { createEmptyData } = await vite.ssrLoadModule("/src/app/data/appSeed.js");

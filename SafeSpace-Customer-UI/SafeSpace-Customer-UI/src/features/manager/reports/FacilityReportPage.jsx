@@ -53,12 +53,24 @@ export function FacilityReportPage() {
         </section>
         <aside className="panel booking">
           <h2>Cơ cấu doanh thu theo loại kho</h2>
-          {ops.revenue.by_type.map((t, i) => (
-            <div className="meter" key={t.label}>
-              <div className="meter__row"><span>{t.label}</span><strong>{millions(t.value)} · {Math.round((t.value / typeTotal) * 100)}%</strong></div>
-              <div className="meter__track"><i className={`meter__fill meter__fill--${i}`} style={{ width: `${(t.value / typeTotal) * 100}%` }} /></div>
-            </div>
-          ))}
+          {ops.revenue.by_type.map((t, i) => {
+            const share = typeTotal > 0 ? (t.value / typeTotal) * 100 : 0;
+
+            return (
+              <div className="meter" key={t.label}>
+                <div className="meter__row">
+                  <span>{t.label}</span>
+                  <strong>{millions(t.value)} · {Math.round(share)}%</strong>
+                </div>
+                <div className="meter__track">
+                  <i
+                    className={`meter__fill meter__fill--${i}`}
+                    style={{ width: `${share}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
           <div className="meter">
             <div className="meter__row"><span>Tỷ lệ lấp đầy kho</span><strong>{occ}%</strong></div>
             <div className="meter__track"><i className="meter__fill meter__fill--2" style={{ width: `${occ}%` }} /></div>
