@@ -109,12 +109,15 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
             var digitsOnly = Regex.Replace(cleaned, @"\s+", "");
             if (digitsOnly.Length == 6 && digitsOnly.All(char.IsDigit) && !string.IsNullOrWhiteSpace(unitNumber))
             {
+                var movingIn = await RenewalUnitMove.ContractsMovingIntoAsync(dbContext, unitNumber, ct);
                 var candidates = await dbContext.RentalContracts
                     .Include(c => c.Customer)
                     .Include(c => c.Unit)
                     .Include(c => c.HandoverRecord)
                     .Include(c => c.AccessCredentials)
-                    .Where(c => c.Unit.UnitNumber == unitNumber && c.AccessCredentials.Any(a => a.Status == "ACTIVE" && a.CredentialType != "KEY"))
+                    // D46: hợp đồng đang chuyển sang ô này (3 ngày cuối kỳ cũ) dùng PIN hiện tại mở được ô mới.
+                    .Where(c => (c.Unit.UnitNumber == unitNumber || movingIn.Contains(c.ContractId))
+                                && c.AccessCredentials.Any(a => a.Status == "ACTIVE" && a.CredentialType != "KEY"))
                     .OrderByDescending(c => c.ContractId)
                     .ToListAsync(ct);
 
@@ -144,9 +147,12 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(unitNumber) && contract.Unit.UnitNumber != unitNumber)
+        // D46: trong 3 ngày cuối kỳ cũ, mã hiện tại mở được cả ô mới khách đã trả tiền gia hạn sang.
+        var movingTarget = !string.IsNullOrWhiteSpace(unitNumber) && contract.Unit.UnitNumber != unitNumber
+                           && await RenewalUnitMove.CanOpenTargetAsync(dbContext, contract.ContractId, unitNumber, ct);
+        if (!string.IsNullOrWhiteSpace(unitNumber) && contract.Unit.UnitNumber != unitNumber && !movingTarget)
             return await LogAndDenyAsync(null, null, null, null, "Mã không đúng ô kho.", ipAddress, ct);
-        var scannedUnit = contract.Unit.UnitNumber;
+        var scannedUnit = movingTarget ? unitNumber! : contract.Unit.UnitNumber;
         var customerName = contract.Customer.FullName;
         var contractCode = FormatContractCode(contract);
         var vnToday = DateOnly.FromDateTime(DateTime.UtcNow + VnOffset);

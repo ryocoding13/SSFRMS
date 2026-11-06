@@ -75,6 +75,12 @@ public interface IRenewalService
     /// <summary>L5 (D40): khách huỷ yêu cầu gia hạn còn chờ duyệt để chuyển sang trả kho.</summary>
     Task CancelRenewalAsync(long customerId, long renewalId, CancellationToken ct = default);
     Task ExpirePendingRenewalsAsync(CancellationToken ct = default);
+    // D46 · Gia hạn sang ô khác / về loại cũ sau nâng cấp miễn phí
+    Task<StorageProject.Core.DTOs.Renewal.RenewalUnitOptionsDto> GetRenewalUnitOptionsAsync(long customerId, long contractId, CancellationToken ct = default);
+    Task<StorageProject.Core.DTOs.Renewal.UnitMoveDto?> GetUnitMoveAsync(long customerId, long contractId, CancellationToken ct = default);
+    Task<StorageProject.Core.DTOs.Renewal.UnitMoveDto> MarkUnitMovedAsync(long customerId, long contractId, CancellationToken ct = default);
+    Task<IReadOnlyList<StorageProject.Core.DTOs.Renewal.UnitMoveDto>> GetOldUnitInspectionsAsync(long userId, CancellationToken ct = default);
+    Task<StorageProject.Core.DTOs.Renewal.UnitMoveDto> InspectOldUnitAsync(long userId, long renewalId, StorageProject.Core.DTOs.Renewal.UnitMoveInspectionRequest request, CancellationToken ct = default);
 }
 
 public interface IRentalPolicyService

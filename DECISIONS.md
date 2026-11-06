@@ -507,3 +507,23 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - **Đơn chờ thanh toán trực tuyến quá hạn:** `UnpaidReservationExpiry` (chạy cùng tiến trình 1 phút của `ExpiredCashHoldWorker`) chuyển đơn `PENDING_PAYMENT` quá `ExpiresAt` mà chưa trả tiền sang `EXPIRED`, ghi lý do và log `RESERVATION_PAYMENT_EXPIRED`. Không đụng `PENDING_VERIFICATION` (khách đã báo chuyển khoản, nhân viên đối chiếu). Tiền PayOS về muộn vẫn đi nhánh `PAYMENT_REVIEW_REQUIRED` như cũ; khách bấm "Đã chuyển khoản" sau khi đơn bị chuyển `EXPIRED` vẫn nhận mã lỗi `EXPIRED`. Không đổi schema.
 - **CI:** thêm bước chặn chữ "sạch / bẩn / sai lệch" trong file `.jsx`; nhãn trạng thái `MISMATCH` cũ trong reducer giữ lại để đọc dữ liệu lịch sử.
 - **Dependabot** mỗi thứ Hai 08:00 giờ Việt Nam, gộp bản vá nhỏ; PR của Dependabot vẫn qua CI và review như mọi PR.
+
+## D46b — 06/11/2026: Bổ sung D46 (giữ ô, chọn ô, không báo chuyển đồ, bù cọc) — Đã chốt
+
+> Thắng chốt lúc 06/11/2026 20:29–20:35. Bổ sung D46; giữ nguyên lịch sử ở trên.
+
+- **Giữ ô mới từ lúc quản lý duyệt** (thay ý "giữ từ lúc trả tiền" của D46): giữ trong 24 giờ chờ thanh toán, quá hạn thì trả ô. Ô bị người khác lấy trước khi duyệt → báo "Ô vừa có người đặt", khách chọn ô khác.
+- **Khách chọn ô cụ thể** trong danh sách ô trống cùng loại (Figma C08-D41a).
+- **Hết kỳ cũ mà khách chưa bấm "Đã chuyển đồ":** mã ô cũ hết hiệu lực, hệ thống tự tạo việc "Kiểm tra ô cũ"; nhân viên thấy còn đồ thì ô cũ tính quá hạn theo D32.
+- **Hư hỏng làm cọc còn ít hơn mức cọc ô mới: không bắt bù** (không tạo nợ, D31).
+- **Giữ 2 ý mặc định của D46:** cọc chênh gộp vào khoản gia hạn (cùng hạn 24 giờ); gia hạn sau nâng cấp — giữ ô lớn thì chỉ đổi sang giá ô lớn, về loại cũ thì đi luồng gia hạn sang ô khác.
+
+## IMPL-2026-11-06-P8 — Cách triển khai BE D46 / D46b — Chờ nhóm xác nhận
+
+> Claude đề xuất khi viết code ngày 06/11/2026; chưa phải quyết định nghiệp vụ.
+
+- **Không đổi schema.** Trạng thái chuyển ô lưu trong `activity_logs` (EntityType `RENEWAL`): `RENEWAL_UNIT_CHANGE` (khách chọn ô) → `RENEWAL_UNIT_HELD` (duyệt, ô mới `RESERVED`) → renewal `PAID` → `RENEWAL_UNIT_MOVED` → `RENEWAL_OLD_UNIT_INSPECTED`. Code ở `RenewalUnitMove.cs`.
+- **Ô chọn được:** ô trống thật (không hợp đồng giữ, `AVAILABLE`) cùng loại đang thuê; nếu hợp đồng đã được nâng cấp miễn phí (loại ô ≠ loại đã đặt) thì thêm ô loại đã đặt ban đầu. Gia hạn sang ô khác không bị khoá D41 ở ô cũ. Giá theo bảng giá ACTIVE của loại ô mới; cọc cần theo chính sách DEPOSIT của loại ô mới.
+- **Tiền:** khoản `RENEWAL` chờ thu = tiền gia hạn + cọc chênh (một lần trả PayOS / tại quầy). Thu đủ thì tách cọc chênh thành khoản `DEPOSIT` `PAID` (báo cáo doanh thu không tính cọc) và tăng cọc đang giữ. Cọc ô mới thấp hơn: giữ nguyên cọc, phần chênh tự hoàn khi kết thúc hợp đồng.
+- **Ra vào:** thu đủ xong hợp đồng vẫn ở ô cũ; trong 3 ngày cuối kỳ cũ mã QR/PIN hiện tại mở được cả ô mới. Khách bấm "Đã chuyển đồ" (chỉ trong 3 ngày cuối kỳ cũ) hoặc hết kỳ cũ → hợp đồng sang ô mới, cấp QR/PIN mới, mã cũ `REPLACED`, ô cũ `INSPECTION`; có chìa khóa vật lý thì nhân viên ghi nhận giao chìa ô mới (như chuyển ô do sự cố).
+- **Kiểm tra ô cũ:** nhân viên báo còn đồ → chưa ghi được, nhắc khách; đạt → trừ vào cọc đang giữ theo thứ tự quá hạn (chỉ khi hệ thống tự chuyển, tính từ ngày sau hết kỳ cũ tới ngày kiểm tra, mức D32), vệ sinh 10% cọc, hư hỏng; tối đa bằng cọc đang giữ. Khoản trừ ghi thành khoản phí `PAID` (doanh thu). Ô cũ: cần vệ sinh / sửa → bảo trì; có khách đặt tiếp → giữ; còn lại trống (D38).

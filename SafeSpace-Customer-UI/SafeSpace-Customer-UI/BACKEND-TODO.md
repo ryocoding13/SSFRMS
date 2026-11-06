@@ -1,5 +1,19 @@
 # BACKEND-TODO — việc backend (StorageProject.Api) còn thiếu cho giao diện SafeSpace
 
+## Phiên 8 — 06/11/2026: gia hạn sang ô khác D46 / D46b (BE đã viết, chờ CI; FE làm ở Phiên 9)
+
+| Ai | Endpoint | Body / trả về |
+|---|---|---|
+| Khách | `GET /api/contracts/{id}/renewal-units` | `{contractId, currentUnit, endDate, bookedFrom, upgraded, depositHeld, options:[{unitId, unitNumber, unitTypeId, unitTypeName, kind: "SWAP"\|"ORIGINAL_TYPE", monthlyRate, depositRequired, depositTopUp}]}` |
+| Khách | `POST /api/contracts/{id}/renewals` | thêm `targetUnitId` (không bắt buộc). Ô không còn trống → 400 "Ô vừa có người đặt hoặc không còn trống. Vui lòng chọn ô khác." |
+| Khách | `GET /api/contracts/{id}/unit-move` | `UnitMoveDto` hoặc 204: `{renewalId, contractId, customerName, fromUnit, toUnit, oldEndDate, moveFrom, depositTopUp, status: REQUESTED\|HELD\|PAID\|MOVED\|INSPECTED, movedAt, autoMoved, deduction}` |
+| Khách | `POST /api/contracts/{id}/unit-move/done` | "Đã chuyển đồ" — chỉ từ `moveFrom` (3 ngày cuối kỳ cũ); trả `UnitMoveDto` |
+| Nhân viên / quản lý | `GET /api/ops/unit-moves` | việc kiểm tra ô cũ chờ làm tại cơ sở (`UnitMoveDto[]`, status `MOVED`) |
+| Nhân viên / quản lý | `POST /api/ops/unit-moves/{renewalId}/inspection` | `{goodsRemaining, cleaningRequired, damageFee, note}`; còn đồ → 400; trả `UnitMoveDto` có `deduction` |
+
+- Duyệt gia hạn có chuyển ô: dùng route duyệt cũ; khoản `RENEWAL` = tiền gia hạn + cọc chênh. Ô mới hết trống lúc duyệt → 400 "Ô vừa có người đặt…" (quản lý từ chối để khách chọn ô khác).
+- Quét QR / PIN tại ô mới trong 3 ngày cuối kỳ cũ: mở được bằng mã hiện tại.
+
 ## Phiên 7 — 06/11/2026: tự huỷ đơn chờ thanh toán quá hạn (BE đã viết, chờ CI)
 
 - Không thêm / đổi API. Tiến trình nền 1 phút chuyển đơn `PENDING_PAYMENT` quá `expiresAt` chưa trả tiền sang `EXPIRED` (`cancellationReason` = "Quá thời gian giữ chỗ chưa thanh toán"). FE đọc trạng thái này như đơn hết hạn hiện có.
