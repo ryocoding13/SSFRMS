@@ -1,3 +1,8 @@
+## 2026-11-06 — Khôi phục khóa QR khi trả kho ở chế độ demo
+
+- Sau bản sửa cache, hợp đồng demo vẫn ở `ACTIVE` và lưu yêu cầu riêng trong `returns`, nên bộ kiểm tra render thấy nút QR không còn bị khóa. `pendingReturn` giữ kiểm tra trạng thái server cho hợp đồng API và đọc yêu cầu cục bộ cho hợp đồng demo. Không đổi test hay đưa cache cũ trở lại chế độ API.
+- Tái hiện lỗi ở `render.test.mjs:86`. Sau sửa: `test:render` PASS 181 route, `npm test`, `check:structure`, `test:business`, `test:workflows` và `build` đều PASS.
+
 ## 2026-11-06 — Sửa lỗi gán nhầm yêu cầu trả kho cũ từ cache (overlay.returns) sau khi reset DB
 
 - **Mục tiêu:** Khắc phục lỗi hợp đồng mới tạo sau reset DB bị cache `overlay.returns` cũ trong localStorage làm hiển thị cảnh báo trả kho cũ, khóa QR/PIN và vô hiệu hóa nút gia hạn/trả kho.
