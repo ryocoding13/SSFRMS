@@ -34,6 +34,18 @@ public static class RenewalEndpoints
             }
         });
 
+        // L5 (D40): một ô chỉ có một yêu cầu đang xử lý; khách huỷ gia hạn chờ duyệt để trả kho.
+        group.MapPost("/renewals/{renewalId:long}/cancel", async (long renewalId, ClaimsPrincipal user, IRenewalService renewalService, CancellationToken ct) =>
+        {
+            try
+            {
+                await renewalService.CancelRenewalAsync(user.GetUserId(), renewalId, ct);
+                return Results.NoContent();
+            }
+            catch (KeyNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+            catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+        }).RequireAuthorization(p => p.RequireRole("CUSTOMER"));
+
         return group;
     }
 }

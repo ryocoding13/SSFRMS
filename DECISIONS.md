@@ -367,3 +367,117 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - T06 theo D32: bỏ Debt; phần phí bù trong cọc là PAID, phần vượt cọc là CANCELLED kèm audit RETURN_FEE_WAIVED; không giả đã thu hoặc để PENDING/FAILED cho phí trả kho sau chốt. Không sửa RENT/RENEWAL/DEPOSIT/REFUND hay tự quét hợp đồng đã đóng. Chỉ quá hạn không tự trừ thêm 10% vệ sinh khi không cần vệ sinh.
 - T19 dùng support_inquiries/support_inquiry_replies, giữ ticket gắn hợp đồng. Khách chỉ xem của mình; STAFF/MANAGER theo phân công cơ sở hiện hành. Trạng thái OPEN/WAITING_CUSTOMER/CLOSED; chỉ phía cơ sở đóng khi trả lời. Tiêu đề 1–100, nội dung 1–1000 ký tự. Ghi cần clientRequestId UUID; phản hồi cần expectedVersion. Cùng UUID/nội dung là replay, khác nội dung hoặc phiên bản cũ trả 409.
 - Route kiểm kê staff cũ dùng service ops chuẩn; không hoàn tất khi thiếu phí/lý do/ảnh theo điều kiện. SQLite, SMTP loopback và browser không thay nghiệm thu SQL Server của nhóm và hộp thư thật. Giữ errorStatus và cách xử lý 403 mới của main khi ghép hook hỗ trợ.
+
+## D38 — 04/11/2026: Điều kiện cho thuê lại sau kiểm tra trả kho — Đã chốt
+
+> Đại diện nhóm (Thắng) chốt ngày 04/11/2026 khi đổi biên bản kiểm tra S06 (Figma D30-08) sang dạng chọn.
+
+- Biên bản có 3 mục: Đồ còn lại, Tường/sàn/cửa, Chìa khóa vật lý; mỗi mục chọn từ danh sách (không gõ tay), không điền sẵn kết luận. Giao diện ghi "Đạt tiêu chuẩn" / "Chưa đạt tiêu chuẩn", không dùng chữ "sạch" / "bẩn".
+- Chỉ được chọn trạng thái ô "Sẵn sàng cho thuê lại" khi **đạt tiêu chuẩn ít nhất 2/3 mục** và **không có khấu trừ** vệ sinh/hư hỏng. Giữ D32: ô cần vệ sinh hoặc sửa giữ bảo trì.
+- FE chặn ở màn S06. BE hiện chỉ chặn khi có khấu trừ (`SubmitReturnInspectionAsync`); chưa biết số mục đạt tiêu chuẩn vì 3 mục là chuỗi tự do — cần BE nhận mã lựa chọn hoặc tự kiểm (ghi ở file lỗi L22).
+
+## D39 — 04/11/2026: Khách xác nhận khấu trừ trước khi hoàn tất hoàn cọc — Đã chốt, BE viết ở Phiên 3 (05/11), chưa build/kiểm thử; FE chưa làm
+
+> Đại diện nhóm (Thắng) chốt ngày 04/11/2026. Mở rộng luồng phản hồi hư hỏng (Batch06, Figma D30-13) cho mọi khoản khấu trừ khi trả kho.
+
+- Sau kiểm tra, nhân viên gửi các khoản trừ vào cọc cho **khách xác nhận** (Figma D30-08 nút "Gửi khấu trừ cho khách xác nhận"). Quản lý chỉ chốt hoàn cọc (M07) sau khi khách xác nhận hoặc phương án thay thế đã được cơ sở xử lý.
+- Phí vệ sinh hiển thị là **khấu trừ theo chính sách** (cố định 10% cọc, D27/D32), không phải "khấu trừ đề xuất". Hư hỏng ghi "theo biên bản" kèm ảnh.
+- Khách chọn: Đồng ý khấu trừ · hoàn tất hoàn cọc; Tự dọn dẹp kho thay cho phí vệ sinh (khi kho chưa đạt tiêu chuẩn vệ sinh); Tự thay thế vật dụng tương đương thay cho phí hư hỏng (khi hỏng cơ sở vật chất); Khiếu nại nội dung biên bản. Cơ sở kiểm tra lại phương án, đạt thì không trừ khoản tương ứng.
+- Thay ý "M07 chốt ngay sau biên bản" của D32 phần hoàn cọc hai bước: bước khách xác nhận nằm trước M07. Cần BE (endpoint khách xác nhận/đề nghị cho mọi biên bản, chặn `ConfirmRefundAsync` khi khách chưa xác nhận); FE màn D30-13 làm sau khi có API (ghi ở file lỗi L23).
+
+## D40 — 04/11/2026: Phí huỷ 5% cọc, hỗ trợ theo kỳ thuê, một thao tác mỗi ô, nhận chìa khóa — Đã chốt
+
+> Đại diện nhóm (Thắng) chốt ngày 04/11/2026 lúc 23:03 khi rà file lỗi 04/11. Bổ sung D38–D39.
+
+- **Huỷ trước ngày bắt đầu:** phí huỷ **5% tiền cọc** (thay mức 10% ở D27/D32). Từ 0h ngày bắt đầu thuê, tiền thuê tháng đó tính đủ. Chi tiết đơn hiện nút huỷ ghi rõ phí huỷ và số tiền hoàn; trang Chính sách ghi cùng quy tắc.
+- **Hỗ trợ gắn ô kho:** hợp đồng đã thanh toán nhưng chưa tới ngày bắt đầu **được** gửi hỗ trợ; hợp đồng đã kết thúc thì không (thay phần L14 đã merge ở PR #63 chặn trước ngày bắt đầu).
+- **Một thao tác mỗi ô (L5):** một ô chỉ có một yêu cầu đang xử lý. Đã gửi trả kho thì nút gia hạn mờ kèm lý do và ngược lại. Ô khác nhau chạy độc lập.
+- **D39 bổ sung:** không có khấu trừ thì không cần khách xác nhận; cơ sở không được từ chối phương án khách tự dọn dẹp. Thắng chốt lại 05/11/2026 01:17 (thay mức 3 ngày chốt lúc 23:03): khách có **48 giờ** kể từ khi nhận biên bản để xác nhận, quá hạn hệ thống **tự hoàn cọc theo biên bản của nhân viên**. Khi khách gửi trả kho thành công, hệ thống báo: trong **3 ngày** nhân viên gửi biên bản và tiền hoàn dự kiến, nhắc khách theo dõi chuông/email để xác nhận trong 48 giờ.
+- **D36 bổ sung:** yêu cầu nhận chìa khóa gửi qua nút hỗ trợ (chủ đề "Nhận chìa khóa"); huỷ các lịch bàn giao `SCHEDULED` tự tạo trước đây; không cần F04 (nhận kho tự động) — thành viên phụ trách xác nhận khi đổi `feature_list.json`; danh sách việc nhân viên xếp cũ trước (FIFO).
+- Quên mật khẩu được báo "email chưa đăng ký" (L24, thay phản hồi chung của D37 — cần BE đổi). Giữ một mã vai trò Vận hành KD (gộp OPERATIONS/BUSINESS_OPERATOR, migration dữ liệu, không reset DB). Hotline footer là số minh hoạ.
+
+## D41 — 04/11/2026: Đặt trước theo ngày và xử lý xung đột do khách cũ quá hạn — Đã chốt, chưa triển khai
+
+> Thắng đặt bài toán và chốt ngày 04/11/2026 (23:39, 23:44). Thay ý "ô không trống thì khoá nút đặt" của D13 và cách tự gán chỉ ô `AVAILABLE` của D26.
+
+- **Trống theo ngày:** ô đang thuê được coi là trống từ ngày hết hạn hợp đồng hiện tại cộng **3 ngày đệm** (giá trị trong chính sách, Vận hành KD sửa được). Đặt kho và tự gán ô (D26) ưu tiên ô đang trống thật; chỉ dùng ô sắp hết hạn khi hết ô trống. Sơ đồ ô hiện "Trống từ dd/mm". Không cho đặt trước ô đang quá hạn.
+- **Mốc kiểm tra:** 5 ngày trước ngày nhận kho (giờ Việt Nam), nếu ô **chưa về Trống** (chưa trả hoặc đã trả nhưng chưa kiểm tra đạt D38) thì hệ thống tạo đề xuất đổi kho, gửi thông báo + email cho khách mới. Đơn tạo khi còn dưới 5 ngày thì kiểm ngay.
+- **Phương án:** (1) đổi ngang sang ô cùng loại đang trống; (2) nâng cấp miễn phí sang loại lớn hơn — giữ giá và cọc cũ đến hết kỳ thuê, khi gia hạn khách chọn giá ô lớn hoặc chuyển về loại cũ nếu còn ô; (3) không còn ô phù hợp: dời ngày nhận kho hoặc huỷ **hoàn 100%**, không áp phí huỷ D40.
+- Ô đề xuất được giữ (`RESERVED`) đến khi khách trả lời hoặc hết hạn **48 giờ**; quá hạn hệ thống tự đổi ngang, không có thì nâng cấp. Khách đã chọn thì giữ, không đổi lại ô cũ dù khách cũ trả kho sau đó.
+- Đổi ô: cập nhật phân bổ + hợp đồng, cấp lại QR/PIN cho ô mới, ghi activity log; mã ô cũ không có hiệu lực với khách mới. Quản lý cơ sở xem danh sách xung đột.
+- **Gia hạn của khách cũ:** ô đã có người đặt trước thì khoá gia hạn ô đó, hiện "Ô đã có khách đặt từ dd/mm"; khách cũ có thể chuyển sang ô khác nếu còn trống. Giữ D32 (quá hạn 5%/ngày, mốc ngày 20).
+
+## D42 — 05/11/2026: Hoàn tiền mặt tại quầy, bỏ báo cáo sai lệch, việc tồn cuối ngày — Đã chốt, BE viết ở Phiên 3 (05/11), chưa build/kiểm thử; FE chưa làm
+
+> Thắng chốt ngày 05/11/2026 (00:48–01:25).
+
+- **Cách nhận hoàn do khách chọn:** mọi khách (không phụ thuộc cách đã thanh toán) chọn *Chuyển khoản ngân hàng* hoặc *Tiền mặt tại quầy* khi gửi huỷ đơn hoặc trả kho (D30-07, D30-03). Quản lý chỉ xem và làm theo lựa chọn đó, không đổi được. Thay ý "M08 chỉ hoàn bằng chuyển khoản, bắt buộc mã giao dịch" ở mục M08 phía trên.
+- **Chuyển khoản:** quản lý cơ sở chốt số tiền, tự chuyển và nhập mã giao dịch (giữ cách cũ).
+- **Tiền mặt:** quản lý chốt số tiền và duyệt → hệ thống giao việc "Chi tiền hoàn" cho nhân viên cơ sở (S01, S10). Nhân viên tick đủ 4 mục (CCCD trùng tên hợp đồng; khách đọc đúng mã đơn và số điện thoại; đếm đủ tiền trước mặt khách; khách đã nhận và ký sổ chi tại quầy) rồi xác nhận; **không** lưu ảnh hay số phiếu chi. Hệ thống ghi nhân viên chi và thời điểm. Khách nhận trong 30 ngày, mang CCCD; không khớp thì không chi ("Để sau"). Quá 30 ngày cơ sở liên hệ để chuyển khoản. Ở mốc **ngày 10, 20 và 25** (tính từ lúc quản lý duyệt) hệ thống tự tạo việc "Gọi nhắc khách nhận tiền hoàn" cho nhân viên (S10b): nhân viên gọi số điện thoại đăng ký và ghi kết quả (khách hẹn đến · không nghe máy · muốn đổi sang chuyển khoản · sai số).
+- **Bỏ báo cáo sai lệch thanh toán:** xoá luồng nhân viên báo sai lệch và quản lý đối soát sai lệch (Figma đã xoá 13 màn, S09 bỏ nút). Thay dòng "Báo sai lệch thanh toán không đổi trạng thái đơn…" và mục "báo sai lệch" trong danh sách lưu `activity_logs` ở các mục phía trên. Code FE/BE hiện có (`features/manager/discrepancies`, `staff/payments/PaymentDiscrepancyPage.jsx`, endpoint trong `FacilityOpsEndpoints.cs`/`StaffEndpoints.cs`) gỡ ở phiên BE/FE; không xoá dữ liệu đã có trong DB.
+- **Việc nhân viên quá hạn:** nhân viên phải gửi biên bản trả kho trong 3 ngày (D40). Danh sách "Công việc ngày" xếp theo thời gian tạo việc (FIFO), **không ưu tiên loại việc**; việc quá 3 ngày chỉ gắn nhãn, không nhảy hàng. Lúc 22:00 (giờ đóng cửa) hệ thống gửi chuông cho quản lý cơ sở danh sách việc chưa xong trong ngày của từng nhân viên kèm lịch sử việc đã làm (từ `activity_logs`); việc chưa xong giữ nguyên thứ tự sang ngày sau. Quản lý có thể giao lại cho nhân viên khác. Báo cáo 22:00 gồm **tên nhân viên và số việc chưa xử lý**; bấm vào nhân viên để xem chi tiết việc chưa xong và lịch sử việc đã làm trong ngày (M04-cuối ngày, M04-cuối ngày-chi tiết).
+- **L11 (lỗi, Thắng xác nhận 05/11):** cọc tính theo % của **1 tháng thuê**, không phải % tổng tiền thuê cả kỳ (`OpsRules.CalculateDeposit`). Ví dụ 3 tháng × 1.150.000 đ: tổng ban đầu 4.600.000 đ.
+
+## D43 — 05/11/2026: Hỗ trợ là cuộc trò chuyện, không có thao tác đóng; ngày hẹn nhận tiền hoàn — Đã chốt, BE viết ở Phiên 3 (05/11), chưa build/kiểm thử; FE chưa làm
+
+> Thắng chốt ngày 05/11/2026 02:27.
+
+- Yêu cầu hỗ trợ (cả hỏi đáp chưa có hợp đồng và ticket gắn kho) hoạt động như một phiên chat: **không ai cần bấm đóng**; không trao đổi nữa thì thôi. Bỏ nút "Đóng yêu cầu" và bước "Đóng yêu cầu" ở màn khách (HT0091, C12b). Thay ý "chỉ phía cơ sở đóng khi trả lời" và trạng thái `CLOSED` của D37: trạng thái chỉ còn dùng để biết lượt (*Chờ cơ sở trả lời* / *Chờ khách*); dữ liệu `CLOSED` cũ giữ nguyên, hiển thị như *Đã trả lời*. Ticket gắn kho vẫn giữ các bước xử lý của nhân viên (tiếp nhận, đã xử lý).
+- S10b: khi khách hẹn ngày đến quầy, nhân viên nhập **ngày hẹn**; hệ thống tạo việc "Chi tiền hoàn" đúng ngày đó và tạm dừng gọi nhắc. Khách không đến thì nhắc lại ở mốc kế tiếp (10/20/25 ngày, D42).
+
+## IMPL-2026-11-05-P3 — Cách triển khai BE Phiên 3 cho D36, D39–D43 — Chờ nhóm xác nhận
+
+> Claude đề xuất khi viết BE Phiên 3; chưa phải quyết định nghiệp vụ mới. Nhóm xác nhận hoặc sửa trước khi merge. Không thay mục nào ở trên.
+
+- Trạng thái D39, duyệt/gọi nhắc/chi tiền mặt D42 và báo cáo 22:00 lưu trong `activity_logs` (không thêm cột/bảng). Migration duy nhất là mở rộng CHECK `evidence_photos.OwnerType`.
+- Quá 48 giờ (D40): tiến trình nền tự chốt hoàn cọc như M07, ghi dưới tên quản lý đang phụ trách cơ sở; cơ sở chưa có quản lý thì chờ quản lý chốt tay.
+- Tiền mặt (D42): lưu `RefundBankName = "CASH"`, số tài khoản để trống, người nhận là khách trên hợp đồng; quản lý duyệt lại được để giao nhân viên khác, hạn 30 ngày tính từ lần duyệt đầu. Quá 30 ngày: trạng thái `EXPIRED`, không chi tiền mặt nữa; việc chuyển sang chuyển khoản chưa có API (cần nhóm chốt cách khách khai tài khoản).
+- Lựa chọn tiền mặt không áp dụng cho hoàn tiền do sự cố cơ sở (T13) vì D42 chỉ nêu huỷ đơn và trả kho.
+- Yêu cầu nhận chìa khóa (D36) lưu ticket loại `ACCESS_CARD` với tiêu đề cố định để không phải đổi CHECK của `support_tickets`.
+
+## D44 — 05/11/2026: Tiền mặt quá 30 ngày, đổi sang chuyển khoản, tiền mặt cho sự cố cơ sở, hệ thống tự chốt 48 giờ — Đã chốt
+
+> Thắng chốt ngày 05/11/2026 19:21–19:25 khi xem mục IMPL-2026-11-05-P3. Thay các ý tương ứng của D42 và IMPL-2026-11-05-P3; giữ nguyên lịch sử ở trên.
+
+- **Quá 30 ngày chưa nhận tiền mặt:** khách **mất khoản hoàn** (không chi, không chuyển khoản). Thay câu "Quá 30 ngày cơ sở liên hệ để chuyển khoản" của D42 và trạng thái `EXPIRED` của IMPL-P3. Khách phải tick xác nhận điều này khi chọn tiền mặt; chính sách ghi rõ.
+- **Trong 30 ngày** khách được đổi lại sang chuyển khoản (tài khoản chính chủ, tên trùng hợp đồng); khoản chuyển về luồng chuyển khoản, quản lý ghi mã giao dịch; việc chi tiền mặt và gọi nhắc dừng.
+- **Hoàn tiền do sự cố cơ sở (T13)** cũng có lựa chọn tiền mặt như huỷ đơn / trả kho (thay ý cuối của IMPL-P3).
+- **Tự chốt hoàn cọc sau 48 giờ (D40):** ghi là **Hệ thống** (không gắn tên quản lý), luôn tự chốt kể cả cơ sở chưa có quản lý (thay ý thứ hai của IMPL-P3).
+- Thắng nêu: mọi cơ sở luôn có nhân viên và quản lý. Thêm dữ liệu tài khoản cho 11 cơ sở còn thiếu trong seed — Thắng làm sau, chưa thuộc phiên này.
+
+## IMPL-2026-11-05-P4 — Cách triển khai Phiên 4–5 cho D41, D44 — Chờ nhóm xác nhận
+
+> Claude đề xuất khi viết code Phiên 4–5; chưa phải quyết định nghiệp vụ. Nhóm xác nhận hoặc sửa trước khi merge.
+
+- Ngày đệm cho thuê lại (D41) là chính sách mới `RELET_BUFFER` (FIXED, đơn vị ngày, 0–60; không có chính sách thì 3 ngày). Cần 1 migration đổi CHECK `policies.PolicyType`. Màn chính sách của Vận hành KD (B02) chưa có ô nhập — làm ở phiên FE vận hành.
+- Khách bấm **"Đồng ý khấu trừ · hoàn tất hoàn cọc"** thì hệ thống tự chốt hoàn cọc luôn (không chờ quản lý bấm M07), theo đúng chữ trên nút D39.
+- Hệ thống chốt / đổi ô tự động thì nhật ký ghi Hệ thống (UserId = null); riêng cột bắt buộc người thao tác (lịch sử trạng thái ô, người cấp mã) dùng mã khách của hợp đồng như cách `ContractProvisioning` đang làm — không đổi schema.
+- Đề xuất đổi kho (D41): ưu tiên ô cùng loại đang trống thật, sau đó ô lớn hơn (cùng kho lạnh/thường trước, nhỏ nhất trước). Giữ ô đề xuất bằng trạng thái `RESERVED` không có hợp đồng; quá 48 giờ hệ thống tự nhận ô đề xuất. Không có ô phù hợp thì không tự làm gì, chờ khách dời ngày / huỷ hoặc quản lý xử lý.
+- Dời ngày (D41): giữ độ dài kỳ thuê, trong 90 ngày, giữ ô cũ nếu ô cũ trống kịp; giá và cọc giữ nguyên. Huỷ do xung đột: hoàn 100% tiền thuê + cọc đã trả, cách nhận hoàn theo D42/D44.
+- **Chưa làm:** gửi email/chuông riêng cho đề xuất đổi kho (chưa có bảng thông báo; khách xem ở chi tiết kho và `#/units/:id/unit-change`); giá khi gia hạn sau nâng cấp (khách chọn giá ô lớn hoặc chuyển về loại cũ) — cần nhóm chốt cách tính trong `RenewalService`.
+- Quá hạn tiền mặt: tiến trình nền đổi khoản REFUND sang `CANCELLED` (tham chiếu `FORFEITED:{id}`) để không còn hiện "chờ hoàn"; giữ dòng tiền, không xoá.
+
+## D45 — 06/11/2026: Thắng chốt các điểm treo sau Phiên 5b và IMPL-P4 — Đã chốt
+
+> Thắng trả lời lúc 06/11/2026 00:10. Thay các ý tương ứng của IMPL-2026-11-05-P3/P4 và Phiên 5b; giữ nguyên lịch sử ở trên.
+
+- **Hỗ trợ (C12):** tiêu đề yêu cầu = chủ đề · lựa chọn (vd "Thanh toán & hóa đơn · Cần hóa đơn VAT"). **Bỏ nút Huỷ** yêu cầu hỗ trợ của khách (đúng Figma, D43). Giờ nhận chìa khóa lần đầu: Sáng = 08:00, Chiều = 13:00 ngày bắt đầu thuê, "Ngày khác" không gửi giờ.
+- **Huỷ đơn chuyển khoản:** bỏ ô tick "tài khoản chính chủ"; chỉ dựa vào kiểm tên chủ tài khoản trùng hợp đồng.
+- **Figma:** D30-07 sửa theo D44 (quá 30 ngày mất khoản hoàn); vẽ màn khách tiền mặt + đổi sang chuyển khoản (D30-15b) kèm popup xác nhận / thành công / thất bại.
+- **Khấu trừ (D30-13):** khách đính kèm ảnh hoá đơn / vật dụng khi chọn tự thay thế (và khiếu nại), làm ở Phiên 6.
+- **Gia hạn sang ô khác (C07b-D41 "Chọn ô khác"):** làm luồng mới — khách chọn ô trống cùng loại, gia hạn sang ô đó, cấp lại QR/PIN. **Gia hạn sau nâng cấp miễn phí (D41):** khách chọn giá ô lớn hoặc chuyển về loại cũ nếu còn ô. Cả hai cần code thêm.
+- **Thông báo đề xuất đổi kho (D41):** làm thêm chuông + email.
+- **Giữ** các ý IMPL-P4: khách "Đồng ý khấu trừ" thì chốt hoàn cọc ngay; `RELET_BUFFER` (thêm ô nhập ở B02); nhật ký thao tác tự động ghi Hệ thống / mã khách ở cột bắt buộc, không đổi DB.
+- **Tiền mặt quá 30 ngày chưa nhận:** tự động **cộng vào doanh thu** (thay ý "chỉ chuyển REFUND sang CANCELLED" của IMPL-P4; báo cáo doanh thu cần tính khoản này).
+- **Phạm vi patch:** M01 (một đường duyệt gia hạn có khoá), M04 (hồ sơ quá hạn dùng chung khoá), M06 (test E2E sự cố) làm cùng PR #68.
+
+## IMPL-2026-11-06-P6 — Cách triển khai Phiên 6 — Chờ nhóm xác nhận
+
+> Claude đề xuất khi viết code ngày 06/11/2026; chưa phải quyết định nghiệp vụ.
+
+- **M01:** `RenewalApproval.ApproveAsync` là đường duyệt duy nhất (`/api/ops`, `/api/manager`, `RenewalService`). Khoá `contract:{id}` rồi mới đọc lại; từ chối khi kỳ thuê đã đổi sau khi khách gửi, khi có yêu cầu gia hạn khác đang chờ thanh toán, khi hạn thanh toán đã qua, khi ô đã có khách đặt (D41). Giá lấy từ bảng giá **ACTIVE**, không có thì dùng giá đang thuê.
+- **M04:** ghi nhắc quá hạn của quản lý dùng khoá `move-out:{id}` như tiến trình nền; đã có hồ sơ mở thì ghi thêm ghi chú, không tạo hồ sơ thứ hai; `OverdueFrom` = ngày sau ngày hết hạn.
+- **S03:** route cũ `POST /api/staff/returns/{id}/inspection` trả 410, chỉ dùng `/api/ops/returns/{id}/inspection`.
+- **S02/C11:** thu gia hạn tại quầy kiểm consent đúng phiên bản chính sách khách đã đồng ý.
+- **Câu 7:** ảnh lưu loại mới `RETURN_DEDUCTION` (migration `20261106120000_Phien6DeductionPhotos`, chỉ đổi CHECK), tối đa 5 ảnh.
+- **Chưa làm, cần nhóm chốt trước khi code:** gia hạn sang ô khác và gia hạn sau nâng cấp (ngày chuyển ô hợp đồng — ngay khi thanh toán hay từ ngày đầu kỳ mới; cọc khi ô mới khác giá; mã ô cũ hết hiệu lực lúc nào; khách tự chuyển đồ hay hẹn nhân viên); chuông + email đề xuất đổi kho (chưa có bảng thông báo / dịch vụ email); tính tiền mặt quá 30 ngày vào doanh thu (cần chốt ghi vào khoản nào của báo cáo).

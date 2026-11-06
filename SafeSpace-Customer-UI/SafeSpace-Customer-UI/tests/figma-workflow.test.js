@@ -19,11 +19,15 @@ test('manager allocation badge decreases after allocation and reaches zero',()=>
   for(const a of ops.allocations.filter(a=>a.status==='PENDING')) a.status='DONE';
   assert.ok(before>0); assert.equal(pendingTaskCounts(ops,'MANAGER')['manager/allocate'],0);
 });
-test('eight support topic groups and each access reissue title',()=>{
-  assert.equal(Object.values(TICKET_TOPICS).filter(t=>!t.legacy).length,8);
-  assert.equal(ticketTitle({topic:'ACCESS',access_request:'PIN'}),'Đặt lại PIN 6 số');
-  assert.equal(ticketTitle({topic:'ACCESS',access_request:'QR'}),'Cấp lại mã QR');
-  assert.equal(ticketTitle({topic:'ACCESS',access_request:'KEY'}),'Cấp lại chìa khóa vật lý');
+// D36/D40 (Thắng chốt 04/11): C12 thêm chủ đề "Nhận chìa khóa · lần đầu nhận kho" → 9 nhóm
+test('nine support topic groups incl. key pickup and each access reissue title',()=>{
+  assert.equal(Object.values(TICKET_TOPICS).filter(t=>!t.legacy).length,9);
+  assert.equal(ticketTitle({topic:'KEY_PICKUP'}),'Nhận chìa khóa · lần đầu nhận kho');
+  assert.equal(TICKET_TOPICS.KEY_PICKUP.issueType,'KEY_PICKUP');
+  assert.equal(ticketTitle({topic:'ACCESS',access_request:'PIN'}),'Hỗ trợ ra vào kho · Đặt lại PIN 6 số');
+  assert.equal(ticketTitle({topic:'ACCESS',access_request:'QR'}),'Hỗ trợ ra vào kho · Cấp lại mã QR');
+  assert.equal(ticketTitle({topic:'ACCESS',access_request:'KEY'}),'Hỗ trợ ra vào kho · Cấp lại chìa khóa vật lý');
+  assert.equal(ticketTitle({topic:'PAYMENT',option:'VAT'}),'Thanh toán & hóa đơn · Cần hóa đơn VAT');
 });
 test('other topic requires and preserves a separate custom subject',()=>{
   const state=createSeedData(); const payload={topic:'OTHER',subject:'   ',description:'Nội dung chi tiết'};

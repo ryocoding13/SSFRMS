@@ -53,6 +53,7 @@ export const POLICY_TYPES = {
   DISCOUNT: "Giảm giá",
   FEE_WAIVER: "Miễn phí",
   PRICE_RANGE: "Khung giá",
+  RELET_BUFFER: "Ngày đệm cho thuê lại",
 };
 
 // Loại chính sách mà giá trị FIXED là số tiền (đ). Loại khác (gia hạn, trả kho…) là số ngày / giờ ghi trong mô tả.
@@ -77,6 +78,8 @@ export function policyValueLabel(p, unit = "") {
   const v = p.value === null || p.value === undefined ? null : Number(p.value);
   const tail = unit ? ` ${unit}` : "";
   switch (p.calculationType) {
+    case "DEPOSIT_PERCENT_PER_DAY":
+      return v === null ? "—" : `${comma(v, Number.isInteger(v) ? 0 : 1)}% cọc${tail}`;
     case "PERCENTAGE":
       return v === null ? "—" : `${comma(v, Number.isInteger(v) ? 0 : 1)}%`;
     case "RANGE":

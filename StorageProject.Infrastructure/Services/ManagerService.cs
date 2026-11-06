@@ -195,8 +195,9 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService, 
 
     public async Task ApproveRenewalAsync(long userId, string id, CancellationToken ct = default)
     {
-        var num = FacilityOpsStateStore.ParseIdNumber(id);
-        await renewalService.ApproveRenewalAsync(userId, num, ct);
+var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
+        // M01: route /api/manager cũ dùng chung đường duyệt chuẩn.
+        await RenewalApproval.ApproveAsync(dbContext, userId, FacilityOpsStateStore.ParseIdNumber(id), fac.FacilityId, ct);
     }
 
     public async Task RejectRenewalAsync(long userId, string id, RejectRenewalRequest request, CancellationToken ct = default)
@@ -209,21 +210,37 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService, 
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
         var num = FacilityOpsStateStore.ParseIdNumber(id);
+        // M04: cùng khoá với tiến trình quá hạn (OverdueProcessor) và đăng ký trả kho → không tạo hai hồ sơ cho một hợp đồng.
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"move-out:{num}", ct);
         var contract = await dbContext.RentalContracts
             .Include(c => c.Unit)
+            .Include(c => c.OverdueCases)
             .FirstOrDefaultAsync(c => c.ContractId == num && c.Unit.FacilityId == fac.FacilityId, ct)
             ?? throw new InvalidOperationException("Không tìm thấy hợp đồng tại cơ sở.");
+        if (contract.Status is "COMPLETED" or "TERMINATED" or "CANCELLED")
+            throw new InvalidOperationException("Hợp đồng đã kết thúc, không ghi nhắc quá hạn.");
 
-        dbContext.OverdueCases.Add(new OverdueCase
+        var now = DateTime.UtcNow;
+        var open = contract.OverdueCases.Where(o => o.Status != "RESOLVED").OrderByDescending(o => o.OpenedAt).FirstOrDefault();
+        if (open != null)
         {
-            ContractId = contract.ContractId,
-            AssignedStaffId = userId,
-            OverdueFrom = DateOnly.FromDateTime(DateTime.UtcNow),
-            Notes = request.Note,
-            Status = "CONTACTED",
-            OpenedAt = DateTime.UtcNow
-        });
+            open.Status = open.Status == "OPEN" ? "CONTACTED" : open.Status;
+            open.Notes = string.IsNullOrWhiteSpace(request.Note) ? open.Notes : string.Join("\n", new[] { open.Notes, request.Note }.Where(n => !string.IsNullOrWhiteSpace(n)));
+        }
+        else
+        {
+            dbContext.OverdueCases.Add(new OverdueCase
+            {
+                ContractId = contract.ContractId,
+                AssignedStaffId = userId,
+                OverdueFrom = contract.EndDate.AddDays(1),
+                Notes = request.Note,
+                Status = "CONTACTED",
+                OpenedAt = now
+            });
+        }
         await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task<IReadOnlyList<OpsUnitDto>> GetFacilityUnitsAsync(long userId, CancellationToken ct = default)

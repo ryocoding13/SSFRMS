@@ -97,7 +97,8 @@ export function staffTasks(ops, me, kind = "all") {
       .forEach((t) =>
         list.push({
           key: t.id, kind: "support", status: TICKET_STATE[t.status], title: `${t.id} · ${t.title}`,
-          meta: `Kho ${t.unit} · ${t.customer}`, when: `Hẹn ${slot(t.schedule)}`,
+          // D36/D40: yêu cầu "Nhận chìa khóa" của khách là việc giao chìa lần đầu, ghi rõ để nhân viên chuẩn bị chìa
+          meta: `${t.topic === "KEY_PICKUP" ? "Nhận chìa khóa lần đầu · " : ""}Kho ${t.unit} · ${t.customer}`, when: `Hẹn ${slot(t.schedule)}`,
           cta: "Xử lý", to: `staff/support?id=${t.id}`, sort: t.schedule,
         }),
       );

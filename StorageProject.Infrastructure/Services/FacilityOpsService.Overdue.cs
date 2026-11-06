@@ -33,7 +33,7 @@ public partial class FacilityOpsService
             .ToListAsync(ct);
 
         var resolvedCaseIds = cases.Where(c => c.Status == "RESOLVED" || (c.Notes != null && c.Notes.Contains("\"Staff\""))).Select(c => c.OverdueCaseId).ToList();
-        var allPhotos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.ReturnInspection, resolvedCaseIds, ct);
+        var allPhotos = await OverduePhotosAsync(resolvedCaseIds, ct);
 
         return cases.Select(c => MapToOverdueCaseDto(c, allPhotos)).ToList();
     }
@@ -206,8 +206,9 @@ public partial class FacilityOpsService
         var actorUser = await dbContext.Users.FindAsync(new object[] { actor.UserId }, ct);
         var staffName = actorUser?.FullName ?? (actor.IsManager ? "Quản lý cơ sở" : "Nhân viên cơ sở");
 
-        EvidencePhotos.Attach(dbContext, beforePhotos, EvidencePhotos.ReturnInspection, c.OverdueCaseId, actor.UserId, now);
-        EvidencePhotos.Attach(dbContext, afterPhotos, EvidencePhotos.ReturnInspection, c.OverdueCaseId, actor.UserId, now);
+        // S06: loại ảnh riêng cho hồ sơ quá hạn — không trùng ownerId với biên bản trả kho (InspectionId).
+        EvidencePhotos.Attach(dbContext, beforePhotos, EvidencePhotos.OverdueBefore, c.OverdueCaseId, actor.UserId, now);
+        EvidencePhotos.Attach(dbContext, afterPhotos, EvidencePhotos.OverdueAfter, c.OverdueCaseId, actor.UserId, now);
 
         SetUnitStatus(c.Contract.Unit, unitStatus, actor.UserId, $"Xử lý đồ quá hạn · QH-{c.OverdueCaseId:D4}");
 
@@ -247,9 +248,22 @@ public partial class FacilityOpsService
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        var allUrls = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.ReturnInspection, [c.OverdueCaseId], ct);
+        var allUrls = await OverduePhotosAsync([c.OverdueCaseId], ct);
 
         return MapToOverdueCaseDto(c, allUrls);
+    }
+
+    /// <summary>S06: gộp ảnh trước/sau của hồ sơ quá hạn (tên tệp giữ tiền tố before_/after_ để giao diện tách nhóm).</summary>
+    private async Task<Dictionary<long, List<EvidencePhotoDto>>> OverduePhotosAsync(ICollection<long> caseIds, CancellationToken ct)
+    {
+        var before = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.OverdueBefore, caseIds, ct);
+        var after = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.OverdueAfter, caseIds, ct);
+        foreach (var (id, list) in after)
+        {
+            if (before.TryGetValue(id, out var existing)) existing.AddRange(list);
+            else before[id] = list;
+        }
+        return before;
     }
 
     private static OverdueCaseDto MapToOverdueCaseDto(

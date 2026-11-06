@@ -56,5 +56,7 @@ public record ReservationDetailDto(
     long? ContractId,
     string? ContractStatus,
     DateTime CreatedAt,
-    string PaymentMethod = "PAYOS"
+    string PaymentMethod = "PAYOS",
+    int? PolicyVersion = null,
+    DateTime? PolicyAcceptedAt = null
 );

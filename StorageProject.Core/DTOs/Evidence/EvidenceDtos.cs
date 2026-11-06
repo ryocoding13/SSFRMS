@@ -10,5 +10,8 @@ public record EvidencePhotoUpload(string? FileName, string? ContentType, string?
 /// <summary>Ảnh đã lưu: URL có chữ ký, hết hạn sau một thời gian (không công khai vĩnh viễn).</summary>
 public record EvidencePhotoDto(string Url, string? Caption);
 
-/// <summary>Tài khoản ngân hàng nhận hoàn tiền; tên chủ tài khoản phải trùng tên trên hợp đồng.</summary>
-public record RefundBankInput(string? BankName, string? AccountNumber, string? AccountHolder);
+/// <summary>
+/// Tài khoản ngân hàng nhận hoàn tiền; tên chủ tài khoản phải trùng tên trên hợp đồng.
+/// D42: Method = "CASH" khi khách chọn nhận tiền mặt tại quầy (không cần tài khoản); bỏ trống / "BANK_TRANSFER" = chuyển khoản.
+/// </summary>
+public record RefundBankInput(string? BankName, string? AccountNumber, string? AccountHolder, string? Method = null);

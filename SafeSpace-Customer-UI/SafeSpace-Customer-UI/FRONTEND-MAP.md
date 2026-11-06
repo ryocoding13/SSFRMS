@@ -281,3 +281,22 @@ Giới hạn/test/node Figma ở docs/sprints/FE-figma-sync-09.md; endpoint/mark
 - `src/features/auth/PasswordResetPage.jsx`: giữ route `#/reset-password`, khoá gửi đồng thời, countdown, lỗi giữ form. API `src/features/auth/api/passwordResetApi.js` đã có.
 - Giữ `InquiryListPage.jsx`, `InquiryDetailPage.jsx`, `StaffInquiryPage.jsx`; hook `src/features/facility-operations/workflows/useWorkflowData.js` bổ sung UUID/version, kiểm receipt và cập nhật item server tại chỗ để giữ popup thành công.
 - Browser: `scripts/check-password-reset-backend.mjs`, `scripts/check-inquiries-backend.mjs`, host `tools/PasswordResetBrowserHost`. Kestrel/JWT/SQLite riêng, không thay SQL Server/thư thật.
+
+## Phiên 5 — FE khách hàng cho D36, D39–D44 (05/11/2026)
+
+| Route | File | Ghi chú |
+|---|---|---|
+| `#/units/:id/deduction` | `src/features/customer/contracts/ReturnDeductionPage.jsx` (+ `useReturnDeduction.js`) | D30-13 · D39/D40: biên bản, khoản trừ, hạn 48 giờ, 4 phương án; API `/api/contracts/{id}/return-deduction` |
+| `#/units/:id/unit-change` | `src/features/customer/contracts/UnitChangePage.jsx` (+ `useUnitConflicts.js`) | D41: đổi ngang / nâng cấp / dời ngày / huỷ hoàn 100%; API `/api/unit-conflicts`, `/api/contracts/{id}/unit-conflict` |
+| `#/refunds/cash` | `src/features/customer/payments/CashRefundPage.jsx` (+ `useCashRefunds.js`) | D42/D44 · Figma D30-15b: hạn 30 ngày, đổi sang chuyển khoản + popup; API `/api/cash-refunds` |
+| `#/staff/cash-refunds` | `src/features/staff/payments/CashRefundCounterPage.jsx` | S10/S10b: gọi nhắc, chi tiền 4 mục; API `/api/ops/cash-refunds/{id}/calls`, `/pay` |
+| `#/staff/recheck` | `src/features/staff/returns/ReturnRecheckPage.jsx` | D39/D40: kiểm tra lại sau tự dọn / tự thay / khiếu nại; API `/api/ops/returns/{id}/recheck` |
+| `#/manager/cash-refunds` | `src/features/manager/cash/CashRefundApprovalPage.jsx` | D42: duyệt chi tiền mặt, giao nhân viên |
+| `#/manager/daily-report` | `src/features/manager/reports/DailyStaffReportPage.jsx` | D42: báo cáo cuối ngày |
+| `#/manager/unit-conflicts` | `src/features/manager/conflicts/UnitConflictListPage.jsx` | D41 · Figma M-D41: xung đột lịch đặt kho |
+
+- Chọn cách nhận hoàn dùng chung `src/shared/components/RefundMethodFields.jsx` (huỷ đơn, trả kho, sự cố cơ sở); hàm `validateRefundChoice`, `refundChoicePayload`, `refundBankInput` ở `src/shared/utils/refundRequest.js`.
+- Dữ liệu khách đọc thẳng BE qua `src/shared/hooks/useCustomerData.js`; chế độ lưu trình duyệt báo "mô phỏng chưa có dữ liệu", không giả thành công. Giờ VN từ BE hiển thị bằng `src/shared/utils/vnTime.js`.
+- Hỗ trợ: chủ đề `KEY_PICKUP` (D36) + giờ muốn nhận; ảnh thật tối đa 3 (D35); hợp đồng đã thanh toán chưa tới ngày thuê gửi được (D40). Bỏ bước "Đóng yêu cầu" (D43) ở `SupportTicketDetailPage.jsx`, `InquiryThread.jsx`.
+- `RentedUnitDetailPage.jsx`: khoá gia hạn khi ô đã có khách đặt (`next_booking_from`), link xác nhận khấu trừ / đề xuất đổi kho / yêu cầu nhận chìa khóa. Sơ đồ ô (`FacilityDetailPage.jsx`, `shared/utils/units.js`) hiện "Trống từ dd/mm".
+- Phí huỷ hiển thị 5% cọc (`shared/utils/policy.js`, D40). Màu tiền theo `--money-total` / `--money-deduct` (`ss.css`).

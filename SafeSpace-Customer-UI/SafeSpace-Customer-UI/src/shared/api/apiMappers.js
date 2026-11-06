@@ -277,6 +277,9 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       monthly_rate: Number(c.agreedMonthlyRate),
       deposit: Number(c.depositAmount),
       status: CONTRACT[c.status] || "ACTIVE",
+      api_status: c.status || null,
+      // D41: ô đã có khách mới đặt từ ngày này → khoá gia hạn "Ô đã có khách đặt từ dd/mm"
+      next_booking_from: c.nextBookingFrom ? dateOnly(c.nextBookingFrom) : null,
       access_issued: ["ACTIVE", "EXPIRING", "OVERDUE"].includes(c.status),
       handed_over: Boolean(handover && (["HANDED_OVER", "COMPLETED"].includes(handover.status) || (handover.customerConfirmed && handover.staffConfirmed))),
       handover_api_id: handover?.handoverId ?? null,

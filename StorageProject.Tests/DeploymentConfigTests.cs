@@ -218,6 +218,11 @@ public sealed class DeploymentConfigTests
         };
         db.Reservations.Add(reservation);
         await db.SaveChangesAsync();
+        var policyVer = new RentalPolicyVersion { Version = 1, DisplayVersion = "11/2026", Rate = 5m, SectionsJson = "{}", PublishedBy = user.UserId, PublishedAt = DateTime.UtcNow, IsCurrent = true };
+        db.RentalPolicyVersions.Add(policyVer);
+        await db.SaveChangesAsync();
+        db.PolicyConsents.Add(new PolicyConsent { CustomerId = user.UserId, PolicyVersionId = policyVer.PolicyVersionId, ReservationId = reservation.ReservationId, AcceptedAt = DateTime.UtcNow });
+        await db.SaveChangesAsync();
 
         string? capturedReturnUrl = null;
         string? capturedCancelUrl = null;

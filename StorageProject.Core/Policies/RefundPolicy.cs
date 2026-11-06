@@ -35,14 +35,14 @@ public sealed record RefundResult(
 
 /// <summary>
 /// D32 — công thức hoàn cọc và hoàn thuê. Hàm thuần, không đọc cơ sở dữ liệu.
-/// Huỷ trước StartDate: phí 10% cọc, hoàn 100% tiền thuê + 90% cọc.
+/// Huỷ trước StartDate: phí 5% cọc (D40, thay 10% của D27/D32), hoàn 100% tiền thuê + 95% cọc.
 /// Dừng sớm sau StartDate: giữ 30% cọc; tháng đang chạy tính đủ, tháng chưa bắt đầu được hoàn tiền thuê.
 /// Trả kho bình thường: hoàn đủ cọc; cần vệ sinh trừ cố định 10% cọc.
 /// Hư hỏng và phí quá hạn chỉ trừ trong phạm vi cọc; không phát sinh công nợ ngoài cọc.
 /// </summary>
 public static class RefundPolicy
 {
-    public const decimal CancelFeeRate = 0.10m;
+    public const decimal CancelFeeRate = 0.05m;
     public const decimal EarlyStopKeepRate = 0.30m;
     public const decimal HygieneFeeRate = 0.10m;
 

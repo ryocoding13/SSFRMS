@@ -48,22 +48,36 @@ public record OpsReturnDto(
     string Id, string Contract, string Unit, string Customer, string Appointment, decimal Deposit, decimal Unpaid,
     string Status, OpsReturnReportDto? Report, string? SubmittedAt,
     DateTime? RequestedAt = null, decimal OverdueFee = 0, bool DamageWorkflowResolved = true,
-    IReadOnlyList<EvidencePhotoDto>? MoveOutPhotos = null);
+    IReadOnlyList<EvidencePhotoDto>? MoveOutPhotos = null,
+    // D40: nhân viên quá 3 ngày chưa gửi biên bản (chỉ gắn nhãn, không đổi thứ tự FIFO)
+    bool LateInspection = false,
+    // D39: tình trạng khách xác nhận khấu trừ (NONE, WAITING, AGREED, AUTO_AGREED, SELF_CLEAN, SELF_REPLACE, DISPUTE, RECHECKED)
+    string DeductionStatus = "NONE", string? DeductionDeadlineAt = null,
+    // Câu 7: ảnh khách gửi khi tự thay thế / khiếu nại, để nhân viên kiểm tra lại
+    IReadOnlyList<EvidencePhotoDto>? DeductionPhotos = null);
 
 /// <summary>M08 · Đơn huỷ chờ hoàn / đã hoàn (D27, D32). Tài khoản là tài khoản chính chủ khách khai khi huỷ.</summary>
 public record OpsRefundDto(
     string Id, string Customer, string CancelledAt, decimal Rent, decimal Deposit, decimal Paid, decimal Fee, decimal Amount,
-    string Status, string? PaidAt, string? TransactionRef, string? BankName, string? AccountNumber, string? AccountHolder);
+    string Status, string? PaidAt, string? TransactionRef, string? BankName, string? AccountNumber, string? AccountHolder,
+    // D42: cách nhận hoàn khách đã chọn (quản lý chỉ xem); CASH thì xử lý qua /api/ops/cash-refunds/{cashRefundId}
+    string Method = "BANK_TRANSFER", string? CashRefundId = null);
 
 public record OpsNoteDto(string Text, string At, string? Staff);
 
 public record OpsTicketDto(
     string Id, string Unit, string Customer, string Title, string CreatedAt, string Schedule, string Status,
-    string? Assignee, IReadOnlyList<OpsNoteDto> Notes);
+    string? Assignee, IReadOnlyList<OpsNoteDto> Notes,
+    // L2: nhân viên đọc được nội dung khách gửi (S05); ảnh thêm ở D35
+    string? Description = null, string? Topic = null,
+    // D35: ảnh khách đính kèm (URL ký, hết hạn 1 giờ)
+    IReadOnlyList<EvidencePhotoDto>? Photos = null);
 
 public record OpsRenewalDto(
     string Id, string Contract, string Customer, string Unit, DateOnly From, DateOnly To, int Months,
-    string Requested, string Status, string? Reason, string? DecidedAt);
+    string Requested, string Status, string? Reason, string? DecidedAt,
+    // L8: khối chốt giá M03/D30-17 — giá/tháng, số tiền và hạn thanh toán của yêu cầu
+    decimal MonthlyRate = 0, decimal Amount = 0, string? PaymentDeadlineAt = null);
 
 public record OpsReminderDto(string Text, string At);
 
@@ -135,7 +149,8 @@ public record DepositRefundDto(
     decimal Deposit, decimal Overdue, decimal Cleaning, decimal Damage, decimal Amount, string Status,
     DateTime? RequestedAt, DateTime? InspectedAt, DateTime? ApprovedAt, DateTime? PaidAt, DateOnly? RefundDueDate,
     string? TransactionRef, string? BankName, string? AccountNumber, string? AccountHolder,
-    string? InspectionNote, IReadOnlyList<EvidencePhotoDto> Photos);
+    string? InspectionNote, IReadOnlyList<EvidencePhotoDto> Photos,
+    string Method = "BANK_TRANSFER", string? CashRefundId = null); // D42
 
 public record DepositRefundActionRequest(string? Action, string? Id, int? ExpectedVersion, string? TransactionRef,
     DateTime? TransferredAt, bool Confirmed);

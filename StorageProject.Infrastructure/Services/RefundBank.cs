@@ -15,6 +15,30 @@ public static class RefundBank
 
     public sealed record Account(string BankName, string AccountNumber, string AccountHolder);
 
+    /// <summary>D42: giá trị lưu ở cột RefundBankName khi khách chọn nhận tiền mặt tại quầy (số tài khoản để trống).</summary>
+    public const string CashMethod = "CASH";
+
+    public static bool WantsCash(RefundBankInput? input) =>
+        string.Equals((input?.Method ?? "").Trim(), CashMethod, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsCash(string? bankName) => string.Equals(bankName, CashMethod, StringComparison.Ordinal);
+
+    /// <summary>
+    /// allowCash = true ở huỷ đơn và trả kho (D42): khách chọn tiền mặt thì không cần tài khoản, người nhận là khách trên hợp đồng.
+    /// </summary>
+    public static Account Validate(RefundBankInput? input, string expectedName, bool allowCash)
+    {
+        var method = (input?.Method ?? "").Trim().ToUpperInvariant();
+        if (method.Length > 0 && method is not (CashMethod or "BANK_TRANSFER"))
+            throw new ArgumentException("Chọn cách nhận hoàn: chuyển khoản hoặc tiền mặt tại quầy.");
+        if (method == CashMethod)
+        {
+            if (!allowCash) throw new ArgumentException("Khoản hoàn này chỉ chuyển khoản vào tài khoản chính chủ.");
+            return new Account(CashMethod, "", Regex.Replace(expectedName.Trim(), @"\s+", " "));
+        }
+        return Validate(input, expectedName);
+    }
+
     public static Account Validate(RefundBankInput? input, string expectedName)
     {
         var bank = (input?.BankName ?? "").Trim();

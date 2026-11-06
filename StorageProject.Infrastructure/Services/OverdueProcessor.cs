@@ -24,39 +24,34 @@ public static class OverdueProcessor
         var nowUtc = DateTime.UtcNow;
         var today = DateOnly.FromDateTime(nowUtc + VnOffset);
 
-        // 1. Quét hợp đồng ACTIVE sắp hết hạn trong 30 ngày tới -> EXPIRING
-        var expiringContracts = await dbContext.RentalContracts
+        // 1. ACTIVE sắp hết hạn trong 30 ngày -> EXPIRING. Cập nhật có điều kiện trong một câu lệnh để không ghi đè
+        //    trạng thái khách vừa đổi (ví dụ vừa gửi trả kho) giữa lúc đọc và lúc lưu (S05).
+        await dbContext.RentalContracts
             .Where(c => c.Status == "ACTIVE" && c.EndDate >= today && c.EndDate <= today.AddDays(30))
-            .ToListAsync(ct);
+            .ExecuteUpdateAsync(u => u.SetProperty(c => c.Status, "EXPIRING"), ct);
+        dbContext.ChangeTracker.Clear(); // ExecuteUpdate không qua tracker; đọc lại từ DB sau bước này
 
-        foreach (var c in expiringContracts)
-        {
-            await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract:{c.ContractId}", ct);
-            await dbContext.Entry(c).ReloadAsync(ct);
-            if (c.Status == "ACTIVE" && c.EndDate >= today && c.EndDate <= today.AddDays(30))
-            {
-                c.Status = "EXPIRING";
-                await dbContext.SaveChangesAsync(ct);
-            }
-            await tx.CommitAsync(ct);
-        }
-
-        // 2. Quét hợp đồng quá hạn (EndDate < today) chưa kết thúc
-        var overdueContracts = await dbContext.RentalContracts
-            .Include(c => c.Unit)
-            .Include(c => c.OverdueCases)
-            .Include(c => c.ReturnInspections)
+// 2. Hợp đồng quá hạn (EndDate < today) chưa kết thúc
+        var overdueIds = await dbContext.RentalContracts.AsNoTracking()
             .Where(c => c.EndDate < today
                         && c.Status != "COMPLETED"
                         && c.Status != "TERMINATED"
                         && c.Status != "CANCELLED")
+            .Select(c => c.ContractId)
             .ToListAsync(ct);
 
-        foreach (var contract in overdueContracts)
+        foreach (var contractId in overdueIds)
         {
-            await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract:{contract.ContractId}", ct);
-            await dbContext.Entry(contract).ReloadAsync(ct);
-            if (contract.Status is "COMPLETED" or "TERMINATED" or "CANCELLED")
+// S05: cùng khoá với đăng ký trả kho (ContractService.RegisterMoveOutAsync) nên không chạy chồng với yêu cầu
+            // trả kho, và nhiều instance worker xử lý cùng một hợp đồng lần lượt (SQL Server sp_getapplock).
+            dbContext.ChangeTracker.Clear();
+            await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"move-out:{contractId}", ct);
+            var contract = await dbContext.RentalContracts
+                .Include(c => c.Unit)
+                .Include(c => c.OverdueCases)
+                .Include(c => c.ReturnInspections)
+                .FirstOrDefaultAsync(c => c.ContractId == contractId, ct);
+            if (contract == null || contract.Status is "COMPLETED" or "TERMINATED" or "CANCELLED")
             {
                 await tx.CommitAsync(ct);
                 continue;
@@ -90,33 +85,28 @@ public static class OverdueProcessor
                 continue;
             }
 
-            // M04: Đọc chính sách OVERDUE áp dụng cho cơ sở / toàn hệ thống thay vì hardcode 0.05m
-            var policy = await dbContext.Policies
-                .AsNoTracking()
-                .Where(p => p.PolicyType == "OVERDUE" && p.Status == "ACTIVE"
-                    && p.EffectiveFrom <= today
-                    && (p.EffectiveTo == null || p.EffectiveTo >= today)
-                    && (p.FacilityId == null || (contract.Unit != null && p.FacilityId == contract.Unit.FacilityId)))
-                .OrderByDescending(p => p.FacilityId)
-                .ThenByDescending(p => p.EffectiveFrom)
-                .FirstOrDefaultAsync(ct);
-
+            // S05 / D32: tỷ lệ lấy từ chính sách OVERDUE đang áp dụng (B02), không ghi cứng; tối đa 100% cọc.
+            var policy = await OpsRules.FindApplicablePolicyAsync(dbContext, "OVERDUE", contract.Unit.FacilityId, contract.Unit.UnitTypeId, today, ct);
             decimal overdueFee;
-            if (policy != null && policy.Value.HasValue)
+            if (policy?.Value is decimal)
             {
-                overdueFee = RefundPolicy.OverdueFeeFor(policy.CalculationType, policy.Value, contract.DepositAmount, overdueDays, maxCap: contract.DepositAmount);
+                overdueFee = StorageProject.Core.Policies.RefundPolicy.OverdueFeeFor(policy.CalculationType, policy.Value,
+                    contract.DepositAmount, overdueDays, maxCap: contract.DepositAmount);
             }
             else
             {
-                // Mặc định D32: 5% cọc ban đầu mỗi ngày trễ, tối đa 100% cọc
-                var rawFee = Math.Round(contract.DepositAmount * 0.05m * overdueDays, 0, MidpointRounding.AwayFromZero);
-                overdueFee = Math.Min(contract.DepositAmount, rawFee);
+                logger?.LogWarning("Chưa có chính sách OVERDUE cho hợp đồng {ContractId}; dùng mặc định {Rate}%/ngày theo D32.", contract.ContractId, OpsRules.DefaultOverdueRatePerDay);
+                overdueFee = StorageProject.Core.Policies.RefundPolicy.OverdueFeeFor("DEPOSIT_PERCENT_PER_DAY", OpsRules.DefaultOverdueRatePerDay,
+                    contract.DepositAmount, overdueDays, maxCap: contract.DepositAmount);
             }
 
-            // Ngưỡng mốc: mặc định ngày 20 xử lý đồ, ngày 10-14 nhắc khách
-            int removalDay = (policy?.MaxValue.HasValue == true && policy.MaxValue.Value > 0) ? (int)policy.MaxValue.Value : 20;
-            int reminderDayStart = (policy?.MinValue.HasValue == true && policy.MinValue.Value > 0) ? (int)policy.MinValue.Value : 10;
-            int reminderDayEnd = 14;
+            int removalDay = (policy?.MaxValue.HasValue == true && policy.MaxValue.Value > 0)
+                ? (int)policy.MaxValue.Value
+                : OpsRules.DefaultOverdueDisposalDay;
+            int reminderDayStart = (policy?.MinValue.HasValue == true && policy.MinValue.Value > 0)
+                ? (int)policy.MinValue.Value
+                : OpsRules.DefaultOverdueReminderStartDay;
+            int reminderDayEnd = OpsRules.DefaultOverdueReminderEndDay;
 
             // Tìm hồ sơ quá hạn đang mở
             var activeCase = contract.OverdueCases
@@ -160,7 +150,6 @@ public static class OverdueProcessor
                 // Cập nhật phí quá hạn lũy kế
                 activeCase.OutstandingAmount = overdueFee;
 
-                // Mốc xử lý đồ (mặc định ngày 20): Tự động chuyển sang ESCALATED để chuẩn bị di dời đồ
                 if (overdueDays >= removalDay && activeCase.Status != "ESCALATED" && activeCase.Status != "RESOLVED")
                 {
                     activeCase.Status = "ESCALATED";
@@ -193,6 +182,7 @@ public static class OverdueProcessor
             await tx.CommitAsync(ct);
         }
 
-        logger?.LogInformation("Hoàn tất quét hợp đồng quá hạn ngày {Today}: {Count} hợp đồng đã xử lý.", today, overdueContracts.Count);
+dbContext.ChangeTracker.Clear();
+        logger?.LogInformation("Hoàn tất quét hợp đồng quá hạn ngày {Today}: {Count} hợp đồng đã xử lý.", today, overdueIds.Count);
     }
 }

@@ -1,4 +1,8 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
+using StorageProject.Core.DTOs.Operations;
 using StorageProject.Core.Entities;
 using StorageProject.Infrastructure.Data;
 
@@ -7,12 +11,12 @@ namespace StorageProject.Infrastructure.Services;
 /// <summary>
 /// Hằng số và quy tắc dùng chung cho khu Vận hành KD (SRS mục 10.2, BR19–BR23).
 /// </summary>
-internal static class OpsRules
+public static class OpsRules
 {
     public static readonly string[] FacilityStatuses = ["ACTIVE", "INACTIVE", "TEMPORARILY_CLOSED"];
 
     public static readonly string[] PolicyTypes =
-        ["DEPOSIT", "RENEWAL", "CANCELLATION", "RETURN", "OVERDUE", "EXTRA_FEE", "DISCOUNT", "FEE_WAIVER", "PRICE_RANGE"];
+        ["DEPOSIT", "RENEWAL", "CANCELLATION", "RETURN", "OVERDUE", "EXTRA_FEE", "DISCOUNT", "FEE_WAIVER", "PRICE_RANGE", "RELET_BUFFER"];
 
     public static readonly string[] CalculationTypes = ["FIXED", "PERCENTAGE", "RANGE", "RULE", "DEPOSIT_PERCENT_PER_DAY"];
 
@@ -27,7 +31,7 @@ internal static class OpsRules
     public static readonly string[] OpenContractStatuses = ["ACTIVE", "EXPIRING", "OVERDUE", "RETURN_PENDING"];
 
     public static readonly string[] OpenReservationStatuses =
-        ["PENDING_PAYMENT", "PENDING_VERIFICATION", "CONFIRMED", "UNIT_ASSIGNED"];
+        ["PENDING_PAYMENT", "PENDING_AT_FACILITY", "PENDING_VERIFICATION", "CONFIRMED", "UNIT_ASSIGNED"];
 
     // Payment đã từng thu thành công (bản đã hoàn vẫn giữ lịch sử thu ban đầu)
     public static readonly string[] CollectedPaymentStatuses = ["PAID", "REFUNDED", "PARTIALLY_REFUNDED"];
@@ -37,9 +41,10 @@ internal static class OpsRules
     /// <summary>Giờ Việt Nam dùng để cắt kỳ báo cáo; dữ liệu trong DB lưu UTC.</summary>
     public static readonly TimeSpan ReportOffset = TimeSpan.FromHours(7);
 
-    public static DateOnly TodayUtc => DateOnly.FromDateTime(DateTime.UtcNow);
-
+    /// <summary>Ngày kinh doanh hiện tại theo giờ Việt Nam (UTC+7).</summary>
     public static DateOnly TodayLocal => DateOnly.FromDateTime(DateTime.UtcNow + ReportOffset);
+
+    public static DateOnly TodayUtc => DateOnly.FromDateTime(DateTime.UtcNow);
 
     public static DateTime LocalDayStartUtc(DateOnly day) => day.ToDateTime(TimeOnly.MinValue) - ReportOffset;
 
@@ -48,6 +53,35 @@ internal static class OpsRules
 
     public static bool Overlaps(DateOnly aFrom, DateOnly? aTo, DateOnly bFrom, DateOnly? bTo) =>
         aFrom <= (bTo ?? DateOnly.MaxValue) && bFrom <= (aTo ?? DateOnly.MaxValue);
+    // Tham số quá hạn và xử lý đồ theo D32 (BO02)
+    public const decimal DefaultOverdueRatePerDay = 5.0m;
+    public const int DefaultOverdueReminderStartDay = 10;
+    public const int DefaultOverdueReminderEndDay = 14;
+    public const int DefaultOverdueDisposalDay = 20;
+
+    /// <summary>
+    /// Kiểm tra thứ tự logic các mốc quá hạn và tỷ lệ khấu trừ (D32: 5% / 10-14 ngày nhắc / 20 ngày xử lý đồ).
+    /// </summary>
+    public static void ValidateOverdueMilestones(decimal ratePerDay, int reminderStartDay, int reminderEndDay, int disposalDay)
+    {
+        if (ratePerDay <= 0 || ratePerDay > 100)
+        {
+            throw new ArgumentException("Tỷ lệ khấu trừ quá hạn mỗi ngày phải từ 0% đến 100%.");
+        }
+        if (reminderStartDay <= 0)
+        {
+            throw new ArgumentException("Ngày bắt đầu nhắc nhở phải lớn hơn 0.");
+        }
+        if (reminderStartDay > reminderEndDay)
+        {
+            throw new ArgumentException("Ngày bắt đầu nhắc nhở không được lớn hơn ngày kết thúc nhắc nhở.");
+        }
+        if (reminderEndDay >= disposalDay)
+        {
+            throw new ArgumentException("Ngày kết thúc nhắc nhở phải nhỏ hơn ngày xử lý đồ.");
+        }
+    }
+
 
     /// <summary>
     /// Tìm chính sách đang áp dụng theo thứ tự ưu tiên BR20:
@@ -72,9 +106,10 @@ internal static class OpsRules
 
     /// <summary>
     /// Tiền cọc theo chính sách DEPOSIT (BR21):
-    /// PERCENTAGE = % tiền thuê kỳ đầu trước giảm; FIXED ≥ 1.000 = số tiền VND;
+    /// PERCENTAGE = % của **1 tháng** tiền thuê (L11, D42: không tính trên tổng tiền thuê cả kỳ); FIXED ≥ 1.000 = số tiền VND;
     /// FIXED &lt; 1.000 = số tháng tiền thuê (cách ghi của chính sách seed ban đầu, Value = 1 nghĩa là 1 tháng).
     /// Không có chính sách áp dụng hoặc RULE → mặc định 1 tháng tiền thuê.
+    /// <paramref name="estimatedAmount"/> giữ lại cho chữ ký cũ, không còn dùng để tính cọc.
     /// </summary>
     public static decimal CalculateDeposit(Policy? policy, decimal monthlyRate, decimal estimatedAmount)
     {
@@ -82,10 +117,49 @@ internal static class OpsRules
 
         return policy.CalculationType switch
         {
-            "PERCENTAGE" => Math.Round(estimatedAmount * value / 100m, 0, MidpointRounding.AwayFromZero),
+            "PERCENTAGE" => Math.Round(monthlyRate * value / 100m, 0, MidpointRounding.AwayFromZero),
             "FIXED" when value >= 1000m => value,
             "FIXED" => monthlyRate * value,
             _ => monthlyRate
         };
+    }
+
+    /// <summary>
+    /// Tính token phiên bản cho tập giá của một cặp (FacilityId, UnitTypeId) (BO08).
+    /// </summary>
+    public static string ComputeRateRevisionToken(IEnumerable<(long RateId, decimal MonthlyRate, DateOnly EffectiveFrom, DateOnly? EffectiveTo, string Status)> rates)
+    {
+        var items = rates
+            .Where(r => r.Status == "ACTIVE")
+            .OrderBy(r => r.EffectiveFrom)
+            .ThenBy(r => r.RateId)
+            .Select(r => $"{r.RateId}:{r.MonthlyRate:0.##}:{r.EffectiveFrom:yyyyMMdd}:{r.EffectiveTo:yyyyMMdd}");
+
+        var joined = string.Join(";", items);
+        if (string.IsNullOrEmpty(joined)) return "EMPTY";
+
+        using var sha = SHA256.Create();
+        var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(joined));
+        return Convert.ToHexString(hash)[..16];
+    }
+
+    /// <summary>
+    /// Tính SHA-256 hash của thông tin cơ sở để kiểm tra idempotency (BO14).
+    /// </summary>
+    public static string ComputeFacilityRequestHash(UpsertFacilityRequest req)
+    {
+        var name = req.Name?.Trim() ?? "";
+        var addr = req.Address?.Trim() ?? "";
+        var phone = req.ContactPhone?.Trim() ?? "";
+        var open = req.OpeningTime?.Trim() ?? "";
+        var close = req.ClosingTime?.Trim() ?? "";
+        var status = req.Status?.Trim().ToUpperInvariant() ?? "ACTIVE";
+        var lat = req.Latitude.HasValue ? Math.Round(req.Latitude.Value, 6).ToString("0.######", CultureInfo.InvariantCulture) : "";
+        var lng = req.Longitude.HasValue ? Math.Round(req.Longitude.Value, 6).ToString("0.######", CultureInfo.InvariantCulture) : "";
+
+        var payload = $"{name}|{addr}|{phone}|{open}|{close}|{status}|{lat}|{lng}";
+        using var sha = SHA256.Create();
+        var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(payload));
+        return Convert.ToHexString(bytes);
     }
 }

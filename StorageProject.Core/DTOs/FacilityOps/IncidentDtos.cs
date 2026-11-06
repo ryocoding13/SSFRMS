@@ -13,7 +13,8 @@ public record IncidentBankDto(string BankName, string AccountNumber, string Acco
 
 public record IncidentAccessDto(string OldUnit, string NewUnit);
 
-public record IncidentRefundDto(string Id, decimal Amount, string Status, string? TransactionRef, string? PaidAt);
+// D44: Method = CASH thì Id là "CH-xxxx" (chi tại quầy qua /api/ops/cash-refunds), ngược lại "HC-xxxx" (chuyển khoản).
+public record IncidentRefundDto(string Id, decimal Amount, string Status, string? TransactionRef, string? PaidAt, string Method = "BANK_TRANSFER");
 
 public record IncidentFileDto(string FileName, string ContentType, int Size);
 

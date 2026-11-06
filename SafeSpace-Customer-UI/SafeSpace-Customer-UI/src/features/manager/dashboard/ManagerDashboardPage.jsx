@@ -24,7 +24,6 @@ export function ManagerDashboardPage() {
   const allocations = ops.allocations.filter((a) => a.status === "PENDING");
   const returned = ops.contracts.filter((c) => c.state === "RETURNED");
   const unassigned = ops.assignments.filter((a) => a.status === "OPEN");
-  const mismatch = ops.payments.filter((p) => p.status === "MISMATCH");
   const month = ops.revenue.months.at(-1) || { value: 0 };
   const g = growth(ops.revenue.months);
   const items = [
@@ -33,7 +32,6 @@ export function ManagerDashboardPage() {
     unassigned.length && { key: "u", title: `${unassigned.length} công việc chưa phân công`, sub: unassigned.map((a) => a.title).join(" · "), to: "manager/assign", label: "Phân công" },
     overdue.length && { key: "o", title: `${overdue.length} kho quá hạn thanh toán`, sub: `Kho ${overdue.map((u) => `#${u.code}`).join(", ")}`, to: "manager/units?tab=OVERDUE", label: "Xem danh sách kho" },
     returned.length && { key: "t", title: `${returned.length} biên bản trả kho chờ xác nhận hoàn cọc`, sub: returned.map((c) => `${c.unit} · ${c.customer}`).join(", "), to: "manager/contracts", label: "Xem hợp đồng" },
-    mismatch.length && { key: "m", title: `${mismatch.length} khoản thanh toán báo sai lệch`, sub: mismatch.map((p) => `${p.id} · ${p.customer}`).join(", "), to: "manager/contracts", label: "Xem chi tiết" },
   ].filter(Boolean);
   return (
     <main className="container page">

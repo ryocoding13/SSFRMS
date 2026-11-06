@@ -23,6 +23,9 @@ public sealed class PasswordResetService(AppDbContext db, IPasswordResetEmailSen
         var key = HashKey();
         sender.ValidateConfiguration();
         var reply = new PasswordResetRequestedDto(AcceptedMessage);
+        // L24 (D40, Thắng chốt 04/11): email chưa đăng ký thì báo rõ. Tài khoản bị khoá/ngừng vẫn trả câu chung.
+        if (!await db.Users.AsNoTracking().AnyAsync(x => x.Email.ToUpper() == email, ct))
+            throw new EmailNotRegisteredException();
         var userId = await UniqueActiveUserIdAsync(email, ct);
         if (userId == null) return reply;
 

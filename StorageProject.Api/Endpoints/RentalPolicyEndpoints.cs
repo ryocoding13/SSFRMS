@@ -1,3 +1,4 @@
+using StorageProject.Core.Exceptions;
 using System.Security.Claims;
 using StorageProject.Api.Extensions;
 using StorageProject.Core.DTOs.Policy;
@@ -44,6 +45,10 @@ public static class RentalPolicyEndpoints
                 var userId = user.GetUserId();
                 var result = await policyService.SaveRentalPolicyAsync(userId, request, ct);
                 return Results.Ok(result);
+            }
+            catch (OperationConflictException ex)
+            {
+                return Results.Conflict(new { error = ex.Message, details = ex.Details });
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("người khác cập nhật") || ex.Message.Contains("xung đột"))
             {

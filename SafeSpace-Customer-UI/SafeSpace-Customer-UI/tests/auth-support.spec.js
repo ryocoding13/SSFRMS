@@ -248,7 +248,7 @@ test("C12/C13: màn hình hẹp không tràn ngang", async ({ page }, testInfo) 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("profile-mobile.png"), fullPage: true });
   await page.goto("/#/support");
-  await expect(page.getByRole("heading", { name: "Bạn cần hỗ trợ điều gì?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Gửi yêu cầu hỗ trợ" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(state.errors).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("support-mobile.png"), fullPage: true });
@@ -258,7 +258,7 @@ test("C12: chi tiết trả 401 kết thúc phiên thay vì che lỗi bằng dan
   const state = await setup(page);
   await login(page);
   await page.goto("/#/support");
-  await expect(page.getByRole("heading", { name: "Bạn cần hỗ trợ điều gì?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Gửi yêu cầu hỗ trợ" })).toBeVisible();
   state.detailStatus = 401;
   await page.getByRole("button", { name: "Cập nhật yêu cầu" }).click();
   await expect(page.getByRole("heading", { name: "Đăng nhập", exact: true })).toBeVisible();

@@ -184,6 +184,10 @@ if (builder.Configuration.GetValue<bool>("Worker:EnableOverdue", true))
     builder.Services.AddHostedService<OverdueWorker>();
 }
 builder.Services.AddHostedService<ExpiredRenewalWorker>();
+if (builder.Configuration.GetValue<bool>("Worker:EnableFacilityWorkflow", true))
+{
+    builder.Services.AddHostedService<FacilityWorkflowWorker>(); // D40 tự chốt sau 48 giờ, D42 báo cáo 22:00
+}
 builder.Services.AddScoped<IPayOSService, PayOSService>();
 builder.Services.AddSingleton(new AccessQrOptions(
     builder.Configuration["AccessQr:Secret"] ?? jwtSecret,

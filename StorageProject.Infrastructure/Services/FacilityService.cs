@@ -147,22 +147,9 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
         var monthlyRate = activeRate?.MonthlyRate ?? 0;
         var expectedEndDate = request.StartDate.AddMonths(request.RentalPeriodMonths);
 
-        // Count units available
-        var totalMatchingUnits = await dbContext.StorageUnits
-            .CountAsync(u => u.FacilityId == request.FacilityId 
-                          && u.UnitTypeId == request.UnitTypeId 
-                          && u.Status == "AVAILABLE", ct);
-
-        // Check active reservations that hold units
-        var reservedUnitsCount = await dbContext.Reservations
-            .CountAsync(r => r.FacilityId == request.FacilityId 
-                          && r.UnitTypeId == request.UnitTypeId
-                          && (r.Status == "CONFIRMED" || ((r.Status == "PENDING_PAYMENT" || r.Status == "PENDING_VERIFICATION" || r.Status == "PENDING_AT_FACILITY") && r.ExpiresAt > DateTime.UtcNow))
-                          && !r.UnitAssignments.Any(a => a.Status == "ACTIVE")
-                          && r.StartDate < expectedEndDate
-                          && r.ExpectedEndDate > request.StartDate, ct);
-
-        var availableCount = Math.Max(0, totalMatchingUnits - reservedUnitsCount);
+        // D41: ô trống theo ngày (ô đang thuê trống từ ngày hết hạn + ngày đệm), trừ đơn chưa gán ô cùng kỳ
+        var availableCount = await UnitAvailability.CountBookableAsync(dbContext, request.FacilityId, request.UnitTypeId,
+            request.StartDate, expectedEndDate, ct);
 
         // Cọc theo chính sách DEPOSIT đang áp dụng (BR20, BR21) — cùng cách tính với lúc tạo đơn đặt chỗ
         var depositPolicy = await OpsRules.FindApplicablePolicyAsync(
@@ -190,24 +177,29 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
 
     public async Task<IReadOnlyList<FacilityUnitDto>> GetUnitsByFacilityIdAsync(long facilityId, CancellationToken ct = default)
     {
-        return await dbContext.StorageUnits
+        // D41: sơ đồ ô hiện "Trống từ dd/mm" cho ô đang thuê / chờ kiểm tra (ngày hết hạn + ngày đệm của chính sách).
+        var today = OpsRules.TodayLocal;
+        var slots = await UnitAvailability.SlotsAsync(dbContext, facilityId, null, ct);
+        var buffers = new Dictionary<long, int>();
+        foreach (var typeId in slots.Select(s => s.Unit.UnitTypeId).Distinct())
+        {
+            buffers[typeId] = await UnitAvailability.BufferDaysAsync(dbContext, facilityId, typeId, today, ct);
+        }
+        var freeFrom = slots.ToDictionary(s => s.Unit.UnitId, s => UnitAvailability.FreeFrom(s, buffers[s.Unit.UnitTypeId], today));
+        var overdue = slots.Where(s => s.Holds.Any(h => h.Status == "OVERDUE")).Select(s => s.Unit.UnitId).ToHashSet();
+
+        var units = await dbContext.StorageUnits
             .AsNoTracking()
             .Include(u => u.UnitType)
             .Where(u => u.FacilityId == facilityId && u.Status != "OUT_OF_SERVICE")
             .OrderBy(u => u.UnitNumber)
-            .Select(u => new FacilityUnitDto(
-                u.UnitId,
-                u.FacilityId,
-                u.UnitTypeId,
-                u.UnitNumber,
-                u.Floor,
-                u.Zone,
-                u.LocationDescription,
-                u.UnitType.Area,
-                u.UnitType.ClimateControlled,
-                u.Status
-            ))
             .ToListAsync(ct);
+        return units.Select(u => new FacilityUnitDto(
+                u.UnitId, u.FacilityId, u.UnitTypeId, u.UnitNumber, u.Floor, u.Zone, u.LocationDescription,
+                u.UnitType.Area, u.UnitType.ClimateControlled, u.Status,
+                freeFrom.TryGetValue(u.UnitId, out var f) ? f : null,
+                overdue.Contains(u.UnitId)))
+            .ToList();
     }
 }
 

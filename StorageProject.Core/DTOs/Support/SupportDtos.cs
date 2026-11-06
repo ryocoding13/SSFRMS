@@ -1,3 +1,5 @@
+using StorageProject.Core.DTOs.Evidence;
+
 namespace StorageProject.Core.DTOs.Support;
 
 public record CreateTicketRequest(
@@ -6,7 +8,10 @@ public record CreateTicketRequest(
     string IssueType,
     string Title,
     string Description,
-    string Priority
+    string Priority,
+    // D35: ảnh khách đính kèm (tối đa 3, JPG/PNG ≤ 5 MB). D36: KEY_PICKUP kèm giờ muốn nhận chìa khóa (giờ Việt Nam).
+    IReadOnlyList<EvidencePhotoUpload>? Photos = null,
+    DateTime? PreferredAt = null
 );
 
 public record SupportTicketDto(

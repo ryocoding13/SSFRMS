@@ -1,5 +1,5 @@
 import { requireRentalPolicy } from "../../shared/utils/rentalPolicy.js";
-import { cleanRefundBank, validateRefundBank, validateReturnPhotos, RETURN_SLOTS } from "../../shared/utils/refundRequest.js";
+import { storedRefundChoice, validateRefundChoice, validateReturnPhotos, RETURN_SLOTS } from "../../shared/utils/refundRequest.js";
 import { isReturnFee, NO_RETURN_COLLECTION } from "../../shared/utils/returnPolicy.js";
 import { RENTAL_PLANS, SIZE_BANDS, offerByKey, quote } from "../../shared/utils/catalog.js";
 import {
@@ -262,7 +262,7 @@ const handlers = {
     if (r.status === "CONFIRMED" && r.start_date && r.start_date <= localDate(ctx.now)) fail("Đã đến ngày bắt đầu thuê. Vui lòng sử dụng quy trình trả kho.");
     const preview = r.status === "CONFIRMED" ? cancelPreviewOf(r) : null;
     if (preview) {
-      const error = validateRefundBank(p.bank, contract?.customer_name || r.customer_name || state.user?.full_name);
+      const error = validateRefundChoice(p.bank, contract?.customer_name || r.customer_name || state.user?.full_name);
       if (error) fail(error);
       if (p.bankConfirmed !== true) fail("Vui lòng xác nhận tài khoản chính chủ.");
     }
@@ -273,7 +273,7 @@ const handlers = {
           ? {
               ...x,
               status: "CANCELLED",
-              refund_bank: preview ? cleanRefundBank(p.bank) : null,
+              refund_bank: preview ? storedRefundChoice(p.bank) : null,
               cancel_reason: p.reason || "Khách hàng huỷ đặt chỗ",
               cancelled_at: iso(ctx.now),
               refund_amount: preview?.refund ?? null,
@@ -340,11 +340,11 @@ const handlers = {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(p.date || "") || p.date < localDate(ctx.now))
       fail("Ngày trả kho không được ở quá khứ.");
     if (!RETURN_SLOTS.includes(p.slot)) fail("Vui lòng chọn khung giờ hợp lệ.");
-    const invalid = validateRefundBank(p.bank, c.customer_name || state.user?.full_name) || validateReturnPhotos(p.photos);
+    const invalid = validateRefundChoice(p.bank, c.customer_name || state.user?.full_name) || validateReturnPhotos(p.photos);
     if (invalid) fail(invalid);
     if (p.emptied !== true) fail("Vui lòng xác nhận đã chuyển hết đồ ra khỏi kho.");
     const ret = {
-      refund_bank: cleanRefundBank(p.bank),
+      refund_bank: storedRefundChoice(p.bank),
       photos: p.photos.map(({name, type, size}) => ({name, type, size})),
       emptied: true,
       return_id: `TK-${pad(nextSeq(state.returns, "return_id"))}`,

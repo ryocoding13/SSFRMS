@@ -32,7 +32,8 @@ public record UpsertFacilityRequest(
     string? ClosingTime,         // "HH:mm"
     string? Status,              // chỉ dùng khi tạo mới; đổi trạng thái dùng endpoint /status
     decimal? Latitude = null,    // toạ độ ghim bản đồ; nhập cả hai hoặc để trống cả hai
-    decimal? Longitude = null
+    decimal? Longitude = null,
+    string? OperationId = null
 );
 
 public record ChangeFacilityStatusRequest(string Status, string? Reason);
@@ -98,10 +99,11 @@ public record OpsRateDto(
     DateOnly EffectiveFrom,
     DateOnly? EffectiveTo,
     string Status,
-    bool IsCurrent
+    bool IsCurrent,
+    string? RevisionToken = null
 );
 
-public record SetRateRequest(long FacilityId, long UnitTypeId, decimal MonthlyRate, DateOnly? EffectiveFrom);
+public record SetRateRequest(long FacilityId, long UnitTypeId, decimal MonthlyRate, DateOnly? EffectiveFrom, string? ExpectedRevisionToken = null);
 
 // =====================================================================
 // UC22 / UC23 — Báo cáo toàn hệ thống (định nghĩa chỉ tiêu theo SRS mục 10.2)
@@ -126,7 +128,11 @@ public record ReportMetrics(
     decimal? OccupancyRate,        // UnitsInUse / OperableUnits × 100; null = Không áp dụng
     int ActiveContracts,
     int OverdueCases,              // overdue_cases chưa RESOLVED
-    int OverdueContracts           // DISTINCT contract_id của các case trên
+    int OverdueContracts,          // DISTINCT contract_id của các case trên
+    decimal DepositRefunded = 0,    // Tiền hoàn cọc trong kỳ
+    decimal RentalRefunded = 0,     // Tiền hoàn tiền thuê/phí trong kỳ
+    decimal UnclassifiedRefunded = 0, // Tiền hoàn chưa phân loại được
+    decimal PendingRefunds = 0      // Tiền hoàn đang chờ xử lý (PENDING)
 );
 
 public record FacilityReportRow(long FacilityId, string FacilityName, string FacilityStatus, ReportMetrics Metrics);

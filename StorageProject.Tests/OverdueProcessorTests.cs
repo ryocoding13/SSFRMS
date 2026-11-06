@@ -263,4 +263,33 @@ public sealed class OverdueProcessorTests : IAsyncDisposable
         // D32: Dừng tính phí tại ngày gửi trả kho (2 ngày trễ * 5% = 10% = 100.000 đ), không tính đến 10 ngày (50%)
         Assert.Equal(100_000m, activeCase.OutstandingAmount);
     }
+
+    [Fact]
+    public async Task ProcessDailyOverdue_UsesRateFromActiveOverduePolicy()
+    {
+        // S05 (Phiên 2): tỷ lệ lấy từ chính sách OVERDUE (B02) thay vì ghi cứng 5%.
+        var (customer, _, unit, reservation) = await SetupBaseAsync();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        _db.Policies.Add(new Policy
+        {
+            CreatedBy = customer.UserId, PolicyName = "Quá hạn thử 3%", PolicyType = "OVERDUE",
+            CalculationType = "DEPOSIT_PERCENT_PER_DAY", Value = 3m, RuleDescription = "Thử",
+            EffectiveFrom = today.AddDays(-1), Status = "ACTIVE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+        });
+        var contract = new RentalContract
+        {
+            ReservationId = reservation.ReservationId, CustomerId = customer.UserId, UnitId = unit.UnitId,
+            StartDate = today.AddDays(-60), EndDate = today.AddDays(-5), DepositAmount = 1_000_000m,
+            AgreedMonthlyRate = 1_000_000m, Status = "ACTIVE", CreatedAt = DateTime.UtcNow
+        };
+        _db.RentalContracts.Add(contract);
+        await _db.SaveChangesAsync();
+
+        await OverdueProcessor.ProcessDailyOverdueAsync(_db);
+        await OverdueProcessor.ProcessDailyOverdueAsync(_db); // chạy lại không tạo trùng hồ sơ
+
+        var cases = await _db.OverdueCases.Where(o => o.ContractId == contract.ContractId).ToListAsync();
+        var c = Assert.Single(cases);
+        Assert.Equal(150_000m, c.OutstandingAmount); // 5 ngày × 3% × 1.000.000
+    }
 }

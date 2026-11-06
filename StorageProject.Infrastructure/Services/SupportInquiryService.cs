@@ -88,11 +88,11 @@ public sealed class SupportInquiryService(AppDbContext db) : ISupportInquiryServ
         }
         if (request.ExpectedVersion != inquiry.Version)
             throw new OpsConflictException("Yêu cầu đã có phản hồi mới. Tải lại trước khi gửi tiếp.");
-        if (inquiry.Status == "CLOSED") throw new InvalidOperationException("Yêu cầu đã đóng, không thể phản hồi thêm.");
+        // D43: hỗ trợ là cuộc trò chuyện, không có thao tác đóng. Dữ liệu CLOSED cũ vẫn trả lời tiếp được.
         var at = DateTime.UtcNow;
         inquiry.Replies.Add(new SupportInquiryReply { AuthorId = userId, Note = note, ClientRequestId = requestId,
             CloseRequested = request.Close, CreatedAt = at });
-        inquiry.Status = request.Close ? "CLOSED" : actor.Customer ? "OPEN" : "WAITING_CUSTOMER";
+        inquiry.Status = actor.Customer ? "OPEN" : "WAITING_CUSTOMER"; // cờ close (giao diện cũ) bỏ qua — D43
         inquiry.Version++; inquiry.UpdatedAt = at;
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateConcurrencyException) { throw new OpsConflictException("Yêu cầu vừa thay đổi. Tải lại trước khi gửi."); }

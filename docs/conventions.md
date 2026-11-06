@@ -33,6 +33,18 @@
 - Ảnh: file trong `public/images/`, gán qua `src/app/config/media.js` (D06).
 - Nghiệp vụ mới trong `appReducer.js` phải có test trong `tests/reducer.test.js`.
 
+### Màu và cỡ số tiền (chốt 05/11/2026, Figma đã áp)
+
+| Loại | Màu | Cỡ |
+|---|---|---|
+| Số chính cần chú ý (tổng phải trả, số hoàn, số tiền chốt) | xanh dương `#2563EB`, đậm | 28px trong thẻ tóm tắt · 20px trong ô thông tin |
+| Khoản trừ (có dấu −) | đỏ `#B42318` | theo dòng (15px) |
+| Dòng tiền thường, kể cả `0 đ` | màu chữ thường `#202A3C` | 15px |
+
+- Dùng biến CSS `--money-total`, `--money-deduct`, `--money-text` (khai báo một lần ở `ss.css`), không ghi mã màu trực tiếp trong component.
+- Xanh lá / vàng chỉ dùng cho chữ trạng thái ("Đã thanh toán", "Chờ hoàn", "Quá hạn"), không dùng cho số tiền.
+- Ô giá trị tiền luôn căn phải và chiếm phần còn lại của dòng để không bị cắt chữ.
+
 ## Git
 
 - Thành viên dùng nhánh `feature/`, `fix/`, `docs/` hoặc `chore/` → PR vào `main`; không push thẳng main.

@@ -20,6 +20,7 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("Database__AutoMigrate", "false");
         Environment.SetEnvironmentVariable("Database__SeedMode", "None");
         Environment.SetEnvironmentVariable("Worker__EnableExpiredCashHold", "false");
+        Environment.SetEnvironmentVariable("Worker__EnableFacilityWorkflow", "false");
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -34,6 +35,7 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 ["Database:AutoMigrate"] = "false",
                 ["Database:SeedMode"] = "None",
                 ["Worker:EnableExpiredCashHold"] = "false",
+                ["Worker:EnableFacilityWorkflow"] = "false",
                 ["JwtSettings:Secret"] = TestJwtSecret,
                 ["AppSettings:FrontendUrl"] = "https://safespace.vn"
             };

@@ -3,7 +3,6 @@ import { Icon, LinkButton, Tag } from "../../../shared/components/UI.jsx";
 
 export const DONE_TEXT = {
   payment: ["Đã xác nhận thu tiền", "Hệ thống tự phân bổ ô kho và cấp hợp đồng cùng QR/PIN khi có ô phù hợp. Khách nhận chìa khóa tại quầy."],
-  mismatch: ["Đã gửi báo sai lệch", "Quản lý cơ sở sẽ liên hệ khách để đối chiếu lại giao dịch."],
 
   key: ["Đã ghi nhận nhận chìa khóa", "Nhận chìa khóa không thay đổi thời gian hiệu lực hợp đồng hoặc quyền mở kho."],
   return: ["Đã gửi biên bản trả kho", "Biên bản đã được chuyển đến quản lý cơ sở để xác nhận hoàn cọc."],

@@ -10,14 +10,10 @@ using StorageProject.Infrastructure.Data;
 namespace StorageProject.Infrastructure.Services;
 
 /// <summary>
-/// Báo cáo toàn hệ thống cho Quản lý vận hành KD (UC22, UC23).
+/// Báo cáo toàn hệ thống cho Quản lý vận hành KD (UC22, UC23, BO10–BO11).
 /// Chỉ tiêu theo SRS mục 10.2; tiền truy qua payment → contract → unit → facility / unit_type.
 /// Kỳ báo cáo tính theo ngày giờ Việt Nam (UTC+7); trạng thái kho là ảnh chụp tại SnapshotAt, không phải số liệu lịch sử.
 /// </summary>
-/// <remarks>
-/// Giả định của bản cơ bản: bảng payments chưa có original_payment_id, và quy trình hoàn tiền hiện có là hoàn cọc
-/// sau trả kho. Vì vậy mọi khoản REFUND được trừ vào "Cọc còn giữ"; "Doanh thu thuê và phí" không trừ REFUND.
-/// </remarks>
 public class OperationsReportService(AppDbContext dbContext) : IOperationsReportService
 {
     private static readonly CultureInfo Vi = CultureInfo.InvariantCulture; // chỉ dùng định dạng số/ngày cố định, không phụ thuộc ngôn ngữ máy chủ
@@ -26,7 +22,21 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
     // Dữ liệu nguồn (đọc một lần, tổng hợp trong bộ nhớ — dữ liệu dự án nhỏ)
     // ---------------------------------------------------------------------
 
-    private sealed record PayRow(string Type, decimal Amount, string Status, DateTime? PaidAt, long FacilityId, long UnitTypeId, string ContractStatus);
+    private sealed record PayRow(
+        long PaymentId,
+        string Type,
+        decimal Amount,
+        string Status,
+        DateTime? PaidAt,
+        long FacilityId,
+        long UnitTypeId,
+        long? ContractId,
+        string? ContractStatus,
+        long? ReservationId,
+        string? ReservationStatus,
+        string? RenewalStatus,
+        string? TransactionReference);
+
     private sealed record UnitRow(long FacilityId, long UnitTypeId, string Status);
     private sealed record ContractRow(long ContractId, long FacilityId, long UnitTypeId, string Status);
     private sealed record OverdueRow(long ContractId, long FacilityId, long UnitTypeId);
@@ -40,6 +50,18 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
             Overdues.Where(o => keep(o.FacilityId, o.UnitTypeId)).ToList());
     }
 
+    private async Task ValidateFilterAsync(long? facilityId, long? unitTypeId, CancellationToken ct)
+    {
+        if (facilityId.HasValue && !await dbContext.Facilities.AnyAsync(f => f.FacilityId == facilityId.Value, ct))
+        {
+            throw new KeyNotFoundException("Không tìm thấy cơ sở.");
+        }
+        if (unitTypeId.HasValue && !await dbContext.UnitTypes.AnyAsync(t => t.UnitTypeId == unitTypeId.Value, ct))
+        {
+            throw new KeyNotFoundException("Không tìm thấy loại kho.");
+        }
+    }
+
     private async Task<Source> LoadAsync(long? facilityId, long? unitTypeId, CancellationToken ct)
     {
         var payments = dbContext.Payments.AsNoTracking().AsQueryable();
@@ -49,31 +71,114 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
 
         if (facilityId.HasValue)
         {
-            payments = payments.Where(p => (p.ContractId != null ? p.Contract.Unit.FacilityId : p.Reservation.FacilityId) == facilityId);
+            payments = payments.Where(p => (p.ContractId != null ? p.Contract.Unit.FacilityId : (p.Reservation != null ? p.Reservation.FacilityId : 0)) == facilityId);
             units = units.Where(u => u.FacilityId == facilityId);
             contracts = contracts.Where(c => c.Unit.FacilityId == facilityId);
             overdues = overdues.Where(o => o.Contract.Unit.FacilityId == facilityId);
         }
         if (unitTypeId.HasValue)
         {
-            payments = payments.Where(p => (p.ContractId != null ? p.Contract.Unit.UnitTypeId : p.Reservation.UnitTypeId) == unitTypeId);
+            payments = payments.Where(p => (p.ContractId != null ? p.Contract.Unit.UnitTypeId : (p.Reservation != null ? p.Reservation.UnitTypeId : 0)) == unitTypeId);
             units = units.Where(u => u.UnitTypeId == unitTypeId);
             contracts = contracts.Where(c => c.Unit.UnitTypeId == unitTypeId);
             overdues = overdues.Where(o => o.Contract.Unit.UnitTypeId == unitTypeId);
         }
 
         return new Source(
-            await payments.Select(p => new PayRow(p.PaymentType, p.Amount, p.Status, p.PaidAt,
-                p.ContractId != null ? p.Contract.Unit.FacilityId : p.Reservation.FacilityId,
-                p.ContractId != null ? p.Contract.Unit.UnitTypeId : p.Reservation.UnitTypeId,
-                p.ContractId != null ? p.Contract.Status : p.Reservation.Status)).ToListAsync(ct),
+            await payments.Select(p => new PayRow(
+                p.PaymentId,
+                p.PaymentType,
+                p.Amount,
+                p.Status,
+                p.PaidAt,
+                p.ContractId != null ? p.Contract.Unit.FacilityId : (p.Reservation != null ? p.Reservation.FacilityId : 0),
+                p.ContractId != null ? p.Contract.Unit.UnitTypeId : (p.Reservation != null ? p.Reservation.UnitTypeId : 0),
+                p.ContractId,
+                p.ContractId != null ? p.Contract.Status : null,
+                p.ReservationId,
+                p.ReservationId != null ? (p.Reservation != null ? p.Reservation.Status : null) : null,
+                p.Renewal != null ? p.Renewal.Status : null,
+                p.TransactionReference)).ToListAsync(ct),
             await units.Select(u => new UnitRow(u.FacilityId, u.UnitTypeId, u.Status)).ToListAsync(ct),
             await contracts.Select(c => new ContractRow(c.ContractId, c.Unit.FacilityId, c.Unit.UnitTypeId, c.Status)).ToListAsync(ct),
             await overdues.Select(o => new OverdueRow(o.ContractId, o.Contract.Unit.FacilityId, o.Contract.Unit.UnitTypeId)).ToListAsync(ct));
     }
 
     // ---------------------------------------------------------------------
-    // Chỉ tiêu (SRS 10.2)
+    // Phân loại hoàn tiền (BO11)
+    // ---------------------------------------------------------------------
+
+    private static (decimal Deposit, decimal Rental, decimal Unclassified) ClassifyRefund(PayRow r, List<PayRow> all)
+    {
+        if (r.Amount <= 0) return (0, 0, 0);
+
+        // Trường hợp 1: Hoàn tiền có liên kết Contract
+        if (r.ContractId.HasValue)
+        {
+            var related = all.Where(p => p.ContractId == r.ContractId.Value && p.Type != "REFUND" && OpsRules.CollectedPaymentStatuses.Contains(p.Status)).ToList();
+            var depPaid = related.Where(p => p.Type == "DEPOSIT").Sum(p => p.Amount);
+            var rentPaid = related.Where(p => p.Type != "DEPOSIT").Sum(p => p.Amount);
+            var totalPaid = depPaid + rentPaid;
+
+            // Hoàn cọc sau trả kho (M07): TransactionReference chứa "Hoàn cọc" hoặc khoản hoàn <= cọc đã nộp
+            if ((r.TransactionReference ?? "").Contains("Hoàn cọc") || (depPaid > 0 && r.Amount <= depPaid && rentPaid == 0))
+            {
+                var dep = Math.Min(r.Amount, depPaid);
+                return (dep, 0, r.Amount - dep);
+            }
+
+            // Hoàn do sự cố kết thúc hợp đồng: hoàn cả tiền thuê + cọc (r.Amount == totalPaid)
+            if (totalPaid > 0 && r.Amount == totalPaid)
+            {
+                return (depPaid, rentPaid, 0);
+            }
+
+            // Nếu r.Amount > depPaid: phần đến depPaid là cọc, phần vượt (lên tới rentPaid) là tiền thuê
+            if (depPaid > 0 && r.Amount > depPaid)
+            {
+                var dep = depPaid;
+                var rent = Math.Min(rentPaid, r.Amount - dep);
+                return (dep, rent, r.Amount - dep - rent);
+            }
+
+            // Mặc định nếu Amount <= depPaid
+            if (depPaid > 0 && r.Amount <= depPaid)
+            {
+                return (r.Amount, 0, 0);
+            }
+
+            return (0, 0, r.Amount);
+        }
+
+        // Trường hợp 2: Hoàn tiền có liên kết Reservation (huỷ đơn trước ngày bắt đầu)
+        if (r.ReservationId.HasValue)
+        {
+            var related = all.Where(p => p.ReservationId == r.ReservationId.Value && p.Type != "REFUND" && OpsRules.CollectedPaymentStatuses.Contains(p.Status)).ToList();
+            var depPaid = related.Where(p => p.Type == "DEPOSIT").Sum(p => p.Amount);
+            var rentPaid = related.Where(p => p.Type == "RENT").Sum(p => p.Amount);
+
+            // D40: huỷ đơn hoàn 100% tiền thuê + 95% cọc
+            if (rentPaid > 0 && r.Amount >= rentPaid)
+            {
+                var rent = rentPaid;
+                var dep = Math.Min(depPaid, r.Amount - rent);
+                return (dep, rent, r.Amount - rent - dep);
+            }
+
+            if (depPaid > 0 && r.Amount <= depPaid)
+            {
+                return (r.Amount, 0, 0);
+            }
+
+            return (0, 0, r.Amount);
+        }
+
+        // Trường hợp 3: Khoản hoàn legacy không thể liên kết hồ sơ nguồn
+        return (0, 0, r.Amount);
+    }
+
+    // ---------------------------------------------------------------------
+    // Chỉ tiêu (SRS 10.2, BO10–BO11)
     // ---------------------------------------------------------------------
 
     private static ReportMetrics Compute(Source s, DateTime fromUtc, DateTime toUtcExclusive)
@@ -82,15 +187,85 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
 
         var collectedRows = s.Payments.Where(p => p.Type != "REFUND" && OpsRules.CollectedPaymentStatuses.Contains(p.Status)).ToList();
         var refundRows = s.Payments.Where(p => p.Type == "REFUND" && p.Status == "PAID").ToList();
+        var pendingRefundRows = s.Payments.Where(p => p.Type == "REFUND" && p.Status == "PENDING").ToList();
 
         var collected = collectedRows.Where(p => InPeriod(p.PaidAt)).Sum(p => p.Amount);
         var refunded = refundRows.Where(p => InPeriod(p.PaidAt)).Sum(p => p.Amount);
         var rentalAndFees = collectedRows.Where(p => p.Type != "DEPOSIT" && InPeriod(p.PaidAt)).Sum(p => p.Amount);
         var depositCollected = collectedRows.Where(p => p.Type == "DEPOSIT" && InPeriod(p.PaidAt)).Sum(p => p.Amount);
-        var depositHeld = Math.Max(0, collectedRows.Where(p => p.Type == "DEPOSIT").Sum(p => p.Amount) - refundRows.Sum(p => p.Amount));
-        var outstanding = s.Payments
-            .Where(p => p.Amount > 0 && OpsRules.UnpaidPaymentStatuses.Contains(p.Status) && p.ContractStatus != "CANCELLED")
-            .Sum(p => p.Amount);
+
+        // BO11: Phân loại hoàn tiền trong kỳ
+        decimal depositRefunded = 0;
+        decimal rentalRefunded = 0;
+        decimal unclassifiedRefunded = 0;
+
+        foreach (var refRow in refundRows.Where(p => InPeriod(p.PaidAt)))
+        {
+            var (dep, rent, unclass) = ClassifyRefund(refRow, s.Payments);
+            depositRefunded += dep;
+            rentalRefunded += rent;
+            unclassifiedRefunded += unclass;
+        }
+
+        var pendingRefunds = pendingRefundRows.Sum(p => p.Amount);
+
+        // BO10: Tính cọc còn giữ tại thời điểm báo cáo (as-of / snapshot):
+        // Chỉ tính cọc của các hợp đồng hoặc đơn đặt chỗ đang mở / chưa tất toán.
+        decimal depositHeld = 0;
+
+        // 1. Theo các hợp đồng đang mở
+        var openContractIds = s.Contracts
+            .Where(c => OpsRules.OpenContractStatuses.Contains(c.Status) || c.Status == "DRAFT")
+            .Select(c => c.ContractId)
+            .ToHashSet();
+
+        foreach (var cId in openContractIds)
+        {
+            var depPaid = collectedRows.Where(p => p.ContractId == cId && p.Type == "DEPOSIT").Sum(p => p.Amount);
+            if (depPaid <= 0) continue;
+
+            // Trừ phần cọc đã hoàn cho hợp đồng này
+            var depRef = refundRows.Where(p => p.ContractId == cId)
+                .Sum(r => ClassifyRefund(r, s.Payments).Deposit);
+
+            depositHeld += Math.Max(0, depPaid - depRef);
+        }
+
+        // 2. Theo các đơn đặt chỗ chưa thành hợp đồng mở nhưng đã thu cọc
+        var standaloneReservations = s.Payments
+            .Where(p => p.ContractId == null && p.ReservationId != null && p.Type == "DEPOSIT" && OpsRules.CollectedPaymentStatuses.Contains(p.Status))
+            .Where(p => p.ReservationStatus is not ("CANCELLED" or "EXPIRED" or "NO_SHOW"))
+            .GroupBy(p => p.ReservationId!.Value);
+
+        foreach (var g in standaloneReservations)
+        {
+            var depPaid = g.Sum(p => p.Amount);
+            var depRef = refundRows.Where(p => p.ReservationId == g.Key && p.ContractId == null)
+                .Sum(r => ClassifyRefund(r, s.Payments).Deposit);
+
+            depositHeld += Math.Max(0, depPaid - depRef);
+        }
+
+        // BO10: Công nợ hiện tại: loại trừ REFUND, đơn huỷ, hợp đồng đã đóng, renewal hết hạn
+        static bool IsOutstanding(PayRow p)
+        {
+            if (p.Amount <= 0) return false;
+            if (p.Type == "REFUND") return false;
+            if (!OpsRules.UnpaidPaymentStatuses.Contains(p.Status)) return false;
+
+            // Đơn huỷ / hết hạn không còn nợ
+            if (p.ReservationStatus is "CANCELLED" or "EXPIRED" or "NO_SHOW") return false;
+
+            // Hợp đồng đã đóng / huỷ không còn nợ (D32: không phát sinh công nợ ngoài cọc)
+            if (p.ContractStatus is "CANCELLED" or "COMPLETED" or "TERMINATED") return false;
+
+            // Gia hạn đã hết hiệu lực / từ chối không còn nợ
+            if (p.Type == "RENEWAL" && p.RenewalStatus is not ("PENDING" or "APPROVED")) return false;
+
+            return true;
+        }
+
+        var outstanding = s.Payments.Where(IsOutstanding).Sum(p => p.Amount);
 
         var total = s.Units.Count;
         var inUse = s.Units.Count(u => OpsRules.UnitInUseStatuses.Contains(u.Status));
@@ -116,7 +291,11 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
             OpsRules.OccupancyRate(inUse, operable),
             s.Contracts.Count(c => OpsRules.OpenContractStatuses.Contains(c.Status)),
             s.Overdues.Count,
-            s.Overdues.Select(o => o.ContractId).Distinct().Count());
+            s.Overdues.Select(o => o.ContractId).Distinct().Count(),
+            depositRefunded,
+            rentalRefunded,
+            unclassifiedRefunded,
+            pendingRefunds);
     }
 
     /// <summary>Tổng hệ thống = tổng các dòng trong cùng bộ lọc (điểm nghiệm thu UC22).</summary>
@@ -141,7 +320,11 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
             OpsRules.OccupancyRate(inUse, operable),
             rows.Sum(r => r.ActiveContracts),
             rows.Sum(r => r.OverdueCases),
-            rows.Sum(r => r.OverdueContracts));
+            rows.Sum(r => r.OverdueContracts),
+            rows.Sum(r => r.DepositRefunded),
+            rows.Sum(r => r.RentalRefunded),
+            rows.Sum(r => r.UnclassifiedRefunded),
+            rows.Sum(r => r.PendingRefunds));
     }
 
     private static (DateTime FromUtc, DateTime ToUtcExclusive) Period(ReportFilter filter)
@@ -157,6 +340,8 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
 
     public async Task<SystemReportDto> GetSystemReportAsync(ReportFilter filter, CancellationToken ct = default)
     {
+        await ValidateFilterAsync(filter.FacilityId, filter.UnitTypeId, ct);
+
         var (fromUtc, toUtc) = Period(filter);
         var snapshotAt = DateTime.UtcNow;
 
@@ -165,7 +350,6 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
         var facilities = await facilitiesQuery.OrderBy(f => f.Name)
             .Select(f => new { f.FacilityId, f.Name, f.Status })
             .ToListAsync(ct);
-        if (filter.FacilityId.HasValue && facilities.Count == 0) throw new KeyNotFoundException("Không tìm thấy cơ sở.");
 
         var source = await LoadAsync(filter.FacilityId, filter.UnitTypeId, ct);
 
@@ -179,6 +363,8 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
 
     public async Task<UnitTypeReportDto> GetUnitTypeReportAsync(ReportFilter filter, CancellationToken ct = default)
     {
+        await ValidateFilterAsync(filter.FacilityId, filter.UnitTypeId, ct);
+
         var (fromUtc, toUtc) = Period(filter);
         var snapshotAt = DateTime.UtcNow;
 
@@ -187,7 +373,6 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
         var types = await typesQuery.OrderBy(t => t.Area)
             .Select(t => new { t.UnitTypeId, t.TypeName })
             .ToListAsync(ct);
-        if (filter.UnitTypeId.HasValue && types.Count == 0) throw new KeyNotFoundException("Không tìm thấy loại kho.");
 
         var source = await LoadAsync(filter.FacilityId, filter.UnitTypeId, ct);
 
@@ -202,6 +387,7 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
     public async Task<RevenueTrendDto> GetRevenueTrendAsync(int months, long? facilityId, long? unitTypeId, CancellationToken ct = default)
     {
         if (months is < 1 or > 24) throw new ArgumentException("Số tháng phải từ 1 đến 24.");
+        await ValidateFilterAsync(facilityId, unitTypeId, ct);
 
         var source = await LoadAsync(facilityId, unitTypeId, ct);
         var today = OpsRules.TodayLocal;
@@ -221,6 +407,8 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
 
     public async Task<RentalStatusDto> GetRentalStatusAsync(long? facilityId, long? unitTypeId, CancellationToken ct = default)
     {
+        await ValidateFilterAsync(facilityId, unitTypeId, ct);
+
         var source = await LoadAsync(facilityId, unitTypeId, ct);
 
         var reservations = dbContext.Reservations.AsNoTracking().AsQueryable();
@@ -240,13 +428,10 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
             source.Units.GroupBy(u => u.Status).Select(g => new StatusCount(g.Key, g.Count())).OrderByDescending(s => s.Count).ToList());
     }
 
-    /// <summary>Drill-down một cơ sở: hợp đồng và quá hạn liên quan (UC22 bước 5).</summary>
+    /// <summary>Drill-down một cơ sở: hợp đồng và quá hạn liên quan (UC22 bước 5, BO10).</summary>
     public async Task<IReadOnlyList<FacilityContractRow>> GetFacilityContractsAsync(long facilityId, string? status, long? unitTypeId, CancellationToken ct = default)
     {
-        if (!await dbContext.Facilities.AnyAsync(f => f.FacilityId == facilityId, ct))
-        {
-            throw new KeyNotFoundException("Không tìm thấy cơ sở.");
-        }
+        await ValidateFilterAsync(facilityId, unitTypeId, ct);
 
         var query = dbContext.RentalContracts.AsNoTracking().Where(c => c.Unit.FacilityId == facilityId);
         if (!string.IsNullOrWhiteSpace(status))
@@ -268,7 +453,13 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
                 c.StartDate,
                 c.EndDate,
                 c.Status,
-                c.Payments.Where(p => p.Amount > 0 && (p.Status == "PENDING" || p.Status == "FAILED")).Sum(p => (decimal?)p.Amount) ?? 0,
+                c.Payments
+                    .Where(p => p.Amount > 0
+                             && p.PaymentType != "REFUND"
+                             && (p.Status == "PENDING" || p.Status == "FAILED")
+                             && (p.PaymentType != "RENEWAL" || (p.Renewal != null && (p.Renewal.Status == "PENDING" || p.Renewal.Status == "APPROVED")))
+                             && (c.Status != "CANCELLED" && c.Status != "COMPLETED" && c.Status != "TERMINATED"))
+                    .Sum(p => (decimal?)p.Amount) ?? 0,
                 c.OverdueCases.Count(o => o.Status != "RESOLVED")))
             .ToListAsync(ct);
     }
@@ -279,6 +470,8 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
 
     public async Task<CsvExport> ExportCsvAsync(string view, ReportFilter filter, int months, long userId, CancellationToken ct = default)
     {
+        await ValidateFilterAsync(filter.FacilityId, filter.UnitTypeId, ct);
+
         var normalizedView = (view ?? "").Trim().ToLowerInvariant();
         var facilityName = filter.FacilityId.HasValue
             ? await dbContext.Facilities.Where(f => f.FacilityId == filter.FacilityId).Select(f => f.Name).FirstOrDefaultAsync(ct)
@@ -383,6 +576,7 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
     [
         "Tiền thu (VND)", "Tiền hoàn (VND)", "Thu ròng (VND)", "Doanh thu thuê và phí (VND)",
         "Cọc thu trong kỳ (VND)", "Cọc còn giữ (VND)", "Công nợ hiện tại (VND)",
+        "Hoàn cọc (VND)", "Hoàn tiền thuê (VND)", "Hoàn chưa phân loại (VND)",
         "Tổng số kho", "Kho đang sử dụng", "Kho trống", "Kho đang giữ/phân bổ", "Kho bảo trì/kiểm tra",
         "Kho khai thác được", "Tỷ lệ sử dụng (%)", "Hợp đồng hiệu lực", "Case quá hạn", "Hợp đồng quá hạn"
     ];
@@ -391,6 +585,7 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
     [
         Num(m.Collected), Num(m.Refunded), Num(m.NetCollected), Num(m.RentalAndFeeRevenue),
         Num(m.DepositCollected), Num(m.DepositHeld), Num(m.Outstanding),
+        Num(m.DepositRefunded), Num(m.RentalRefunded), Num(m.UnclassifiedRefunded),
         Int(m.TotalUnits), Int(m.UnitsInUse), Int(m.UnitsAvailable), Int(m.UnitsReserved), Int(m.UnitsUnavailable),
         Int(m.OperableUnits), m.OccupancyRate.HasValue ? Num(m.OccupancyRate.Value) : "Không áp dụng",
         Int(m.ActiveContracts), Int(m.OverdueCases), Int(m.OverdueContracts)

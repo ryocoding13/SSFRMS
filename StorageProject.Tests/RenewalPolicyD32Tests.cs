@@ -9,7 +9,7 @@ using Xunit;
 
 namespace StorageProject.Tests;
 
-public sealed class RenewalPolicyD32Tests
+public sealed partial class RenewalPolicyD32Tests
 {
     private sealed class TestDb(DbContextOptions<AppDbContext> options) : AppDbContext(options)
     {
@@ -414,7 +414,7 @@ public sealed class RenewalPolicyD32Tests
             Version: 1 // Stale! Current is 2
         );
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<StorageProject.Core.Exceptions.OperationConflictException>(() =>
             f.PolicySvc.SaveRentalPolicyAsync(f.ManagerUser.UserId, staleRequest));
     }
 

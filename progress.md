@@ -39,6 +39,146 @@
   - Frontend Build: `npm run build` -> **PASS**.
 - **Quy tắc AGENTS.md:** AI tuân thủ Rule 12 — không commit, không push, không tạo PR, không merge. Bàn giao đầy đủ trên nhánh `feature/tien-manager-fixes`.
 
+## 2026-11-06 — Phiên 6: M01, M04, M06, S02, S03, S07, FE nhân viên / quản lý, B02, câu 1, 2, 4, 7, D30-15b
+
+- **BE** `RenewalApproval.cs` (mới, M01): một đường duyệt gia hạn cho 3 route, khoá rồi mới kiểm lại (kỳ thuê, yêu cầu khác đang chờ, hạn, ô đã có khách đặt, giá ACTIVE). `ManagerService.AddContractReminderAsync` (M04) dùng khoá `move-out`, không tạo trùng hồ sơ quá hạn. `RenewalService.CollectCounterRenewalAsync` (S02) kiểm consent đúng phiên bản. Route kiểm kê cũ `/api/staff/returns/{id}/inspection` trả 410 (S03). Câu 7: `ReturnDeductionDecisionRequest.Photos`, `ReturnDeductionDto.CustomerPhotos`, `OpsReturnDto.DeductionPhotos`; migration viết tay `20261106120000_Phien6DeductionPhotos` (chỉ đổi CHECK `evidence_photos.OwnerType`).
+- Test BE mới: `RenewalPolicyD32Tests.M01.cs` (3 test M01 + 1 test M04), `IncidentT13Tests.M06.cs` (2 test bấm lại không cấp mã / hoàn hai lần), `D32RefundEvidenceTests.Phien6.cs` (S07 khác cơ sở + bấm lại; câu 7 ảnh). Integration test thêm migration thứ 13.
+- **FE nhân viên:** bỏ màn và nút báo sai lệch (D42); `staff/cash-refunds` (S10/S10b gọi nhắc + chi tiền 4 mục); `staff/recheck` (kiểm tra lại sau tự dọn / tự thay / khiếu nại, xem ảnh khách gửi); việc hỗ trợ "Nhận chìa khóa" ghi rõ trong danh sách; đổi chữ "Kho bẩn / cần vệ sinh" thành "chưa đạt tiêu chuẩn vệ sinh".
+- **FE quản lý:** bỏ màn đối soát sai lệch và cảnh báo MISMATCH; `manager/cash-refunds` (duyệt + giao nhân viên), `manager/daily-report`, `manager/unit-conflicts`. **B02:** ô "Ngày đệm cho thuê lại" (`RELET_BUFFER`, 0–60 ngày).
+- **FE khách:** tiêu đề hỗ trợ ghép chủ đề (câu 1); bỏ nút Huỷ yêu cầu hỗ trợ (câu 2); bỏ ô tick chính chủ ở huỷ đơn (câu 4); tải ảnh khi tự thay thế / khiếu nại (câu 7); `#/refunds/cash` làm lại theo Figma D30-15b + 3 popup.
+- **Kiểm tra:** `npm test` 156/156, `test:render` 181 route PASS, `test:business` 10/10, `test:workflows` 11/11 (bỏ 1 test đối soát sai lệch đã gỡ), `check:structure` PASS, `build` OK. BE: biên dịch Roslyn với stub; **chưa chạy `dotnet test`** (NuGet chặn) → chờ CI. Màn nhân viên / quản lý mới chỉ có dữ liệu ở chế độ API → chưa xem bằng ảnh.
+- **Chưa làm (cần chốt, xem IMPL-2026-11-06-P6):** gia hạn sang ô khác, gia hạn sau nâng cấp, chuông + email đổi kho, tiền mặt quá 30 ngày tính doanh thu.
+
+## 2026-11-05 — Sửa CI PR #68 (Backend + SQL Server Integration đỏ)
+
+- `CheckoutTests.PaidOrderAutomaticallyIssuesQrAndPinBeforeKeyReceiptButRejectsEarlyUse` (đỏ từ Phiên 3): test lọc nhầm `CredentialType == "QR"`; mã được lưu là `ACCESS_CODE` + tham chiếu `QR-…` → sửa điều kiện lọc trong test, không đổi code chạy.
+- `Conflict_NoUnit_CustomerReschedulesOrCancelsWithFullRefundNoFee` (Phiên 4): `Read` trả `""` cho giá trị JSON null nên `ProposedUnit` = `""` thay vì null → `FacilityOpsService.Conflicts.cs` thêm `Text()` đổi chuỗi rỗng thành null cho ô đề xuất / ô mới / ngày mới.
+- `SqlServerMigrationAndReadinessTests`: thêm 2 migration mới `20261105120000_Phien3EvidenceOwnerTypes`, `20261105220000_Phien4ReletBufferPolicy` vào danh sách mong đợi (CI báo 10 ≠ 12).
+- **Kiểm tra:** đọc log CI thật (job Backend: 2/224 test đỏ; SQL Server Integration: 1/11). Sửa xong mới biên dịch Roslyn với stub; chưa chạy lại `dotnet test` (NuGet chặn) → chờ CI lần sau xác nhận, nhất là bước kiểm tra model drift.
+
+## 2026-11-05 — Phiên 5b: đồng bộ màn khách với Figma (D30-07, D30-03, D30-13, C-D41a, C12, C07b)
+
+- **FE** `RefundMethodFields`: thẻ "Nhận tiền hoàn · Chính chủ", hàng chọn "Nhận hoàn qua" (chuyển khoản / tiền mặt) như D30-07, D30-03; câu tiền mặt ghi tên cơ sở + giờ mở cửa, giữ điều kiện D44 (quá 30 ngày mất khoản hoàn, tick xác nhận, đổi được sang chuyển khoản). Dùng ở huỷ đơn, trả kho, sự cố cơ sở, đổi kho.
+- `CancelReservationPage`: pill "Chưa bắt đầu thuê", cột "Khoản hoàn dự kiến" gồm Đã thanh toán · Tiền thuê hoàn 100% · Cọc ban đầu · Phí huỷ 5% cọc · Tổng hoàn. `ReturnRequestPage`: pill "Đang thuê · còn N ngày", kho kèm loại/diện tích, thứ tự lưu ý theo Figma.
+- `ReturnDeductionPage` (D30-13): pill "Chờ bạn xác nhận · còn N giờ", thẻ "Khoản khấu trừ từ cọc" + ảnh biên bản, "Phản hồi của bạn" (lựa chọn kèm số tiền, ô "Phương án và thời gian thực hiện"), cột "Khoản hoàn sau khấu trừ" có dòng quá hạn. `UnitChangePage` (C-D41a): tiêu đề theo mã đơn, pill thời gian còn lại, "Kho bạn đã đặt", lựa chọn chi tiết, "Chi phí sau khi đổi kho".
+- `SupportPage` (C12, C12-*): bố cục 2 thẻ + cột "Yêu cầu gần đây" / "Lưu ý khi gửi"; câu hỏi thứ hai theo từng chủ đề (`TICKET_OPTIONS`, lựa chọn làm tiêu đề yêu cầu); nhận chìa khóa chọn Sáng 08:00 / Chiều 13:00 ngày bắt đầu thuê hoặc "Ngày khác · ghi trong mô tả". `RentedUnitDetailPage`: pill "Sắp hết hạn · còn N ngày", nút thao tác ngắn (Gia hạn / Trả kho / Gửi).
+- **BE** `ReturnDeductionDto` thêm `OverdueFee`, `OverdueDays`, `StaffName` (phí quá hạn tính tới lúc khách gửi trả kho, D32); test Phiên 3 kiểm thêm 3 trường.
+- **Kiểm tra:** `npm test` 156/156, `test:render` 179 route PASS, `test:business` 9/9, `test:workflows` 12/12, `check:structure` PASS, `build` OK; chụp màn chế độ trình duyệt (1280 và 390 px). Màn khấu trừ và đổi kho chỉ có dữ liệu ở chế độ API → **chưa xem được bằng ảnh**. BE: biên dịch Roslyn với stub, chưa `dotnet build/test` (NuGet chặn).
+- **Chưa làm / chờ Thắng chốt:** Figma D30-13 có ô tải ảnh hoá đơn khi khách tự thay thế — API chưa nhận ảnh; Figma chưa có màn khách xem/đổi khoản tiền mặt (D44, `#/refunds/cash` đang theo kiểu chung); nút "Chọn ô khác" ở C07b-D41 chưa có luồng chuyển gia hạn sang ô khác (đang ghi "liên hệ cơ sở"); Figma D30-07 còn câu "Quá 30 ngày, SafeSpace liên hệ để chuyển khoản" trái D44.
+
+## 2026-11-05 — Phiên 4–5: BE D41 + D44, FE khách hàng (D35, D36, D39–D44)
+
+- **D44 (Thắng chốt 19:21–19:25)** `FacilityOpsService.Workflows.cs`: quá 30 ngày chưa nhận tiền mặt → `FORFEITED` (worker đổi REFUND sang CANCELLED, ghi log hệ thống); khách đổi sang chuyển khoản trong 30 ngày `POST /api/cash-refunds/{id}/switch-to-bank` (ghi tài khoản vào đơn huỷ / biên bản trả kho / hồ sơ sự cố, khoản về M08 / hoàn cọc); `GET /api/cash-refunds` cho khách. Sự cố cơ sở (T13) nhận `refundBank.method = "CASH"`; khoản tiền mặt nguồn `INCIDENT` vào `/api/ops/cash-refunds`. Tự chốt sau 48 giờ (và khi khách đồng ý) chạy dưới tên Hệ thống: tách `SettleReturnAsync` khỏi `ConfirmRefundAsync`, `Log` nhận `userId` null; khoá chốt theo `contract-settlement:{contractId}`.
+- **D41** `UnitAvailability.cs` (mới): ô trống theo ngày = ngày hết hạn (gồm gia hạn đang chờ) + ngày đệm `RELET_BUFFER` (mặc định 3); ô quá hạn không đặt trước; ô giữ cho đề xuất không bị lấy. Dùng cho kiểm tra trống, tạo đơn, tự gán ô (ưu tiên ô trống thật), phân bổ tay; ô khách cũ còn giữ thì không đổi trạng thái; `UnitStartActivation` nhận cả ô AVAILABLE; trả kho xong mà đã có khách mới thì ô về RESERVED. `FacilityOpsService.Conflicts.cs` (mới): mốc 5 ngày → đề xuất đổi ngang / nâng cấp / NONE, giữ ô 48 giờ, quá hạn tự nhận; khách ACCEPT / RESCHEDULE / CANCEL (hoàn 100%, không phí); cấp lại QR/PIN ô mới; `GET /api/ops/unit-conflicts`. Gia hạn bị khoá khi ô đã có khách đặt (`RenewalService`, M03), `ContractDetailDto.NextBookingFrom`, `FacilityUnitDto.FreeFrom/Overdue`. Migration viết tay `20261105220000_Phien4ReletBufferPolicy` (CHECK policies). Worker `FacilityWorkflowWorker` chạy thêm quét xung đột, hết hạn đề xuất, tiền mặt quá hạn.
+- **FE khách (Phiên 5)**: chọn cách nhận hoàn (chuyển khoản / tiền mặt + tick điều kiện 30 ngày) ở huỷ đơn, trả kho, sự cố cơ sở; màn mới xác nhận khấu trừ (`#/units/:id/deduction`), đổi kho (`#/units/:id/unit-change`), hoàn tiền mặt (`#/refunds/cash`); hỗ trợ chủ đề "Nhận chìa khóa · lần đầu nhận kho" + ảnh thật + hợp đồng chưa tới ngày thuê; bỏ "Đóng yêu cầu" (D43); khoá gia hạn "Ô đã có khách đặt từ"; "Trống từ dd/mm" trên sơ đồ ô; phí huỷ 5%; màu tiền theo quy ước. Sửa test FE theo quyết định mới (9 chủ đề C12, nhãn "Cách nhận hoàn", phí huỷ 5%, yêu cầu nhận chìa khóa).
+- Test BE mới: `D32RefundEvidenceTests.Phien4.cs` (trống theo ngày + chính sách đệm + quá hạn, khoá gia hạn, đổi ngang, nâng cấp tự động sau 48 giờ, dời ngày / huỷ hoàn 100%), thêm D44 vào `D32RefundEvidenceTests.Phien3.cs`, `IncidentT13Tests.Terminate_CashChoice_GoesToCounterQueue_NotTransfer`.
+- **Kiểm tra / giới hạn:** NuGet vẫn bị chặn → chưa `dotnet build` / `dotnet test`. Đã biên dịch Core đầy đủ; Infrastructure, endpoint/worker và các file test đã sửa biên dịch qua với thư viện giả (stub EF Core / xUnit / SQLite) — bắt được lỗi kiểu, không thay build thật. FE: `npm test` 156/156, `test:render` 179 route, `test:business` 9/9, `test:workflows` 12/12, `build`, `check:structure` PASS; ảnh Playwright các màn đổi ở chế độ mô phỏng (màn đọc API mới chưa xem được trên dữ liệu thật). Chưa kiểm SQL Server, 2 migration viết tay. Không đổi trạng thái tính năng.
+
+## 2026-11-05 — Phiên 3: BE chức năng mới (D39/D40, D36 + S01, D35 + S04, S06, S02, D42, D43)
+
+- **D39/D40** `FacilityOpsService.Workflows.cs` (mới): trạng thái khấu trừ đọc từ `activity_logs` (NONE · WAITING · AUTO_AGREED · AGREED · SELF_CLEAN · SELF_REPLACE · DISPUTE · RECHECKED). Khách `GET/POST /api/contracts/{contractId}/return-deduction` chọn một lần trong 48 giờ; cơ sở `POST /api/ops/returns/{id}/recheck` (đạt → không trừ khoản tương ứng). `ConfirmRefundAsync` (M07) chặn khi còn trong 48 giờ hoặc chờ kiểm tra lại; không có khấu trừ thì không cần xác nhận. `FacilityWorkflowWorker` (5 phút) tự chốt hoàn cọc theo biên bản khi quá 48 giờ, ghi dưới tên quản lý cơ sở. Board trả `lateInspection` (quá 3 ngày chưa gửi biên bản), `deductionStatus`, `deductionDeadlineAt`.
+- **D36 + S01** bỏ tự tạo `HandoverRecord` khi cấp hợp đồng (`ContractProvisioning`); hỗ trợ chủ đề `KEY_PICKUP` (lưu ACCESS_CARD + tiêu đề cố định "Nhận chìa khóa · lần đầu nhận kho") tạo/mở lại lịch SCHEDULED, chặn trùng. `DbSeeder.ApplyPhien3DataFixesAsync` huỷ lịch SCHEDULED tự tạo trước đây (chưa xác minh), không xoá dữ liệu.
+- **D35 + S04** ticket nhận tối đa 3 ảnh (`evidence_photos` loại `SUPPORT_TICKET`); `OpsTicketDto.Photos`, `Topic`.
+- **S06 (P0)** ảnh biên bản quá hạn dùng loại `OVERDUE_BEFORE` / `OVERDUE_AFTER` (không trùng id với ảnh trả kho). Migration viết tay `20261105120000_Phien3EvidenceOwnerTypes` (chỉ đổi CHECK, chưa có file Designer); seeder chuyển loại ảnh cũ chỉ khi migration đã áp.
+- **S02 (P0)** gia hạn trả tại quầy: `SelectCounterPaymentAsync` khoá `contract:{id}`; `CollectCounterRenewalAsync` chỉ thu khoản khách đã chọn tiền mặt, đã thu thì báo lỗi, tham chiếu cố định `CASH-RENEWAL:{renewalId}`.
+- **D42** khách chọn `refundMethod` = `CASH` hoặc chuyển khoản khi huỷ đơn / trả kho (`RefundBankName = "CASH"`, không cần tài khoản); khoản REFUND `PaymentMethod = CASH`; M08 và hoàn cọc chuyển khoản từ chối khoản tiền mặt. `/api/ops/cash-refunds` (danh sách, `approve` quản lý giao nhân viên, `calls` ghi kết quả gọi + ngày hẹn, `pay` tick 4 mục). Mốc gọi nhắc 10/20/25 ngày, hạn 30 ngày, ngày hẹn tạm dừng nhắc. `GET /api/ops/daily-report` + ghi log `DAILY_STAFF_REPORT` lúc 22:00 mỗi cơ sở. Gỡ endpoint báo sai lệch (`/api/ops/payments/{id}/mismatch`, `/api/staff/payments/{id}/mismatch`), không xoá dữ liệu cũ.
+- **D43** hỏi đáp hỗ trợ không còn đóng: cờ `close` bị bỏ qua, phản hồi của cơ sở → `WAITING_CUSTOMER`, dữ liệu `CLOSED` cũ vẫn trả lời tiếp.
+- Test: thêm `D32RefundEvidenceTests.Phien3.cs` (48 giờ + tự chốt, không khấu trừ, tự dọn + kiểm tra lại, khiếu nại, tiền mặt 4 mục, nhắc ngày 10/hẹn/quá 30 ngày, huỷ đơn chọn tiền mặt, ảnh hỗ trợ + KEY_PICKUP). Sửa test theo quyết định mới: `CheckoutTests` (D36 không tự tạo lịch, L13 không trả QR trước ngày thuê), `D32RefundEvidenceTests` (khách đồng ý khấu trừ trước M07), `SupportInquiryTests` (D43), `OverdueCaseT12Tests` (S06).
+- **Kiểm tra / giới hạn:** NuGet vẫn bị chặn nên **chưa build, chưa chạy `dotnet test`**. Đã biên dịch đầy đủ `StorageProject.Core` bằng Roslyn; Infrastructure, Api, Tests, IntegrationTests chỉ kiểm cú pháp (không lỗi CS1xxx) — lỗi kiểu dữ liệu chỉ phát hiện khi thành viên build. Chưa kiểm SQL Server (migration viết tay), chưa chạy worker thật. Không đổi trạng thái tính năng.
+
+## 2026-11-05 — Phiên 2: BE sửa nhỏ (L1, L2, L5, L7, L8, L11, L13, L14, L22, L24, FIFO, S05, phí huỷ 5%)
+
+- Base `main` c274829 (sau PR #67). Áp lại patch Phiên 1; gộp xung đột `progress.md`.
+- **L11** `OpsRules.CalculateDeposit`: PERCENTAGE tính trên 1 tháng thuê, không trên tổng kỳ thuê (test `DepositPolicyD32Tests` đổi theo L11 Thắng xác nhận 05/11).
+- **D40 phí huỷ 5%** `RefundPolicy.CancelFeeRate = 0.05m`; câu chính sách huỷ trong `ReservationService`; seed chính sách CANCELLATION 5% (chỉ DB mới — DB đã có cần Vận hành KD sửa ở B02). Test `RefundPolicyTests`, `D32RefundEvidenceTests` đổi 3.900.000 → 3.950.000.
+- **L1** `ContractService` trả `PaymentDeadlineAt`, `AppliedAt`, `ExpiredAt`, `PaymentId` cho gia hạn. **L8** `OpsRenewalDto` thêm `MonthlyRate`, `Amount`, `PaymentDeadlineAt`. **L2** `OpsTicketDto` thêm `Description`, `Topic`.
+- **L13** `AccessService.GetQrAsync` không trả QR/PIN trước StartDate. **L14 (D40)** `SupportTicketService`: chặn ticket cho hợp đồng DRAFT/CANCELLED/COMPLETED/TERMINATED; cho phép hợp đồng đã thanh toán chưa tới ngày bắt đầu.
+- **L5** BE đã chặn hai chiều trên `main` (gia hạn khi RETURN_PENDING, trả kho khi có gia hạn PENDING/APPROVED). Thêm `POST /api/renewals/{id}/cancel` để khách huỷ gia hạn đang chờ duyệt.
+- **T20** đã có trên `main` (PR #67) — không sửa. **S03** route kiểm tra trả kho cũ đã dùng service ops (D37) — không sửa.
+- **L22 / D38** `InspectionStandard` (Core) + `SubmitReturnInspectionAsync`: chỉ "Sẵn sàng cho thuê lại" khi đạt ≥ 2/3 mục.
+- **L24** quên mật khẩu: email không thuộc tài khoản nào trả 404 `EMAIL_NOT_REGISTERED`; tài khoản bị khoá/ngừng vẫn trả câu chung.
+- **L7** gộp `BUSINESS_OPERATOR` vào `OPERATIONS` bằng `DbSeeder.MergeLegacyOperationsRoleAsync` (chạy mỗi lần khởi động, idempotent, không xoá người dùng). Endpoint Vận hành vẫn nhận claim cũ cho JWT phát hành trước.
+- **FIFO** bảng việc nhân viên: thanh toán, bàn giao, trả kho, hỗ trợ xếp theo thời gian tạo, cũ trước.
+- **S05** `OverdueProcessor`: tỷ lệ lấy từ chính sách OVERDUE (mặc định 5%/ngày khi chưa có); mốc ngày dùng hằng `OpsRules`; mỗi hợp đồng xử lý trong khoá `move-out:{id}` (cùng khoá với đăng ký trả kho) nên không ghi đè RETURN_PENDING và chạy an toàn nhiều instance; EXPIRING cập nhật có điều kiện bằng `ExecuteUpdateAsync`.
+- `activity_logs`: các việc nhân viên (thu tiền, xác minh, nhận chìa, kiểm tra trả kho, hỗ trợ, hoàn tiền, quá hạn) đều có log có `UserId` — đủ cho báo cáo cuối ngày D42. Sửa board đọc thêm `PHYSICAL_KEY_RECEIVED` khi hiện cách giao chìa.
+- Test mới: `Phien2FixTests` (2/3 tiêu chuẩn, phí huỷ 5% đúng ví dụ SS-0139, trạng thái ticket), `OverdueProcessorTests.ProcessDailyOverdue_UsesRateFromActiveOverduePolicy`, `PasswordResetTests.UnregisteredEmailIsReportedAsNotRegisteredAndNoMail`, D38 trong `D32RefundEvidenceTests`.
+- **Kiểm tra / giới hạn:** môi trường này chặn NuGet (`api.nuget.org` 403) nên **chưa restore, chưa build, chưa chạy `dotnet test`**. Đã cài .NET SDK 10.0.114 (apt), biên dịch đầy đủ `StorageProject.Core` bằng Roslyn và kiểm cú pháp (không lỗi CS1xxx) cho Infrastructure, Api, Tests. FE trên base mới: `npm test` 155/155, `test:render` 173, `test:business` 9/9, `test:workflows` 12/12, `build`, `check:structure` PASS. Cần thành viên chạy `dotnet build` + `dotnet test` (SQLite) và SQL Server trước merge. Không đổi trạng thái tính năng.
+
+## 2026-11-05 — Phiên 1: chốt D38–D42, Figma tổng hợp 04/11 và kế hoạch phiên tiếp theo
+
+- DECISIONS: đánh số lại theo `main` 31017cd (D37 là của Ngọc Mai) — D38 quy tắc 2/3, D39 khách xác nhận khấu trừ, D40 quyết định 04/11 23:03 (phí huỷ 5%, hỗ trợ theo kỳ thuê, một thao tác mỗi ô, nhận chìa khóa; 48 giờ tự hoàn theo biên bản), D41 đặt trước theo ngày + xung đột do khách cũ quá hạn, D42 hoàn tiền mặt tại quầy, bỏ báo cáo sai lệch, việc tồn cuối ngày, L11.
+- Figma (file SafeSpace - Modern UI): các màn D40–D42 và D41, 9 chủ đề C12, S10/S10b, M04-cuối ngày, thống nhất màu/cỡ số tiền, xếp popup theo màn cha. Xoá 13 màn báo cáo sai lệch (Thắng đồng ý). Quy ước tiền ghi ở `docs/conventions.md`.
+- FE patch 04/11 (biên bản kiểm tra dạng chọn, khung ảnh, giữ 30% cọc, footer) áp lại lên `main` 31017cd: `npm test` 155/155, `test:render` 173 route, `build`, `check:structure` PASS. Chưa chạy Playwright và chưa có .NET trong môi trường này.
+- Kế hoạch (một nhánh `fix/tong-hop-04-11`, push một lượt): Phiên 2 BE sửa nhỏ · Phiên 3 BE chức năng mới (D39, D36, D35, S02, S06, D42) · Phiên 4 BE D41 · Phiên 5 FE khách hàng · Phiên 6 FE nhân viên + quản lý · Phiên 7 kiểm tra, tài liệu, bàn giao. Không đổi trạng thái tính năng.
+- Đã chốt thêm D43: hỗ trợ không có thao tác đóng; S10b có ô ngày hẹn.
+
+## 2026-11-05 — Hoàn thành Gói W8: Tích hợp FE, Tài liệu, Rà soát B01–B05 và Bàn giao tổng thể
+
+- **Mục tiêu:** Thực hiện Gói W8 theo kế hoạch `SSFRMS-Business-Operator-Implementation-Plan.md`, hoàn tất toàn diện 9 gói công việc (W0–W8) phục vụ vai trò Quản lý Vận hành Kinh doanh (Business Operator):
+  1. **Rà soát & Hoàn thiện Màn B01–B05:**
+     - **B02 (Chính sách):** Cập nhật `policyFields.js` và `businessFormat.js`: loại bỏ triệt để wording "ân hạn quyền truy cập" trái với D32 (D32 quy định quyền mở cửa khoá ngay khi hợp đồng hết hạn); thay bằng mốc xử lý quá hạn rõ ràng (nhắc nhở ngày 10–14, lập biên bản và di dời tài sản ngày 20). Chuẩn hoá nhập liệu và hiển thị kiểu tính `DEPOSIT_PERCENT_PER_DAY` (5% cọc ban đầu/ngày), không để bộ parse tiền làm sai lệch số thập phân hoặc biến tỷ lệ thành tiền mặt.
+     - **B03 (Quản lý giá thuê):** Kết nối `expectedRevisionToken` từ bản ghi giá vào form chỉnh sửa trong `FacilityRatePage.jsx`. Khi gửi cập nhật giá lên `POST /api/operations/rates`, gửi kèm revision token để backend thực thi optimistic concurrency; nếu có người khác cập nhật trước đó, server trả HTTP 409 Conflict và giao diện giữ nguyên form, hướng dẫn tải lại dữ liệu mới nhất.
+     - **B05 (Quản lý mạng lưới cơ sở):** Khi tạo cơ sở mới, `FacilityManagementPage.jsx` sinh và gửi `operationId` (UUID v4) trong payload; hỗ trợ retry an toàn và đảm bảo idempotency nguyên tử ở backend W6. Đổi trạng thái sang `INACTIVE` tiếp tục nhận diện chính xác 409 Conflict với số lượng đơn/hợp đồng đang mở (bao gồm `PENDING_AT_FACILITY`).
+     - **B04 & B05 (Báo cáo & Xuất dữ liệu):** Đồng bộ các chỉ tiêu phân loại tiền mới (`depositRefunded`, `rentalRefunded`, `unclassifiedRefunded`, `pendingRefunds`) vào mô hình báo cáo; xuất CSV và OOXML XLSX (.xlsx) giữ UTF-8 có BOM và chống formula injection an toàn.
+  2. **Cập nhật Tài liệu Kỹ thuật & Hợp đồng API:**
+     - Cập nhật `docs/operations-api.md`: ghi nhận đầy đủ các endpoint cơ sở, bảng giá, báo cáo phân loại hoàn tiền, kiểm soát concurrency 409 và bổ sung mục 5 quản lý phiên bản chính sách cho thuê (`/api/rental-policy/*`) theo D32.
+     - Cập nhật `BACKEND-TODO.md`: ghi nhận hoàn thành T20 BE (phiên bản chính sách và consent).
+- **Kiểm chứng Toàn diện:**
+  - **Backend Build:** `dotnet build StorageProject.slnx -c Release --no-restore -m:1` → PASS, 0 Error.
+  - **Backend Unit Tests:** `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` → PASS 138/138 tests.
+  - **Backend Integration Tests:** `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release` → PASS 9/9 tests trên SQL Server thật (`.\SQLEXPRESS`).
+  - **EF Core Migrations:** `dotnet ef migrations has-pending-model-changes` → PASS, 0 pending model changes.
+  - **Frontend Tests:**
+    + `npm test`: PASS 86/86 tests.
+    + `npm run test:business`: PASS 9/9 tests.
+    + `npm run test:workflows`: PASS 11/11 tests.
+    + `npm run check:structure`: PASS.
+    + `npm run build`: PASS, bundle Vite production thành công.
+  - **Git Diff:** `git diff --check` → PASS, 0 whitespace errors.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
+
+## 2026-11-05 — Hoàn thành Gói W7: Báo cáo phân loại tiền đúng (BO10–BO11)
+
+- **Mục tiêu:** Thực hiện Gói W7 theo kế hoạch `SSFRMS-Business-Operator-Implementation-Plan.md` (BO10–BO11):
+  1. **BO10 (Chuẩn hoá công nợ và cọc còn giữ):**
+     - Sửa predicate `IsOutstanding` trong cả `Compute` và `GetFacilityContractsAsync` để đồng bộ 100%: loại bỏ triệt để các khoản `REFUND` (tiền hoàn đang chờ chuyển `PENDING` không phải nợ của khách), đơn đặt chỗ đã huỷ/hết hạn, hợp đồng đã đóng/huỷ/chấm dứt (`COMPLETED`, `CANCELLED`, `TERMINATED` — theo D32 không phát sinh công nợ ngoài cọc), và các khoản thanh toán gia hạn `RENEWAL` đã hết hạn (`EXPIRED`/`REJECTED`).
+     - Sửa cách tính `DepositHeld` (Cọc còn giữ): tính chính xác tại thời điểm chụp dữ liệu (as-of / snapshot) dựa trên các hợp đồng đang mở (`ACTIVE`, `EXPIRING`, `OVERDUE`, `RETURN_PENDING`, `DRAFT`) và đơn giữ chỗ độc lập chưa tất toán; cọc của hợp đồng đã kết thúc (`COMPLETED`, `TERMINATED`) không bị giữ vô thời hạn (kể cả khi có khấu trừ phí trả kho).
+  2. **BO11 (Mô hình phân loại hoàn tiền Refund Allocation):**
+     - Bổ sung `DepositRefunded`, `RentalRefunded`, `UnclassifiedRefunded`, `PendingRefunds` vào `ReportMetrics` (tương thích ngược 100%).
+     - Triển khai `ClassifyRefund` suy phân bổ hoàn tiền qua chứng minh hồ sơ nguồn:
+       + Hoàn cọc sau trả kho (M07) phân bổ đúng vào tiền cọc `DepositRefunded`.
+       + Hoàn tiền sự cố chấm dứt hợp đồng phân biệt rõ phần hoàn tiền thuê `RentalRefunded` và phần hoàn cọc `DepositRefunded`; giữ nguyên định nghĩa Doanh thu thuê và phí (`RentalAndFeeRevenue`) dạng Gross theo D16.
+       + Khoản hoàn tiền legacy không chứng minh được nguồn phân bổ được ghi nhận minh bạch vào `UnclassifiedRefunded`.
+     - Đồng bộ validation bộ lọc: Kiểm tra `facilityId` và `unitTypeId` không tồn tại nhất quán trên toàn bộ các phương thức báo cáo (`GetSystemReportAsync`, `GetUnitTypeReportAsync`, `GetRevenueTrendAsync`, `GetRentalStatusAsync`, `GetFacilityContractsAsync`, `ExportCsvAsync`) ném `KeyNotFoundException`.
+- **Kiểm chứng:**
+  - `dotnet build StorageProject.slnx -c Release --no-restore -m:1`: PASS, 0 Error.
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release`: PASS 138/138 tests (bổ sung 7 tests mới trong `OperationsReportW7Tests.cs` kiểm chứng trọn vẹn 5 ca theo fixture kế hoạch và các ca lọc/công nợ).
+  - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release`: PASS 9/9 tests trên SQL Server thật (`.\SQLEXPRESS`).
+  - `dotnet ef migrations has-pending-model-changes`: PASS, 0 pending changes.
+  - `git diff --check`: PASS, 0 whitespace errors.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
+
+## 2026-11-04 — Hoàn thành Gói W6: Quản lý Cơ sở, Trạng thái & Idempotency (BO12–BO14)
+
+- **Mục tiêu:** Thực hiện Gói W6 theo kế hoạch `SSFRMS-Business-Operator-Implementation-Plan.md` (BO12–BO14):
+  1. **BO12 (Trạng thái đơn còn mở):** Bổ sung `PENDING_AT_FACILITY` vào `OpsRules.OpenReservationStatuses` (`["PENDING_PAYMENT", "PENDING_AT_FACILITY", "PENDING_VERIFICATION", "CONFIRMED", "UNIT_ASSIGNED"]`). Đơn đặt chỗ thanh toán tại quầy chưa bàn giao hoặc chưa kích hoạt chặn hoàn toàn việc chuyển cơ sở sang `INACTIVE`.
+  2. **BO13 (Protocol khóa & race condition ngừng hoạt động):**
+     - Mọi đường đổi trạng thái cơ sở sang `INACTIVE` (kể cả qua PUT `/api/operations/facilities/{id}` cập nhật thông tin kèm status) đều lấy khóa phân tán `inventory:{facilityId}` trước khi đọc lại cơ sở và đếm đơn/hợp đồng đang mở.
+     - `ReservationService.CreateReservationAsync`: Đọc lại trạng thái cơ sở sau khi lấy khóa `inventory:{facilityId}` để tránh race condition với luồng đóng/tạm đóng cơ sở; ném `InvalidOperationException` nếu cơ sở không còn `ACTIVE`.
+     - `TEMPORARILY_CLOSED`: Cho phép chuyển sang tạm đóng để chặn đặt chỗ mới nhưng tiếp tục phục vụ hợp đồng và đơn hiện hữu.
+  3. **BO14 (Tạo cơ sở nguyên tử & Idempotency theo OperationId):**
+     - Thêm `string? OperationId` vào `UpsertFacilityRequest` (tương thích ngược; hỗ trợ nhận qua body hoặc header `Idempotency-Key` / `X-Operation-Id`).
+     - `OpsRules.ComputeFacilityRequestHash`: Tính mã băm SHA-256 từ thông tin cơ sở đã chuẩn hoá.
+     - `CreateFacilityAsync`: Lưu `Facility` và `ActivityLog` (`FACILITY_CREATE` và receipt `IDEMPOTENCY_FACILITY_CREATE`) trong cùng transaction nguyên tử; nếu audit log lỗi thì rollback toàn bộ.
+     - Xử lý retry: Nếu gửi lại cùng `OperationId` với cùng payload, trả về đúng bản ghi cơ sở đã tạo mà không tạo thêm bản ghi trùng lặp; nếu cùng `OperationId` nhưng khác payload, ném `OperationConflictException` (HTTP 409 Conflict).
+- **Kiểm chứng:**
+  - `dotnet build StorageProject.slnx -c Release --no-restore -m:1`: PASS, 0 Error.
+  - `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release`: PASS 131/131 tests (bổ sung 7 tests mới trong `FacilityManagementW6Tests.cs`).
+  - `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release`: PASS 9/9 tests trên SQL Server thật (`.\SQLEXPRESS`).
+  - `dotnet ef migrations has-pending-model-changes`: PASS, 0 pending changes.
+  - `git diff --check`: PASS, 0 whitespace errors.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
+
 ## 2026-11-02 — F40: chốt D35–D36 và sửa FE L6, L13, L14
 
 - DECISIONS: thêm mục D35–D36 (đại diện nhóm chốt 02/11): D35 nhân viên phải xem được ảnh khách gửi (L3); D36 BE không tự tạo lịch nhận chìa khóa, chỉ tạo khi khách yêu cầu (L10, thay phần tự tạo lịch của D26); L6 quản trị không tạo tài khoản khách; L13 trước ngày thuê không hiện QR/PIN; L14 hỗ trợ gắn kho chỉ khi hợp đồng đã bắt đầu và chưa kết thúc.
