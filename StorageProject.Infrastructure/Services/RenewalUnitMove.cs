@@ -386,13 +386,15 @@ public static class RenewalUnitMove
         var state = await StateAsync(db, renewalId, ct);
         if (state == null) return null;
         var r = await db.ContractRenewals.AsNoTracking().Where(x => x.RenewalId == renewalId)
-            .Select(x => new { x.ContractId, x.Status, x.OldEndDate, Customer = x.Contract.Customer.FullName }).SingleAsync(ct);
+            .Select(x => new { x.ContractId, x.Status, x.OldEndDate, Customer = x.Contract.Customer.FullName, Deposit = x.Contract.DepositAmount }).SingleAsync(ct);
         var status = state.InspectedLog != null ? "INSPECTED" : state.MovedLog != null ? "MOVED"
             : r.Status == "PAID" ? "PAID" : r.Status == "APPROVED" ? "HELD" : r.Status == "PENDING" ? "REQUESTED" : r.Status;
         return new UnitMoveDto(renewalId, r.ContractId, r.Customer, state.Plan.FromUnit, state.Plan.TargetUnit, r.OldEndDate,
-            MoveFrom(r.OldEndDate), state.Plan.TopUp, status, state.MovedLog?.LoggedAt,
+            MoveFrom(r.OldEndDate), state.Plan.TopUp, status,
+            // Giờ Việt Nam không kèm múi giờ, như các DTO vận hành khác (FE hiển thị trực tiếp).
+            state.MovedLog == null ? null : DateTime.SpecifyKind(state.MovedLog.LoggedAt.AddHours(7), DateTimeKind.Unspecified),
             state.MovedLog != null && Field<bool>(state.MovedLog, "auto"),
-            state.InspectedLog != null ? Field<decimal>(state.InspectedLog, "deduction") : null);
+            state.InspectedLog != null ? Field<decimal>(state.InspectedLog, "deduction") : null, r.Deposit);
     }
 
     private static void SetStatus(AppDbContext db, StorageUnit unit, string status, long userId, string reason)

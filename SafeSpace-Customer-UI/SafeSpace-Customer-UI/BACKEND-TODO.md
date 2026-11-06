@@ -13,6 +13,7 @@
 
 - Duyệt gia hạn có chuyển ô: dùng route duyệt cũ; khoản `RENEWAL` = tiền gia hạn + cọc chênh. Ô mới hết trống lúc duyệt → 400 "Ô vừa có người đặt…" (quản lý từ chối để khách chọn ô khác).
 - Quét QR / PIN tại ô mới trong 3 ngày cuối kỳ cũ: mở được bằng mã hiện tại.
+- Phiên 9: `UnitMoveDto` thêm `depositHeld` (cọc đang giữ); `movedAt` trả giờ Việt Nam không kèm múi giờ. **Còn thiếu:** board quản lý (M03) chưa có ô mới / cọc chênh của yêu cầu gia hạn chuyển ô — quản lý thấy khi duyệt lỗi "Ô vừa có người đặt".
 
 ## Phiên 7 — 06/11/2026: tự huỷ đơn chờ thanh toán quá hạn (BE đã viết, chờ CI)
 

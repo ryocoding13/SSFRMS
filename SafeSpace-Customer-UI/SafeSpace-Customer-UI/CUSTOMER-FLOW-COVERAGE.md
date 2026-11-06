@@ -36,6 +36,8 @@ Nguồn: file Figma "SafeSpace - Modern UI" (section Khách hàng + Trang chủ 
 | C14 / C14a / C14b Đơn đặt chỗ | `#/reservations`, `#/reservations/:id` | `src/features/customer/reservations/ReservationListPage.jsx`, `src/features/customer/payments/CheckoutPage.jsx` | Nút "Huỷ đơn" (đơn chưa nhận kho) → hộp thoại C14a: đã trả, phí huỷ, số tiền hoàn (`cancel-preview`); huỷ xong "Đã huỷ · Đang hoàn tiền" |
 | D30-13 Xác nhận khấu trừ trả kho | `#/units/:id/deduction` | `src/features/customer/contracts/ReturnDeductionPage.jsx` | Đồng ý / tự dọn / tự thay / khiếu nại trong 48 giờ; tự thay và khiếu nại đính kèm tối đa 5 ảnh (D39, D40, D45) |
 | C-D41a Đề xuất đổi kho trước ngày nhận | `#/units/:id/unit-change` | `src/features/customer/contracts/UnitChangePage.jsx` | Đổi ngang / nâng cấp miễn phí / dời ngày / huỷ hoàn 100% (D41) |
+| C08-D41a / C08-D41b Gia hạn sang ô khác / sau nâng cấp | `#/units/:id/renew-other` | `src/features/customer/contracts/RenewalUnitChangePage.jsx` | Chọn ô trống cụ thể; giữ ô khi duyệt; tạm tính tiền gia hạn + cọc chênh; popup xác nhận / thành công / "Ô vừa có người đặt" (D46, D46b) |
+| C07b-D46 Đang chuyển sang ô mới | `#/units/:id` | `src/features/customer/contracts/components/UnitMoveCard.jsx` | "Đã chuyển đồ" chỉ trong 3 ngày cuối kỳ cũ; popup xác nhận có ô tick / thành công / thất bại (D46) |
 | D30-15b Nhận tiền hoàn tại quầy | `#/refunds/cash` | `src/features/customer/payments/CashRefundPage.jsx` | Danh sách và chi tiết khoản tiền mặt; đổi sang chuyển khoản trong 30 ngày (D44) |
 | Popup thông báo (public / customer, đã đọc) | (header) | `src/shared/components/Header.jsx` | |
 

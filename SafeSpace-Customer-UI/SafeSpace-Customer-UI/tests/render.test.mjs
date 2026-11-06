@@ -21,7 +21,7 @@ try {
   const seed = (authed, opsUser = null) => memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed, data: createSeedData(), opsUser }));
 
   const publicRoutes = ["reset-password","home", "login", "register", "pricing", "guide", "find", "find?type=climate&band=M", "find/map", "find/map?type=climate", "find/map?area=Kh%C3%B4ng%20c%C3%B3", "find/1", "find/1?view=map&unit=K02", "find/8?type=climate&view=map", "find/999", "nope", "door", "door?unit=B-015"];
-  const privateRoutes = ["units/HĐ-2026-0086/incident", "units/HĐ-2026-0086/incident?incident=missing", "units/unknown/incident","units/HĐ-2026-0086/damage", "units/HĐ-2026-0086/damage?case=missing", "units/unknown/damage","reservations/SS-20260914-0142/cancel", "reservations/missing/cancel","refunds","refunds/cash","units/HĐ-2026-0086/deduction","units/unknown/deduction","units/HĐ-2026-0142/unit-change","sent?type=return&contract=HĐ-2026-0086","support?topic=KEY_PICKUP","policies", "payments/check/SS-0086-REN", "payments/check/missing", "payments/history", "inquiries", "inquiries/HT-0091", "units/HĐ-2026-0142/deposit", "units/HĐ-2026-0086/progress", "units/HĐ-2026-0086/renewal-status",
+  const privateRoutes = ["units/HĐ-2026-0086/renew-other", "units/unknown/renew-other", "units/HĐ-2026-0086/incident", "units/HĐ-2026-0086/incident?incident=missing", "units/unknown/incident","units/HĐ-2026-0086/damage", "units/HĐ-2026-0086/damage?case=missing", "units/unknown/damage","reservations/SS-20260914-0142/cancel", "reservations/missing/cancel","refunds","refunds/cash","units/HĐ-2026-0086/deduction","units/unknown/deduction","units/HĐ-2026-0142/unit-change","sent?type=return&contract=HĐ-2026-0086","support?topic=KEY_PICKUP","policies", "payments/check/SS-0086-REN", "payments/check/missing", "payments/history", "inquiries", "inquiries/HT-0091", "units/HĐ-2026-0142/deposit", "units/HĐ-2026-0086/progress", "units/HĐ-2026-0086/renewal-status",
     "overview", "units", "units/HĐ-2026-0142", "units/HĐ-2026-0086", "units/HĐ-2026-0086/renew", "units/HĐ-2026-0142/return", "units/unknown",
     "sent?type=renew&contract=HĐ-2026-0086", "reservations", "reservations/SS-20260914-0142", "reservations/none",
     "confirmation/SS-20260914-0142", "checkout/SS-20260914-0142", "checkout/SS-20260914-0142/confirm", "policies?tab=contract", "policies?tab=contract&contract=unknown", "payments", "support", "support/HT-0082", "support/unknown", "support?contract=HĐ-2026-0142&topic=SCHEDULE", "profile",
@@ -164,7 +164,7 @@ try {
   assert.equal((await context.dispatch("PAY_AT_FACILITY",{reservation_id:reviewReservation.reservation_id})).ok,true);
   // Khu vận hành: nhân viên (S01–S09) và quản lý cơ sở (M01–M08)
   const opsRoutes = {
-    STAFF: ["staff/incidents","staff/renewal-payments", "staff/cash-refunds", "staff/recheck", "staff/overdue", "staff/inquiries",
+    STAFF: ["staff/incidents","staff/renewal-payments", "staff/cash-refunds", "staff/recheck", "staff/unit-moves", "staff/overdue", "staff/inquiries",
       "staff", "staff?page=2", "staff/reconcile", "staff/fees", "staff/fees?id=PHI-0086", "staff/verify", "staff/handover", "staff/return", "staff/support",
       "staff/reconcile?id=SS-20260914-0142", "staff/verify?id=XM-0142", "staff/handover?id=BG-0115", "staff/return?id=TK-0098",
       "staff/support?id=HT-0082", "staff/done?kind=payment", "staff/nope",

@@ -23,6 +23,7 @@ import { IncidentChoicePage } from "../features/customer/contracts/IncidentChoic
 import { DamageResponsePage } from "../features/customer/contracts/DamageResponsePage.jsx";
 import { ReturnDeductionPage } from "../features/customer/contracts/ReturnDeductionPage.jsx";
 import { UnitChangePage } from "../features/customer/contracts/UnitChangePage.jsx";
+import { RenewalUnitChangePage } from "../features/customer/contracts/RenewalUnitChangePage.jsx";
 import { CashRefundPage } from "../features/customer/payments/CashRefundPage.jsx";
 import { ReturnProgressPage } from "../features/customer/contracts/ReturnProgressPage.jsx";
 import { InquiryListPage } from "../features/customer/support/InquiryListPage.jsx";
@@ -117,6 +118,7 @@ function renderPage({ page, parts, query }) {
       if (a && b === "deposit") return <DepositLedgerPage id={a} />;
       if (a && b === "progress") return <ReturnProgressPage id={a} />;
       if (a && b === "renew") return <RenewalRequestPage id={a} />;
+      if (a && b === "renew-other") return <RenewalUnitChangePage key={a} id={a} />;
       if (a && b === "return") return <ReturnRequestPage key={a} id={a} />;
       return a ? <RentedUnitDetailPage id={a} /> : <RentedUnitListPage />;
     case "sent": return <RequestSentPage query={query} />;

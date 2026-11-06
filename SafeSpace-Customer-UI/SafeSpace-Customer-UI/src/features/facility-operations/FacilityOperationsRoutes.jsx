@@ -2,6 +2,7 @@ import React from "react";
 import { RenewalCollectionPage } from "../staff/payments/RenewalCollectionPage.jsx";
 import { CashRefundCounterPage } from "../staff/payments/CashRefundCounterPage.jsx";
 import { ReturnRecheckPage } from "../staff/returns/ReturnRecheckPage.jsx";
+import { OldUnitInspectionPage } from "../staff/returns/OldUnitInspectionPage.jsx";
 import { CashRefundApprovalPage } from "../manager/cash/CashRefundApprovalPage.jsx";
 import { DailyStaffReportPage } from "../manager/reports/DailyStaffReportPage.jsx";
 import { UnitConflictListPage } from "../manager/conflicts/UnitConflictListPage.jsx";
@@ -46,6 +47,7 @@ const STAFF = {
   "renewal-payments": [RenewalCollectionPage, "staff/reconcile"],
   "cash-refunds": [CashRefundCounterPage, "staff/reconcile"],
   recheck: [ReturnRecheckPage, "staff/return"],
+  "unit-moves": [OldUnitInspectionPage, "staff/return"],
   overdue: [OverdueRemovalPage, "staff"],
   inquiries: [StaffInquiryPage, "staff/support"],
   "": [StaffDashboardPage, "staff"],

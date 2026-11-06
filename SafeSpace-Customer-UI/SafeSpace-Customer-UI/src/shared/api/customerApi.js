@@ -37,8 +37,12 @@ export const api = {
   acceptReservationPolicy: (id, policyVersion) => request(`/api/reservations/${encodeURIComponent(id)}/policy-consent`, { method: "POST", body: { policyVersion: Number(policyVersion), accepted: true } }),
   rentalPolicyVersion: version => request(`/api/rental-policy/versions/${encodeURIComponent(version)}`, { auth: false }),
   currentRentalPolicy: () => request("/api/rental-policy", { auth: false }),
-  requestRenewal: (contractId, months, consent) =>
-    request(`/api/contracts/${contractId}/renewals`, { method: "POST", body: { renewalPeriodMonths: months, ...(consent ? { policyVersion: Number(consent.version), accepted: true } : {}) } }),
+  requestRenewal: (contractId, months, consent, targetUnitId = null) =>
+    request(`/api/contracts/${contractId}/renewals`, { method: "POST", body: { renewalPeriodMonths: months, ...(consent ? { policyVersion: Number(consent.version), accepted: true } : {}), ...(targetUnitId ? { targetUnitId: Number(targetUnitId) } : {}) } }),
+  // D46 · Gia hạn sang ô khác: ô trống chọn được, trạng thái chuyển ô, "Đã chuyển đồ"
+  renewalUnits: (contractId) => request(`/api/contracts/${encodeURIComponent(contractId)}/renewal-units`),
+  unitMove: (contractId) => request(`/api/contracts/${encodeURIComponent(contractId)}/unit-move`),
+  markUnitMoved: (contractId) => request(`/api/contracts/${encodeURIComponent(contractId)}/unit-move/done`, { method: "POST" }),
   confirmHandover: (handoverId) => request(`/api/handovers/${handoverId}/confirm`, { method: "POST" }),
   requestMoveOut: (contractId, body) => request(`/api/contracts/${contractId}/move-out`, { method: "POST", body }),
   // D39/D40 · Khách xác nhận khấu trừ trả kho trong 48 giờ

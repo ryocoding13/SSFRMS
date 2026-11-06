@@ -1,3 +1,13 @@
+## 2026-11-06 — Phiên 9: FE gia hạn sang ô khác (D46, D46b)
+
+- **Figma (vẽ trước, viền đỏ chờ duyệt):** C07b-D46 + 3 popup; S04-ô cũ, S04-ô cũ-chi tiết + 4 popup.
+- **FE khách:** `RenewalUnitChangePage.jsx` (`#/units/:id/renew-other`, C08-D41a/b): chọn ô trống cụ thể / giữ ô lớn sau nâng cấp, số tháng, đồng ý chính sách, tạm tính tiền gia hạn + cọc chênh, popup xác nhận / thành công / "Ô vừa có người đặt" (tải lại danh sách). `UnitMoveCard.jsx` trong chi tiết hợp đồng: trạng thái chuyển ô, "Đã chuyển đồ" có ô tick, thành công / thất bại. Chi tiết hợp đồng: ô đã có khách đặt → nút "Gia hạn sang ô khác".
+- **FE nhân viên:** `OldUnitInspectionPage.jsx` (`#/staff/unit-moves`): danh sách ô cũ, biên bản 3 mục, vệ sinh 10% cọc, hư hỏng, đối chiếu khấu trừ (tạm tính, tối đa bằng cọc), "Báo ô còn đồ", popup xác nhận / thành công / cảnh báo / thất bại. Link nhanh "Kiểm tra ô cũ".
+- **BE nhỏ:** `UnitMoveDto.DepositHeld`; `MovedAt` giờ Việt Nam.
+- Hàm thuần `renewalUnitModel.js`, `oldUnitInspectionModel.js` + test `tests/renewal-unit-move.test.js` (7 test).
+- **Kiểm tra:** `npm test` 163/163, `test:business` 10/10, `test:render` 184 route PASS (thêm `units/:id/renew-other`, `staff/unit-moves`), `test:workflows` 11/11, `check:structure` PASS, `build` OK; BE biên dịch Roslyn với stub không lỗi. Chưa chạy `dotnet test`, chưa chạy với máy chủ thật (màn mới cần API Phiên 8; chế độ mô phỏng chỉ báo chưa có dữ liệu). Chưa xem trình duyệt với dữ liệu thật.
+- Patch xếp sau Phiên 7 và Phiên 8.
+
 ## 2026-11-06 — Phiên 8: BE gia hạn sang ô khác (D46, D46b)
 
 - **BE** `RenewalUnitMove.cs` (mới): ô chọn được (cùng loại; thêm loại đã đặt ban đầu khi đã được nâng cấp miễn phí), ghi kế hoạch chuyển ô, giữ ô khi duyệt, trả ô khi hết hạn thanh toán, tách cọc chênh khi thu đủ, "Đã chuyển đồ" trong 3 ngày cuối kỳ cũ, tự chuyển khi hết kỳ cũ, kiểm tra ô cũ có trừ cọc (không vượt cọc). Trạng thái lưu `activity_logs`, không đổi schema.

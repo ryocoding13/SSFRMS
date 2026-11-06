@@ -20,7 +20,7 @@ public record RenewalUnitOptionsDto(
 public record UnitMoveDto(
     long RenewalId, long ContractId, string CustomerName, string FromUnit, string ToUnit,
     DateOnly OldEndDate, DateOnly MoveFrom, decimal DepositTopUp, string Status,
-    DateTime? MovedAt, bool AutoMoved, decimal? Deduction);
+    DateTime? MovedAt, bool AutoMoved, decimal? Deduction, decimal DepositHeld = 0);
 
 public record UnitMoveInspectionRequest(
     bool GoodsRemaining, bool CleaningRequired, decimal? DamageFee, string? Note);

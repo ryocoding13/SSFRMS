@@ -527,3 +527,11 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - **Tiền:** khoản `RENEWAL` chờ thu = tiền gia hạn + cọc chênh (một lần trả PayOS / tại quầy). Thu đủ thì tách cọc chênh thành khoản `DEPOSIT` `PAID` (báo cáo doanh thu không tính cọc) và tăng cọc đang giữ. Cọc ô mới thấp hơn: giữ nguyên cọc, phần chênh tự hoàn khi kết thúc hợp đồng.
 - **Ra vào:** thu đủ xong hợp đồng vẫn ở ô cũ; trong 3 ngày cuối kỳ cũ mã QR/PIN hiện tại mở được cả ô mới. Khách bấm "Đã chuyển đồ" (chỉ trong 3 ngày cuối kỳ cũ) hoặc hết kỳ cũ → hợp đồng sang ô mới, cấp QR/PIN mới, mã cũ `REPLACED`, ô cũ `INSPECTION`; có chìa khóa vật lý thì nhân viên ghi nhận giao chìa ô mới (như chuyển ô do sự cố).
 - **Kiểm tra ô cũ:** nhân viên báo còn đồ → chưa ghi được, nhắc khách; đạt → trừ vào cọc đang giữ theo thứ tự quá hạn (chỉ khi hệ thống tự chuyển, tính từ ngày sau hết kỳ cũ tới ngày kiểm tra, mức D32), vệ sinh 10% cọc, hư hỏng; tối đa bằng cọc đang giữ. Khoản trừ ghi thành khoản phí `PAID` (doanh thu). Ô cũ: cần vệ sinh / sửa → bảo trì; có khách đặt tiếp → giữ; còn lại trống (D38).
+
+## IMPL-2026-11-06-P9 — Cách triển khai FE D46 / D46b — Chờ nhóm xác nhận
+
+> Claude đề xuất khi viết code ngày 06/11/2026; chưa phải quyết định nghiệp vụ. Figma C07b-D46, S04-ô cũ, S04-ô cũ-chi tiết vẽ trước theo yêu cầu Thắng (21:44).
+
+- Khách: `#/units/:id/renew-other` (C08-D41a/b) — một màn cho cả gia hạn sang ô khác và sau nâng cấp (có lựa chọn "Giữ ô lớn" đi đường gia hạn thường). Nút Gia hạn ở chi tiết hợp đồng tự đổi thành "Gia hạn sang ô khác" khi ô đã có khách đặt (D41). Khối "Chuyển sang ô mới" trong chi tiết hợp đồng; nút "Đã chuyển đồ" chỉ bật trong 3 ngày cuối kỳ cũ.
+- Nhân viên: `#/staff/unit-moves` — biên bản 3 mục chọn sẵn như D38, ghi vào `note`; "Báo ô còn đồ" chỉ hiện cảnh báo, không gọi máy chủ. Số khấu trừ trên màn là tạm tính, máy chủ chốt số chính thức.
+- Chưa làm: hiện ô mới / cọc chênh trong màn duyệt gia hạn của quản lý (BE board chưa trả dữ liệu này).

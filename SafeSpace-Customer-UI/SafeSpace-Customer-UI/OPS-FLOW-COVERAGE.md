@@ -17,6 +17,7 @@ Dữ liệu: `src/features/facility-operations/data/facilityOperationsSeed.js` (
 | S06 Đã ghi nhận | `#/staff/done?kind=` | Màn kết quả theo từng thao tác |
 | Thu gia hạn tại quầy | `#/staff/renewal-payments` | Khoản `RENEWAL` khách chọn trả tại quầy; xác nhận đã thu |
 | S10 / S10b Chi tiền hoàn tại quầy | `#/staff/cash-refunds` | Khoản tiền mặt quản lý đã duyệt: ghi kết quả gọi nhắc ngày 10 / 20 / 25 (có ngày hẹn thì tạm dừng nhắc), chi tiền khi tick đủ 4 mục; không nhập số phiếu chi (D42, D44, D47) |
+| S04-ô cũ / S04-ô cũ-chi tiết Kiểm tra ô cũ | `#/staff/unit-moves` | Sau gia hạn sang ô khác: biên bản 3 mục như D38, không hoàn cọc, khấu trừ vào cọc đang giữ (tối đa bằng cọc); "Báo ô còn đồ" → chưa ghi được (D46, D46b) |
 | S04-kiểm tra lại | `#/staff/recheck` | Khách chọn tự dọn / tự thay / khiếu nại: kiểm tra lại, tick đạt thì không trừ khoản tương ứng (D39, D40) |
 | D30-11 Xử lý đồ quá hạn ngày 20 | `#/staff/overdue` | Lập biên bản + ảnh sau khi đã thực hiện; rỗng → "Không có kho quá hạn đến ngày 20" |
 | Hỗ trợ chưa có hợp đồng | `#/staff/inquiries` | Trả lời tư vấn khách chưa thuê kho (chờ BE `/api/support/inquiries`, T19) |

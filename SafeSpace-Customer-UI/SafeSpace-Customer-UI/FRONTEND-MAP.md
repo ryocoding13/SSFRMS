@@ -290,6 +290,9 @@ Giới hạn/test/node Figma ở docs/sprints/FE-figma-sync-09.md; endpoint/mark
 | `#/units/:id/unit-change` | `src/features/customer/contracts/UnitChangePage.jsx` (+ `useUnitConflicts.js`) | D41: đổi ngang / nâng cấp / dời ngày / huỷ hoàn 100%; API `/api/unit-conflicts`, `/api/contracts/{id}/unit-conflict` |
 | `#/refunds/cash` | `src/features/customer/payments/CashRefundPage.jsx` (+ `useCashRefunds.js`) | D42/D44 · Figma D30-15b: hạn 30 ngày, đổi sang chuyển khoản + popup; API `/api/cash-refunds` |
 | `#/staff/cash-refunds` | `src/features/staff/payments/CashRefundCounterPage.jsx` | S10/S10b: gọi nhắc, chi tiền 4 mục; API `/api/ops/cash-refunds/{id}/calls`, `/pay` |
+| `#/units/:id/renew-other` | `src/features/customer/contracts/RenewalUnitChangePage.jsx` (+ `useRenewalUnitMove.js`, `renewalUnitModel.js`) | D46/D46b · Figma C08-D41a/b: gia hạn sang ô khác / sau nâng cấp miễn phí; API `/api/contracts/{id}/renewal-units`, `POST /renewals` có `targetUnitId` |
+| `#/units/:id` (khối Chuyển sang ô mới) | `src/features/customer/contracts/components/UnitMoveCard.jsx` | D46 · Figma C07b-D46: "Đã chuyển đồ" trong 3 ngày cuối kỳ cũ; API `/api/contracts/{id}/unit-move`, `/unit-move/done` |
+| `#/staff/unit-moves` | `src/features/staff/returns/OldUnitInspectionPage.jsx` (+ `oldUnitInspectionModel.js`) | D46 · Figma S04-ô cũ: kiểm tra ô cũ, khấu trừ vào cọc đang giữ; API `/api/ops/unit-moves`, `/{renewalId}/inspection` |
 | `#/staff/recheck` | `src/features/staff/returns/ReturnRecheckPage.jsx` | D39/D40: kiểm tra lại sau tự dọn / tự thay / khiếu nại; API `/api/ops/returns/{id}/recheck` |
 | `#/manager/cash-refunds` | `src/features/manager/cash/CashRefundApprovalPage.jsx` | D42: duyệt chi tiền mặt, giao nhân viên |
 | `#/manager/daily-report` | `src/features/manager/reports/DailyStaffReportPage.jsx` | D42: báo cáo cuối ngày |
