@@ -89,6 +89,10 @@ public static class ManagerEndpoints
             {
                 return Results.BadRequest(new { error = ex.Message });
             }
+            catch (KeyNotFoundException ex)
+            {
+                return Results.NotFound(new { error = ex.Message });
+            }
         });
 
         group.MapPost("/renewals/{id}/reject", async (string id, RejectRenewalRequest request, ClaimsPrincipal user, IManagerService managerService, CancellationToken ct) =>

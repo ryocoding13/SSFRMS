@@ -35,8 +35,8 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
             throw new InvalidOperationException("Hợp đồng đã trả kho hoặc hết hiệu lực, mã mở cửa không còn dùng được.");
         }
 
-        var todayVn = DateOnly.FromDateTime(DateTime.UtcNow + VnOffset);
-        if (todayVn < contract.StartDate)
+        // L13 (D35–D36): trước ngày bắt đầu thuê không trả QR/PIN; mã vẫn được cấp sẵn sau thanh toán (D26).
+        if (OpsRules.TodayLocal < contract.StartDate)
         {
             throw new InvalidOperationException($"Mã ra vào chỉ hiển thị từ ngày bắt đầu thuê ({contract.StartDate:dd/MM/yyyy}).");
         }

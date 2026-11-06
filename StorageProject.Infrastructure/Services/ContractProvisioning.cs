@@ -19,12 +19,11 @@ public static class ContractProvisioning
         var recordedBy = actor ?? reservation.CustomerId;
         if (contract == null)
         {
-            var unit = await db.StorageUnits.Where(u => u.FacilityId == reservation.FacilityId &&
-                u.UnitTypeId == reservation.UnitTypeId && u.Status == "AVAILABLE" &&
-                !u.MaintenanceRequests.Any(m => m.Status != "COMPLETED" && m.Status != "CANCELLED") &&
-                !u.RentalContracts.Any(c => c.Status != "CANCELLED" && c.Status != "COMPLETED" && c.Status != "TERMINATED" &&
-                    c.StartDate < reservation.ExpectedEndDate && c.EndDate > reservation.StartDate))
-                .OrderBy(u => u.UnitNumber).ThenBy(u => u.UnitId).FirstOrDefaultAsync(ct);
+            // D41: ưu tiên ô trống thật; hết ô trống mới dùng ô sắp hết hạn (trống từ ngày hết hạn + ngày đệm).
+            var today = OpsRules.TodayLocal;
+            var buffer = await UnitAvailability.BufferDaysAsync(db, reservation.FacilityId, reservation.UnitTypeId, today, ct);
+            var slots = await UnitAvailability.SlotsAsync(db, reservation.FacilityId, reservation.UnitTypeId, ct);
+            var unit = UnitAvailability.Pick(slots, reservation.StartDate, reservation.ExpectedEndDate, buffer, today)?.Unit;
             if (unit == null)
             {
                 // Payment is real even when inventory needs manual resolution. Never roll it back or fake a contract.
@@ -43,6 +42,8 @@ public static class ContractProvisioning
                 AssignedBy = recordedBy, AssignedAt = now, Status = "ACTIVE", Reason = "Hệ thống tự phân bổ sau thanh toán" });
         }
         if (contract.Status is not ("DRAFT" or "ACTIVE" or "EXPIRING")) return false;
+        // D36 (thay D26): không tự tạo lịch nhận chìa khóa. Lịch chỉ tạo khi khách gửi yêu cầu chủ đề "Nhận chìa khóa"
+        // (SupportTicketService, IssueType KEY_PICKUP).
         var changed = contract.Status == "DRAFT";
         contract.Status = contract.Status == "EXPIRING" ? "EXPIRING" : "ACTIVE";
         contract.ActivatedAt ??= now;
@@ -58,7 +59,10 @@ public static class ContractProvisioning
                 IssuedAt = now, Status = "ACTIVE" });
         }
         var unitStatus = reservation.StartDate > DateOnly.FromDateTime(now.AddHours(7)) ? "RESERVED" : "OCCUPIED";
-        if (contract.Unit.Status != unitStatus)
+        // D41: ô khách cũ còn giữ (đang thuê / chờ kiểm tra) thì giữ nguyên trạng thái; đến ngày bắt đầu UnitStartActivation đổi.
+        var heldByOther = await db.RentalContracts.AnyAsync(c => c.UnitId == contract.Unit.UnitId && c.ContractId != contract.ContractId
+            && UnitAvailability.HoldingStatuses.Contains(c.Status) && c.StartDate < reservation.StartDate, ct);
+        if (!heldByOther && contract.Unit.Status != unitStatus)
         {
             db.UnitStatusHistories.Add(new UnitStatusHistory { Unit = contract.Unit, ChangedBy = recordedBy,
                 OldStatus = contract.Unit.Status, NewStatus = unitStatus, ChangedAt = now, Reason = "Tự cấp hợp đồng sau thanh toán" });

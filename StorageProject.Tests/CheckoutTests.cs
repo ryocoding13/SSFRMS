@@ -96,9 +96,8 @@ public sealed class CheckoutTests
         await f.PayOS.PayAtFacilityAsync(f.Order.CustomerId, f.Order.ReservationId); Assert.Equal(1, f.Gateway.Cancellations);
         await ReservationAllocation.AllocateAsync(f.Db, 1, f.Order.FacilityId, f.Order.ReservationId, "K01", default);
         Assert.Empty(await f.Db.Payments.ToListAsync());
-        var c = await f.Db.RentalContracts.SingleAsync();
-        await new ContractService(f.Db).RequestKeyAsync(f.Order.CustomerId, c.ContractId);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => new StaffService(f.Db).CompleteHandoverAsync(1, "BG-0001", new CompleteHandoverRequest { UnlockMethod = "CARD" }));
+        // D36: chưa có lịch nhận chìa khóa nào khi khách chưa thanh toán / chưa gửi yêu cầu.
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => new StaffService(f.Db).CompleteHandoverAsync(1, "BG-0001", new CompleteHandoverRequest { UnlockMethod = "CARD" }));
         var staff = new StaffService(f.Db); await staff.ConfirmPaymentAsync(1, "SS-0001"); await staff.ConfirmPaymentAsync(1, "SS-0001");
         Assert.True(await f.PayOS.ProcessWebhookAsync("{}", null)); Assert.True(await f.PayOS.ProcessWebhookAsync("{}", null));
         Assert.Equal(2, await f.Db.Payments.CountAsync()); Assert.All(await f.Db.Payments.ToListAsync(), p => Assert.Equal("CASH", p.PaymentMethod));
@@ -196,8 +195,8 @@ public sealed class CheckoutTests
         await ReservationAllocation.AllocateAsync(f.Db, 1, f.Order.FacilityId, f.Order.ReservationId, "K01", default);
         var staff = new StaffService(f.Db);
         await staff.ConfirmPaymentAsync(1, "SS-0001");
-        var c = await f.Db.RentalContracts.SingleAsync();
-        await new ContractService(f.Db).RequestKeyAsync(f.Order.CustomerId, c.ContractId);
+        Assert.Empty(await f.Db.HandoverRecords.ToListAsync()); // D36: không tự tạo lịch sau thanh toán
+        await RequestKeyAsync(f);
         await staff.VerifyCustomerAsync(1, "XM-0001", new VerifyCustomerRequest { DocType = "CCCD", DocNumber = "123456789012", PhotoMatched = true, InfoMatched = true });
         var board = await staff.GetStaffBoardAsync(1);
         Assert.Equal("DONE", Assert.Single(board.Verifications).Status);
@@ -208,24 +207,34 @@ public sealed class CheckoutTests
         Assert.Equal("DONE", Assert.Single((await staff.GetStaffBoardAsync(1)).Handovers).Status);
     }
 
+    /// <summary>D36: khách gửi hỗ trợ chủ đề "Nhận chìa khóa" → hệ thống tạo lịch SCHEDULED cho nhân viên.</summary>
+    private static async Task RequestKeyAsync(Fixture f)
+    {
+        var c = await f.Db.RentalContracts.AsNoTracking().SingleAsync();
+        await new SupportTicketService(f.Db).CreateTicketAsync(c.CustomerId,
+            new StorageProject.Core.DTOs.Support.CreateTicketRequest(c.ContractId, null, SupportTicketService.KeyPickupTopic, "", "Tôi muốn nhận chìa khóa", "NORMAL"));
+    }
+
     private static AccessService Access(AppDbContext db) => new(db, new StorageProject.Core.DTOs.Access.AccessQrOptions("test-access-secret-at-least-thirty-two-characters"));
 
     [Fact] public async Task PaidOrderAutomaticallyIssuesQrAndPinBeforeKeyReceiptButRejectsEarlyUse() {
         await using var f = await Fixture.Create();
         Assert.True(await f.PayOS.ProcessWebhookAsync("{}", null));
         var c = await f.Db.RentalContracts.Include(c => c.HandoverRecord).SingleAsync();
-        Assert.Equal("ACTIVE", c.Status);
-        // D36: BE không tự tạo HandoverRecord khi cấp hợp đồng tự động
-        Assert.Null(c.HandoverRecord);
+        Assert.Equal("ACTIVE", c.Status); Assert.Null(c.HandoverRecord); // D36: lịch chỉ tạo khi khách yêu cầu chìa khóa
+        Assert.Single(await f.Db.AccessCredentials.Where(a => a.CredentialType == "ACCESS_CODE" && a.CredentialReference!.StartsWith("QR-")).ToListAsync()); // mã cấp sẵn (D26)
         var access = Access(f.Db);
-        // D36/L13: trước StartDate từ chối trả mã ra vào
+        // L13: trước ngày bắt đầu thuê không trả QR/PIN cho khách.
         await Assert.ThrowsAsync<InvalidOperationException>(() => access.GetQrAsync(f.Order.CustomerId, c.ContractId));
-        // Khách hàng chủ động yêu cầu nhận chìa khóa (C06)
-        var handover = await new ContractService(f.Db).RequestKeyAsync(f.Order.CustomerId, c.ContractId);
-        Assert.Equal("SCHEDULED", handover.Status);
+        var start = c.StartDate;
         c.StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)); await f.Db.SaveChangesAsync();
         var qr = await access.GetQrAsync(f.Order.CustomerId, c.ContractId);
         Assert.Matches(@"^\d{6}$", qr.BackupCode); Assert.Equal(c.StartDate.ToString("yyyy-MM-dd"), qr.ValidFrom);
+        c.StartDate = start; await f.Db.SaveChangesAsync();
+        Assert.Equal("DENIED", (await access.ScanAsync(qr.Code, "test")).Result); // mã có nhưng chưa tới ngày thuê
+        c.StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)); await f.Db.SaveChangesAsync();
+        await RequestKeyAsync(f);
+        Assert.Equal("SCHEDULED", (await f.Db.HandoverRecords.SingleAsync()).Status);
         Assert.Equal("OPEN", (await access.ScanAsync(qr.Code, "test")).Result);
         Assert.Equal("OPEN", (await access.ScanAsync(qr.BackupCode, "test", unitNumber: "K01")).Result);
         Assert.Equal("DENIED", (await access.ScanAsync(qr.BackupCode, "test")).Result);
@@ -235,8 +244,7 @@ public sealed class CheckoutTests
 
     [Fact] public async Task ContractEndIsExclusiveAndReturnedContractNeverReactivatedByPaymentReplay() {
         await using var f = await Fixture.Create(); await f.PayOS.ProcessWebhookAsync("{}", null);
-        var c = await f.Db.RentalContracts.SingleAsync();
-        c.StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)); await f.Db.SaveChangesAsync();
+        var c = await f.Db.RentalContracts.SingleAsync(); c.StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)); await f.Db.SaveChangesAsync();
         var qr = await Access(f.Db).GetQrAsync(f.Order.CustomerId, c.ContractId);
         c.StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)).AddDays(-1);
         c.EndDate = c.StartDate.AddDays(1); await f.Db.SaveChangesAsync();
@@ -267,13 +275,13 @@ public sealed class CheckoutTests
 
     [Fact] public async Task KeyReceiptNeedsVerificationAndNeverChangesContractOrElectronicCredentials() {
         await using var f = await Fixture.Create(); await f.PayOS.ProcessWebhookAsync("{}", null);
-        var c = await f.Db.RentalContracts.SingleAsync();
+        var c = await f.Db.RentalContracts.SingleAsync(); var access = Access(f.Db);
         c.StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)); await f.Db.SaveChangesAsync();
-        await new ContractService(f.Db).RequestKeyAsync(f.Order.CustomerId, c.ContractId);
-        var access = Access(f.Db);
         var before = await access.GetQrAsync(f.Order.CustomerId, c.ContractId); var activated = c.ActivatedAt;
         var ops = new FacilityOpsService(f.Db); var actor = new StorageProject.Core.DTOs.FacilityOps.OpsActor(1, false);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => ops.RecordKeyReceiptAsync(actor, "BG-0001"));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => ops.RecordKeyReceiptAsync(actor, "BG-0001")); // D36: chưa yêu cầu
+        await RequestKeyAsync(f);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => ops.RecordKeyReceiptAsync(actor, "BG-0001")); // chưa xác minh
         await ops.VerifyCustomerAsync(actor, "XM-0001", new("CCCD", "123456789012", true, true));
         await ops.RecordKeyReceiptAsync(actor, "BG-0001"); await ops.RecordKeyReceiptAsync(actor, "BG-0001");
         Assert.Equal(activated, c.ActivatedAt); Assert.Equal("ACTIVE", c.Status);

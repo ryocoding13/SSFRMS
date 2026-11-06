@@ -36,7 +36,6 @@ export function depositSchedule(deposit, endDate, asOf = today(), rate = 5) {
 export function createWorkflowSeed() {
   return {
     policy: defaultRentalPolicy(),
-    discrepancies: [{ id: "SL-0001", facilityId: 1, customer: "Lê Văn An", reference: "PHI-0098", expected: 150000, actual: 100000, note: "Thực nhận thiếu 50.000 đ; cần kiểm tra giao dịch ngân hàng.", status: "PENDING", createdAt: new Date().toISOString() }],
     overdue: [{ id: "QH-0061", facilityId: 1, contractId: "HĐ-0061", unit: "K03", customer: "Trần Quốc Bảo", deposit: 1150000, endDate: addDays(today(), -20), notes: [], status: "PENDING", assignee: "Trần Văn Long" }],
     depositRefunds: [{ id: "HC-0098", facilityId: 1, ownerId: 3, contractId: "HĐ-0098", unit: "K04", customer: "Nguyễn Văn An", deposit: 1150000, overdue:172500, cleaning:115000, damage:200000, amount:662500, bankName:"Ngân hàng mô phỏng",accountNumber:"0000123456",accountHolder:"NGUYEN VAN AN",version:1,status: "PENDING", inspectedAt: new Date().toISOString() }],
     counterRenewals: [{ id: "GHQ-0142", facilityId: 1, contractId: "HĐ-0142", unit: "K01", customer: "Nguyễn Văn An", amount: 3450000, months: 3, status: "PENDING" }],
@@ -54,13 +53,6 @@ export function applyWorkflowAction(state, action, payload, actor, now = new Dat
   const find = (key) => { const item = next[key].find(x => x.id === payload.id); if (!item) throw new Error("Không tìm thấy hồ sơ."); return item; };
   const allow = (...roles) => { if (!actor.roles.some(r => roles.includes(r))) throw new Error("Bạn không có quyền thực hiện thao tác này."); };
   switch (action) {
-    case "REPORT_DISCREPANCY":
-      allow("STAFF", "MANAGER"); requireText(payload.reference, "mã khoản thu"); requireText(payload.note, "lý do sai lệch");
-      next.discrepancies.unshift({ ...payload, id: `SL-${now.getTime()}`, facilityId: 1, expected: moneyValue(payload.expected), actual: moneyValue(payload.actual), status: "PENDING", createdAt: at }); break;
-    case "RESOLVE_DISCREPANCY": {
-      allow("MANAGER"); const item = find("discrepancies"); if (item.status !== "PENDING") throw new Error("Báo cáo đã được xử lý. Hãy tải lại danh sách.");
-      requireText(payload.note, "kết luận đối soát"); Object.assign(item, { status: "RESOLVED", resolution: payload.note, resolvedAt: at }); break;
-    }
     case "ASSIGN_REMOVAL": {
       allow("MANAGER"); const item = find("overdue"); if (item.status === "DONE") throw new Error("Biên bản đã hoàn tất.");
       requireText(payload.assignee, "nhân viên phụ trách"); Object.assign(item, { assignee: payload.assignee, status: "ASSIGNED" }); break;
@@ -85,9 +77,10 @@ export function applyWorkflowAction(state, action, payload, actor, now = new Dat
     case "REPLY_INQUIRY": {
       const item = find("inquiries"); const customer = actor.roles.includes("CUSTOMER");
       if (customer && String(item.ownerId) !== String(actor.id)) throw new Error("Yêu cầu không thuộc tài khoản của bạn.");
-      if (!customer) allow("STAFF", "MANAGER"); if (item.status === "CLOSED") throw new Error("Yêu cầu đã đóng.");
+      if (!customer) allow("STAFF", "MANAGER"); // D43: không có thao tác đóng; yêu cầu CLOSED cũ vẫn trả lời tiếp
+
       requireText(payload.note, "nội dung phản hồi"); item.responses.push({ text: payload.note.trim(), at, by: actor.name, customer });
-      item.status = customer ? "OPEN" : payload.close ? "CLOSED" : "WAITING_CUSTOMER"; break;
+      item.status = customer ? "OPEN" : "WAITING_CUSTOMER"; break;
     }
     case "SAVE_RENTAL_POLICY":
       allow("OPERATIONS"); if (!(Number(payload.rate) > 0 && Number(payload.rate) <= 100)) throw new Error("Tỷ lệ phải lớn hơn 0 và không quá 100%.");

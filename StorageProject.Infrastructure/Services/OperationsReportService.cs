@@ -157,7 +157,7 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
             var depPaid = related.Where(p => p.Type == "DEPOSIT").Sum(p => p.Amount);
             var rentPaid = related.Where(p => p.Type == "RENT").Sum(p => p.Amount);
 
-            // D27: huỷ đơn hoàn 100% tiền thuê + 90% cọc
+            // D40: huỷ đơn hoàn 100% tiền thuê + 95% cọc
             if (rentPaid > 0 && r.Amount >= rentPaid)
             {
                 var rent = rentPaid;

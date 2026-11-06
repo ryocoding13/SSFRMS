@@ -40,16 +40,24 @@ public sealed class DepositPolicyD32Tests
     }
 
     [Fact]
-    public void CalculateDeposit_WhenPolicyIsLegacyPercentage_CalculatesPercentage()
+    public void CalculateDeposit_WhenPolicyIsPercentage_UsesOneMonthRent()
     {
+        // L11 (Thắng xác nhận 05/11): % tính trên 1 tháng thuê, không trên tổng tiền thuê cả kỳ.
         var policy = new Policy
         {
             PolicyType = "DEPOSIT",
             CalculationType = "PERCENTAGE",
-            Value = 100m // 100% of estimatedAmount
+            Value = 100m
         };
-        var deposit = OpsRules.CalculateDeposit(policy, 1_500_000m, 4_500_000m);
-        Assert.Equal(4_500_000m, deposit);
+        var deposit = OpsRules.CalculateDeposit(policy, 1_150_000m, 3_450_000m);
+        Assert.Equal(1_150_000m, deposit);
+    }
+
+    [Fact]
+    public void CalculateDeposit_WhenPolicyIsHalfMonthPercentage_RoundsToDong()
+    {
+        var policy = new Policy { PolicyType = "DEPOSIT", CalculationType = "PERCENTAGE", Value = 50m };
+        Assert.Equal(575_000m, OpsRules.CalculateDeposit(policy, 1_150_000m, 3_450_000m));
     }
 }
 

@@ -3,8 +3,8 @@
 // Số tiền thực tế luôn ưu tiên lấy từ backend (cancel-preview, board); các giá trị dưới đây chỉ dùng để hiển thị
 // nhãn và tính dự phòng khi chạy không backend.
 
-// D27: phí huỷ cố định = 10% tiền cọc; hoàn 100% tiền thuê + phần cọc còn lại
-export const CANCEL_DEPOSIT_FEE_RATE = 0.1;
+// D40 (thay mức 10% của D27/D32): phí huỷ cố định = 5% tiền cọc; hoàn 100% tiền thuê + 95% cọc
+export const CANCEL_DEPOSIT_FEE_RATE = 0.05;
 
 const pct = (x) => `${Math.round(x * 100)}%`;
 

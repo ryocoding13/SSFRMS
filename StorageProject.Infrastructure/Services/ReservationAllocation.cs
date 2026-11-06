@@ -30,9 +30,11 @@ public static class ReservationAllocation
             await tx.CommitAsync(ct);
             return;
         }
-        if (unit.Status != "AVAILABLE" || await db.RentalContracts.AnyAsync(c => c.UnitId == unit.UnitId &&
-            c.Status != "CANCELLED" && c.Status != "COMPLETED" && c.Status != "TERMINATED" &&
-            c.StartDate < r.ExpectedEndDate && c.EndDate > r.StartDate, ct))
+        // D41: ô trống theo ngày (ô đang thuê trống từ ngày hết hạn + ngày đệm); không phân bổ ô đang quá hạn.
+        var today = OpsRules.TodayLocal;
+        var buffer = await UnitAvailability.BufferDaysAsync(db, facilityId, r.UnitTypeId, today, ct);
+        var slot = (await UnitAvailability.SlotsAsync(db, facilityId, r.UnitTypeId, ct)).FirstOrDefault(s => s.Unit.UnitId == unit.UnitId);
+        if (slot == null || !UnitAvailability.Bookable(slot, r.StartDate, r.ExpectedEndDate, buffer, today))
             throw new InvalidOperationException("Ô kho không còn trống trong kỳ thuê.");
         var contract = r.RentalContract;
         if (contract != null) throw new InvalidOperationException("Đơn đã có hợp đồng, cần kiểm tra phân bổ cũ.");
@@ -40,15 +42,19 @@ public static class ReservationAllocation
         contract = new RentalContract { ReservationId = r.ReservationId, CustomerId = r.CustomerId,
             UnitId = unit.UnitId, StartDate = r.StartDate, EndDate = r.ExpectedEndDate,
             AgreedMonthlyRate = r.QuotedMonthlyRate, DepositAmount = r.RequiredDeposit, Status = "DRAFT", CreatedAt = now };
+        // D36 (Phiên 3): phân bổ ô không tạo lịch nhận chìa khóa; lịch chỉ tạo khi khách gửi yêu cầu "Nhận chìa khóa".
         db.RentalContracts.Add(contract);
         foreach (var payment in await db.Payments.Where(p => p.ReservationId == r.ReservationId).ToListAsync(ct))
             payment.Contract = contract;
         db.UnitAssignments.Add(new UnitAssignment { ReservationId = r.ReservationId, UnitId = unit.UnitId,
             AssignedBy = actor, AssignedAt = now, Status = "ACTIVE", Reason = "Quản lý phân bổ ô" });
-        db.UnitStatusHistories.Add(new UnitStatusHistory { UnitId = unit.UnitId, ChangedBy = actor,
-            OldStatus = unit.Status, NewStatus = "RESERVED", ChangedAt = now, Reason = $"Phân bổ đơn {r.ReservationId}" });
-        unit.Status = "RESERVED";
-        unit.UpdatedAt = now;
+        if (unit.Status == "AVAILABLE") // ô khách cũ còn giữ thì giữ nguyên trạng thái tới ngày bắt đầu (D41)
+        {
+            db.UnitStatusHistories.Add(new UnitStatusHistory { UnitId = unit.UnitId, ChangedBy = actor,
+                OldStatus = unit.Status, NewStatus = "RESERVED", ChangedAt = now, Reason = $"Phân bổ đơn {r.ReservationId}" });
+            unit.Status = "RESERVED";
+            unit.UpdatedAt = now;
+        }
         if (!atFacility) r.Status = "UNIT_ASSIGNED";
         ReservationSettlement.Audit(db, actor, "UNIT_ALLOCATED", r.ReservationId, new { unit.UnitNumber });
         await db.SaveChangesAsync(ct);

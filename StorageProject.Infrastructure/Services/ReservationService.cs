@@ -146,20 +146,11 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
 
         // Check availability
         var expectedEndDate = request.StartDate.AddMonths(request.RentalPeriodMonths);
-        var availableUnitsCount = await dbContext.StorageUnits
-            .CountAsync(u => u.FacilityId == request.FacilityId 
-                          && u.UnitTypeId == request.UnitTypeId 
-                          && u.Status == "AVAILABLE", ct);
+        // D41: ô trống theo ngày + ngày đệm; ô đang quá hạn không đặt trước được
+        var bookable = await UnitAvailability.CountBookableAsync(dbContext, request.FacilityId, request.UnitTypeId,
+            request.StartDate, expectedEndDate, ct);
 
-        var existingReservationsCount = await dbContext.Reservations
-            .CountAsync(r => r.FacilityId == request.FacilityId 
-                          && r.UnitTypeId == request.UnitTypeId
-                          && (r.Status == "CONFIRMED" || ((r.Status == "PENDING_PAYMENT" || r.Status == "PENDING_VERIFICATION" || r.Status == "PENDING_AT_FACILITY") && r.ExpiresAt > DateTime.UtcNow))
-                          && !r.UnitAssignments.Any(a => a.Status == "ACTIVE")
-                          && r.StartDate < expectedEndDate
-                          && r.ExpectedEndDate > request.StartDate, ct);
-
-        if (availableUnitsCount - existingReservationsCount <= 0)
+        if (bookable <= 0)
         {
             throw new InvalidOperationException("Hiện tại đã hết kho trống cho loại kho và khoảng thời gian yêu cầu.");
         }
@@ -223,7 +214,7 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         return new CancelPreviewDto(quote.Paid, quote.Fee, quote.Refund, CancelPolicyName);
     }
 
-    private const string CancelPolicyName = "Huỷ trước ngày bắt đầu: phí 10% tiền cọc, hoàn đủ tiền thuê và 90% tiền cọc";
+    private const string CancelPolicyName = "Huỷ trước ngày bắt đầu: phí 5% tiền cọc, hoàn đủ tiền thuê và 95% tiền cọc";
 
     // D27: chỉ tính trên khoản đã thu (RENT + DEPOSIT, PAID). Đơn chưa thanh toán thì không phát sinh phí.
     private async Task<(decimal Paid, decimal Fee, decimal Refund)> QuoteCancelAsync(Reservation reservation, CancellationToken ct)
@@ -247,7 +238,7 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         await CancelReservationAsync(customerId, reservationId, reason, null, ct);
 
     /// <summary>
-    /// Huỷ đơn trước ngày bắt đầu thuê (D27/D32): phí 10% cọc, hoàn 100% tiền thuê + 90% cọc vào tài khoản chính chủ.
+    /// Huỷ đơn trước ngày bắt đầu thuê (D40): phí 5% cọc, hoàn 100% tiền thuê + 95% cọc vào tài khoản chính chủ.
     /// Đơn đã thanh toán bắt buộc khai tài khoản nhận hoàn (T08). Đơn đã được tự cấp hợp đồng sau thanh toán (D26,
     /// trạng thái UNIT_ASSIGNED) vẫn huỷ được khi chưa đến StartDate và khách chưa nhận chìa khóa; mã QR/PIN của hợp đồng
     /// huỷ tự hết hiệu lực (hệ thống vô hiệu, không phải thu hồi thủ công).
@@ -282,8 +273,8 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         RefundBank.Account? account = null;
         if (quote.Refund > 0)
         {
-            // D32: mọi khoản hoàn chuyển vào tài khoản chính chủ, kể cả khi khách đã trả tiền mặt.
-            account = RefundBank.Validate(bank, reservation.Customer.FullName);
+            // D32/D42: khách chọn chuyển khoản vào tài khoản chính chủ hoặc nhận tiền mặt tại quầy.
+            account = RefundBank.Validate(bank, reservation.Customer.FullName, allowCash: true);
         }
 
         var now = DateTime.UtcNow;
@@ -293,7 +284,7 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         if (account != null)
         {
             reservation.RefundBankName = account.BankName;
-            reservation.RefundAccountNumber = account.AccountNumber;
+            reservation.RefundAccountNumber = account.AccountNumber.Length > 0 ? account.AccountNumber : null;
             reservation.RefundAccountHolder = account.AccountHolder;
         }
         foreach (var a in await dbContext.UnitAssignments.Include(a => a.Unit).Where(a => a.ReservationId == reservationId && a.Status == "ACTIVE").ToListAsync(ct))
@@ -327,7 +318,8 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             {
                 ReservationId = reservationId, ContractId = draft?.ContractId, PaymentType = "REFUND", Amount = quote.Refund,
                 // Mã giao dịch chỉ ghi khi quản lý xác nhận đã chuyển (M08), không dùng chuỗi mô tả thay mã thật.
-                Currency = "VND", PaymentMethod = "BANK_TRANSFER", Status = "PENDING",
+                Currency = "VND", PaymentMethod = account != null && RefundBank.IsCash(account.BankName) ? RefundBank.CashMethod : "BANK_TRANSFER",
+                Status = "PENDING",
                 CreatedAt = now, UpdatedAt = now
             });
             ReservationSettlement.Audit(dbContext, customerId, "RESERVATION_REFUND_RECORDED", reservationId,

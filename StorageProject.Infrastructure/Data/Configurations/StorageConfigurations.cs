@@ -110,7 +110,7 @@ public class PolicyConfiguration : IEntityTypeConfiguration<Policy>
         b.ToTable("policies", t =>
         {
             t.HasCheckConstraint("CK_policies_policy_type",
-                "[PolicyType] IN ('DEPOSIT','RENEWAL','CANCELLATION','RETURN','OVERDUE','EXTRA_FEE','DISCOUNT','FEE_WAIVER','PRICE_RANGE')");
+                "[PolicyType] IN ('DEPOSIT','RENEWAL','CANCELLATION','RETURN','OVERDUE','EXTRA_FEE','DISCOUNT','FEE_WAIVER','PRICE_RANGE','RELET_BUFFER')");
             t.HasCheckConstraint("CK_policies_calculation_type",
                 "[CalculationType] IS NULL OR [CalculationType] IN ('FIXED','PERCENTAGE','RANGE','RULE','DEPOSIT_PERCENT_PER_DAY')");
             t.HasCheckConstraint("CK_policies_status", "[Status] IN ('DRAFT','ACTIVE','INACTIVE','EXPIRED')");

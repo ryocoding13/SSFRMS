@@ -16,13 +16,14 @@ public sealed class RefundPolicyTests
         RefundPolicy.Calculate(new RefundInput(scenario, Deposit, Rent, Start, End, today, hygiene, overdue, damage, overdueFee));
 
     [Fact]
-    public void Cancel_before_start_charges_10_percent_of_deposit_and_refunds_all_rent()
+    public void Cancel_before_start_charges_5_percent_of_deposit_and_refunds_all_rent()
     {
+        // D40 (05/11/2026) thay 10% của D27/D32.
         var r = Calc(RefundScenario.CancelBeforeStart, new DateOnly(2026, 10, 25));
-        Assert.Equal(100_000m, r.FixedDeduction);
-        Assert.Equal(900_000m, r.DepositRefund);
+        Assert.Equal(50_000m, r.FixedDeduction);
+        Assert.Equal(950_000m, r.DepositRefund);
         Assert.Equal(Rent, r.RentRefund);
-        Assert.Equal(3_900_000m, r.Total);
+        Assert.Equal(3_950_000m, r.Total);
         Assert.InRange(r.FixedDeduction + r.DamageDeduction + r.OverdueDeduction, 0m, Deposit);
     }
 

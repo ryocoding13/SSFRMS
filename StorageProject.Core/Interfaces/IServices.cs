@@ -72,6 +72,8 @@ public interface IRenewalService
     Task CollectCounterRenewalAsync(long userId, string id, CancellationToken ct = default);
     Task<RenewalDto> ApproveRenewalAsync(long userId, long renewalId, CancellationToken ct = default);
     Task RejectRenewalAsync(long userId, long renewalId, string reason, CancellationToken ct = default);
+    /// <summary>L5 (D40): khách huỷ yêu cầu gia hạn còn chờ duyệt để chuyển sang trả kho.</summary>
+    Task CancelRenewalAsync(long customerId, long renewalId, CancellationToken ct = default);
     Task ExpirePendingRenewalsAsync(CancellationToken ct = default);
 }
 

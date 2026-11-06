@@ -50,7 +50,6 @@ export const OPS_ACTIONS = {
   // Nhân viên (Staff)
   CONFIRM_PAYMENT: ({ id }) => ["POST", `/api/ops/payments/${enc(id)}/confirm`],
   // S09f · Backend chưa có (BACKEND-TODO.md mục S09f)
-  REPORT_MISMATCH: ({ id, note }) => ["POST", `/api/ops/payments/${enc(id)}/mismatch`, { note }],
   VERIFY_CUSTOMER: ({ id, doc_type, doc_no, photo_ok, info_ok, original_valid,booking_matched }) => [
     "POST", `/api/ops/verifications/${enc(id)}`, original_valid!==undefined?{originalDocumentValid:original_valid,photoMatched:photo_ok,infoMatched:info_ok,bookingMatched:booking_matched}:{ docType: doc_type, docNumber: String(doc_no || "").trim(), photoMatched: Boolean(photo_ok), infoMatched: Boolean(info_ok) },
   ],

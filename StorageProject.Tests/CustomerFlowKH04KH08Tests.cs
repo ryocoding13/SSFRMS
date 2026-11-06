@@ -261,17 +261,25 @@ public sealed class CustomerFlowKH04KH08Tests
     // =========================================================================
 
     [Fact]
-    public async Task C16_CreateTicket_BeforeStartDate_ThrowsInvalidOperationException()
+    public async Task C16_CreateTicket_BeforeStartDate_SucceedsUnderD40_AndDraftThrows()
     {
         await using var f = await Fixture.Create();
         var futureStart = Fixture.TodayVn.AddDays(5);
         var contract = await f.CreateContract(futureStart, futureStart.AddMonths(3));
         var ticketService = new SupportTicketService(f.Db);
 
-        var request = new CreateTicketRequest(contract.ContractId, f.Unit.UnitId, "ACCESS", "Xin cấp lại mã", "Cần mã", "NORMAL");
+        // L14 theo D40: hợp đồng đã thanh toán trước ngày bắt đầu được gửi hỗ trợ (ví dụ nhận chìa khóa, chuẩn bị dọn vào)
+        var request = new CreateTicketRequest(contract.ContractId, f.Unit.UnitId, "ACCESS", "Xin hỗ trợ kho", "Chuẩn bị dọn vào", "NORMAL");
+        var result = await ticketService.CreateTicketAsync(f.Customer.UserId, request);
+        Assert.NotNull(result);
+        Assert.Equal("OPEN", result.Status);
+
+        // Hợp đồng chưa thanh toán (DRAFT) thì từ chối và hướng dẫn sang hỗ trợ chung
+        contract.Status = "DRAFT";
+        await f.Db.SaveChangesAsync();
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             ticketService.CreateTicketAsync(f.Customer.UserId, request));
-        Assert.Contains("chưa đến ngày bắt đầu", ex.Message);
+        Assert.Contains("chưa thanh toán", ex.Message);
         Assert.Contains("hỗ trợ chung", ex.Message);
     }
 

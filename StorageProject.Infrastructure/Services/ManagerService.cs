@@ -196,92 +196,8 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
     public async Task ApproveRenewalAsync(long userId, string id, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
-        var num = FacilityOpsStateStore.ParseIdNumber(id);
-        var renewal = await dbContext.ContractRenewals
-            .Include(r => r.Contract).ThenInclude(c => c.Unit)
-            .Include(r => r.Payments)
-            .FirstOrDefaultAsync(r => r.RenewalId == num && r.Contract.Unit.FacilityId == fac.FacilityId, ct)
-            ?? throw new InvalidOperationException("Không tìm thấy yêu cầu gia hạn tại cơ sở.");
-
-        if (renewal.Status != "PENDING")
-        {
-            throw new InvalidOperationException("Yêu cầu này đã được xử lý.");
-        }
-
-        var contract = renewal.Contract;
-        if (contract.Status is not ("ACTIVE" or "EXPIRING" or "OVERDUE"))
-        {
-            throw new InvalidOperationException("Hợp đồng không còn hiệu lực để gia hạn.");
-        }
-
-        var now = DateTime.UtcNow;
-        var vnToday = DateOnly.FromDateTime(now.AddHours(7));
-
-        var activeRate = await dbContext.RentalRates
-            .Where(rate => rate.FacilityId == contract.Unit.FacilityId
-                     && rate.UnitTypeId == contract.Unit.UnitTypeId
-                     && rate.EffectiveFrom <= vnToday
-                     && (rate.EffectiveTo == null || rate.EffectiveTo >= vnToday))
-            .OrderByDescending(rate => rate.EffectiveFrom)
-            .FirstOrDefaultAsync(ct);
-
-        var newRate = activeRate?.MonthlyRate ?? contract.AgreedMonthlyRate;
-        renewal.NewMonthlyRate = newRate;
-        renewal.RenewalAmount = newRate * renewal.RenewalPeriodMonths;
-
-        var contractExpiryVn = renewal.OldEndDate.ToDateTime(TimeOnly.MinValue);
-        var contractExpiryUtc = contractExpiryVn.AddHours(-7);
-        var deadline = now.AddHours(24);
-        if (contractExpiryUtc < deadline) deadline = contractExpiryUtc;
-
-        renewal.PaymentDeadlineAt = deadline;
-        renewal.Status = "APPROVED";
-        renewal.ApprovedBy = userId;
-        renewal.ApprovedAt = now;
-        // EndDate remains OldEndDate! DO NOT CHANGE contract.EndDate on approval!
-
-        var payment = renewal.Payments.FirstOrDefault(p => p.PaymentType == "RENEWAL");
-        if (payment == null)
-        {
-            dbContext.Payments.Add(new Payment
-            {
-                ContractId = contract.ContractId,
-                RenewalId = renewal.RenewalId,
-                PaymentType = "RENEWAL",
-                Amount = renewal.RenewalAmount,
-                Currency = "VND",
-                PaymentMethod = "BANK_TRANSFER",
-                DueDate = renewal.OldEndDate,
-                Status = "PENDING",
-                CreatedAt = now,
-                UpdatedAt = now
-            });
-        }
-        else
-        {
-            payment.Amount = renewal.RenewalAmount;
-            payment.Status = "PENDING";
-            payment.UpdatedAt = now;
-        }
-
-        dbContext.ActivityLogs.Add(new ActivityLog
-        {
-            UserId = userId,
-            EntityType = "RENEWAL",
-            EntityId = renewal.RenewalId,
-            Action = "RENEWAL_APPROVED",
-            NewValue = System.Text.Json.JsonSerializer.Serialize(new
-            {
-                renewal.RenewalId,
-                contractId = contract.ContractId,
-                amount = renewal.RenewalAmount,
-                paymentDeadlineAt = deadline,
-                newEndDate = renewal.NewEndDate.ToString("yyyy-MM-dd")
-            }),
-            LoggedAt = now
-        });
-
-        await dbContext.SaveChangesAsync(ct);
+        // M01: route /api/manager cũ dùng chung đường duyệt chuẩn.
+        await RenewalApproval.ApproveAsync(dbContext, userId, FacilityOpsStateStore.ParseIdNumber(id), fac.FacilityId, ct);
     }
 
     public async Task RejectRenewalAsync(long userId, string id, RejectRenewalRequest request, CancellationToken ct = default)
@@ -324,21 +240,37 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
         var num = FacilityOpsStateStore.ParseIdNumber(id);
+        // M04: cùng khoá với tiến trình quá hạn (OverdueProcessor) và đăng ký trả kho → không tạo hai hồ sơ cho một hợp đồng.
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"move-out:{num}", ct);
         var contract = await dbContext.RentalContracts
             .Include(c => c.Unit)
+            .Include(c => c.OverdueCases)
             .FirstOrDefaultAsync(c => c.ContractId == num && c.Unit.FacilityId == fac.FacilityId, ct)
             ?? throw new InvalidOperationException("Không tìm thấy hợp đồng tại cơ sở.");
+        if (contract.Status is "COMPLETED" or "TERMINATED" or "CANCELLED")
+            throw new InvalidOperationException("Hợp đồng đã kết thúc, không ghi nhắc quá hạn.");
 
-        dbContext.OverdueCases.Add(new OverdueCase
+        var now = DateTime.UtcNow;
+        var open = contract.OverdueCases.Where(o => o.Status != "RESOLVED").OrderByDescending(o => o.OpenedAt).FirstOrDefault();
+        if (open != null)
         {
-            ContractId = contract.ContractId,
-            AssignedStaffId = userId,
-            OverdueFrom = DateOnly.FromDateTime(DateTime.UtcNow),
-            Notes = request.Note,
-            Status = "CONTACTED",
-            OpenedAt = DateTime.UtcNow
-        });
+            open.Status = open.Status == "OPEN" ? "CONTACTED" : open.Status;
+            open.Notes = string.IsNullOrWhiteSpace(request.Note) ? open.Notes : string.Join("\n", new[] { open.Notes, request.Note }.Where(n => !string.IsNullOrWhiteSpace(n)));
+        }
+        else
+        {
+            dbContext.OverdueCases.Add(new OverdueCase
+            {
+                ContractId = contract.ContractId,
+                AssignedStaffId = userId,
+                OverdueFrom = contract.EndDate.AddDays(1),
+                Notes = request.Note,
+                Status = "CONTACTED",
+                OpenedAt = now
+            });
+        }
         await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task<IReadOnlyList<OpsUnitDto>> GetFacilityUnitsAsync(long userId, CancellationToken ct = default)

@@ -70,7 +70,7 @@ public partial class FacilityOpsService
                         && t.Status != "CANCELLED"
                         && ((t.Status != "RESOLVED" && t.Status != "CLOSED")
                             || (t.ClosedAt ?? t.ResolvedAt ?? t.CreatedAt) >= recent))
-            .OrderByDescending(t => t.CreatedAt)
+            .OrderBy(t => t.CreatedAt) // D40/D42: việc của nhân viên xếp theo thời gian tạo, cũ trước (FIFO)
             .ToListAsync(ct);
 
         var reservationLogs = await LogsAsync(LogEntity.Reservation, reservations.Select(r => r.ReservationId).ToList(), ct);
@@ -140,14 +140,14 @@ public partial class FacilityOpsService
                 status == "MISMATCH" ? Read(decision!, "note") : null,
                 status == "PENDING" ? null : Local(decision?.LoggedAt)));
         }
-        payments = payments.OrderBy(p => p.Status == "PENDING" ? 0 : 1).ThenByDescending(p => p.ReportedAt).ToList();
+        payments = payments.OrderBy(p => p.Status == "PENDING" ? 0 : 1).ThenBy(p => p.ReportedAt).ToList(); // FIFO
 
         // ---- S02 / S03 · Xác minh khách + bàn giao
         var handoverContracts = contracts
             .Where(c => c.HandoverRecord != null
                         && c.HandoverRecord.Status != "CANCELLED"
                         && (c.HandoverRecord.Status != "HANDED_OVER" || c.HandoverRecord.HandoverAt >= now.AddDays(-3)))
-            .OrderBy(c => c.HandoverRecord!.ScheduledAt)
+            .OrderBy(c => c.HandoverRecord!.CreatedAt) // FIFO theo lúc tạo việc, không theo giờ hẹn
             .ToList();
 
         var verifications = handoverContracts.Select(c =>
@@ -165,7 +165,7 @@ public partial class FacilityOpsService
         var handovers = handoverContracts.Select(c =>
         {
             var h = c.HandoverRecord!;
-            var done = Last(handoverLogs, h.HandoverId, LogAction.HandoverCompleted);
+            var done = Last(handoverLogs, h.HandoverId, LogAction.HandoverCompleted, "PHYSICAL_KEY_RECEIVED");
             var method = done != null ? Read(done, "method") : h.Status == "HANDED_OVER" ? MethodOf(c.AccessCredentials) : null;
             return new OpsHandoverDto(HandoverCode(h.HandoverId), VerificationCode(h.HandoverId), c.Unit.UnitNumber, c.Customer.FullName,
                 h.Status == "HANDED_OVER" ? "DONE" : "WAITING", method, Local(h.HandoverAt));
@@ -176,12 +176,13 @@ public partial class FacilityOpsService
             .SelectMany(c => c.ReturnInspections.Select(i => (Contract: c, Inspection: i)))
             .Where(x => x.Inspection.Status != "CANCELLED"
                         && (x.Inspection.Status != "COMPLETED" || x.Inspection.InspectedAt >= recent))
-            .OrderBy(x => x.Inspection.ScheduledAt)
+            .OrderBy(x => x.Inspection.CreatedAt) // FIFO: khách gửi trả kho trước thì xử lý trước
             .ToList();
 
         var inspectionIds = inspections.Select(x => x.Inspection.InspectionId).ToList();
         var inspectionPhotos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.ReturnInspection, inspectionIds, ct);
         var moveOutPhotos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.MoveOut, inspectionIds, ct);
+        var deductionPhotos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.ReturnDeduction, inspectionIds, ct);
         var overdueAtRequest = new Dictionary<long, decimal>();
         foreach (var (c, i) in inspections)
         {
@@ -193,6 +194,7 @@ public partial class FacilityOpsService
             var (c, i) = x;
             var submitted = Last(returnLogs, i.InspectionId, LogAction.ReturnInspected);
             var overdueFee = overdueAtRequest[i.InspectionId];
+            var deduction = DeductionStateOf(i, returnLogs.Where(l => l.EntityId == i.InspectionId), now);
             OpsReturnReportDto? report = submitted == null ? null : new OpsReturnReportDto(
                 Read(submitted, "items") ?? "", Read(submitted, "walls") ?? "", Read(submitted, "keys") ?? "", Read(submitted, "proposal") ?? "",
                 i.DamageFee, i.CleaningFee, i.CleaningRequired, i.DamageItem ?? "", i.FeeReason ?? "", overdueFee,
@@ -200,12 +202,14 @@ public partial class FacilityOpsService
             return new OpsReturnDto(ReturnCode(i.InspectionId), ContractCode(c), c.Unit.UnitNumber, c.Customer.FullName,
                 LocalOrDate(i.ScheduledAt, c.EndDate), c.DepositAmount, Unpaid(c), i.Status == "COMPLETED" ? "SUBMITTED" : "SCHEDULED",
                 report, Local(i.InspectedAt), Utc(i.CreatedAt), overdueFee, DamageWorkflowResolved: true,
-                MoveOutPhotos: PhotosOf(moveOutPhotos, i.InspectionId));
+                MoveOutPhotos: PhotosOf(moveOutPhotos, i.InspectionId),
+                LateInspection: i.Status != "COMPLETED" && now - i.CreatedAt > InspectionSla,
+                DeductionStatus: deduction.Status, DeductionDeadlineAt: Local(deduction.DeadlineUtc),
+                DeductionPhotos: PhotosOf(deductionPhotos, i.InspectionId));
         }).ToList();
 
         // ---- S05 · Yêu cầu hỗ trợ
-        var ticketIds = tickets.Select(t => t.TicketId).ToList();
-        var ticketPhotos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.SupportTicket, ticketIds, ct);
+        var ticketPhotos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.SupportTicket, tickets.Select(t => t.TicketId).ToList(), ct);
         var ticketDtos = tickets.Select(t =>
         {
             var notes = ticketLogs
@@ -214,8 +218,10 @@ public partial class FacilityOpsService
                 .ToList();
             var unitCode = t.Unit?.UnitNumber ?? t.Contract?.Unit.UnitNumber ?? "—";
             return new OpsTicketDto(TicketCode(t.TicketId), unitCode, t.Customer.FullName, t.Title, Local(t.CreatedAt)!,
-                Local(t.AssignedAt ?? t.CreatedAt)!, TicketState(t), t.AssignedStaffId.HasValue ? StaffCode(t.AssignedStaffId.Value) : null,
-                notes, PhotosOf(ticketPhotos, t.TicketId));
+                Local(t.AssignedAt ?? t.CreatedAt)!, TicketState(t), t.AssignedStaffId.HasValue ? StaffCode(t.AssignedStaffId.Value) : null, notes,
+                t.Description,
+                t.Title == SupportTicketService.KeyPickupTitle ? SupportTicketService.KeyPickupTopic : t.IssueType,
+                ticketPhotos.TryGetValue(t.TicketId, out var tp) ? tp : []);
         }).ToList();
 
         if (!actor.IsManager)
@@ -255,7 +261,8 @@ public partial class FacilityOpsService
                 var status = r.Status switch { "PAID" => "APPROVED", "CANCELLED" => "REJECTED", _ => r.Status };
                 return new OpsRenewalDto(RenewalCode(r.RenewalId), ContractCode(c), c.Customer.FullName, c.Unit.UnitNumber,
                     r.OldEndDate, r.NewEndDate, r.RenewalPeriodMonths, Local(r.RequestedAt)!, status,
-                    status == "REJECTED" && rejected != null ? Read(rejected, "reason") : null, Local(r.ApprovedAt));
+                    status == "REJECTED" && rejected != null ? Read(rejected, "reason") : null, Local(r.ApprovedAt),
+                    r.NewMonthlyRate, r.RenewalAmount, Local(r.PaymentDeadlineAt));
             })
             .ToList();
 
@@ -355,7 +362,7 @@ public partial class FacilityOpsService
 
     /// <summary>
     /// M08 · Đơn huỷ có khoản hoàn: chờ hoàn, hoặc đã hoàn trong thời gian gần (để đọc lại kết quả sau khi xác nhận).
-    /// Phí huỷ = đã thanh toán − số hoàn (D27: 10% cọc). Tài khoản là tài khoản chính chủ khách khai khi huỷ (T08).
+    /// Phí huỷ = đã thanh toán − số hoàn (D40: 5% cọc). Tài khoản là tài khoản chính chủ khách khai khi huỷ (T08).
     /// </summary>
     private async Task<List<OpsRefundDto>> ReservationRefundsAsync(long facilityId, DateTime recent, CancellationToken ct)
     {
@@ -387,7 +394,9 @@ public partial class FacilityOpsService
                 return new OpsRefundDto(ReservationCode(r), r.Customer.FullName, Local(r.CancelledAt ?? p.CreatedAt)!,
                     rent, deposit, rent + deposit, Math.Max(0, rent + deposit - p.Amount), p.Amount,
                     isPaid ? "PAID" : p.Status, isPaid ? Local(p.PaidAt) : null, isPaid ? p.TransactionReference : null,
-                    r.RefundBankName, r.RefundAccountNumber, r.RefundAccountHolder);
+                    r.RefundBankName, r.RefundAccountNumber, r.RefundAccountHolder,
+                    p.PaymentMethod == CashMethod ? CashMethod : "BANK_TRANSFER",
+                    p.PaymentMethod == CashMethod ? CashRefundCode(p.PaymentId) : null);
             })
             .ToList();
     }

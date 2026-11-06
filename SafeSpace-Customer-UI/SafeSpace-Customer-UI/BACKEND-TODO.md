@@ -1,5 +1,39 @@
 # BACKEND-TODO — việc backend (StorageProject.Api) còn thiếu cho giao diện SafeSpace
 
+## Phiên 6 — 06/11/2026: M01, M04, S02, S03, câu 7 (BE đã viết, chờ CI)
+
+- **Duyệt gia hạn (M01)** — 3 route `/api/ops/renewals/{GH-id}/approve`, `/api/manager/renewals/{id}/approve`, `RenewalService` dùng chung `RenewalApproval`. Lỗi 400 mới: kỳ thuê đã đổi, có yêu cầu khác chờ thanh toán, đã quá hạn duyệt. `/api/manager` trả 404 khi không thấy.
+- **Kiểm kê cũ (S03)** — `POST /api/staff/returns/{id}/inspection` trả **410** `{ code: "USE_OPS_RETURN_INSPECTION" }`.
+- **Ảnh phản hồi khấu trừ (câu 7)** — `POST /api/contracts/{id}/return-deduction` nhận thêm `photos: [{ fileName, contentType, dataBase64 }]` (tối đa 5, chỉ SELF_REPLACE / DISPUTE). `GET` trả `customerPhotos[]`; board `returns[].deductionPhotos[]`.
+
+## Phiên 4 — 05/11/2026: D41 đặt trước theo ngày, D44 tiền mặt (BE đã viết, chờ build/test)
+
+- **Trống theo ngày (D41)** — `POST /api/availability/check` và tạo đơn tính cả ô sắp hết hạn (ngày hết hạn + đệm). `GET /api/facilities/{id}/units` thêm `freeFrom` (yyyy-MM-dd hoặc null), `overdue`. Chính sách mới `RELET_BUFFER` (FIXED, số ngày 0–60) ở B02 — FE vận hành chưa có ô nhập.
+- **Đề xuất đổi kho (D41)** — khách `GET /api/unit-conflicts` → `[{ id, contractId, customer, phone, startDate, endDate, oldUnit, proposedUnit, proposedUnitType, proposedArea, option: SWAP|UPGRADE|NONE, reason, blockingContractId, detectedAt, expiresAt, status: OPEN|RESOLVED, resolution, resolvedAt, newUnit, newStartDate, earliestFreeDate }]`; `POST /api/contracts/{contractId}/unit-conflict { choice: ACCEPT|RESCHEDULE|CANCEL, newStartDate?, refundBank? }` → `{ item }`. Quản lý/nhân viên `GET /api/ops/unit-conflicts`.
+- **Khoá gia hạn (D41)** — chi tiết hợp đồng khách thêm `nextBookingFrom`; gửi / duyệt gia hạn trả 400 "Ô đã có khách đặt từ dd/mm…".
+- **Tiền mặt (D44)** — khách `GET /api/cash-refunds` (cùng dạng `/api/ops/cash-refunds`; `status` thêm `FORFEITED`, `SWITCHED_TO_BANK`), `POST /api/cash-refunds/{id}/switch-to-bank { bankName, accountNumber, accountHolder }` → `{ item }`. Sự cố: `refundBank: { method: "CASH" }`; `incident.refund.method`, id `CH-xxxx` khi tiền mặt.
+- **Hệ thống tự chốt (D40/D44)** — khi khách đồng ý hoặc quá 48 giờ; log `DEPOSIT_REFUNDED` có `system: true`, `userId` null.
+
+## Phiên 3 — 05/11/2026: API mới cho D39/D40, D36, D35, D42, D43 (BE đã viết, chờ build/test)
+
+FE làm ở Phiên 5 (khách) và Phiên 6 (nhân viên, quản lý). Ngày giờ trả về là giờ Việt Nam `yyyy-MM-ddTHH:mm:ss`.
+
+- **Khấu trừ trả kho (D39/D40)** — `GET /api/contracts/{contractId}/return-deduction` (contractId số hoặc `HĐ-…`) →
+  `{ returnId, contractId, deposit, cleaningFee, damageFee, damageItem, feeReason, photos[], sentAt, deadlineAt, needsConfirmation, status, decision, decisionNote, decidedAt, recheckNote, overdueFee, overdueDays, staffName }` (3 trường cuối thêm ở Phiên 5b cho D30-13: phí quá hạn tới lúc gửi trả kho, người lập biên bản).
+  `status`: `NONE` · `WAITING` · `AUTO_AGREED` · `AGREED` · `SELF_CLEAN` · `SELF_REPLACE` · `DISPUTE` · `RECHECKED`.
+  `POST` cùng URL `{ decision: "AGREE"|"SELF_CLEAN"|"SELF_REPLACE"|"DISPUTE", note }` (DISPUTE bắt buộc note; chọn một lần, trước hạn).
+  Cơ sở: `POST /api/ops/returns/{TK-id}/recheck { cleaningPassed, replacementPassed, note }`. M07 `/contracts/{id}/refund` trả 400 "Chờ khách xác nhận…" khi còn hạn.
+  Board `returns[]` thêm `lateInspection`, `deductionStatus`, `deductionDeadlineAt`.
+- **Nhận chìa khóa (D36)** — tạo ticket `issueType: "KEY_PICKUP"`, `preferredAt` (giờ VN, tuỳ chọn). Không còn lịch tự tạo sau thanh toán. Board `tickets[].topic = "KEY_PICKUP"`.
+- **Ảnh hỗ trợ (D35)** — `POST /api/support-tickets` nhận `photos: [{ fileName, contentType, dataBase64 }]` tối đa 3; board `tickets[].photos[]`.
+- **Cách nhận hoàn (D42)** — huỷ đơn `POST /api/reservations/{id}/cancel { reason, refundMethod: "CASH" }` hoặc kèm tài khoản; trả kho `move-out` thêm `refundMethod`. Tiền mặt: `bankName = "CASH"`, `accountNumber = null`. `refunds[]` (M08) và `/api/ops/deposit-refunds` thêm `method`, `cashRefundId`.
+- **Tiền mặt tại quầy (D42/D43)** — `GET /api/ops/cash-refunds` → `[{ id: "CH-0012", source: "RESERVATION"|"DEPOSIT", reference, customer, phone, amount, status, approvedAt, deadlineDate, daysSinceApproved, reminderDay, appointmentDate, lastCall, paidAt, paidBy }]`; `status`: `WAITING_APPROVAL` · `READY` · `REMIND` · `APPOINTMENT` · `EXPIRED` · `PAID`.
+  `POST /api/ops/cash-refunds/{id}/approve { staffId: "NV-02" }` (quản lý), `/calls { result: "APPOINTMENT"|"NO_ANSWER"|"SWITCH_TO_BANK"|"WRONG_NUMBER", appointmentDate, note }`, `/pay { identityChecked, codeChecked, amountCounted, signed }`. Kết quả `{ item }`.
+- **Báo cáo cuối ngày (D42)** — `GET /api/ops/daily-report?date=yyyy-MM-dd` (quản lý) → `{ date, generatedAt, staff: [{ staffId, fullName, done, pending, oldestPendingSince, pendingTasks[], history[] }] }`; task `{ kind: RETURN|TICKET|HANDOVER|CASH_CALL|CASH_PAY, reference, label, at, late }`. 22:00 ghi log `DAILY_STAFF_REPORT` (chuông).
+- **Đã gỡ (D42)** — `POST /api/ops/payments/{id}/mismatch`, `POST /api/staff/payments/{id}/mismatch`. FE gỡ màn sai lệch ở Phiên 6.
+- **D43** — hỏi đáp hỗ trợ: cờ `close` bị bỏ qua; cơ sở trả lời → `WAITING_CUSTOMER`, khách trả lời → `OPEN`.
+- Cờ board: `deductionConfirmationSupported`, `cashRefundSupported`, `keyPickupOnRequest`, `dailyReportSupported` = true.
+
 ## Bổ sung 30/10/2026 — F43 / D35
 
 Giữ API/cờ T05/T07/T08/T13 của PR #55 trên main efc0c40. Phần mới:

@@ -9,7 +9,9 @@ public record CreateTicketRequest(
     string Title,
     string Description,
     string Priority,
-    IReadOnlyList<EvidencePhotoUpload>? Photos = null
+    // D35: ảnh khách đính kèm (tối đa 3, JPG/PNG ≤ 5 MB). D36: KEY_PICKUP kèm giờ muốn nhận chìa khóa (giờ Việt Nam).
+    IReadOnlyList<EvidencePhotoUpload>? Photos = null,
+    DateTime? PreferredAt = null
 );
 
 public record SupportTicketDto(

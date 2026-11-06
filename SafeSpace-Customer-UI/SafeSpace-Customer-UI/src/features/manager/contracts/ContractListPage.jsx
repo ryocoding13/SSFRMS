@@ -32,7 +32,6 @@ export function ContractListPage({ query }) {
   const [returning, setReturning] = useState(false);
   const sel = query.get("id") ? ops.contracts.find(c=>c.id===query.get("id")) : null;
   const [note, setNote] = useState("");
-  const mismatch = ops.payments.filter((p) => p.status === "MISMATCH");
   const detailRef = useRef(null);
   // "Xem hồ sơ" mở chi tiết ngay dưới danh sách: cuộn tới để quản lý thấy trang đã chuyển
   useEffect(() => { if (sel) detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, [sel?.id]);
@@ -40,9 +39,6 @@ export function ContractListPage({ query }) {
     <main className="container page">
       <PageHeaderBlock title="Hợp đồng & xử lý quá hạn" text="Theo dõi hạn thuê, đối soát trả kho và yêu cầu cần duyệt tại cơ sở." />
       <div className="workflow-links"><LinkButton to="manager/incidents" variant="outline">Sự cố cơ sở</LinkButton><LinkButton to="manager/damage-responses" variant="outline">Phản hồi hư hỏng</LinkButton><LinkButton to="manager/damage-inspections" variant="outline">Kiểm tra khắc phục</LinkButton></div>
-      {mismatch.map((p) => (
-        <Notice tone="error" key={p.id}>Nhân viên báo sai lệch thanh toán đơn {p.id} ({p.customer}): {p.note}</Notice>
-      ))}
       <div className="customer-detail__column">{ops.contracts.map(c=>{const [label,tone]=CONTRACT_STATE(c);return <RecordCard key={c.id} title={`${c.id} · ${c.customer}`} subtitle={`Kho ${c.unit} · hết hạn ${dateLabel(c.end)}`} status={label} actions={<LinkButton to={c.state==="RENEWAL"?"manager/renewals":`manager/contracts${qs({id:c.id})}`}>{c.state==="RETURNED"?"Duyệt đối soát":c.state==="OVERDUE"?"Xem hồ sơ quá hạn":"Xem hồ sơ"}</LinkButton>}><p>{c.state==="RETURNED"?"Biên bản đã gửi · khấu trừ tối đa bằng cọc":c.state==="RENEWAL"?"Có yêu cầu gia hạn cần duyệt":"Theo dõi hạn thuê và lịch sử liên hệ khách"}</p></RecordCard>;})}</div>
       {query.get("id")&&!sel&&<Empty title="Không tìm thấy hợp đồng" text="Chọn đúng hồ sơ thuộc cơ sở phụ trách."/>}
       {sel && (

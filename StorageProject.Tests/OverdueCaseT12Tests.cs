@@ -340,9 +340,10 @@ public sealed class OverdueCaseT12Tests : IAsyncDisposable
         // Verify photos in DB
         var photos = await _db.EvidencePhotos.Where(p => p.OwnerId == overdueCase.OverdueCaseId).ToListAsync();
         Assert.Equal(2, photos.Count);
-        Assert.All(photos, p => Assert.Equal(EvidencePhotos.ReturnInspection, p.OwnerType));
-        Assert.Contains(photos, p => p.FileName.StartsWith("before_"));
-        Assert.Contains(photos, p => p.FileName.StartsWith("after_"));
+        // S06 (Phiên 3): loại ảnh riêng, không lẫn với ảnh biên bản trả kho có cùng số id.
+        Assert.DoesNotContain(photos, p => p.OwnerType == EvidencePhotos.ReturnInspection);
+        Assert.Contains(photos, p => p.OwnerType == EvidencePhotos.OverdueBefore && p.FileName.StartsWith("before_"));
+        Assert.Contains(photos, p => p.OwnerType == EvidencePhotos.OverdueAfter && p.FileName.StartsWith("after_"));
 
         // Verify cannot submit again
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>

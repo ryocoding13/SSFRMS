@@ -10,7 +10,7 @@ public class EvidencePhotoConfiguration : IEntityTypeConfiguration<EvidencePhoto
     {
         b.ToTable("evidence_photos", t =>
         {
-            t.HasCheckConstraint("CK_evidence_photos_owner_type", "[OwnerType] IN ('MOVE_OUT','RETURN_INSPECTION','INCIDENT','SUPPORT_TICKET')");
+            t.HasCheckConstraint("CK_evidence_photos_owner_type", "[OwnerType] IN ('MOVE_OUT','RETURN_INSPECTION','INCIDENT','OVERDUE_BEFORE','OVERDUE_AFTER','SUPPORT_TICKET','RETURN_DEDUCTION')");
             t.HasCheckConstraint("CK_evidence_photos_content_type", "[ContentType] IN ('image/jpeg','image/png')");
             t.HasCheckConstraint("CK_evidence_photos_size", "[SizeBytes] > 0 AND [SizeBytes] <= 5242880");
         });

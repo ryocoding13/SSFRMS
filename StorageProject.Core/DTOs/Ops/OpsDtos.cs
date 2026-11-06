@@ -216,11 +216,6 @@ public class OpsRevenueByTypeDto
     public decimal Value { get; set; }
 }
 
-public class MismatchPaymentRequest
-{
-    public string? Note { get; set; }
-}
-
 public class VerifyCustomerRequest
 {
     public string? DocType { get; set; }

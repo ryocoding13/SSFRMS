@@ -18,7 +18,13 @@ public static class EvidencePhotos
     public const int MaxBytes = 5 * 1024 * 1024;
     public const string MoveOut = "MOVE_OUT";
     public const string ReturnInspection = "RETURN_INSPECTION";
+    // S06 (Phiên 3): ảnh hồ sơ quá hạn tách riêng, không dùng chung loại với biên bản trả kho (ownerId = OverdueCaseId)
+    public const string OverdueBefore = "OVERDUE_BEFORE";
+    public const string OverdueAfter = "OVERDUE_AFTER";
+    // D35 (Phiên 3): ảnh khách đính kèm yêu cầu hỗ trợ (ownerId = TicketId)
     public const string SupportTicket = "SUPPORT_TICKET";
+    // Câu 7 (Thắng chốt 06/11): ảnh khách gửi khi phản hồi khấu trừ trả kho (ownerId = InspectionId)
+    public const string ReturnDeduction = "RETURN_DEDUCTION";
 
     /// <summary>Giới hạn thân request cho endpoint nhận ảnh: 5 ảnh × 5 MiB base64 (~6,7 MiB/ảnh) + phần JSON khác.</summary>
     public const long RequestBodyLimit = 40L * 1024 * 1024;

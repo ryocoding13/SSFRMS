@@ -21,7 +21,9 @@ public sealed class SqlServerMigrationAndReadinessTests(SqlServerFixture fixture
         "20261027165711_AddRenewalSettlementAndPolicyConsent",
         "20261029054804_AddRefundEvidenceAndIncidents",
         "20261030150136_AddMaiPasswordResetInquiriesAndFeeWaiver",
-        "20261105174242_AddSupportTicketEvidencePhoto"
+        "20261105120000_Phien3EvidenceOwnerTypes",
+        "20261105220000_Phien4ReletBufferPolicy",
+        "20261106120000_Phien6DeductionPhotos"
     ];
 
     [Fact]

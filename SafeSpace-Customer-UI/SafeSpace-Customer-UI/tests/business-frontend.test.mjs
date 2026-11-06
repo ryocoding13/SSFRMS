@@ -103,3 +103,9 @@ test('B05a: toạ độ cơ sở — dán cặp số, bắt buộc đủ hai ô,
  assert.equal(ok.latitude,10.693512);assert.equal(ok.longitude,106.7222);
  assert.ok(formToRequest({...base,openingTime:'22:00',closingTime:'06:00'}).errors.hours);
 });
+test('D41 · ngày đệm cho thuê lại (RELET_BUFFER) lưu FIXED số ngày 0–60',()=>{
+ const job=policyJobs([],{relet:'3 ngày'},day)[0];
+ assert.equal(job.body.policyType,'RELET_BUFFER');assert.equal(job.body.calculationType,'FIXED');assert.equal(job.body.value,3);
+ assert.throws(()=>policyJobs([],{relet:'61 ngày'},day),/0 đến 60/);
+ assert.equal(fieldValue({calculationType:'FIXED',value:5},field('relet')),'5 ngày');
+});
