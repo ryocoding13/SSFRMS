@@ -41,7 +41,8 @@ public static class SupportTicketEndpoints
             {
                 return Results.BadRequest(new { error = ex.Message });
             }
-        });
+        })
+        .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(StorageProject.Infrastructure.Services.EvidencePhotos.RequestBodyLimit));
 
         group.MapPost("/{id:long}/cancel", async (long id, ClaimsPrincipal user, ISupportTicketService ticketService, CancellationToken ct) =>
         {

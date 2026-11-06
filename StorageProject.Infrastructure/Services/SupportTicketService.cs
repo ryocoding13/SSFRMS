@@ -94,6 +94,9 @@ public class SupportTicketService(AppDbContext dbContext) : ISupportTicketServic
             }
         }
 
+        var photoDict = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.SupportTicket, [ticketId], ct);
+        var photos = photoDict.GetValueOrDefault(ticketId, []);
+
         return new SupportTicketDetailDto(
             t.TicketId,
             t.ContractId ?? 0,
@@ -108,7 +111,8 @@ public class SupportTicketService(AppDbContext dbContext) : ISupportTicketServic
             t.AssignedAt,
             t.ResolvedAt,
             t.ClosedAt,
-            responses
+            responses,
+            photos
         );
     }
 
@@ -151,9 +155,31 @@ public class SupportTicketService(AppDbContext dbContext) : ISupportTicketServic
     // C12 kiểm tra chủ hợp đồng, ô kho, chủ đề và ưu tiên trước khi ghi để tránh lỗi ràng buộc database.
     public async Task<SupportTicketDto> CreateTicketAsync(long customerId, CreateTicketRequest request, CancellationToken ct = default)
     {
+        var photos = EvidencePhotos.Decode(request.Photos, required: false, what: "hỗ trợ");
+
         var contract = await dbContext.RentalContracts.AsNoTracking()
             .FirstOrDefaultAsync(c => c.ContractId == request.ContractId && c.CustomerId == customerId, ct)
             ?? throw new InvalidOperationException("Hợp đồng liên quan không tồn tại hoặc không thuộc về khách hàng.");
+
+        // D36 / L14: Hỗ trợ gắn kho chỉ cho phép khi hợp đồng đã bắt đầu và chưa kết thúc (hoặc đang RETURN_PENDING, OVERDUE)
+        var vnOffset = TimeSpan.FromHours(7);
+        var todayVn = DateOnly.FromDateTime(DateTime.UtcNow.Add(vnOffset));
+
+        if (contract.Status is "CANCELLED" or "COMPLETED" or "TERMINATED")
+        {
+            throw new InvalidOperationException("Hợp đồng đã kết thúc. Vui lòng gửi yêu cầu qua kênh hỗ trợ chung.");
+        }
+
+        if (todayVn < contract.StartDate)
+        {
+            throw new InvalidOperationException($"Hợp đồng chưa đến ngày bắt đầu ({contract.StartDate:dd/MM/yyyy}). Vui lòng gửi yêu cầu qua kênh hỗ trợ chung.");
+        }
+
+        if (todayVn > contract.EndDate && contract.Status is not ("OVERDUE" or "RETURN_PENDING"))
+        {
+            throw new InvalidOperationException("Hợp đồng đã quá hạn hoặc kết thúc. Vui lòng gửi yêu cầu qua kênh hỗ trợ chung.");
+        }
+
         if (request.UnitId.HasValue && request.UnitId != contract.UnitId)
             throw new ArgumentException("Ô kho phải đúng ô trong hợp đồng đã chọn.");
 
@@ -183,6 +209,11 @@ public class SupportTicketService(AppDbContext dbContext) : ISupportTicketServic
         };
         dbContext.SupportTickets.Add(ticket);
         await dbContext.SaveChangesAsync(ct);
+        if (photos.Count > 0)
+        {
+            EvidencePhotos.Attach(dbContext, photos, EvidencePhotos.SupportTicket, ticket.TicketId, customerId, ticket.CreatedAt);
+            await dbContext.SaveChangesAsync(ct);
+        }
         return new SupportTicketDto(ticket.TicketId, contract.ContractId, ticket.UnitId, ticket.IssueType,
             ticket.Title, ticket.Priority, ticket.Status, ticket.CreatedAt, ticket.ResolvedAt, ticket.ClosedAt);
     }

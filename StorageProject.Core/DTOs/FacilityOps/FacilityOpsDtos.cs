@@ -59,7 +59,7 @@ public record OpsNoteDto(string Text, string At, string? Staff);
 
 public record OpsTicketDto(
     string Id, string Unit, string Customer, string Title, string CreatedAt, string Schedule, string Status,
-    string? Assignee, IReadOnlyList<OpsNoteDto> Notes);
+    string? Assignee, IReadOnlyList<OpsNoteDto> Notes, IReadOnlyList<EvidencePhotoDto>? Photos = null);
 
 public record OpsRenewalDto(
     string Id, string Contract, string Customer, string Unit, DateOnly From, DateOnly To, int Months,

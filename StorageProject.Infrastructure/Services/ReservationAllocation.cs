@@ -39,9 +39,7 @@ public static class ReservationAllocation
         var now = DateTime.UtcNow;
         contract = new RentalContract { ReservationId = r.ReservationId, CustomerId = r.CustomerId,
             UnitId = unit.UnitId, StartDate = r.StartDate, EndDate = r.ExpectedEndDate,
-            AgreedMonthlyRate = r.QuotedMonthlyRate, DepositAmount = r.RequiredDeposit, Status = "DRAFT", CreatedAt = now,
-            HandoverRecord = new HandoverRecord { StaffId = actor, ScheduledAt = r.CheckInAppointmentAt ??
-                r.StartDate.ToDateTime(new TimeOnly(9, 0)).AddHours(-7), Status = "SCHEDULED", CreatedAt = now } };
+            AgreedMonthlyRate = r.QuotedMonthlyRate, DepositAmount = r.RequiredDeposit, Status = "DRAFT", CreatedAt = now };
         db.RentalContracts.Add(contract);
         foreach (var payment in await db.Payments.Where(p => p.ReservationId == r.ReservationId).ToListAsync(ct))
             payment.Contract = contract;

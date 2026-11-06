@@ -96,6 +96,8 @@ public sealed class CheckoutTests
         await f.PayOS.PayAtFacilityAsync(f.Order.CustomerId, f.Order.ReservationId); Assert.Equal(1, f.Gateway.Cancellations);
         await ReservationAllocation.AllocateAsync(f.Db, 1, f.Order.FacilityId, f.Order.ReservationId, "K01", default);
         Assert.Empty(await f.Db.Payments.ToListAsync());
+        var c = await f.Db.RentalContracts.SingleAsync();
+        await new ContractService(f.Db).RequestKeyAsync(f.Order.CustomerId, c.ContractId);
         await Assert.ThrowsAsync<InvalidOperationException>(() => new StaffService(f.Db).CompleteHandoverAsync(1, "BG-0001", new CompleteHandoverRequest { UnlockMethod = "CARD" }));
         var staff = new StaffService(f.Db); await staff.ConfirmPaymentAsync(1, "SS-0001"); await staff.ConfirmPaymentAsync(1, "SS-0001");
         Assert.True(await f.PayOS.ProcessWebhookAsync("{}", null)); Assert.True(await f.PayOS.ProcessWebhookAsync("{}", null));
@@ -194,6 +196,8 @@ public sealed class CheckoutTests
         await ReservationAllocation.AllocateAsync(f.Db, 1, f.Order.FacilityId, f.Order.ReservationId, "K01", default);
         var staff = new StaffService(f.Db);
         await staff.ConfirmPaymentAsync(1, "SS-0001");
+        var c = await f.Db.RentalContracts.SingleAsync();
+        await new ContractService(f.Db).RequestKeyAsync(f.Order.CustomerId, c.ContractId);
         await staff.VerifyCustomerAsync(1, "XM-0001", new VerifyCustomerRequest { DocType = "CCCD", DocNumber = "123456789012", PhotoMatched = true, InfoMatched = true });
         var board = await staff.GetStaffBoardAsync(1);
         Assert.Equal("DONE", Assert.Single(board.Verifications).Status);
@@ -210,11 +214,18 @@ public sealed class CheckoutTests
         await using var f = await Fixture.Create();
         Assert.True(await f.PayOS.ProcessWebhookAsync("{}", null));
         var c = await f.Db.RentalContracts.Include(c => c.HandoverRecord).SingleAsync();
-        Assert.Equal("ACTIVE", c.Status); Assert.Equal("SCHEDULED", c.HandoverRecord!.Status);
-        var access = Access(f.Db); var qr = await access.GetQrAsync(f.Order.CustomerId, c.ContractId);
-        Assert.Matches(@"^\d{6}$", qr.BackupCode); Assert.Equal(f.Order.StartDate.ToString("yyyy-MM-dd"), qr.ValidFrom);
-        Assert.Equal("DENIED", (await access.ScanAsync(qr.Code, "test")).Result);
+        Assert.Equal("ACTIVE", c.Status);
+        // D36: BE không tự tạo HandoverRecord khi cấp hợp đồng tự động
+        Assert.Null(c.HandoverRecord);
+        var access = Access(f.Db);
+        // D36/L13: trước StartDate từ chối trả mã ra vào
+        await Assert.ThrowsAsync<InvalidOperationException>(() => access.GetQrAsync(f.Order.CustomerId, c.ContractId));
+        // Khách hàng chủ động yêu cầu nhận chìa khóa (C06)
+        var handover = await new ContractService(f.Db).RequestKeyAsync(f.Order.CustomerId, c.ContractId);
+        Assert.Equal("SCHEDULED", handover.Status);
         c.StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)); await f.Db.SaveChangesAsync();
+        var qr = await access.GetQrAsync(f.Order.CustomerId, c.ContractId);
+        Assert.Matches(@"^\d{6}$", qr.BackupCode); Assert.Equal(c.StartDate.ToString("yyyy-MM-dd"), qr.ValidFrom);
         Assert.Equal("OPEN", (await access.ScanAsync(qr.Code, "test")).Result);
         Assert.Equal("OPEN", (await access.ScanAsync(qr.BackupCode, "test", unitNumber: "K01")).Result);
         Assert.Equal("DENIED", (await access.ScanAsync(qr.BackupCode, "test")).Result);
@@ -224,7 +235,9 @@ public sealed class CheckoutTests
 
     [Fact] public async Task ContractEndIsExclusiveAndReturnedContractNeverReactivatedByPaymentReplay() {
         await using var f = await Fixture.Create(); await f.PayOS.ProcessWebhookAsync("{}", null);
-        var c = await f.Db.RentalContracts.SingleAsync(); var qr = await Access(f.Db).GetQrAsync(f.Order.CustomerId, c.ContractId);
+        var c = await f.Db.RentalContracts.SingleAsync();
+        c.StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)); await f.Db.SaveChangesAsync();
+        var qr = await Access(f.Db).GetQrAsync(f.Order.CustomerId, c.ContractId);
         c.StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)).AddDays(-1);
         c.EndDate = c.StartDate.AddDays(1); await f.Db.SaveChangesAsync();
         Assert.Equal("DENIED", (await Access(f.Db).ScanAsync(qr.Code, "test")).Result);
@@ -254,7 +267,10 @@ public sealed class CheckoutTests
 
     [Fact] public async Task KeyReceiptNeedsVerificationAndNeverChangesContractOrElectronicCredentials() {
         await using var f = await Fixture.Create(); await f.PayOS.ProcessWebhookAsync("{}", null);
-        var c = await f.Db.RentalContracts.SingleAsync(); var access = Access(f.Db);
+        var c = await f.Db.RentalContracts.SingleAsync();
+        c.StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)); await f.Db.SaveChangesAsync();
+        await new ContractService(f.Db).RequestKeyAsync(f.Order.CustomerId, c.ContractId);
+        var access = Access(f.Db);
         var before = await access.GetQrAsync(f.Order.CustomerId, c.ContractId); var activated = c.ActivatedAt;
         var ops = new FacilityOpsService(f.Db); var actor = new StorageProject.Core.DTOs.FacilityOps.OpsActor(1, false);
         await Assert.ThrowsAsync<InvalidOperationException>(() => ops.RecordKeyReceiptAsync(actor, "BG-0001"));

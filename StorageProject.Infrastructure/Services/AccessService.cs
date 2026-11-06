@@ -35,6 +35,12 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
             throw new InvalidOperationException("Hợp đồng đã trả kho hoặc hết hiệu lực, mã mở cửa không còn dùng được.");
         }
 
+        var todayVn = DateOnly.FromDateTime(DateTime.UtcNow + VnOffset);
+        if (todayVn < contract.StartDate)
+        {
+            throw new InvalidOperationException($"Mã ra vào chỉ hiển thị từ ngày bắt đầu thuê ({contract.StartDate:dd/MM/yyyy}).");
+        }
+
         var latestCred = LatestCredential(contract, false);
         if (latestCred == null || latestCred.Status != "ACTIVE")
         {

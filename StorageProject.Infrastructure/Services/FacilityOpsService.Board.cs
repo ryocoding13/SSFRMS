@@ -204,6 +204,8 @@ public partial class FacilityOpsService
         }).ToList();
 
         // ---- S05 · Yêu cầu hỗ trợ
+        var ticketIds = tickets.Select(t => t.TicketId).ToList();
+        var ticketPhotos = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.SupportTicket, ticketIds, ct);
         var ticketDtos = tickets.Select(t =>
         {
             var notes = ticketLogs
@@ -212,7 +214,8 @@ public partial class FacilityOpsService
                 .ToList();
             var unitCode = t.Unit?.UnitNumber ?? t.Contract?.Unit.UnitNumber ?? "—";
             return new OpsTicketDto(TicketCode(t.TicketId), unitCode, t.Customer.FullName, t.Title, Local(t.CreatedAt)!,
-                Local(t.AssignedAt ?? t.CreatedAt)!, TicketState(t), t.AssignedStaffId.HasValue ? StaffCode(t.AssignedStaffId.Value) : null, notes);
+                Local(t.AssignedAt ?? t.CreatedAt)!, TicketState(t), t.AssignedStaffId.HasValue ? StaffCode(t.AssignedStaffId.Value) : null,
+                notes, PhotosOf(ticketPhotos, t.TicketId));
         }).ToList();
 
         if (!actor.IsManager)

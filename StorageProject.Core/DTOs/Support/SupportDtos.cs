@@ -1,3 +1,5 @@
+using StorageProject.Core.DTOs.Evidence;
+
 namespace StorageProject.Core.DTOs.Support;
 
 public record CreateTicketRequest(
@@ -6,7 +8,8 @@ public record CreateTicketRequest(
     string IssueType,
     string Title,
     string Description,
-    string Priority
+    string Priority,
+    IReadOnlyList<EvidencePhotoUpload>? Photos = null
 );
 
 public record SupportTicketDto(
@@ -53,7 +56,8 @@ public record SupportTicketDetailDto(
     DateTime? AssignedAt,
     DateTime? ResolvedAt,
     DateTime? ClosedAt,
-    IReadOnlyList<TicketResponseDto>? Responses = null
+    IReadOnlyList<TicketResponseDto>? Responses = null,
+    IReadOnlyList<EvidencePhotoDto>? Photos = null
 );
 
 // Dữ liệu phản hồi công khai của từng yêu cầu hỗ trợ.
