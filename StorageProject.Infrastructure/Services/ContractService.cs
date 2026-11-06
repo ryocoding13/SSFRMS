@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using StorageProject.Core.DTOs.Contract;
 using StorageProject.Core.DTOs.Payment;
+using StorageProject.Core.DTOs.Policy;
 using StorageProject.Core.DTOs.Renewal;
 using StorageProject.Core.Interfaces;
 using StorageProject.Infrastructure.Data;
@@ -107,9 +108,20 @@ public class ContractService(AppDbContext dbContext) : IContractService
 
         var consent = await dbContext.PolicyConsents
             .Include(cp => cp.PolicyVersion)
-            .Where(cp => (cp.ContractId == c.ContractId || cp.ReservationId == c.ReservationId) && cp.CustomerId == customerId)
+            .Where(cp => (cp.ContractId == c.ContractId || (c.ReservationId > 0 && cp.ReservationId == c.ReservationId)) && cp.CustomerId == customerId && cp.RenewalId == null)
             .OrderByDescending(cp => cp.AcceptedAt)
             .FirstOrDefaultAsync(ct);
+
+        var consentDto = consent != null
+            ? new PolicyConsentDto(
+                consent.ConsentId,
+                consent.CustomerId,
+                consent.PolicyVersion?.Version ?? 1,
+                consent.PolicyVersion?.DisplayVersion ?? "11/2026",
+                consent.AcceptedAt,
+                consent.Channel ?? "WEB"
+            )
+            : null;
 
         return new ContractDetailDto(
             c.ContractId,
@@ -136,7 +148,8 @@ public class ContractService(AppDbContext dbContext) : IContractService
                 .Select(a => (DateTime?)a.IssuedAt).Max(),
             consent?.PolicyVersion?.Version,
             consent?.AcceptedAt,
-            await UnitAvailability.NextBookingAsync(dbContext, c, ct)
+            await UnitAvailability.NextBookingAsync(dbContext, c, ct),
+            consentDto
         );
     }
 

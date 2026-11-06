@@ -295,4 +295,118 @@ public sealed class PolicyConsentW4Tests
         Assert.NotNull(consent);
         Assert.Equal(contract.ContractId, consent.ContractId);
     }
+
+    [Fact]
+    public async Task GetContractDetailAsync_ReturnsPolicyConsent_WhenReservationHadConsent()
+    {
+        await using var f = new Fixture();
+        await f.InitAsync();
+        var res = await f.CreateReservationAsync("PAYOS");
+
+        var policyService = new RentalPolicyService(f.Db);
+        await policyService.RecordReservationConsentAsync(f.Customer.UserId, res.ReservationId, new PolicyConsentRequest(PolicyVersion: 1, Accepted: true));
+
+        await ReservationSettlement.RecordAsync(f.Db, res, "PAYMENT_GATEWAY", "PAYOS:12345", null, default);
+        await f.Db.SaveChangesAsync();
+        await ContractProvisioning.EnsureAsync(f.Db, res, null, default);
+
+        var contract = await f.Db.RentalContracts.FirstAsync(c => c.ReservationId == res.ReservationId);
+        var contractService = new ContractService(f.Db);
+        var detail = await contractService.GetContractDetailAsync(f.Customer.UserId, contract.ContractId);
+
+        Assert.NotNull(detail);
+        Assert.NotNull(detail.PolicyConsent);
+        Assert.Equal(1, detail.PolicyConsent.PolicyVersion);
+        Assert.Equal(f.Customer.UserId, detail.PolicyConsent.CustomerId);
+        Assert.Equal("WEB_CUSTOMER", detail.PolicyConsent.Channel);
+        Assert.True(detail.PolicyConsent.ConsentId > 0);
+    }
+
+    [Fact]
+    public async Task GetContractDetailAsync_InitialConsentExcludesRenewalConsent()
+    {
+        await using var f = new Fixture();
+        await f.InitAsync();
+        var res = await f.CreateReservationAsync("PAYOS");
+
+        var policyService = new RentalPolicyService(f.Db);
+        await policyService.RecordReservationConsentAsync(f.Customer.UserId, res.ReservationId, new PolicyConsentRequest(PolicyVersion: 1, Accepted: true));
+
+        await ReservationSettlement.RecordAsync(f.Db, res, "PAYMENT_GATEWAY", "PAYOS:12345", null, default);
+        await f.Db.SaveChangesAsync();
+        await ContractProvisioning.EnsureAsync(f.Db, res, null, default);
+
+        var contract = await f.Db.RentalContracts.FirstAsync(c => c.ReservationId == res.ReservationId);
+
+        // Tạo thêm policy version 2 và một renewal consent gắn với hợp đồng này
+        var policyV2 = new RentalPolicyVersion
+        {
+            Version = 2,
+            DisplayVersion = "12/2026",
+            Rate = 6.0m,
+            SectionsJson = "{}",
+            PublishedBy = f.Staff.UserId,
+            PublishedAt = DateTime.UtcNow,
+            IsCurrent = true
+        };
+        f.Db.RentalPolicyVersions.Add(policyV2);
+        await f.Db.SaveChangesAsync();
+
+        var renewal = new ContractRenewal
+        {
+            ContractId = contract.ContractId,
+            OldEndDate = contract.EndDate,
+            NewEndDate = contract.EndDate.AddMonths(1),
+            RenewalPeriodMonths = 1,
+            OldMonthlyRate = contract.AgreedMonthlyRate,
+            NewMonthlyRate = contract.AgreedMonthlyRate,
+            RenewalAmount = contract.AgreedMonthlyRate,
+            Status = "PENDING",
+            RequestedAt = DateTime.UtcNow,
+            PolicyVersion = 2,
+            AcceptedAt = DateTime.UtcNow.AddMinutes(5)
+        };
+        f.Db.ContractRenewals.Add(renewal);
+        await f.Db.SaveChangesAsync();
+
+        // Ghi nhận consent của lần gia hạn (RenewalId != null, AcceptedAt muộn hơn)
+        f.Db.PolicyConsents.Add(new PolicyConsent
+        {
+            CustomerId = f.Customer.UserId,
+            PolicyVersionId = policyV2.PolicyVersionId,
+            RenewalId = renewal.RenewalId,
+            ContractId = contract.ContractId,
+            AcceptedAt = DateTime.UtcNow.AddMinutes(5),
+            Channel = "WEB_CUSTOMER"
+        });
+        await f.Db.SaveChangesAsync();
+
+        var contractService = new ContractService(f.Db);
+        var detail = await contractService.GetContractDetailAsync(f.Customer.UserId, contract.ContractId);
+
+        Assert.NotNull(detail);
+        Assert.NotNull(detail.PolicyConsent);
+        // Bằng chứng của mục ký ban đầu PHẢI là version 1 của đơn gốc, không được lấy version 2 của renewal
+        Assert.Equal(1, detail.PolicyConsent.PolicyVersion);
+    }
+
+    [Fact]
+    public async Task GetContractDetailAsync_WithoutConsent_ReturnsNullPolicyConsent()
+    {
+        await using var f = new Fixture();
+        await f.InitAsync();
+        var res = await f.CreateReservationAsync("PAYOS");
+
+        // Không tạo consent
+        await ReservationSettlement.RecordAsync(f.Db, res, "PAYMENT_GATEWAY", "PAYOS:12345", null, default);
+        await f.Db.SaveChangesAsync();
+        await ContractProvisioning.EnsureAsync(f.Db, res, null, default);
+
+        var contract = await f.Db.RentalContracts.FirstAsync(c => c.ReservationId == res.ReservationId);
+        var contractService = new ContractService(f.Db);
+        var detail = await contractService.GetContractDetailAsync(f.Customer.UserId, contract.ContractId);
+
+        Assert.NotNull(detail);
+        Assert.Null(detail.PolicyConsent);
+    }
 }

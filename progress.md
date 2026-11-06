@@ -1,3 +1,28 @@
+## 2026-11-07 — Sửa lỗi thiếu bằng chứng đồng ý chính sách trên hợp đồng mới
+
+- **Mục tiêu:** Đảm bảo khách hàng sau khi tạo đơn và đồng ý chính sách cho thuê, hoàn tất thanh toán (online hoặc tại quầy), mở lại mục "Chính sách → Theo hợp đồng của tôi → Khi đặt chỗ / ký hợp đồng ban đầu" luôn hiển thị đầy đủ bằng chứng (Phiên bản, Thời điểm, Kênh và Nội dung phiên bản chính sách đã đồng ý), kể cả khi đăng xuất, đổi trình duyệt hoặc khi chính sách hiện hành được cập nhật.
+- **Nguyên nhân gốc rễ xác minh:**
+  1. Frontend có gửi request consent (`POST /api/reservations/{id}/policy-consent`) và Backend đã lưu vào bảng `policy_consents`.
+  2. Khi hợp đồng được cấp (`ContractProvisioning.EnsureAsync`), bản ghi `PolicyConsent` đã được liên kết `c.Contract = contract;`.
+  3. Tuy nhiên, API `GET /api/contracts/{id}` (`ContractDetailDto`) và `GET /api/reservations/{id}` (`ReservationDetailDto`) chỉ trả 2 trường số/chuỗi phẳng (`PolicyVersion` và `PolicyAcceptedAt`), nhưng THIẾU đối tượng `PolicyConsentDto` (gồm `ConsentId`, `CustomerId`, `PolicyVersion`, `DisplayVersion`, `AcceptedAt`, `Channel`).
+  4. Hàm `normalizePolicyConsent` ở frontend bắt buộc phải có trường `channel` thuộc `["WEB", "WEB_CUSTOMER"]`. Khi `c.policyConsent` là `undefined`, hàm trả về `null`, khiến UI hiển thị "Chưa có bằng chứng đồng ý" và các trường đều trống.
+  5. Đồng thời, `ContractService.cs` khi tìm consent trước đây chỉ `OrderByDescending(AcceptedAt)` mà không lọc `RenewalId == null`, dẫn tới rủi ro lấy nhầm bằng chứng của lần gia hạn thay vì của đơn gốc.
+- **Giải pháp triển khai:**
+  1. `ContractDtos.cs` & `ReservationDtos.cs`: Bổ sung `PolicyConsentDto? PolicyConsent = null` vào `ContractDetailDto` và `ReservationDetailDto`.
+  2. `ContractService.cs` & `ReservationService.cs`:
+     - Lọc chính xác bản ghi consent của đơn gốc (`RenewalId == null`).
+     - Map đầy đủ `PolicyConsentDto` và truyền vào DTO phản hồi.
+  3. `apiMappers.js`: Map `policy_consent` từ `c.policyConsent` (hoặc fallback `c.policyVersion` / `c.policyAcceptedAt`).
+  4. `RentalPolicyPage.jsx`: Cập nhật thông báo khi hồ sơ không có bản ghi lưu: "Hồ sơ này không có bản ghi đồng ý được lưu."
+  5. Backend Tests (`PolicyConsentW4Tests.cs`): Thêm 3 unit test:
+     - `GetContractDetailAsync_ReturnsPolicyConsent_WhenReservationHadConsent`: Kiểm tra trả đầy đủ consent khi đơn gốc có consent.
+     - `GetContractDetailAsync_InitialConsentExcludesRenewalConsent`: Kiểm tra mục ký ban đầu luôn lấy consent của đơn gốc, không lấy consent của lần gia hạn.
+     - `GetContractDetailAsync_WithoutConsent_ReturnsNullPolicyConsent`: Kiểm tra hợp đồng cũ không có consent thì trả `null`, không tạo giả.
+  6. Frontend Tests (`api-mappers.test.js`): Bổ sung test kiểm chứng `composeData` map đúng `policy_consent` từ `PolicyConsentDto` của backend.
+- **Kiểm chứng:**
+  - Backend: `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` PASS 260/260 tests.
+  - Frontend: `npm test` PASS 159/159 tests, `test:business` PASS 10/10, `test:workflows` PASS 11/11, `check:structure` PASS, `test:render` PASS 181 routes, `npm run build` PASS.
+
 ## 2026-11-06 — Sửa lỗi tính tỷ trọng doanh thu 0/0 (NaN%) ở Báo cáo Facility Manager
 
 - **Vấn đề:** Trong `FacilityReportPage.jsx`, khi doanh thu các loại kho đều bằng 0 (`typeTotal = 0`), phép tính `(t.value / typeTotal) * 100` ra `NaN`, dẫn đến nhãn hiển thị `NaN%` và thanh hiển thị `style="width: NaN%"`.

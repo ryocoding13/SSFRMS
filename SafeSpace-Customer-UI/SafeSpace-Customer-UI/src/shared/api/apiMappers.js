@@ -212,10 +212,19 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
     const atFacility = r.paymentMethod === "AT_FACILITY" || r.status === "PENDING_AT_FACILITY" || Boolean(overlay.atFacility?.[id]);
     const rent = Number(r.estimatedAmount);
     const deposit = Number(r.requiredDeposit);
+    const resDetail = remote.reservationDetails?.[id];
+    const resConsent = resDetail?.policyConsent || (resDetail?.policyVersion != null && resDetail?.policyAcceptedAt ? {
+      version: resDetail.policyVersion,
+      acceptedAt: resDetail.policyAcceptedAt,
+      channel: resDetail.channel || "WEB_CUSTOMER",
+      customerId: resDetail.customerId,
+      consentId: resDetail.consentId,
+      displayVersion: resDetail.displayVersion,
+    } : null);
     return {
       reservation_id: code,
       api_id: id,
-      policy_consent: normalizePolicyConsent(remote.reservationDetails?.[id]?.policyConsent || overlay.policyConsents?.[id]),
+      policy_consent: normalizePolicyConsent(resConsent || overlay.policyConsents?.[id]),
       facility_id: r.facilityId,
       facility_name: r.facilityName,
       type: offer.type,
@@ -257,11 +266,19 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
     const start = dateOnly(c.startDate);
     const end = dateOnly(c.endDate);
     const handover = c.handover || null;
+    const contractConsent = c.policyConsent || (c.policyVersion != null && c.policyAcceptedAt ? {
+      version: c.policyVersion,
+      acceptedAt: c.policyAcceptedAt,
+      channel: c.channel || "WEB_CUSTOMER",
+      customerId: c.customerId,
+      consentId: c.consentId,
+      displayVersion: c.displayVersion,
+    } : null);
     contracts.push({
       contract_id: code,
       api_id: c.contractId,
       customer_name: c.customerName || null,
-      policy_consent: normalizePolicyConsent(c.policyConsent),
+      policy_consent: normalizePolicyConsent(contractConsent),
       reservation_id: codeByReservation.get(c.reservationId) || null,
       facility_id: facility?.facility_id ?? null,
       facility_name: c.facilityName,

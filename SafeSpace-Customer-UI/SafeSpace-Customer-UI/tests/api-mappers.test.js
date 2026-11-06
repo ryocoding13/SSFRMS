@@ -190,3 +190,30 @@ test("D32 renewal: PAID giữ PAID; duyệt chưa trả vẫn bị chặn khi qu
     assert.equal(out.ledger.find(l=>l.api_id===30).payable,false);
   }
 });
+
+test("chế độ API: hợp đồng nhận policy_consent từ PolicyConsentDto của backend", () => {
+  const remoteWithConsent = {
+    ...remote,
+    contracts: [
+      {
+        ...remote.contracts[0],
+        policyConsent: {
+          consentId: 42,
+          customerId: 3,
+          policyVersion: 1,
+          displayVersion: "11/2026",
+          acceptedAt: "2026-09-06T05:00:00Z",
+          channel: "WEB",
+        },
+      },
+    ],
+  };
+  const d = composeData({ catalog, remote: remoteWithConsent, overlay: {}, session, timeoutSeconds: 60, now: NOW });
+  const c = d.contracts[0];
+  assert.ok(c.policy_consent);
+  assert.equal(c.policy_consent.version, 1);
+  assert.equal(c.policy_consent.displayVersion, "11/2026");
+  assert.equal(c.policy_consent.channel, "WEB");
+  assert.equal(c.policy_consent.customer_id, 3);
+  assert.equal(c.policy_consent.consent_id, 42);
+});
