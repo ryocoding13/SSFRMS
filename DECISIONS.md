@@ -535,3 +535,11 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Khách: `#/units/:id/renew-other` (C08-D41a/b) — một màn cho cả gia hạn sang ô khác và sau nâng cấp (có lựa chọn "Giữ ô lớn" đi đường gia hạn thường). Nút Gia hạn ở chi tiết hợp đồng tự đổi thành "Gia hạn sang ô khác" khi ô đã có khách đặt (D41). Khối "Chuyển sang ô mới" trong chi tiết hợp đồng; nút "Đã chuyển đồ" chỉ bật trong 3 ngày cuối kỳ cũ.
 - Nhân viên: `#/staff/unit-moves` — biên bản 3 mục chọn sẵn như D38, ghi vào `note`; "Báo ô còn đồ" chỉ hiện cảnh báo, không gọi máy chủ. Số khấu trừ trên màn là tạm tính, máy chủ chốt số chính thức.
 - Chưa làm: hiện ô mới / cọc chênh trong màn duyệt gia hạn của quản lý (BE board chưa trả dữ liệu này).
+
+## PROCESS-2026-11-07-DEPENDABOT — Bỏ Dependabot — Đã chốt
+
+> Thắng chốt lúc 07/11/2026 02:32. Thay ý "Dependabot" trong IMPL-2026-11-06-P7; giữ nguyên lịch sử ở trên.
+
+- Xoá `.github/dependabot.yml`: lần quét đầu tiên đã mở 5 PR nâng thư viện (#77–#81, có 2 bản nâng lớn) ngay sát hạn nộp; nhóm đã đóng cả 5, không merge.
+- Nâng thư viện khi cần sẽ làm tay trên nhánh riêng, qua PR và CI như mọi thay đổi khác.
+- Giữ nguyên các phần khác của Phiên 7 (mẫu PR, bước CI chặn chữ đã bỏ).
