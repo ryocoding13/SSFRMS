@@ -17,7 +17,7 @@ public static class AuthEndpoints
                 var result = await authService.RegisterAsync(request, ct);
                 return Results.Created($"/api/users/{result.UserId}", result);
             }
-            catch (InvalidOperationException ex)
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
             {
                 return Results.BadRequest(new { error = ex.Message });
             }
@@ -36,7 +36,7 @@ public static class AuthEndpoints
             {
                 return Results.Unauthorized();
             }
-            catch (InvalidOperationException ex)
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
             {
                 return Results.BadRequest(new { error = ex.Message });
             }

@@ -38,7 +38,7 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
         // L13 (D35–D36): trước ngày bắt đầu thuê không trả QR/PIN; mã vẫn được cấp sẵn sau thanh toán (D26).
         if (OpsRules.TodayLocal < contract.StartDate)
         {
-            throw new InvalidOperationException($"Mã QR/PIN dùng được từ ngày bắt đầu thuê {contract.StartDate:dd/MM/yyyy}.");
+            throw new InvalidOperationException($"Mã ra vào chỉ hiển thị từ ngày bắt đầu thuê ({contract.StartDate:dd/MM/yyyy}).");
         }
 
         var latestCred = LatestCredential(contract, false);

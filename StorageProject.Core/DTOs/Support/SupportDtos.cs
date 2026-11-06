@@ -58,7 +58,8 @@ public record SupportTicketDetailDto(
     DateTime? AssignedAt,
     DateTime? ResolvedAt,
     DateTime? ClosedAt,
-    IReadOnlyList<TicketResponseDto>? Responses = null
+    IReadOnlyList<TicketResponseDto>? Responses = null,
+    IReadOnlyList<EvidencePhotoDto>? Photos = null
 );
 
 // Dữ liệu phản hồi công khai của từng yêu cầu hỗ trợ.

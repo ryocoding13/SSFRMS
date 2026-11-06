@@ -94,6 +94,9 @@ public class SupportTicketService(AppDbContext dbContext) : ISupportTicketServic
             }
         }
 
+        var photoDict = await EvidencePhotos.UrlsAsync(dbContext, EvidencePhotos.SupportTicket, [ticketId], ct);
+        var photos = photoDict.GetValueOrDefault(ticketId, []);
+
         return new SupportTicketDetailDto(
             t.TicketId,
             t.ContractId ?? 0,
@@ -108,7 +111,8 @@ public class SupportTicketService(AppDbContext dbContext) : ISupportTicketServic
             t.AssignedAt,
             t.ResolvedAt,
             t.ClosedAt,
-            responses
+            responses,
+            photos
         );
     }
 

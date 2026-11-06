@@ -1,3 +1,37 @@
+## 2026-11-06 — Hoàn thành Gói KH-01, KH-04, KH-08: Chuẩn hoá Đăng ký, Nhận chìa khóa D36, QR/PIN và Hỗ trợ kèm ảnh D35
+
+- **Mục tiêu:** Thực hiện các gói công việc theo kế hoạch `SSFRMS-Customer-Flow-Implementation-Plan.md` (C01, C06, C07, C16, C17):
+  1. **KH-01 (C01 — Đăng ký & Validation Username):**
+     - Sửa validation `request.Username` trong `AuthService.RegisterAsync`: kiểm tra trước khi trim, bắt buộc không rỗng, độ dài ≤ 50 ký tự theo cột `User.Username`, không chứa ký tự khoảng trắng hoặc `@` theo D33.
+     - `AuthEndpoints`: bắt `ArgumentException` và `InvalidOperationException` trả về HTTP 400 Bad Request kèm thông điệp lỗi rõ ràng.
+     - Kiểm chứng bằng 14 unit tests trong `RegisterValidationTests.cs` (kiểm thử username có `@`, khoảng trắng đầu/cuối/giữa, rỗng, quá 50 ký tự, đúng 50 ký tự, trùng lặp và đăng nhập được bằng cả username lẫn email).
+  2. **KH-04 (C06 & C07 — Nhận chìa khóa theo yêu cầu D36 & QR/PIN trước ngày thuê):**
+     - **C07 (QR/PIN theo kỳ thuê):** `AccessService.GetQrAsync` kiểm tra ngày hiện tại theo giờ Việt Nam (`todayVn < contract.StartDate`); ném `InvalidOperationException` từ chối trả mã trước ngày bắt đầu thuê (khớp D36 / L13).
+     - **C06 (Bỏ auto-create HandoverRecord & API yêu cầu nhận chìa khóa):**
+       + `ContractProvisioning.EnsureAsync` và `ReservationAllocation.AllocateAsync`: bỏ việc tự động tạo `HandoverRecord` khi kích hoạt/phân bổ hợp đồng theo D36.
+       + Bổ sung endpoint `POST /api/contracts/{id}/request-key` (và alias `/key-request`) trong `ContractEndpoints.cs` và `IContractService.RequestKeyAsync`: khách chủ động gửi yêu cầu nhận chìa khóa tại quầy. Tạo `HandoverRecord` với status `SCHEDULED`, ghi `ActivityLog` (`KEY_REQUESTED`). Hỗ trợ idempotent retry an toàn, từ chối khi hợp đồng đã kết thúc hoặc chìa khóa đã nhận trước đó.
+       + Khi khách yêu cầu, nhân viên đúng cơ sở nhìn thấy hồ sơ nhận chìa khóa trên board vận hành (`task.Status == WAITING`) để tiến hành xác minh và bàn giao.
+  3. **KH-08 (C16 & C17 — Hỗ trợ gắn kho kiểm kỳ thuê & Ảnh đính kèm HMAC D35):**
+     - **C16 (Kiểm kỳ thuê gắn kho):** `SupportTicketService.CreateTicketAsync` kiểm tra kỳ thuê của hợp đồng theo D36 / L14: chỉ cho phép tạo ticket gắn kho khi hợp đồng đã bắt đầu và chưa kết thúc (`todayVn >= contract.StartDate` và `todayVn <= contract.EndDate` hoặc trạng thái `RETURN_PENDING`/`OVERDUE`). Trước hoặc sau kỳ thuê, từ chối và hướng dẫn sang kênh hỗ trợ chung (`/api/support/inquiries`).
+     - **C17 (Ảnh bằng chứng thực):**
+       + `CreateTicketRequest`: nhận danh sách ảnh base64 (`Photos`). Giải mã và kiểm tra định dạng JPG/PNG, dung lượng ≤ 5MB bằng `EvidencePhotos.Decode`.
+       + Lưu ảnh vào bảng `evidence_photos` với `OwnerType = "SUPPORT_TICKET"`.
+       + Thêm migration mới `20261105174242_AddSupportTicketEvidencePhoto` bổ sung `'SUPPORT_TICKET'` vào check constraint `CK_evidence_photos_owner_type`.
+       + `SupportTicketDetailDto` và `OpsTicketDto`: trả danh sách ảnh kèm URL có chữ ký HMAC hết hạn sau 1 giờ (`EvidencePhotos.Url`), cho phép cả khách hàng và nhân viên cơ sở xem trực tiếp ảnh bằng chứng theo D35.
+       + `SupportTicketEndpoints`: bổ sung thuộc tính `RequestSizeLimit` (40 MiB) hỗ trợ tải ảnh đính kèm.
+- **Kiểm chứng Toàn diện:**
+  - **Backend Build:** `dotnet build StorageProject.slnx -c Release --no-restore -m:1` → PASS, 0 Error, 2 Warnings sẵn có.
+  - **Backend Unit Tests:** `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` → PASS 219/219 tests (bao gồm 14 tests `RegisterValidationTests` và 11 tests `CustomerFlowKH04KH08Tests`).
+  - **Backend Integration Tests:** `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release` → PASS 11/11 tests trên SQL Server thật (`.\SQLEXPRESS`), áp dụng toàn bộ 11 migrations thành công, 0 model drift.
+  - **EF Core Pending Model Changes:** `dotnet ef migrations has-pending-model-changes` → PASS, 0 pending model changes.
+  - **Frontend Tests:**
+    + `npm test`: PASS 155/155 tests.
+    + `npm run test:business`: PASS 9/9 tests.
+    + `npm run test:workflows`: PASS 12/12 tests.
+    + `npm run check:structure`: PASS.
+    + `npm run build`: PASS, bundle Vite production thành công.
+  - **Git Diff:** `git diff --check` → PASS, 0 whitespace errors.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
 ## 2026-11-06 — Phiên 6: M01, M04, M06, S02, S03, S07, FE nhân viên / quản lý, B02, câu 1, 2, 4, 7, D30-15b
 
 - **BE** `RenewalApproval.cs` (mới, M01): một đường duyệt gia hạn cho 3 route, khoá rồi mới kiểm lại (kỳ thuê, yêu cầu khác đang chờ, hạn, ô đã có khách đặt, giá ACTIVE). `ManagerService.AddContractReminderAsync` (M04) dùng khoá `move-out`, không tạo trùng hồ sơ quá hạn. `RenewalService.CollectCounterRenewalAsync` (S02) kiểm consent đúng phiên bản. Route kiểm kê cũ `/api/staff/returns/{id}/inspection` trả 410 (S03). Câu 7: `ReturnDeductionDecisionRequest.Photos`, `ReturnDeductionDto.CustomerPhotos`, `OpsReturnDto.DeductionPhotos`; migration viết tay `20261106120000_Phien6DeductionPhotos` (chỉ đổi CHECK `evidence_photos.OwnerType`).

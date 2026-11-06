@@ -48,6 +48,7 @@ public interface IContractService
     Task<IReadOnlyList<ContractSummaryDto>> GetMyContractsAsync(long customerId, CancellationToken ct = default);
     Task<ContractDetailDto?> GetContractDetailAsync(long customerId, long contractId, CancellationToken ct = default);
     Task<MoveOutResponseDto> RegisterMoveOutAsync(long customerId, long contractId, MoveOutRequest request, CancellationToken ct = default);
+    Task<HandoverSummaryDto> RequestKeyAsync(long customerId, long contractId, StorageProject.Core.DTOs.Contract.KeyRequestInput? input = null, CancellationToken ct = default);
 }
 
 public interface IAccessService

@@ -139,6 +139,7 @@ public class OpsTicketDto
     public string Status { get; set; } = "OPEN";
     public string? Assignee { get; set; }
     public List<OpsTicketNoteDto> Notes { get; set; } = [];
+    public List<StorageProject.Core.DTOs.Evidence.EvidencePhotoDto> Photos { get; set; } = [];
 }
 
 public class OpsTicketNoteDto
