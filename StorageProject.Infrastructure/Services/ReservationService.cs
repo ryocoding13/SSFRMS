@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using StorageProject.Core.DTOs.Evidence;
+using StorageProject.Core.DTOs.Policy;
 using StorageProject.Core.DTOs.Reservation;
 using StorageProject.Core.Entities;
 using StorageProject.Core.Exceptions;
@@ -70,9 +71,20 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
 
         var consent = await dbContext.PolicyConsents
             .Include(c => c.PolicyVersion)
-            .Where(c => c.ReservationId == r.ReservationId && c.CustomerId == customerId)
+            .Where(c => c.ReservationId == r.ReservationId && c.CustomerId == customerId && c.RenewalId == null)
             .OrderByDescending(c => c.AcceptedAt)
             .FirstOrDefaultAsync(ct);
+
+        var consentDto = consent != null
+            ? new PolicyConsentDto(
+                consent.ConsentId,
+                consent.CustomerId,
+                consent.PolicyVersion?.Version ?? 1,
+                consent.PolicyVersion?.DisplayVersion ?? "11/2026",
+                consent.AcceptedAt,
+                consent.Channel ?? "WEB"
+            )
+            : null;
 
         return new ReservationDetailDto(
             r.ReservationId,
@@ -95,7 +107,8 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             r.CreatedAt,
             r.PaymentMethod,
             consent?.PolicyVersion?.Version,
-            consent?.AcceptedAt
+            consent?.AcceptedAt,
+            consentDto
         );
     }
 
