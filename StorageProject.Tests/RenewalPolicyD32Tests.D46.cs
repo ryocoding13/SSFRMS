@@ -68,6 +68,7 @@ public sealed partial class RenewalPolicyD32Tests
         var payments = await f.Db.Payments.AsNoTracking().Where(p => p.RenewalId == dto.RenewalId).ToListAsync();
         Assert.Equal(1_500_000m, payments.Single(p => p.PaymentType == "RENEWAL").Amount);
         Assert.Equal(300_000m, payments.Single(p => p.PaymentType == "DEPOSIT" && p.Status == "PAID").Amount);
+        Assert.Equal("TEST-PAY-COC", payments.Single(p => p.PaymentType == "DEPOSIT").TransactionReference); // mã giao dịch không trùng (unique)
         var contract = await f.Db.RentalContracts.AsNoTracking().SingleAsync(c => c.ContractId == f.Contract.ContractId);
         Assert.Equal((1_800_000m, f.Unit.UnitId), (contract.DepositAmount, contract.UnitId)); // vẫn ở ô cũ tới khi chuyển đồ
 
@@ -191,5 +192,9 @@ public sealed partial class RenewalPolicyD32Tests
         Assert.Equal(1_500_000m, inspected.Deduction); // không vượt cọc đang giữ (D31)
         Assert.Equal(0m, (await f.Db.RentalContracts.AsNoTracking().SingleAsync(c => c.ContractId == f.Contract.ContractId)).DepositAmount);
         Assert.Equal("MAINTENANCE", (await f.Db.StorageUnits.AsNoTracking().SingleAsync(u => u.UnitId == f.Unit.UnitId)).Status);
+        var refs = await f.Db.Payments.AsNoTracking().Where(p => p.RenewalId == dto.RenewalId && p.PaymentType != "RENEWAL" && p.PaymentType != "DEPOSIT")
+            .Select(p => p.TransactionReference).ToListAsync();
+        Assert.Equal(2, refs.Count); // vệ sinh + hư hỏng, mỗi khoản một mã giao dịch
+        Assert.Equal(refs.Count, refs.Distinct().Count());
     }
 }

@@ -1,3 +1,9 @@
+## 2026-11-07 — Sửa CI đỏ sau Phiên 8: trùng mã giao dịch khi tách cọc chênh / khấu trừ ô cũ
+
+- **Lỗi (CI `main` 867c0d5, job Backend):** 2 test D46 đỏ vì `payments.TransactionReference` là duy nhất mà `RenewalUnitMove` tạo 2 khoản cùng mã: khoản `DEPOSIT` cọc chênh dùng lại mã của khoản `RENEWAL`; các khoản khấu trừ ô cũ (vệ sinh, hư hỏng, quá hạn) dùng chung `TRU-COC-GH-xxxx`. Lỗi này cũng xảy ra khi chạy thật.
+- **Sửa:** cọc chênh dùng mã khoản gia hạn kèm hậu tố `-COC` (cắt về tối đa 150 ký tự); mỗi khoản khấu trừ có mã riêng `TRU-COC-GH-xxxx-<loại phí>`. Test bổ sung kiểm mã không trùng.
+- **Kiểm tra:** biên dịch Roslyn với stub không lỗi; chưa chạy `dotnet test` cục bộ (NuGet bị chặn) — CI là kiểm chứng thật.
+
 ## 2026-11-06 — Phiên 9: FE gia hạn sang ô khác (D46, D46b)
 
 - **Figma (vẽ trước, viền đỏ chờ duyệt):** C07b-D46 + 3 popup; S04-ô cũ, S04-ô cũ-chi tiết + 4 popup.
