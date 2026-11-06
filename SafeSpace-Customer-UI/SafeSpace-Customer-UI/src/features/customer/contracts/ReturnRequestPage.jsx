@@ -10,7 +10,7 @@ import { addDays, dateLabel, daysBetween, money, today } from "../../../shared/u
 import { typeLabel } from "../../../shared/utils/catalog.js";
 import { earlyStopKeep, isEarlyStop, unusedRent } from "../../../shared/utils/returnPolicy.js";
 import { go } from "../../../app/router.js";
-import { contractOf, facilityOf, pendingRenewal } from "../../../app/state/appSelectors.js";
+import { contractOf, facilityOf, pendingRenewal, pendingReturn } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { NotFound } from "./components/ContractNotFound.jsx";
 import "../../../shared/styles/customer-detail.css";
@@ -44,7 +44,7 @@ export function ReturnRequestPage({ id }) {
   const expectedName = c.customer_name || (mode === "local" ? data.user?.full_name : null);
   const facility = facilityOf(data, c.facility_id, c.facility_name);
   const left = daysBetween(today(), c.end_date);
-  const hasReturn = data.returns.some(r => r.contract_id === id && !["CANCELLED", "REJECTED"].includes(r.status));
+  const hasReturn = Boolean(pendingReturn(data, id));
   const blocked = ["ENDED", "RETURN_PENDING"].includes(c.status) || c.start_date > today() || hasReturn || Boolean(pendingRenewal(data, id));
   const validate = () => validateRefundChoice(bank, expectedName) || validateReturnPhotos(photos) || (!emptied ? "Vui lòng xác nhận đã chuyển hết đồ ra khỏi kho." : "") || (!date || date < today() ? "Ngày kiểm tra không được ở quá khứ." : "");
   const submit = e => { e.preventDefault(); if (busy || reading || blocked || !support.ready) return; const invalid = validate(); setError(invalid); if (!invalid) setConfirm(true); };
