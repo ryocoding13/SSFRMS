@@ -1,3 +1,10 @@
+## 2026-11-07 — M03: màn duyệt gia hạn hiện ô mới và cọc chênh (D46)
+
+- **BE:** `OpsRenewalDto` (cả bản `DTOs/Ops` dùng cho `/api/manager/board` và bản `DTOs/FacilityOps` dùng cho `/api/ops/board`) thêm `TargetUnit`, `DepositTopUp`; `ManagerService.GetManagerBoardAsync` và `FacilityOpsService.Board` đọc kế hoạch chuyển ô từ `activity_logs` (`RENEWAL_UNIT_CHANGE` / `RENEWAL_UNIT_HELD`).
+- **FE:** `RenewalApprovalPage.jsx` hiện "Sang ô X · cọc chênh Y (thu cùng tiền gia hạn) · khách tự chuyển đồ trong 3 ngày cuối kỳ" ở yêu cầu chờ duyệt và đã duyệt; hàm `renewalApprovalModel.js`.
+- **Test:** BE `D46_ManagerBoard_ShowsTargetUnitAndDepositTopUp` (cả 2 board, trước và sau duyệt); FE thêm 1 test trong `renewal-unit-move.test.js`.
+- **Kiểm tra:** `npm test` 167/167, `test:business` 10/10, `test:render` 184 route, `check:structure`, `build` đạt; BE biên dịch Roslyn với stub không lỗi; `dotnet test` chờ CI.
+
 ## 2026-11-07 — Sửa CI đỏ sau Phiên 8: trùng mã giao dịch khi tách cọc chênh / khấu trừ ô cũ
 
 - **Lỗi (CI `main` 867c0d5, job Backend):** 2 test D46 đỏ vì `payments.TransactionReference` là duy nhất mà `RenewalUnitMove` tạo 2 khoản cùng mã: khoản `DEPOSIT` cọc chênh dùng lại mã của khoản `RENEWAL`; các khoản khấu trừ ô cũ (vệ sinh, hư hỏng, quá hạn) dùng chung `TRU-COC-GH-xxxx`. Lỗi này cũng xảy ra khi chạy thật.

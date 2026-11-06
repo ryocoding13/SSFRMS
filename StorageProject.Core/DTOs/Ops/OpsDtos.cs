@@ -165,6 +165,9 @@ public class OpsRenewalDto
     public string Requested { get; set; } = null!;
     public string Status { get; set; } = "PENDING";
     public string? RejectionReason { get; set; }
+    // D46 · gia hạn sang ô khác: ô khách chọn và cọc chênh thu cùng khoản gia hạn (null / 0 khi gia hạn ô hiện tại)
+    public string? TargetUnit { get; set; }
+    public decimal DepositTopUp { get; set; }
 }
 
 public class OpsContractDto

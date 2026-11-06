@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using StorageProject.Core.DTOs.FacilityOps;
 using StorageProject.Core.DTOs.Renewal;
 using StorageProject.Core.Entities;
 using StorageProject.Core.Policies;
@@ -196,5 +197,27 @@ public sealed partial class RenewalPolicyD32Tests
             .Select(p => p.TransactionReference).ToListAsync();
         Assert.Equal(2, refs.Count); // vệ sinh + hư hỏng, mỗi khoản một mã giao dịch
         Assert.Equal(refs.Count, refs.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task D46_ManagerBoard_ShowsTargetUnitAndDepositTopUp()
+    {
+        await using var f = await Fixture.CreateAsync();
+        var k02 = await AddFreeUnitAsync(f);
+        await AddDepositPolicyAsync(f, 1_800_000m);
+        var swap = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, new CreateRenewalRequest(1, 1, true, k02.UnitId));
+
+        var board = await new FacilityOpsService(f.Db).GetBoardAsync(new OpsActor(f.ManagerUser.UserId, true));
+        var row = Assert.Single(board.Renewals, r => r.Status == "PENDING");
+        Assert.Equal(("K02", 300_000m), (row.TargetUnit, row.DepositTopUp)); // quản lý thấy ô mới và cọc chênh trước khi duyệt
+
+        await f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, swap.RenewalId);
+        board = await new FacilityOpsService(f.Db).GetBoardAsync(new OpsActor(f.ManagerUser.UserId, true));
+        row = Assert.Single(board.Renewals);
+        Assert.Equal(("K02", 300_000m, 1_800_000m), (row.TargetUnit, row.DepositTopUp, row.Amount + row.DepositTopUp));
+        // Màn quản lý lấy /api/manager/board (ManagerService) — cũng phải có ô mới và cọc chênh.
+        var managerBoard = await new ManagerService(f.Db, new StaffService(f.Db)).GetManagerBoardAsync(f.ManagerUser.UserId);
+        var mrow = Assert.Single(managerBoard.Renewals, r => r.Id == $"GH-{swap.RenewalId:D4}");
+        Assert.Equal(("K02", 300_000m), (mrow.TargetUnit, mrow.DepositTopUp));
     }
 }
