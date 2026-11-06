@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { canMarkMoved, moveWindowStart, renewalEstimate, renewalUnitChoices } from "../src/features/customer/contracts/renewalUnitModel.js";
 import { oldUnitDeduction } from "../src/features/staff/returns/oldUnitInspectionModel.js";
+import { unitMoveText } from "../src/features/manager/renewals/renewalApprovalModel.js";
 
 // D46 / D46b · gia hạn sang ô khác, gia hạn sau nâng cấp, chuyển đồ, kiểm tra ô cũ
 const opts = (upgraded) => ({ currentUnit: "K07", upgraded, options: [
@@ -54,4 +55,9 @@ test("khấu trừ không vượt cọc đang giữ, không tạo nợ", () => {
   assert.equal(r.total, 1500000);
   assert.equal(r.left, 0);
   assert.equal(oldUnitDeduction({ depositHeld: 1000 }, { walls: "DAMAGED", damage: "-5" }).invalidDamage, true);
+});
+
+test("quản lý thấy ô mới và cọc chênh khi duyệt gia hạn sang ô khác", () => {
+  assert.match(unitMoveText({ target_unit: "B-021", deposit_top_up: 300000 }), /Sang ô B-021 · cọc chênh 300\.000/);
+  assert.match(unitMoveText({ target_unit: "B-021", deposit_top_up: 0 }), /không thu thêm cọc/);
 });

@@ -78,6 +78,9 @@ public partial class FacilityOpsService
         var returnLogs = await LogsAsync(LogEntity.Return, contracts.SelectMany(c => c.ReturnInspections).Select(i => i.InspectionId).ToList(), ct);
         var ticketLogs = await LogsAsync(LogEntity.Ticket, tickets.Select(t => t.TicketId).ToList(), ct);
         var renewalLogs = await LogsAsync(LogEntity.Renewal, contracts.SelectMany(c => c.ContractRenewals).Select(r => r.RenewalId).ToList(), ct);
+        // D46: kế hoạch chuyển ô ghi bằng EntityType "RENEWAL" (RenewalUnitMove), khác LogEntity.Renewal
+        var unitMoveLogs = (await LogsAsync("RENEWAL", contracts.SelectMany(c => c.ContractRenewals).Select(r => r.RenewalId).ToList(), ct))
+            .Where(l => l.Action == RenewalUnitMove.Requested || l.Action == RenewalUnitMove.Held).ToList();
         var contractLogs = await LogsAsync(LogEntity.Contract, contracts.Select(c => c.ContractId).ToList(), ct);
 
         ActivityLog? Last(List<ActivityLog> logs, long id, params string[] actions) =>
@@ -259,10 +262,14 @@ public partial class FacilityOpsService
                 var (c, r) = x;
                 var rejected = Last(renewalLogs, r.RenewalId, LogAction.RenewalRejected);
                 var status = r.Status switch { "PAID" => "APPROVED", "CANCELLED" => "REJECTED", _ => r.Status };
+                var moveReq = Last(unitMoveLogs, r.RenewalId, RenewalUnitMove.Requested);
+                var moveTopUp = Last(unitMoveLogs, r.RenewalId, RenewalUnitMove.Held, RenewalUnitMove.Requested) is { } ml
+                                && decimal.TryParse(Read(ml, "topUp"), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 0m;
                 return new OpsRenewalDto(RenewalCode(r.RenewalId), ContractCode(c), c.Customer.FullName, c.Unit.UnitNumber,
                     r.OldEndDate, r.NewEndDate, r.RenewalPeriodMonths, Local(r.RequestedAt)!, status,
                     status == "REJECTED" && rejected != null ? Read(rejected, "reason") : null, Local(r.ApprovedAt),
-                    r.NewMonthlyRate, r.RenewalAmount, Local(r.PaymentDeadlineAt));
+                    r.NewMonthlyRate, r.RenewalAmount, Local(r.PaymentDeadlineAt),
+                    moveReq != null ? Read(moveReq, "targetUnit") : null, moveTopUp);
             })
             .ToList();
 

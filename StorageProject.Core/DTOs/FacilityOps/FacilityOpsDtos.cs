@@ -77,7 +77,9 @@ public record OpsRenewalDto(
     string Id, string Contract, string Customer, string Unit, DateOnly From, DateOnly To, int Months,
     string Requested, string Status, string? Reason, string? DecidedAt,
     // L8: khối chốt giá M03/D30-17 — giá/tháng, số tiền và hạn thanh toán của yêu cầu
-    decimal MonthlyRate = 0, decimal Amount = 0, string? PaymentDeadlineAt = null);
+    decimal MonthlyRate = 0, decimal Amount = 0, string? PaymentDeadlineAt = null,
+    // D46 · gia hạn sang ô khác: ô khách chọn và cọc chênh thu cùng khoản gia hạn (null / 0 khi gia hạn ô hiện tại)
+    string? TargetUnit = null, decimal DepositTopUp = 0);
 
 public record OpsReminderDto(string Text, string At);
 
