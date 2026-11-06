@@ -164,7 +164,9 @@ public static class RenewalUnitMove
         db.Payments.Add(new Payment
         {
             ContractId = renewal.ContractId, RenewalId = renewal.RenewalId, PaymentType = "DEPOSIT", Amount = plan.TopUp, Currency = "VND",
-            PaymentMethod = renewalPayment.PaymentMethod, TransactionReference = renewalPayment.TransactionReference,
+            PaymentMethod = renewalPayment.PaymentMethod,
+            // payments.TransactionReference là duy nhất: khoản cọc chênh dùng mã của khoản gia hạn kèm hậu tố -COC.
+            TransactionReference = renewalPayment.TransactionReference is { Length: > 0 } reference ? Ref($"{reference}-COC") : null,
             PaidAt = now, Status = "PAID", CreatedAt = now, UpdatedAt = now
         });
         renewal.Contract.DepositAmount += plan.TopUp;
@@ -350,7 +352,7 @@ public static class RenewalUnitMove
             db.Payments.Add(new Payment
             {
                 ContractId = contractId, RenewalId = renewalId, PaymentType = type, Amount = amount, Currency = "VND", PaymentMethod = "CASH",
-                TransactionReference = $"TRU-COC-GH-{renewalId:0000}", PaidAt = now, Status = "PAID", CreatedAt = now, UpdatedAt = now
+                TransactionReference = $"TRU-COC-GH-{renewalId:0000}-{type}", PaidAt = now, // mỗi khoản một mã (unique) Status = "PAID", CreatedAt = now, UpdatedAt = now
             });
         var deduction = fees.Sum(f => f.Amount);
         contract.DepositAmount -= deduction;
@@ -396,6 +398,9 @@ public static class RenewalUnitMove
             state.MovedLog != null && Field<bool>(state.MovedLog, "auto"),
             state.InspectedLog != null ? Field<decimal>(state.InspectedLog, "deduction") : null, r.Deposit);
     }
+
+    private const int ReferenceMaxLength = 150; // ReservationContractConfigurations: TransactionReference HasMaxLength(150)
+    private static string Ref(string value) => value.Length <= ReferenceMaxLength ? value : value[^ReferenceMaxLength..];
 
     private static void SetStatus(AppDbContext db, StorageUnit unit, string status, long userId, string reason)
     {
