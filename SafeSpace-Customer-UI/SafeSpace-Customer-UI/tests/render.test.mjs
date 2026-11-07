@@ -20,6 +20,22 @@ try {
   const { OPS_ACCOUNTS } = await vite.ssrLoadModule("/src/features/facility-operations/data/facilityOperationsSeed.js");
   const seed = (authed, opsUser = null) => memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed, data: createSeedData(), opsUser }));
 
+  const { DamagePhotos, safeImageUrl } = await vite.ssrLoadModule("/src/features/facility-operations/damage/DamageComponents.jsx");
+  assert.equal(safeImageUrl("http://localhost:5151/photo.jpg"), true);
+  assert.equal(safeImageUrl("https://safespace.vn/photo.jpg"), true);
+  assert.equal(safeImageUrl("/images/inside/ben-trong-1.jpg"), true);
+  assert.equal(safeImageUrl("data:image/png;base64,abc"), true);
+  assert.equal(safeImageUrl("javascript:alert(1)"), false);
+  assert.equal(safeImageUrl("//evil.com/pic.jpg"), false);
+  assert.equal(safeImageUrl(null), false);
+
+  const emptyDamagePhotos = renderToStaticMarkup(React.createElement(DamagePhotos, { photos: [], emptyText: "Không có ảnh kho trống." }));
+  assert.ok(emptyDamagePhotos.includes("Không có ảnh kho trống."));
+
+  const populatedDamagePhotos = renderToStaticMarkup(React.createElement(DamagePhotos, { photos: [{ url: "http://localhost:5151/photo1.jpg", caption: "Kho trống K04" }] }));
+  assert.ok(populatedDamagePhotos.includes("http://localhost:5151/photo1.jpg"));
+  assert.ok(populatedDamagePhotos.includes("Kho trống K04"));
+
   const publicRoutes = ["reset-password","home", "login", "register", "pricing", "guide", "find", "find?type=climate&band=M", "find/map", "find/map?type=climate", "find/map?area=Kh%C3%B4ng%20c%C3%B3", "find/1", "find/1?view=map&unit=K02", "find/8?type=climate&view=map", "find/999", "nope", "door", "door?unit=B-015"];
   const privateRoutes = ["units/HĐ-2026-0086/renew-other", "units/unknown/renew-other", "units/HĐ-2026-0086/incident", "units/HĐ-2026-0086/incident?incident=missing", "units/unknown/incident","units/HĐ-2026-0086/damage", "units/HĐ-2026-0086/damage?case=missing", "units/unknown/damage","reservations/SS-20260914-0142/cancel", "reservations/missing/cancel","refunds","refunds/cash","units/HĐ-2026-0086/deduction","units/unknown/deduction","units/HĐ-2026-0142/unit-change","sent?type=return&contract=HĐ-2026-0086","support?topic=KEY_PICKUP","policies", "payments/check/SS-0086-REN", "payments/check/missing", "payments/history", "inquiries", "inquiries/HT-0091", "units/HĐ-2026-0142/deposit", "units/HĐ-2026-0086/progress", "units/HĐ-2026-0086/renewal-status",
     "overview", "units", "units/HĐ-2026-0142", "units/HĐ-2026-0086", "units/HĐ-2026-0086/renew", "units/HĐ-2026-0142/return", "units/unknown",
@@ -342,7 +358,8 @@ try {
   assert.ok(b8html.includes("Thiếu hồ sơ xác minh hợp lệ"));assert.match(b8html,/<button[^>]*disabled[^>]*>Ghi nhận đã giao chìa khóa<\/button>/);
   b8ops.verifications=[{id:keyTask.verification_id,status:"DONE",doc_last4:"1234",doc_type:"CCCD"}];memory.set(OPS_KEY,JSON.stringify(b8ops));
   b8html=renderToStaticMarkup(React.createElement(App));assert.equal((b8html.match(/type="checkbox"/g)||[]).length,3);assert.ok(!/type="checkbox"[^>]*checked/.test(b8html));assert.ok(b8html.includes("Chưa có bằng chứng chính sách"));
-  window.location.hash="#/staff/return?id=TK-0098";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Tải ảnh hiện trạng / hư hỏng")&&b8html.includes("Lưu nháp"));assert.ok(!b8html.includes("Đã chuyển hết đồ khỏi kho"),"Không điền sẵn kết luận kiểm kê");
+  window.location.hash="#/staff/return?id=TK-0098";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Tải ảnh hiện trạng / hư hỏng")&&b8html.includes("Lưu nháp"));assert.ok(b8html.includes("Ảnh kho trống do khách gửi")&&b8html.includes("Ảnh kho trống K04 do khách chụp"));assert.ok(!b8html.includes("Đã chuyển hết đồ khỏi kho"),"Không điền sẵn kết luận kiểm kê");
+  b8ops.returns[0].move_out_photos=[];memory.set(OPS_KEY,JSON.stringify(b8ops));b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Khách hàng chưa đính kèm ảnh kho trống khi yêu cầu trả kho."));
   seed(true,manager);window.location.hash="#/manager/contracts?id=missing";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Không tìm thấy hợp đồng"));assert.ok(!b8html.includes("Bước tiếp theo"));assert.ok(!b8html.includes('table--hover'));
   window.location.hash="#/manager/deposit-refunds?id=HC-0098";b8html=renderToStaticMarkup(React.createElement(App));for(const text of ["Mã giao dịch","Thời gian chuyển","đúng tài khoản nhận"])assert.ok(b8html.includes(text),text);assert.match(b8html,/<button[^>]*disabled[^>]*>Ghi nhận đã chuyển tiền<\/button>/);
   delete b8ops.deposit_refunds[0].amount;memory.set(OPS_KEY,JSON.stringify(b8ops));b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Chưa có dữ liệu"));assert.ok(!b8html.includes("Không còn khoản hoàn;"));

@@ -240,6 +240,52 @@ public sealed partial class D32RefundEvidenceTests
     }
 
     [Fact]
+    public async Task CashRefund_AssignedToStaffA_OnlyVisibleToStaffAAndManager_NotVisibleToStaffB()
+    {
+        await using var f = await Fixture.CreateAsync();
+        var staffB = new User { Username = "staff02", FullName = "Nguyễn Văn B", Email = "staff02@safespace.vn", PasswordHash = "x", Status = "ACTIVE" };
+        f.Db.Users.Add(staffB);
+        await f.Db.SaveChangesAsync();
+        var staffRole = await f.Db.Roles.SingleAsync(r => r.RoleName == "STAFF");
+        f.Db.UserRoles.Add(new UserRole { UserId = staffB.UserId, RoleId = staffRole.RoleId });
+        f.Db.UserFacilities.Add(new UserFacility { UserId = staffB.UserId, FacilityId = f.Facility.FacilityId, Status = "ACTIVE", AssignedFrom = TodayVn.AddDays(-30), AssignedBy = f.Manager.UserId, CreatedAt = DateTime.UtcNow });
+        await f.Db.SaveChangesAsync();
+        var staffBActor = new OpsActor(staffB.UserId, false);
+
+        var c = await f.ActiveContractAsync();
+        await InspectAsync(f, c, cleaning: false, damage: 0, CashMoveOut(Photo(Jpeg)));
+        await f.Ops.ConfirmRefundAsync(f.ManagerActor, Code(c));
+        f.Db.ChangeTracker.Clear();
+
+        var cashId = Assert.Single(await f.Ops.GetCustomerCashRefundsAsync(f.Customer.UserId)).Id;
+
+        // Quản lý duyệt và phân công cho Staff A
+        var approved = await f.Ops.ApproveCashRefundAsync(f.ManagerActor, cashId, new OpsAssignRequest($"NV-{f.Staff.UserId:00}"));
+        Assert.Equal("READY", approved.Status);
+        Assert.Equal($"NV-{f.Staff.UserId:00}", approved.StaffId);
+
+        // Staff A nhìn thấy task
+        var staffAList = await f.Ops.GetCashRefundsAsync(f.StaffActor);
+        Assert.Contains(staffAList, x => x.Id == cashId);
+
+        // Staff B KHÔNG nhìn thấy task (đã được phân công riêng cho Staff A)
+        var staffBList = await f.Ops.GetCashRefundsAsync(staffBActor);
+        Assert.DoesNotContain(staffBList, x => x.Id == cashId);
+
+        // Staff B không được phép gọi nhắc hoặc chi tiền thay Staff A
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            f.Ops.RecordCashRefundCallAsync(staffBActor, cashId, new CashRefundCallRequest("NO_ANSWER", null, null)));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            f.Ops.PayCashRefundAsync(staffBActor, cashId, new CashRefundPayRequest(true, true, true, true)));
+
+        // Quản lý vẫn nhìn thấy đầy đủ task cùng mã và tên nhân viên được phân công
+        var managerList = await f.Ops.GetCashRefundsAsync(f.ManagerActor);
+        var managerTask = Assert.Single(managerList, x => x.Id == cashId);
+        Assert.Equal($"NV-{f.Staff.UserId:00}", managerTask.StaffId);
+        Assert.Equal(f.Staff.FullName, managerTask.StaffName);
+    }
+
+    [Fact]
     public async Task CancelledReservation_CashChoice_NeedsNoBankAndRejectsTransferEvidence()
     {
         await using var f = await Fixture.CreateAsync();

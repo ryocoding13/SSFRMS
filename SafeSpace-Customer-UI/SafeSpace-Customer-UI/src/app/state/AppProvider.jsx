@@ -808,7 +808,15 @@ function ApiProvider({ children }) {
             const consent = refs.current.overlay.policyConsents?.[reservation?.api_id] || reservation?.policy_consent;
             if (!hasReservationConsent({ policy_consent: consent }, refs.current.session?.user.userId, policy.version)) return fail(POLICY_REQUIRED, "POLICY_REQUIRED");
           }
-          const dto = kind === "payment" ? await api.paymentPayos(item.api_id) : await api.reservationPayos(reservation.api_id);
+          const callApi = () => (kind === "payment" ? api.paymentPayos(item.api_id) : api.reservationPayos(reservation.api_id));
+          let dto;
+          try {
+            dto = await callApi();
+          } catch (firstErr) {
+            // Tự động thử lại một lần nếu kết nối lần đầu gặp lỗi
+            await new Promise((resolve) => setTimeout(resolve, 600));
+            dto = await callApi();
+          }
           const checkout = normPayos(dto);
           if (!checkout) return fail("Máy chủ chưa trả mã QR thanh toán. Vui lòng thử lại.");
           if (checkout.paid) await loadCustomer().catch(() => {});

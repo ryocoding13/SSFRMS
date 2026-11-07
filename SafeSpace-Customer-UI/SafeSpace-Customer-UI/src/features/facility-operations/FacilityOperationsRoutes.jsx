@@ -81,7 +81,7 @@ export default function FacilityOperationsRoutes({ role, parts, query }) {
   const hit = table[parts[0] || ""];
   const [Page, active] = hit || [null, ""];
   return (
-    <FacilityOperationsLayout role={role} active={active}>
+    <FacilityOperationsLayout role={role} active={active} subActive={parts[0] || ""}>
       {/* key theo đường dẫn: nội dung trang dựng lại khi đổi trang, header/menu/dữ liệu giữ nguyên */}
       <React.Fragment key={parts.join("/")}>
       {Page ? (

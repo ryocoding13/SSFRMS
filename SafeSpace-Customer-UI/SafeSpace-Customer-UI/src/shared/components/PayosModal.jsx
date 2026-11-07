@@ -25,7 +25,12 @@ export default function PayosModal({ target, title, subtitle, onPaid, onClose, n
 
   const load = useCallback(async () => {
     setState("loading");
-    const res = await services.startPayos(target);
+    setError("");
+    let res = await services.startPayos(target);
+    if (!res.ok && !res.unsupported) {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      res = await services.startPayos(target);
+    }
     if (res.ok) {
       setCheckout(res.checkout);
       setState(res.checkout.paid ? "paid" : "ready");

@@ -61,7 +61,7 @@ export default function CustomerDashboardPage() {
       <div className="stats">
         <div className="stat"><strong>{active.length}</strong><span>Kho đang thuê</span></div>
         <div className="stat"><strong className="warn">{expiring.length}</strong><span>Sắp hết hạn (30 ngày)</span></div>
-        <div className="stat"><strong className="ok">{unpaid}</strong><span>Hoá đơn chưa thanh toán</span></div>
+        <div className="stat"><strong className={unpaid ? "warn" : "ok"}>{unpaid}</strong><span>Hoá đơn chưa thanh toán</span></div>
       </div>
 
       <h2 className="section-title">Kho đang thuê</h2>

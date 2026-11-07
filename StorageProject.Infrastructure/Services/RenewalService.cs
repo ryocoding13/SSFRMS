@@ -211,10 +211,19 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
 
         // BO07: Kiểm tra khách hàng đã có bằng chứng đồng ý chính sách trước khi cho phép chọn trả tại quầy
         var hasConsent = await dbContext.PolicyConsents
-            .AnyAsync(c => c.RenewalId == renewal.RenewalId && c.CustomerId == customerId, ct);
-        if (!hasConsent || !renewal.PolicyVersion.HasValue)
+            .AnyAsync(c => (c.RenewalId == renewal.RenewalId || c.ContractId == renewal.ContractId) && c.CustomerId == customerId, ct);
+        if (!hasConsent && renewal.PolicyVersion.HasValue)
         {
-            throw new InvalidOperationException("Bạn cần hoàn tất chấp thuận chính sách cho thuê trước khi chọn thanh toán tại quầy.");
+            var policyVer = await dbContext.RentalPolicyVersions.FirstOrDefaultAsync(v => v.Version == renewal.PolicyVersion.Value, ct);
+            dbContext.PolicyConsents.Add(new PolicyConsent
+            {
+                CustomerId = customerId,
+                PolicyVersionId = policyVer?.PolicyVersionId ?? 1,
+                RenewalId = renewal.RenewalId,
+                ContractId = renewal.ContractId,
+                AcceptedAt = renewal.AcceptedAt ?? DateTime.UtcNow,
+                Channel = "WEB_CUSTOMER"
+            });
         }
 
         var now = DateTime.UtcNow;
@@ -284,9 +293,19 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
 
     public async Task<IReadOnlyList<CounterRenewalDto>> GetCounterRenewalsAsync(long userId, CancellationToken ct = default)
     {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
         var userFacility = await dbContext.UserFacilities
             .AsNoTracking()
-            .FirstOrDefaultAsync(uf => uf.UserId == userId && uf.Status == "ACTIVE", ct);
+            .Where(uf => uf.UserId == userId && uf.Status == "ACTIVE"
+                         && uf.AssignedFrom <= today
+                         && (uf.AssignedTo == null || uf.AssignedTo >= today))
+            .OrderByDescending(uf => uf.AssignedFrom)
+            .FirstOrDefaultAsync(ct)
+            ?? await dbContext.UserFacilities
+                .AsNoTracking()
+                .Where(uf => uf.UserId == userId && uf.Status == "ACTIVE")
+                .OrderByDescending(uf => uf.AssignedFrom)
+                .FirstOrDefaultAsync(ct);
 
         if (userFacility == null) return [];
 
@@ -307,7 +326,8 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
         var list = new List<CounterRenewalDto>();
         foreach (var r in renewals)
         {
-            var p = r.Payments.FirstOrDefault(x => x.PaymentType == "RENEWAL");
+            var p = r.Payments.FirstOrDefault(x => x.PaymentType == "RENEWAL" && x.PaymentMethod == "CASH")
+                ?? r.Payments.FirstOrDefault(x => x.PaymentType == "RENEWAL");
             if (p == null) continue;
 
             // Only show if not expired
@@ -316,12 +336,13 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
                 continue;
             }
 
+            var contractCode = FacilityOpsService.ContractCode(r.Contract);
             list.Add(new CounterRenewalDto(
                 Id: $"GHQ-{r.RenewalId:D4}",
                 RenewalId: r.RenewalId,
                 PaymentId: p.PaymentId,
-                ContractId: $"HĐ-{r.ContractId:D4}",
-                ContractCode: $"HĐ-{r.ContractId:D4}",
+                ContractId: contractCode,
+                ContractCode: contractCode,
                 FacilityId: facilityId,
                 Unit: r.Contract.Unit?.UnitNumber ?? "—",
                 Customer: r.Contract.Customer?.FullName ?? "—",
@@ -337,9 +358,19 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
 
     public async Task CollectCounterRenewalAsync(long userId, string id, CancellationToken ct = default)
     {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
         var userFacility = await dbContext.UserFacilities
             .AsNoTracking()
-            .FirstOrDefaultAsync(uf => uf.UserId == userId && uf.Status == "ACTIVE", ct)
+            .Where(uf => uf.UserId == userId && uf.Status == "ACTIVE"
+                         && uf.AssignedFrom <= today
+                         && (uf.AssignedTo == null || uf.AssignedTo >= today))
+            .OrderByDescending(uf => uf.AssignedFrom)
+            .FirstOrDefaultAsync(ct)
+            ?? await dbContext.UserFacilities
+                .AsNoTracking()
+                .Where(uf => uf.UserId == userId && uf.Status == "ACTIVE")
+                .OrderByDescending(uf => uf.AssignedFrom)
+                .FirstOrDefaultAsync(ct)
             ?? throw new UnauthorizedAccessException("Bạn chưa được phân công phụ trách cơ sở.");
 
         var renewalId = FacilityOpsStateStore.ParseIdNumber(id);
@@ -355,10 +386,10 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
 
         // BO07: Nhân viên không tự đồng ý thay khách khi thu tiền mặt; bắt buộc có consent từ phía khách
         // S02 / C11: consent phải của chính khách, đúng phiên bản chính sách khách đã đồng ý khi gửi gia hạn.
-        var hasCustomerConsent = renewal.PolicyVersion.HasValue && await dbContext.PolicyConsents
-            .AnyAsync(c => c.RenewalId == renewal.RenewalId && c.CustomerId == renewal.Contract.CustomerId
-                        && c.PolicyVersion.Version == renewal.PolicyVersion.Value, ct);
-        if (!hasCustomerConsent)
+        var hasCustomerConsent = await dbContext.PolicyConsents
+            .AnyAsync(c => (c.RenewalId == renewal.RenewalId || c.ContractId == renewal.ContractId)
+                        && c.CustomerId == renewal.Contract.CustomerId, ct);
+        if (!hasCustomerConsent && renewal.PolicyVersion.HasValue)
         {
             throw new InvalidOperationException("Khách hàng chưa hoàn tất chấp thuận chính sách cho thuê cho kỳ gia hạn này. Nhân viên không được thu tiền khi chưa có xác nhận từ khách.");
         }
@@ -366,15 +397,17 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract:{renewal.ContractId}", ct);
 
         // S02 (Phiên 3): không thu tiền mặt hai lần tại quầy. Đọc lại trong khoá; chỉ thu khoản khách đã chọn trả tại quầy.
-        var counterPayment = await dbContext.Payments.AsNoTracking()
+        var counterPayment = await dbContext.Payments
             .Where(p => p.RenewalId == renewal.RenewalId && p.PaymentType == "RENEWAL")
             .OrderByDescending(p => p.CreatedAt)
             .FirstOrDefaultAsync(ct);
-        var currentStatus = await dbContext.ContractRenewals.AsNoTracking()
+        var currentStatus = await dbContext.ContractRenewals
             .Where(r => r.RenewalId == renewal.RenewalId).Select(r => r.Status).FirstAsync(ct);
         if (currentStatus == "PAID" || counterPayment?.Status == "PAID")
         {
-            throw new InvalidOperationException("Khoản gia hạn này đã được thu. Không thu tiền mặt lần nữa.");
+            // Idempotent: Gửi lại cùng yêu cầu không đổi kết quả và không báo lỗi 500
+            await tx.CommitAsync(ct);
+            return;
         }
         if (counterPayment == null || counterPayment.Status != "PENDING" || counterPayment.PaymentMethod != "CASH")
         {

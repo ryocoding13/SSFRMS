@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { go, href } from "../../app/router.js";
-import { unreadCount, whenLabel } from "../../app/state/appSelectors.js";
+import { payableCount, unreadCount, whenLabel } from "../../app/state/appSelectors.js";
 import { useApp } from "../../app/state/AppProvider.jsx";
 import PendingBadge from "./PendingBadge.jsx";
 import StickyHeader from "./StickyHeader.jsx";
@@ -107,6 +107,14 @@ export default function Header({ page }) {
   const customer = authed && roles.includes("CUSTOMER");
   const unread = customer ? unreadCount(data) : 0;
   const accountScreen = ["profile", "support"].includes(page);
+  const payable = customer ? payableCount(data) : 0;
+  const pendingReservationCount = customer
+    ? (data?.reservations || []).filter((r) => r.status === "PENDING_PAYMENT").length
+    : 0;
+  const customerCounts = {
+    payments: payable,
+    reservations: pendingReservationCount,
+  };
 
   useEffect(() => setOpen(false), [page]);
 
@@ -153,6 +161,7 @@ export default function Header({ page }) {
             {CUSTOMER_LINKS.map(([to, label]) => (
               <a key={to} href={href(to)} className={navActive(page) === to ? "is-active" : ""} aria-current={navActive(page) === to ? "page" : undefined}>
                 {label}
+                <PendingBadge count={customerCounts[to]} />
               </a>
             ))}
           </div>

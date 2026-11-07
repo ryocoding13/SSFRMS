@@ -121,7 +121,7 @@ const camel = (k) => k.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
 const snake = (k) => k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 const mapKeys = (v, fn) =>
   Array.isArray(v) ? v.map((x) => mapKeys(x, fn)) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [fn(k), mapKeys(x, fn)])) : v;
-const STAFF_PARTS = ["facility", "staff", "units", "payments", "verifications", "handovers", "returns", "tickets", "fee_collections"];
+const STAFF_PARTS = ["facility", "staff", "units", "payments", "verifications", "handovers", "returns", "tickets", "fee_collections", "counter_renewals"];
 const OPS_ROUTES = [
   ["POST", /^\/api\/(?:ops|manager)\/reservations\/([^/]+)\/refund$/, "MANAGER", "CONFIRM_RESERVATION_REFUND", (b, id) => ({ id, method: b?.method, transaction_ref: b?.transactionRef, transferredAt: b?.transferredAt, confirmed: b?.confirmed })],
   ["POST", /^\/api\/(?:ops|staff)\/fees\/([^/]+)\/confirm$/, "STAFF", "CONFIRM_FEE_COLLECTION", (b, id) => ({ id })],

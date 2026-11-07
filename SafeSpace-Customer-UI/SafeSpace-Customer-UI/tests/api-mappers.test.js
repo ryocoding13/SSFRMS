@@ -218,6 +218,117 @@ test("chế độ API: hợp đồng nhận policy_consent từ PolicyConsentDto
   assert.equal(c.policy_consent.consent_id, 42);
 });
 
+test("ledger: phân biệt mã khoản thu và mã giao dịch cho tiền mặt và PayOS", () => {
+  const remoteWithPayments = {
+    ...remote,
+    contracts: [
+      {
+        ...remote.contracts[0],
+        payments: [
+          {
+            paymentId: 101,
+            paymentType: "RENT",
+            amount: 3000,
+            status: "PAID",
+            paymentMethod: "CASH",
+            transactionReference: "CASH:2:RENT",
+          },
+          {
+            paymentId: 102,
+            paymentType: "RENEWAL",
+            amount: 1500000,
+            status: "PAID",
+            paymentMethod: "PAYMENT_GATEWAY",
+            transactionReference: "PAYOS:987654",
+          },
+          {
+            paymentId: 103,
+            paymentType: "RENEWAL",
+            amount: 1500000,
+            status: "PENDING",
+            paymentMethod: "BANK_TRANSFER",
+            transactionReference: "TT-0103",
+          },
+        ],
+      },
+    ],
+  };
+  const d = composeData({ catalog, remote: remoteWithPayments, overlay: {}, session, timeoutSeconds: 60, now: NOW });
+  const cashLedger = d.ledger.find((l) => l.api_id === 101);
+  assert.ok(cashLedger);
+  assert.equal(cashLedger.ref, "CASH:2:RENT");
+  assert.equal(cashLedger.method, "CASH");
+  assert.equal(cashLedger.transaction_ref, null);
+
+  const payosLedger = d.ledger.find((l) => l.api_id === 102);
+  assert.ok(payosLedger);
+  assert.equal(payosLedger.ref, "PAYOS:987654");
+  assert.equal(payosLedger.method, "PAYMENT_GATEWAY");
+  assert.equal(payosLedger.transaction_ref, "PAYOS:987654");
+
+  const pendingLedger = d.ledger.find((l) => l.api_id === 103);
+  assert.ok(pendingLedger);
+  assert.equal(pendingLedger.ref, "TT-0103");
+  assert.equal(pendingLedger.transaction_ref, null);
+});
+
+test("cọc đang giữ: chỉ tính cọc của hợp đồng đang thuê; kho đã trả hoặc đã kết thúc không còn là DEPOSIT_HELD", () => {
+  const remoteWithReturnedContract = {
+    reservations: [],
+    reservationDetails: {},
+    tickets: [],
+    contracts: [
+      {
+        contractId: 1,
+        unitId: 1,
+        unitNumber: "TB-M-101",
+        facilityName: "SSFRMS Chi nhánh Tân Bình",
+        unitTypeName: "Kho Tiêu Chuẩn M (2m x 2m)",
+        startDate: "2026-06-01",
+        endDate: "2026-09-01",
+        agreedMonthlyRate: 2000,
+        depositAmount: 2000,
+        status: "COMPLETED",
+        payments: [
+          { paymentId: 201, contractId: 1, paymentType: "DEPOSIT", amount: 2000, status: "PAID" },
+          { paymentId: 202, contractId: 1, paymentType: "REFUND", amount: 2000, status: "PAID" },
+        ],
+      },
+      {
+        contractId: 2,
+        unitId: 2,
+        unitNumber: "TB-M-102",
+        facilityName: "SSFRMS Chi nhánh Tân Bình",
+        unitTypeName: "Kho Tiêu Chuẩn M (2m x 2m)",
+        startDate: "2026-09-01",
+        endDate: "2026-12-01",
+        agreedMonthlyRate: 1000,
+        depositAmount: 1000,
+        status: "ACTIVE",
+        payments: [
+          { paymentId: 203, contractId: 2, paymentType: "DEPOSIT", amount: 1000, status: "PAID" },
+          { paymentId: 204, contractId: 2, paymentType: "RENT", amount: 1000, status: "PAID" },
+        ],
+      },
+    ],
+  };
+  const d = composeData({ catalog, remote: remoteWithReturnedContract, overlay: {}, session, timeoutSeconds: 60, now: NOW });
+  const oldDeposit = d.ledger.find((l) => l.api_id === 201);
+  const newDeposit = d.ledger.find((l) => l.api_id === 203);
+  assert.equal(oldDeposit.status, "RECONCILED", "Kho đã trả / kết thúc thì dòng cọc chuyển sang RECONCILED");
+  assert.equal(newDeposit.status, "DEPOSIT_HELD", "Kho đang thuê thì dòng cọc là DEPOSIT_HELD");
+
+  const activeContractIds = new Set(
+    d.contracts
+      .filter((c) => ["ACTIVE", "EXPIRING", "OVERDUE"].includes(c.api_status || c.status) && c.status !== "RETURN_PENDING" && c.status !== "ENDED")
+      .map((c) => c.contract_id),
+  );
+  const heldTotal = d.ledger
+    .filter((l) => l.status === "DEPOSIT_HELD" && (!l.contract_id || activeContractIds.has(l.contract_id)))
+    .reduce((sum, l) => sum + Number(l.amount || 0), 0);
+  assert.equal(heldTotal, 1000, "Tổng cọc đang giữ chỉ là 1.000 đ từ kho mới, không bị cộng 2.000 đ từ kho cũ");
+});
+
 test("3.6 · lịch sử thanh toán: thời gian, phương thức, mã giao dịch thật; ẩn mã nội bộ; trừ cọc", async () => {
   const { publicTransactionRef, isDepositDeduction } = await import("../src/shared/api/apiMappers.js");
   const { historyRows, historyMonths, methodLabel, vnMonthOf } = await import("../src/features/customer/history/paymentHistoryModel.js");

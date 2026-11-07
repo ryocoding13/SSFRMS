@@ -50,7 +50,7 @@ public partial class FacilityOpsService
         }
         var facility = await FacilityOfAsync(actor, ct);
         var paymentId = ParseCode(request.Id, "HC-", "khoản hoàn cọc");
-        if (!request.Confirmed) throw new ArgumentException("Cần xác nhận đã chuyển đúng số tiền vào đúng tài khoản.");
+        if (!request.Confirmed) throw new ArgumentException("Cần xác nhận đã chuyển đúng số tiền hoặc đã chi tiền mặt cho khách.");
         var reference = TransactionRefOf(request.TransactionRef);
 
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"deposit-refund:{paymentId}", ct);
@@ -62,30 +62,37 @@ public partial class FacilityOpsService
             throw new OpsConflictException("Khoản hoàn đã thay đổi. Tải lại trước khi gửi tiếp; không chuyển tiền lần nữa.");
         }
         if (p.Status != "PENDING" || p.Amount <= 0) throw new InvalidOperationException("Khoản hoàn không còn chờ xử lý.");
-        if (p.PaymentMethod == CashMethod)
+
+        var requestIsCash = string.Equals(request.Method, CashMethod, StringComparison.OrdinalIgnoreCase);
+        if (!requestIsCash && p.PaymentMethod == CashMethod)
         {
             throw new InvalidOperationException("Khách chọn nhận tiền mặt tại quầy. Duyệt chi tiền mặt, không ghi chuyển khoản.");
         }
 
-        var incident = await dbContext.FacilityIncidents.AsNoTracking().FirstOrDefaultAsync(i => i.RefundPaymentId == p.PaymentId, ct);
-        var account = AccountOf(p, incident);
-        if (account == null || !RefundBank.IsComplete(account.BankName, account.AccountNumber, account.AccountHolder))
+        if (!requestIsCash)
         {
-            throw new InvalidOperationException("Khách chưa khai tài khoản nhận hoàn chính chủ. Liên hệ khách bổ sung trước khi chuyển tiền.");
+            var incident = await dbContext.FacilityIncidents.AsNoTracking().FirstOrDefaultAsync(i => i.RefundPaymentId == p.PaymentId, ct);
+            var account = AccountOf(p, incident);
+            if (account == null || !RefundBank.IsComplete(account.BankName, account.AccountNumber, account.AccountHolder))
+            {
+                throw new InvalidOperationException("Khách chưa khai tài khoản nhận hoàn chính chủ. Liên hệ khách bổ sung trước khi chuyển tiền.");
+            }
+            if (RefundBank.NormalizeHolder(account.AccountHolder) != RefundBank.NormalizeHolder(p.Contract.Customer.FullName))
+            {
+                throw new InvalidOperationException("Tên chủ tài khoản không trùng tên trên hợp đồng. Không chuyển tiền.");
+            }
         }
-        if (RefundBank.NormalizeHolder(account.AccountHolder) != RefundBank.NormalizeHolder(p.Contract.Customer.FullName))
-        {
-            throw new InvalidOperationException("Tên chủ tài khoản không trùng tên trên hợp đồng. Không chuyển tiền.");
-        }
+
         var paidAt = TransferTimeOf(request.TransferredAt, p.CreatedAt, "chốt đối soát");
         await EnsureUniqueTransactionRefAsync(reference, p.PaymentId, ct);
 
         p.Status = "PAID";
         p.PaidAt = paidAt;
         p.TransactionReference = reference;
+        if (requestIsCash) p.PaymentMethod = CashMethod;
         p.UpdatedAt = NowUtc;
-        Log(actor.UserId, "DEPOSIT_REFUND_TRANSFERRED", LogEntity.Contract, p.Contract.ContractId,
-            new { refund = p.Amount, payment = $"HC-{p.PaymentId:0000}", transactionRef = reference, transferredAt = paidAt });
+        Log(actor.UserId, requestIsCash ? "DEPOSIT_REFUND_CASH_PAID" : "DEPOSIT_REFUND_TRANSFERRED", LogEntity.Contract, p.Contract.ContractId,
+            new { refund = p.Amount, payment = $"HC-{p.PaymentId:0000}", transactionRef = reference, transferredAt = paidAt, method = requestIsCash ? CashMethod : "BANK_TRANSFER" });
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 

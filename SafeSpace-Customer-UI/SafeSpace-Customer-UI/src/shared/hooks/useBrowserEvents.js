@@ -12,6 +12,5 @@ export function useNow(ms = 1000) {
 
 export const shortName = (facility) => (facility?.name || "").replace(/^SafeSpace\s+/, "");
 
-// "SafeSpace Quận 7" theo Figma; cơ sở từ máy chủ đặt tên khác thì dùng nguyên tên
-export const siteLabel = (facility) =>
-  /^SafeSpace\b/.test(facility?.name || "") && facility.district ? `SafeSpace ${facility.district}` : facility?.name || "SafeSpace";
+// Trả về tên cơ sở hiển thị (dùng tên chuẩn của cơ sở, ví dụ "SafeSpace Nguyễn Lương Bằng", không tự gán tên quận)
+export const siteLabel = (facility) => facility?.name || "SafeSpace";

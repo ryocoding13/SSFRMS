@@ -50,7 +50,7 @@ export function RentedUnitDetailPage({ id }) {
               ["Kỳ thuê", rangeLabel(c.start_date, c.end_date)],
               ["Khách hàng", data.user.full_name],
               ["Tiền thuê", `${money(c.monthly_rate)} / tháng`],
-              ["Cọc đang giữ", money(c.deposit)],
+              [ended || ret || c.status === "RETURN_PENDING" ? "Cọc ban đầu" : "Cọc đang giữ", money(c.deposit)],
               ["Thanh toán", rent ? <StatusTag map={LEDGER_STATUS} status={rent.status} /> : "Chưa có dữ liệu"],
             ]} />
           </section>

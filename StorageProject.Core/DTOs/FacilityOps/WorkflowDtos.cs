@@ -24,7 +24,8 @@ public record ReturnRecheckRequest(bool? CleaningPassed, bool? ReplacementPassed
 public record CashRefundDto(
     string Id, string Source, string Reference, string Customer, string? Phone, decimal Amount,
     string Status, string? ApprovedAt, string? DeadlineDate, int DaysSinceApproved,
-    int? ReminderDay, string? AppointmentDate, string? LastCall, string? PaidAt, string? PaidBy);
+    int? ReminderDay, string? AppointmentDate, string? LastCall, string? PaidAt, string? PaidBy,
+    string? StaffId = null, string? StaffName = null);
 
 public record CashRefundCallRequest(string? Result, DateOnly? AppointmentDate, string? Note);
 

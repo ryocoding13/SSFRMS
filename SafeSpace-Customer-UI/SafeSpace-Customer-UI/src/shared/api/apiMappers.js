@@ -308,6 +308,8 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
     });
     const paidRenewals = new Set();
     const renewalById = new Map((c.renewals || []).map((r) => [r.renewalId, r]));
+    const isContractActive = ["ACTIVE", "EXPIRING", "OVERDUE"].includes(c.status) && c.status !== "RETURN_PENDING";
+    const hasRefundRow = (c.payments || []).some((x) => x.paymentType === "REFUND");
     for (const p of c.payments || []) {
       if (p.renewalId) paidRenewals.add(p.renewalId);
       const kind = p.paymentType || "OTHER";
@@ -329,11 +331,19 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       const deadline = parseUtc(p.paymentDeadlineAt || ren?.paymentDeadlineAt);
       const expiredRenewal = kind === "RENEWAL" && !paid && (ren?.status === "EXPIRED" || p.status === "FAILED" || (deadline && deadline <= now));
       const open = !paid && !["CANCELLED", "REFUNDED", "FAILED"].includes(p.status);
-      const status = expiredRenewal ? "EXPIRED" : kind === "REFUND" ? (paid ? "REFUNDED" : p.status === "PENDING" ? "REFUND_PENDING" : p.status) : paid
-        ? kind === "DEPOSIT" ? "DEPOSIT_HELD" : "RECONCILED"
-        : p.status === "REFUNDED" || kind === "REFUND"
-          ? "REFUNDED"
-          : fee && open && overlay.feesAtCounter?.[p.paymentId] ? "AT_COUNTER" : "UNPAID";
+      const status = expiredRenewal
+        ? "EXPIRED"
+        : kind === "REFUND"
+          ? (paid ? "REFUNDED" : p.status === "PENDING" ? "REFUND_PENDING" : p.status)
+          : paid
+            ? kind === "DEPOSIT"
+              ? (isContractActive ? "DEPOSIT_HELD" : (c.status === "RETURN_PENDING" && !hasRefundRow ? "REFUND_PENDING" : "RECONCILED"))
+              : "RECONCILED"
+            : p.status === "REFUNDED" || kind === "REFUND"
+              ? "REFUNDED"
+              : fee && open && overlay.feesAtCounter?.[p.paymentId] ? "AT_COUNTER" : "UNPAID";
+      const isCash = p.paymentMethod === "CASH" || (p.transactionReference && p.transactionReference.startsWith("CASH"));
+      const transactionRef = isCash ? null : (paid ? publicTransactionRef(p.transactionReference) : null);
       ledger.push({
         ref: p.transactionReference || `TT-${pad(p.paymentId)}`,
         api_id: p.paymentId,
@@ -343,6 +353,8 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
         unit_number: c.unitNumber,
         amount: Number(p.amount),
         status,
+        method: p.paymentMethod || (isCash ? "CASH" : "BANK_TRANSFER"),
+        transaction_ref: transactionRef,
         // C11: khoản gia hạn đã duyệt nhưng chưa trả → nút "Thanh toán" (QR PayOS)
         // D32: khoản phí trả kho không được mở thanh toán ngoài cọc.
         payable: p.status === "PENDING" && kind === "RENEWAL" && !expiredRenewal,
@@ -351,8 +363,6 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
         // 3.6 · Figma C11h / LS02: thời gian, phương thức và mã giao dịch thật (mã nội bộ của hệ thống không hiện cho khách)
         code: `TT-${pad(p.paymentId)}`,
         paid_at: isoOf(p.paidAt),
-        method: p.paymentMethod || null,
-        transaction_ref: publicTransactionRef(p.transactionReference),
         deducted: fee && paid && isDepositDeduction(p.transactionReference),
       });
     }

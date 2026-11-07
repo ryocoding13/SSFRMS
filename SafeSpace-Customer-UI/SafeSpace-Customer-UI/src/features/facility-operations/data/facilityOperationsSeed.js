@@ -117,6 +117,9 @@ export function createOpsData(t = today()) {
       {
         id: "TK-0098", contract: "HĐ-0098", unit: "K04", customer: "Lê Văn An", appointment: at(pickup, "10:00"),
         deposit: 1150000, unpaid: 460000, status: "SCHEDULED", report: null,
+        move_out_photos: [
+          { url: "/images/inside/ben-trong-1.jpg", caption: "Ảnh kho trống K04 do khách chụp" },
+        ],
       },
     ],
 
@@ -167,6 +170,12 @@ export function createOpsData(t = today()) {
       { id: "PC-02", title: "Kiểm tra trả kho K04 · Lê Văn An", when: at(pickup, "10:00"), staff: "NV-01", status: "WAITING", ref: "TK-0098" },
       { id: "PC-03", title: "HT-0082 · Lỗi thẻ ra vào", when: at(t, "14:00"), staff: null, status: "OPEN", ref: "HT-0082" },
     ],
+
+    counter_renewals: [],
+    cash_refunds: [],
+    unit_conflicts: [],
+    overdue_cases: [],
+    inquiries: [],
 
     // M04 · Doanh thu thuê và phí 6 tháng gần nhất (triệu đồng) và cơ cấu theo loại kho của tháng này
     revenue: {

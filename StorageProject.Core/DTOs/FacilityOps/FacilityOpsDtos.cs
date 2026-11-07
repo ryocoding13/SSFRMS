@@ -115,7 +115,15 @@ public record OpsBoardDto(
     IReadOnlyList<OpsContractDto>? Contracts,
     IReadOnlyList<OpsAssignmentDto>? Assignments,
     OpsRevenueDto? Revenue,
-    IReadOnlyList<OpsRefundDto>? Refunds = null);
+    IReadOnlyList<OpsRefundDto>? Refunds = null,
+    IReadOnlyList<StorageProject.Core.DTOs.Renewal.CounterRenewalDto>? CounterRenewals = null,
+    IReadOnlyList<CashRefundDto>? CashRefunds = null,
+    IReadOnlyList<DepositRefundDto>? DepositRefunds = null,
+    IReadOnlyList<UnitConflictDto>? UnitConflicts = null,
+    IReadOnlyList<OverdueCaseDto>? OverdueCases = null,
+    IReadOnlyList<OpsInquiryDto>? Inquiries = null);
+
+public record OpsInquiryDto(long Id, string Title, string Status);
 
 /// <summary>Kết quả M07: khoản hoàn cọc chờ chuyển (PENDING) hoặc không có khoản hoàn (NO_REFUND); chưa bao giờ PAID ở bước này.</summary>
 public record OpsSettlementResult(decimal Refund, string RefundStatus);
@@ -156,7 +164,7 @@ public record DepositRefundDto(
     string Method = "BANK_TRANSFER", string? CashRefundId = null); // D42
 
 public record DepositRefundActionRequest(string? Action, string? Id, int? ExpectedVersion, string? TransactionRef,
-    DateTime? TransferredAt, bool Confirmed);
+    DateTime? TransferredAt, bool Confirmed, string? Method = null);
 public record OpsTicketResponseRequest(string? Note, string? NextStatus);
 public record OpsRejectRequest(string? Reason);
 public record OpsAllocateRequest(string? UnitCode);

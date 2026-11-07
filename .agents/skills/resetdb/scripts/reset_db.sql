@@ -73,17 +73,28 @@ WHERE Username NOT IN ('admin', 'staff01', 'manager01', 'ops01', 'customer01', '
 -- 5. Delete decommissioned legacy units (OUT_OF_SERVICE or non-K units)
 DELETE FROM [storage_units] WHERE [Status] IN ('OUT_OF_SERVICE', 'OUT OF SERVICE') OR [UnitNumber] NOT LIKE 'K%';
 
--- 6. Inactivate legacy unit types and their rates (including Locker)
-UPDATE [unit_types] SET [Status] = 'INACTIVE' 
-WHERE [TypeName] IN (
-    'Kho Mini S (1m x 1m)', 
-    'Kho Tiêu Chuẩn M (2m x 2m)', 
-    'Kho Lớn L (3m x 3m)', 
-    'Kho Doanh Nghiệp XL (4m x 4m)', 
+-- 6. Delete legacy inactive facilities, unit types and their rates (including Locker)
+DELETE FROM [rental_rates]
+WHERE [FacilityId] IN (SELECT [FacilityId] FROM [facilities] WHERE [Status] = 'INACTIVE' OR [Name] IN ('SafeSpace Quận 7', 'SSFRMS Chi nhánh Quận 7'))
+   OR [UnitTypeId] IN (SELECT [UnitTypeId] FROM [unit_types] WHERE [Status] = 'INACTIVE' OR [TypeName] IN (
+       'Kho Mini S (1m x 1m)',
+       'Kho Tiêu Chuẩn M (2m x 2m)',
+       'Kho Lớn L (3m x 3m)',
+       'Kho Doanh Nghiệp XL (4m x 4m)',
+       'Tủ Locker Cá Nhân (0.5m x 0.5m)'
+   ));
+
+DELETE FROM [facilities]
+WHERE [Status] = 'INACTIVE' OR [Name] IN ('SafeSpace Quận 7', 'SSFRMS Chi nhánh Quận 7');
+
+DELETE FROM [unit_types]
+WHERE [Status] = 'INACTIVE' OR [TypeName] IN (
+    'Kho Mini S (1m x 1m)',
+    'Kho Tiêu Chuẩn M (2m x 2m)',
+    'Kho Lớn L (3m x 3m)',
+    'Kho Doanh Nghiệp XL (4m x 4m)',
     'Tủ Locker Cá Nhân (0.5m x 0.5m)'
 );
-UPDATE [rental_rates] SET [Status] = 'INACTIVE' 
-WHERE [UnitTypeId] IN (SELECT [UnitTypeId] FROM [unit_types] WHERE [Status] = 'INACTIVE');
 
 -- 7. Reset all active storage units (K01-K12) to AVAILABLE
 UPDATE [storage_units] SET [Status] = 'AVAILABLE';
