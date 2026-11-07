@@ -8,6 +8,7 @@ Nguồn: Figma section 436:13803; operations-api(3).md do người dùng cung c�
 | B02 Chính sách | business/Policies.jsx | business/policies | GET/POST policies; POST policies/{id}/activate; PUT cho DRAFT |
 | B03 Giá & phí | business/PublicPricingPage.jsx | business/pricing | GET unit-types, policies, facilities; POST policies và activate |
 | B04 Báo cáo | business/Reports.jsx | business/reports | GET reports/facilities, unit-types, revenue-trend, rental-status, export |
+| B04a Chi tiết cơ sở | business/reports/FacilityReportDetailPage.jsx | business/facility-report?id=&status=&unitType= | GET reports/facilities/{id}/contracts, facilities, unit-types; mở từ cột "Xem chi tiết" của B04 (07/11/2026, 3.5) |
 | B05 Cơ sở | business/Facilities.jsx | business/facilities | GET facilities, rates; điều hướng sang reports với facilityId |
 | Header/session | business/BusinessLayout.jsx | các route KD | JWT và logout của store chung; notice tổng hợp từ API được tài liệu mô tả |
 

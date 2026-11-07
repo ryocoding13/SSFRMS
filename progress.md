@@ -1,3 +1,9 @@
+## 2026-11-07 — Phiên tài liệu: D48 và đồng bộ map / coverage
+
+- `DECISIONS.md`: thêm **D48** (đợt sửa lỗi 07/11 không đổi database; demo một cơ sở; bỏ Batch06; đồ khách bỏ ở ô cũ, không phí quá hạn ô cũ; chỉ chuông cho đề xuất đổi kho; tiền mặt khách không nhận là dòng doanh thu riêng; huỷ gia hạn chờ duyệt; gỡ route thừa; quyền chỉ xem; B04a, C11h).
+- `FRONTEND-MAP.md`: Batch06 ghi đã gỡ, thêm B04a, C11h có lọc thời gian. `OPS-FLOW-COVERAGE.md`: bỏ dòng hư hỏng, S04-ô cũ theo D48. `BUSINESS-FLOW-COVERAGE.md`: thêm B04a. `ADMIN-FLOW-COVERAGE.md`: role-change, A03 chỉ xem. `APPROVED-FE-API-GAPS.md`: bỏ `discrepancies`, ghi trạng thái. `BACKEND-TODO.md`: Batch06 ghi huỷ.
+- Không đổi code. Không sửa lịch sử các mục D/IMPL cũ. `feature_list.json` chưa đổi (cần người phụ trách xác nhận trạng thái).
+
 ## 2026-11-07 — Phiên 5 (sau rà soát): báo cáo chi tiết cơ sở (3.5) và lịch sử thanh toán (3.6), chỉ FE
 
 - **3.5 · Figma B04 + B04a (Thắng duyệt 07/11):** bảng "Chi tiết theo cơ sở" thêm cột "Báo cáo" · "Xem chi tiết →"; màn mới `FacilityReportDetailPage.jsx` (`#/business/facility-report?id=…&status=&unitType=`) gọi `GET /api/operations/reports/facilities/{id}/contracts` có sẵn: 4 thẻ tổng (hợp đồng hiệu lực, quá hạn, khoản chờ thu, hồ sơ quá hạn mở — FE cộng từ danh sách), lọc trạng thái / loại kho, mỗi hợp đồng một thẻ, trạng thái rỗng / lỗi. Trường `outstanding` hiển thị là "Khoản chờ thu" (D32: không có công nợ ngoài cọc). Hàm thuần `facilityReportModel.js`; máy chủ giả thêm route tương ứng.

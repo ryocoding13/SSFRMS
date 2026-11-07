@@ -543,3 +543,20 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Xoá `.github/dependabot.yml`: lần quét đầu tiên đã mở 5 PR nâng thư viện (#77–#81, có 2 bản nâng lớn) ngay sát hạn nộp; nhóm đã đóng cả 5, không merge.
 - Nâng thư viện khi cần sẽ làm tay trên nhánh riêng, qua PR và CI như mọi thay đổi khác.
 - Giữ nguyên các phần khác của Phiên 7 (mẫu PR, bước CI chặn chữ đã bỏ).
+
+## D48 — 07/11/2026: Đợt sửa lỗi sau rà soát — không đổi database — Đã chốt
+
+> Thắng chốt ngày 07/11/2026 (17:53–18:56) khi rà soát `main` 462092a. Bổ sung / thay các ý tương ứng của D39, D41, D43, D45, D46b; giữ nguyên lịch sử ở trên. Triển khai ở Phiên 2 (BE), Phiên 3 và Phiên 5 (FE) ngày 07/11.
+
+- **Không đổi database trong đợt này:** không thêm bảng, cột hay migration. Trạng thái mới lưu trong `activity_logs` như các phiên trước.
+- **Demo một cơ sở:** seed chỉ có nhân viên và quản lý ở cơ sở đầu tiên; demo luồng đủ vai trò tại cơ sở đó, thêm tài khoản cho 11 cơ sở còn lại khi cần (thay hạn "Thắng làm sau" của D44, chưa bắt buộc cho demo).
+- **Bỏ luồng hồ sơ hư hỏng cũ (Batch06, T23):** không làm BE `damage-cases`; FE gỡ 3 màn phản hồi / xử lý / kiểm tra khắc phục và các nút dẫn tới. Khấu trừ trả kho đi theo D39 (khách xác nhận trong 48 giờ, nhân viên kiểm tra lại). Figma đã xoá 6 khung D30-18 / D30-18b.
+- **Ô cũ còn đồ khi gia hạn sang ô khác (thay D46b):** khách đã tick "đã chuyển hết đồ" khi bấm "Đã chuyển đồ", hoặc đã được báo trước là hết kỳ cũ sẽ khoá mã ô cũ, nên đồ còn lại **coi là đồ khách bỏ**: nhân viên ghi nhận (kèm ghi chú), dọn rồi ghi kết quả kiểm tra; **không trừ phí** cho đồ còn lại, **không báo chuông** cho khách, không có bước nhân viên mở hộ ô cũ.
+- **Không tính phí quá hạn ô cũ khi hệ thống tự chuyển ô** (thay ý "ô cũ tính quá hạn theo D32" của D46b). Kiểm tra ô cũ chỉ còn khấu trừ vệ sinh 10% cọc và hư hỏng, tối đa bằng cọc đang giữ.
+- **Đề xuất đổi kho (D41, thay D45 mục 11):** chỉ thông báo qua **chuông** trong ứng dụng, không gửi email. FE tạo thông báo từ `GET /api/unit-conflicts`; không thêm bảng thông báo. Khách chỉ thấy khi mở ứng dụng.
+- **Tiền mặt quá 30 ngày khách không nhận (D45 mục 14):** tính vào doanh thu ở **dòng riêng** `forfeitedRefunds` (báo cáo Vận hành KD, CSV, báo cáo cơ sở), không gộp vào doanh thu thuê và phí.
+- **Huỷ yêu cầu gia hạn:** khách huỷ được khi yêu cầu **còn chờ duyệt** (nút ở chi tiết hợp đồng, Figma C07b-L5c); đã duyệt thì thanh toán trước hạn hoặc để tự hết hiệu lực sau 24 giờ (giữ D40: một thao tác mỗi ô).
+- **Gỡ route thừa:** `POST /api/tickets/{id}/cancel` (D43: hỗ trợ là cuộc trò chuyện) và `POST /api/contracts/{id}/request-key` / `key-request` (D40: nhận chìa khóa qua hỗ trợ chủ đề "Nhận chìa khóa"). **Giữ** `GET /api/contracts/{id}/payments` dù FE không dùng.
+- **Quyền:** `POST/DELETE /api/admin/roles/{id}/permissions` trả 410 (D32: ma trận quyền chỉ xem, T25); đổi vai trò dùng `POST /api/admin/users/{id}/role-change` trong một giao dịch (T24).
+- **Báo cáo chi tiết cơ sở (Figma B04a)** và **lịch sử thanh toán đủ thời gian / phương thức / mã giao dịch (Figma C11h, LS02)** làm trong đợt này, chỉ FE, dùng API có sẵn. Trường `outstanding` hiển thị là "Khoản chờ thu" (D32: không có công nợ ngoài cọc).
+- **Lỗi phát hiện khi rà soát (sửa ở Phiên 2):** khấu trừ khi kiểm tra ô cũ bị lưu `PENDING`, thiếu thời điểm tạo (PR #82) → lưu `PAID`.

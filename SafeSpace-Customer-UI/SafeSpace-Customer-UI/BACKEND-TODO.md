@@ -587,6 +587,8 @@ Không đánh dấu T20 toàn hệ thống đã đạt chỉ từ kiểm FE ho�
 
 ## Batch06 — hư hỏng/khắc phục: contract API ĐỀ XUẤT, chưa có trên main c1a9b05
 
+> **Huỷ 07/11/2026 (D48):** không làm BE `damage-cases` (T23); FE đã gỡ 3 màn. Khấu trừ trả kho theo D39 (`/api/contracts/{id}/return-deduction`). Giữ phần dưới làm lịch sử.
+
 FE đã dựng ba màn D30-13/18/18b; không sửa BE/schema và không chứng minh tích hợp thật. Cần BE owner thống nhất contract trước khi nối/triển khai, không dùng capability hoặc dữ liệu demo để báo đã xử lý.
 
 - GET `/api/damage-cases` (CUSTOMER owner), GET `/api/ops/damage-cases` (MANAGER/FACILITY_MANAGER đúng cơ sở) → `{items:[DamageCase]}`.
