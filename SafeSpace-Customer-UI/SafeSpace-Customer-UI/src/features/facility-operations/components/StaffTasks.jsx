@@ -54,7 +54,7 @@ export const LIST_TEXT = {
 export function staffTasks(ops, me, kind = "all") {
   const verified = (h) => ops.verifications.find((v) => v.id === h.verification_id)?.status === "DONE";
   const list = [];
-  if (kind === "all" || kind === "reconcile")
+  if (kind === "all" || kind === "reconcile") {
     ops.payments
       .filter((p) => p.status === "PENDING")
       .forEach((p) =>
@@ -65,6 +65,17 @@ export function staffTasks(ops, me, kind = "all") {
           cta: "Thu tiền", to: `staff/reconcile?id=${p.id}`, sort: p.reported_at,
         }),
       );
+    (ops.counter_renewals || [])
+      .filter((r) => r.status === "PENDING")
+      .forEach((r) =>
+        list.push({
+          key: r.id, kind: "reconcile", status: ["Chờ thu tại quầy", "amber"], title: `Gia hạn ${r.contract_id || r.contract_code}`,
+          meta: `${r.customer} · Kho ${r.unit} · Gia hạn ${r.months} tháng`,
+          when: `${money(r.amount)} · Thu tiền gia hạn`,
+          cta: "Thu tiền", to: "staff/renewal-payments", sort: r.payment_deadline_at || "",
+        }),
+      );
+  }
   if (kind === "all" || kind === "handover" || kind === "verify")
     ops.handovers
       .filter((h) => h.status === "WAITING" && (kind === "handover" || verified(h)))

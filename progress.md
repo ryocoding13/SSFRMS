@@ -1,3 +1,41 @@
+## 2026-11-07 — Sửa mã giao dịch và luồng thu tiền gia hạn tại quầy
+
+- **Mục tiêu:**
+  1. Phân biệt rõ mã khoản thu và mã giao dịch trên modal Chi tiết giao dịch: giao dịch tiền mặt hiển thị "Không áp dụng — thu tiền mặt", giữ `CASH:2:RENT` ở trường Mã khoản thu (không copy sang mã giao dịch); giao dịch PayOS đã thanh toán hiển thị mã tham chiếu từ API; khoản chờ thu hiển thị "Chưa có mã xác nhận".
+  2. Khắc phục luồng Staff không thấy việc thu tiền gia hạn tại quầy sau khi Customer chọn tại quầy cho `GH-0001`: đảm bảo lưu đúng lựa chọn, đồng bộ cả hai nguồn danh sách (`GET /api/ops/counter-renewals` và board vận hành `GET /api/ops/board`), xác nhận thu idempotent, cập nhật kỳ thuê và phản ánh ngược lại phía Customer.
+- **Nguyên nhân gốc rễ xác minh:**
+  - **Lỗi 1 (Mã giao dịch):**
+    - `apiMappers.js` chỉ gán `ref: p.transactionReference || ...`, hoàn toàn thiếu thuộc tính `method` và `transaction_ref` trong object `ledger`.
+    - Modal trong `PaymentListPage.jsx` và `PaymentHistoryPage.jsx` đọc `detail.transaction_ref || "Chưa có dữ liệu"`, khiến giao dịch tiền mặt báo "Chưa có dữ liệu" thay vì phân biệt tiền mặt không áp dụng mã ngân hàng.
+  - **Lỗi 2 (Thu tiền gia hạn tại quầy):**
+    - `SelectCounterPaymentAsync` trước đó có kiểm tra consent cứng nhắc trên `ContractRenewal` (`!hasConsent || !renewal.PolicyVersion.HasValue`) khiến các yêu cầu gia hạn seeded hoặc không có row consent riêng bị ném lỗi 400 và không cập nhật được `PaymentMethod = CASH`.
+    - Board vận hành `GET /api/ops/board` (`OpsBoardDto`) hoàn toàn thiếu trường `counterRenewals`; dashboard của nhân viên (`StaffTasks.jsx`) chỉ lọc `ops.payments` (đơn đặt chỗ) mà không tổng hợp yêu cầu thu tiền gia hạn tại quầy.
+    - `GetCounterRenewalsAsync` dùng mã hợp đồng nội bộ `HĐ-0001` thay vì `FacilityOpsService.ContractCode` (`HĐ-2026-0001`).
+    - `CollectCounterRenewalAsync` khi bấm lần 2 ném `InvalidOperationException` thay vì đảm bảo tính idempotent.
+- **Giải pháp triển khai:**
+  1. `apiMappers.js`: Map `method` (`p.paymentMethod` hoặc CASH) và `transaction_ref` (PayOS trả mã tham chiếu, CASH trả null).
+  2. `PaymentListPage.jsx` & `PaymentHistoryPage.jsx`: Modal hiển thị:
+     - Tiền mặt: "Không áp dụng — thu tiền mặt".
+     - PayOS/ngân hàng đã thanh toán: mã tham chiếu từ API.
+     - Khoản đang chờ thanh toán: "Chưa có mã xác nhận".
+     - Giữ nguyên `ref` ở "Mã khoản thu", không sao chép lấp chỗ trống.
+  3. `RenewalService.cs`:
+     - `SelectCounterPaymentAsync`: kiểm tra đúng 4 điều kiện nghiệp vụ (chủ hợp đồng, trạng thái APPROVED, còn hạn, chưa thanh toán), fallback kiểm tra consent ở cấp hợp đồng, huỷ PayOS checkout đang mở và đặt `PaymentMethod = CASH`.
+     - `GetCounterRenewalsAsync`: định dạng `ContractCode` theo quy ước chung `FacilityOpsService.ContractCode`, lọc đúng nhân viên phụ trách cơ sở.
+     - `CollectCounterRenewalAsync`: đảm bảo tính idempotent (nếu đã PAID thì commit và return ngay, không lỗi 500/400); chặn nhân viên khác cơ sở (`UnauthorizedAccessException`).
+  4. `FacilityOpsDtos.cs` & `FacilityOpsService.Board.cs`: Bổ sung `counterRenewals` vào `OpsBoardDto` và logic nạp dữ liệu trên board để đồng bộ 100% với `GET /api/ops/counter-renewals`.
+  5. `facilityOperationsApi.js` & `StaffTasks.jsx`: Bổ sung `counter_renewals` vào `loadBoard` và danh sách việc cần xử lý (`reconcile`/`all`) của nhân viên với nút "Thu tiền" dẫn tới `staff/renewal-payments`.
+  6. `DbSeeder.FacilityOps.cs`: Seed đầy đủ `PolicyVersion` và `PolicyConsent` cho `k02Renewal` để reset database luôn có dữ liệu chuẩn.
+  7. Unit Tests:
+     - Backend (`RenewalPolicyD32Tests.cs`): Bổ sung kiểm chứng idempotent (thu 2 lần không lỗi, không duplicate payment) và chặn nhân viên khác cơ sở.
+     - Frontend (`api-mappers.test.js`): Bổ sung test kiểm chứng map `method`, `ref`, `transaction_ref` cho CASH, PayOS và PENDING.
+- **Kiểm chứng:**
+  - Backend: `dotnet build StorageProject.slnx -c Release` PASS 0 Error, 1 Warning (sẵn có).
+  - Backend Unit Tests: `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` PASS 260/260 tests.
+  - Backend Integration Tests: `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release` PASS 11/11 tests.
+  - Frontend Tests: `npm test` PASS 160/160 tests, `test:business` PASS 10/10, `test:workflows` PASS 11/11, `check:structure` PASS, `test:render` PASS 181 routes, `npm run build` PASS.
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
 ## 2026-11-07 — Sửa lỗi thiếu bằng chứng đồng ý chính sách trên hợp đồng mới
 
 - **Mục tiêu:** Đảm bảo khách hàng sau khi tạo đơn và đồng ý chính sách cho thuê, hoàn tất thanh toán (online hoặc tại quầy), mở lại mục "Chính sách → Theo hợp đồng của tôi → Khi đặt chỗ / ký hợp đồng ban đầu" luôn hiển thị đầy đủ bằng chứng (Phiên bản, Thời điểm, Kênh và Nội dung phiên bản chính sách đã đồng ý), kể cả khi đăng xuất, đổi trình duyệt hoặc khi chính sách hiện hành được cập nhật.

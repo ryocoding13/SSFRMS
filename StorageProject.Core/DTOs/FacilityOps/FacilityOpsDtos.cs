@@ -112,7 +112,8 @@ public record OpsBoardDto(
     IReadOnlyList<OpsContractDto>? Contracts,
     IReadOnlyList<OpsAssignmentDto>? Assignments,
     OpsRevenueDto? Revenue,
-    IReadOnlyList<OpsRefundDto>? Refunds = null);
+    IReadOnlyList<OpsRefundDto>? Refunds = null,
+    IReadOnlyList<StorageProject.Core.DTOs.Renewal.CounterRenewalDto>? CounterRenewals = null);
 
 /// <summary>Kết quả M07: khoản hoàn cọc chờ chuyển (PENDING) hoặc không có khoản hoàn (NO_REFUND); chưa bao giờ PAID ở bước này.</summary>
 public record OpsSettlementResult(decimal Refund, string RefundStatus);

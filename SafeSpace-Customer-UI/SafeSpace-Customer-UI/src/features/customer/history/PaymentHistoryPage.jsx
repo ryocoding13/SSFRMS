@@ -33,6 +33,30 @@ export function PaymentHistoryPage() {
     </section>
     <p className="hint">Khoản chờ thanh toán hoặc chờ hoàn vẫn hiển thị ở Thanh toán & lịch hẹn. Thời gian giao dịch sẽ hiển thị khi máy chủ cung cấp.</p>
     <LinkButton to="payments" variant="outline">Về thanh toán</LinkButton>
-    {detail && <ConfirmDialog title="Chi tiết giao dịch" tone="info" hint={null} cancelLabel={null} label="Đóng chi tiết" rows={[["Mã khoản thu", detail.ref], ["Hợp đồng", detail.contract_id], ["Số tiền", money(detail.amount)], ["Trạng thái", detail.status === "DEDUCTED" ? "Trừ cọc" : LEDGER_STATUS[detail.status]?.[0] || detail.status], ["Mã giao dịch", detail.transaction_ref || "Chưa có dữ liệu"]]} onCancel={() => setDetail(null)} onConfirm={() => setDetail(null)} />}
+    {detail && (
+      <ConfirmDialog
+        title="Chi tiết giao dịch"
+        tone="info"
+        hint={null}
+        cancelLabel={null}
+        label="Đóng chi tiết"
+        rows={[
+          ["Mã khoản thu", detail.ref],
+          ["Hợp đồng", detail.contract_id],
+          ["Số tiền", money(detail.amount)],
+          ["Trạng thái", detail.status === "DEDUCTED" ? "Trừ cọc" : LEDGER_STATUS[detail.status]?.[0] || detail.status],
+          [
+            "Mã giao dịch",
+            detail.method === "CASH" || (detail.ref && String(detail.ref).startsWith("CASH"))
+              ? "Không áp dụng — thu tiền mặt"
+              : ["RECONCILED", "PAID", "REFUNDED", "DEPOSIT_HELD", "DEDUCTED"].includes(detail.status)
+                ? detail.transaction_ref || "Chưa có dữ liệu"
+                : "Chưa có mã xác nhận",
+          ],
+        ]}
+        onCancel={() => setDetail(null)}
+        onConfirm={() => setDetail(null)}
+      />
+    )}
   </main>;
 }

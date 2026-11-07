@@ -330,6 +330,8 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
         : p.status === "REFUNDED" || kind === "REFUND"
           ? "REFUNDED"
           : fee && open && overlay.feesAtCounter?.[p.paymentId] ? "AT_COUNTER" : "UNPAID";
+      const isCash = p.paymentMethod === "CASH" || (p.transactionReference && p.transactionReference.startsWith("CASH"));
+      const transactionRef = isCash ? null : (paid ? (p.transactionReference || null) : null);
       ledger.push({
         ref: p.transactionReference || `TT-${pad(p.paymentId)}`,
         api_id: p.paymentId,
@@ -339,6 +341,8 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
         unit_number: c.unitNumber,
         amount: Number(p.amount),
         status,
+        method: p.paymentMethod || (isCash ? "CASH" : "BANK_TRANSFER"),
+        transaction_ref: transactionRef,
         // C11: khoản gia hạn đã duyệt nhưng chưa trả → nút "Thanh toán" (QR PayOS)
         // D32: khoản phí trả kho không được mở thanh toán ngoài cọc.
         payable: p.status === "PENDING" && kind === "RENEWAL" && !expiredRenewal,

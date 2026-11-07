@@ -72,7 +72,31 @@ export default function PaymentListPage() {
         </aside>
       </div>
       {paid && <Notice tone="success">Đã nhận thanh toán gia hạn qua mã QR. Kỳ thuê được cập nhật theo kết quả máy chủ.</Notice>}
-      {detail && <ConfirmDialog title="Chi tiết giao dịch" tone="info" hint={null} cancelLabel={null} label="Đóng chi tiết" rows={[["Mã khoản thu", detail.ref], ["Hợp đồng", detail.contract_id], ["Số tiền", money(detail.amount)], ["Trạng thái", LEDGER_STATUS[detail.status]?.[0] || detail.status], ["Mã giao dịch", detail.transaction_ref || "Chưa có dữ liệu"]]} onCancel={() => setDetail(null)} onConfirm={() => setDetail(null)} />}
+      {detail && (
+        <ConfirmDialog
+          title="Chi tiết giao dịch"
+          tone="info"
+          hint={null}
+          cancelLabel={null}
+          label="Đóng chi tiết"
+          rows={[
+            ["Mã khoản thu", detail.ref],
+            ["Hợp đồng", detail.contract_id],
+            ["Số tiền", money(detail.amount)],
+            ["Trạng thái", LEDGER_STATUS[detail.status]?.[0] || detail.status],
+            [
+              "Mã giao dịch",
+              detail.method === "CASH" || (detail.ref && String(detail.ref).startsWith("CASH"))
+                ? "Không áp dụng — thu tiền mặt"
+                : ["RECONCILED", "PAID", "REFUNDED", "DEPOSIT_HELD", "DEDUCTED"].includes(detail.status)
+                  ? detail.transaction_ref || "Chưa có dữ liệu"
+                  : "Chưa có mã xác nhận",
+            ],
+          ]}
+          onCancel={() => setDetail(null)}
+          onConfirm={() => setDetail(null)}
+        />
+      )}
       {paying && (
         <PayosModal
           target={{ kind: "payment", item: paying }}

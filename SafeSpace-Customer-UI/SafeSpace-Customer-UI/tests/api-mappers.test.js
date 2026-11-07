@@ -217,3 +217,57 @@ test("chế độ API: hợp đồng nhận policy_consent từ PolicyConsentDto
   assert.equal(c.policy_consent.customer_id, 3);
   assert.equal(c.policy_consent.consent_id, 42);
 });
+
+test("ledger: phân biệt mã khoản thu và mã giao dịch cho tiền mặt và PayOS", () => {
+  const remoteWithPayments = {
+    ...remote,
+    contracts: [
+      {
+        ...remote.contracts[0],
+        payments: [
+          {
+            paymentId: 101,
+            paymentType: "RENT",
+            amount: 3000,
+            status: "PAID",
+            paymentMethod: "CASH",
+            transactionReference: "CASH:2:RENT",
+          },
+          {
+            paymentId: 102,
+            paymentType: "RENEWAL",
+            amount: 1500000,
+            status: "PAID",
+            paymentMethod: "PAYMENT_GATEWAY",
+            transactionReference: "PAYOS:987654",
+          },
+          {
+            paymentId: 103,
+            paymentType: "RENEWAL",
+            amount: 1500000,
+            status: "PENDING",
+            paymentMethod: "BANK_TRANSFER",
+            transactionReference: "TT-0103",
+          },
+        ],
+      },
+    ],
+  };
+  const d = composeData({ catalog, remote: remoteWithPayments, overlay: {}, session, timeoutSeconds: 60, now: NOW });
+  const cashLedger = d.ledger.find((l) => l.api_id === 101);
+  assert.ok(cashLedger);
+  assert.equal(cashLedger.ref, "CASH:2:RENT");
+  assert.equal(cashLedger.method, "CASH");
+  assert.equal(cashLedger.transaction_ref, null);
+
+  const payosLedger = d.ledger.find((l) => l.api_id === 102);
+  assert.ok(payosLedger);
+  assert.equal(payosLedger.ref, "PAYOS:987654");
+  assert.equal(payosLedger.method, "PAYMENT_GATEWAY");
+  assert.equal(payosLedger.transaction_ref, "PAYOS:987654");
+
+  const pendingLedger = d.ledger.find((l) => l.api_id === 103);
+  assert.ok(pendingLedger);
+  assert.equal(pendingLedger.ref, "TT-0103");
+  assert.equal(pendingLedger.transaction_ref, null);
+});

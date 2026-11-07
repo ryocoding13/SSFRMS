@@ -359,9 +359,39 @@ public sealed partial class RenewalPolicyD32Tests
         var paidPayment = await f.Db.Payments.FindAsync(payment.PaymentId);
         Assert.Equal("PAID", paidPayment!.Status);
 
-        // Collecting again should throw
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            f.RenewalSvc.CollectCounterRenewalAsync(f.StaffUser.UserId, item.Id));
+        // Collecting again is idempotent and does not throw or duplicate payment
+        await f.RenewalSvc.CollectCounterRenewalAsync(f.StaffUser.UserId, item.Id);
+        var paymentsCount = await f.Db.Payments.CountAsync(p => p.RenewalId == renewalDto.RenewalId);
+        Assert.Equal(1, paymentsCount);
+        contract = await f.Db.RentalContracts.FindAsync(f.Contract.ContractId);
+        Assert.Equal(initialEndDate.AddMonths(1), contract!.EndDate);
+
+        // Staff from another facility cannot collect
+        var otherFacility = new Facility { Name = "SafeSpace Other", Address = "456 Other", Status = "ACTIVE" };
+        var otherStaff = new User
+        {
+            Username = "staff_other",
+            Email = "other@safespace.vn",
+            PasswordHash = "hash",
+            FullName = "Staff Other",
+            Phone = "0900000099",
+            Status = "ACTIVE",
+            CreatedAt = DateTime.UtcNow
+        };
+        f.Db.AddRange(otherFacility, otherStaff);
+        await f.Db.SaveChangesAsync();
+        f.Db.UserFacilities.Add(new UserFacility
+        {
+            UserId = otherStaff.UserId,
+            FacilityId = otherFacility.FacilityId,
+            Status = "ACTIVE",
+            AssignedFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10)),
+            CreatedAt = DateTime.UtcNow
+        });
+        await f.Db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            f.RenewalSvc.CollectCounterRenewalAsync(otherStaff.UserId, item.Id));
     }
 
     [Fact]

@@ -1,0 +1,44 @@
+diff --git a/SafeSpace-Customer-UI/SafeSpace-Customer-UI/src/app/state/appSelectors.js b/SafeSpace-Customer-UI/SafeSpace-Customer-UI/src/app/state/appSelectors.js
+index 89fadc2..1912fef 100644
+--- a/SafeSpace-Customer-UI/SafeSpace-Customer-UI/src/app/state/appSelectors.js
++++ b/SafeSpace-Customer-UI/SafeSpace-Customer-UI/src/app/state/appSelectors.js
+@@ -34,16 +34,17 @@ export const pendingRenewal = (data, contractId) =>
+   data.renewals.find((r) => r.contract_id === contractId && (r.status === "PENDING" || (r.status === "APPROVED" && !data.ledger.some(l => l.kind === "RENEWAL" && l.contract_id === contractId && l.period?.to === r.new_end && l.status === "RECONCILED"))));
+ 
+ export const pendingReturn = (data, contractId) => {
+-  if (!data) return undefined;
++  if (!data || contractId == null) return undefined;
+   const contract = data.contracts?.find((c) => c.contract_id === contractId || c.api_id === contractId);
+-  if (contract) {
+-    if (contract.status === "RETURN_PENDING") {
+-      const match = data.returns?.find((r) => (r.contract_id === contract.contract_id || r.api_id === contract.api_id) && ["PENDING", "SCHEDULED"].includes(r.status));
+-      return match || { contract_id: contract.contract_id, status: "PENDING" };
+-    }
+-    return undefined;
+-  }
+-  return data.returns?.find((r) => (r.contract_id === contractId || r.api_id === contractId) && ["PENDING", "SCHEDULED"].includes(r.status));
++  // Hợp đồng từ API dùng trạng thái server; demo lưu yêu cầu riêng trong returns.
++  if (contract?.api_id != null && contract.status !== "RETURN_PENDING") return undefined;
++  const match = data.returns?.find((r) =>
++    (r.contract_id === (contract?.contract_id ?? contractId)
++      || r.api_id === (contract?.api_id ?? contractId))
++    && ["PENDING", "SCHEDULED"].includes(r.status));
++  return match || (contract?.status === "RETURN_PENDING"
++    ? { contract_id: contract.contract_id, status: "PENDING" }
++    : undefined);
+ };
+ 
+ export const latestReservation = (data) =>
+diff --git a/progress.md b/progress.md
+index d0cd86e..73d75d5 100644
+--- a/progress.md
++++ b/progress.md
+@@ -1,3 +1,8 @@
++## 2026-11-06 — Khôi phục khóa QR khi trả kho ở chế độ demo
++
++- Sau bản sửa cache, hợp đồng demo vẫn ở `ACTIVE` và lưu yêu cầu riêng trong `returns`, nên bộ kiểm tra render thấy nút QR không còn bị khóa. `pendingReturn` giữ kiểm tra trạng thái server cho hợp đồng API và đọc yêu cầu cục bộ cho hợp đồng demo. Không đổi test hay đưa cache cũ trở lại chế độ API.
++- Tái hiện lỗi ở `render.test.mjs:86` trên `d126462`. Sau sửa: `test:render` PASS 181 route, `npm test`, `check:structure`, `test:business`, `test:workflows` và `build` đều PASS trên Node 24.22.1. Chưa chạy E2E với SQL Server.
++
+ ## 2026-11-06 — Sửa lỗi gán nhầm yêu cầu trả kho cũ từ cache (overlay.returns) sau khi reset DB
+ 
+ - **Mục tiêu:** Khắc phục lỗi hợp đồng mới tạo sau reset DB bị cache `overlay.returns` cũ trong localStorage làm hiển thị cảnh báo trả kho cũ, khóa QR/PIN và vô hiệu hóa nút gia hạn/trả kho.
