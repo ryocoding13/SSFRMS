@@ -32,6 +32,7 @@
 | Vận hành kinh doanh / Chính sách — PolicySettingsPage | `src/features/business/policies/PolicySettingsPage.jsx` |
 | Vận hành kinh doanh / Bảng giá — PricingPage | `src/features/business/pricing/PricingPage.jsx` |
 | Vận hành kinh doanh / Báo cáo — BusinessReportPage | `src/features/business/reports/BusinessReportPage.jsx` |
+| Vận hành kinh doanh / Báo cáo — FacilityReportDetailPage (B04a, `#/business/facility-report?id=`) | `src/features/business/reports/FacilityReportDetailPage.jsx` |
 | Khách hàng / Mở cửa kho — DoorScannerPage | `src/features/customer/access/DoorScannerPage.jsx` |
 | Khách hàng / Hợp đồng / kho đang thuê — RenewalRequestPage | `src/features/customer/contracts/RenewalRequestPage.jsx` |
 | Khách hàng / Hợp đồng / kho đang thuê — RentedUnitDetailPage | `src/features/customer/contracts/RentedUnitDetailPage.jsx` |
@@ -198,7 +199,7 @@ Xem `SafeSpace-Customer-UI/SafeSpace-Customer-UI/APPROVED-FE-README.md` để c�
 ## Đồng bộ Figma đợt 02 — 27/10/2026
 
 - C07/C08/C11 dùng `src/shared/styles/customer-detail.css` (cột 804/432 responsive); giữ token/font và UI primitives.
-- C11h `#/payments/history` lọc hợp đồng/loại khoản, chỉ liệt kê trạng thái đã ghi nhận. Chưa có bộ lọc thời gian vì mapper chưa cung cấp thời điểm giao dịch.
+- C11h `#/payments/history` lọc hợp đồng/thời gian (tháng, giờ Việt Nam)/loại khoản, chỉ liệt kê trạng thái đã ghi nhận, mới nhất trước; mỗi dòng có thời gian, phương thức và mã giao dịch (mã nội bộ hệ thống không hiện). Cập nhật 07/11/2026 (3.6), hàm thuần `features/customer/history/paymentHistoryModel.js`.
 - C11k mới: `#/payments/check/:ref` → `src/features/customer/payments/PaymentStatusPage.jsx`, truy cập từ khoản gia hạn C11. Dùng service checkPaid/startPayos, không gọi fetch trong Page.
 - `ConfirmDialog.jsx`: tone confirm/danger/success/failure/warning/info cùng Modal 560px. ChangeFlowDialog dùng lại; C11/C11h dùng info. QR/PayOS là modal chuyên biệt giữ nội dung hiện có, chưa migrate toàn bộ callsite ứng dụng.
 - `src/shared/api/renewalConsentApi.js`: kiểm T20 trước gửi và kiểm evidence response; tests/renewal-consent.test.js.
@@ -237,16 +238,9 @@ RefundTracking/ReturnProgress đọc resource `customerRefunds` → `/api/deposi
 API/LocalProvider có service `rentalPolicy(version?)`, action `ACCEPT_RESERVATION_POLICY`; chặn QR/quầy khi thiếu consent. API chỉ cache response thực từ server theo user/đơn; local opt-in giữ snapshot riêng và gắn demo. C15b không lấy cache đơn thay consent hợp đồng. Giới hạn backend và kiểm chứng: `docs/sprints/FE-figma-sync-05.md` ở gốc repo.
 
 
-## Batch06 — hư hỏng/khắc phục (FE, API còn chờ)
+## Batch06 — hư hỏng/khắc phục — đã gỡ (D48, 07/11/2026)
 
-| Route | Page | Quyền / điểm vào |
-|---|---|---|
-| `units/:id/damage?case=:caseId` | `features/customer/contracts/DamageResponsePage.jsx` | Customer owner; từ chi tiết kho/tiến độ trả kho |
-| `manager/damage-responses[?id=:caseId]` | `features/manager/damage/DamageReviewPage.jsx` | Manager đúng cơ sở; từ Hợp đồng |
-| `manager/damage-inspections[?id=:caseId]` | `features/manager/damage/DamageInspectionPage.jsx` | Manager đúng cơ sở; từ Hợp đồng/Phản hồi hư hỏng |
-
-Shared model/API/hook/components ở `features/facility-operations/damage/`. API mới là đề xuất, không có trên main c1a9b05; 404 báo lỗi, không giả thành công. Demo opt-in lưu riêng, ảnh chỉ metadata; không ghi quyết toán hoàn cọc. Xem sprint 06 và BACKEND-TODO.
-
+Ba màn `units/:id/damage`, `manager/damage-responses`, `manager/damage-inspections` (`DamageResponsePage`, `DamageReviewPage`, `DamageInspectionPage`) cùng `damageApi.js`, `useDamageCases.js`, `DamageManagerView.jsx` đã gỡ vì BE không làm T23. Khấu trừ trả kho đi theo D39: khách xác nhận ở `#/units/:id/deduction` (`ReturnDeductionPage.jsx`), nhân viên kiểm tra lại ở `#/staff/recheck`. `features/facility-operations/damage/` chỉ còn hàm dùng chung (`DamagePhotos`, `amountLabel`, `timeLabel`, `vnDateTimeInput`, `parseVnDeadline`, `validateDamageFiles`).
 
 ## Batch07 — sự cố cơ sở (T13 chưa có BE)
 

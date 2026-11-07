@@ -152,3 +152,16 @@
 .biz-form { display: grid; gap: 14px; }
 .biz-form__pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 520px) { .biz-form__pair { grid-template-columns: 1fr; } }
+
+/* 3.5 · B04 / B04a: link "Xem chi tiết" và màn chi tiết cơ sở */
+.business-app .table-link { color: var(--blue); font-weight: 600; text-decoration: none; transition: color .15s ease, padding-left .15s ease; }
+.business-app .table-link:hover { color: var(--blue-dark); padding-left: 2px; }
+.facility-report-detail__filters { display: flex; gap: 16px; flex-wrap: wrap; margin: 20px 0; }
+.facility-report-detail__filters .field { width: 300px; max-width: 100%; }
+.facility-report-detail__list { display: flex; flex-direction: column; gap: 12px; }
+.facility-report-detail__item { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px; animation: facility-row-in .22s ease-out both; transition: box-shadow .15s ease, transform .15s ease; }
+.facility-report-detail__item:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(15, 23, 42, .08); }
+.facility-report-detail__item h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.facility-report-detail__item p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+@keyframes facility-row-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .facility-report-detail__item, .business-app .table-link { animation: none; transition: none; } }

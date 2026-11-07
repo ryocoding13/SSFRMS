@@ -93,7 +93,8 @@ public record OpsRevenueMonthDto(string Label, int Month, int Year, decimal Valu
 
 public record OpsRevenueTypeDto(string Label, decimal Value);
 
-public record OpsRevenueDto(IReadOnlyList<OpsRevenueMonthDto> Months, IReadOnlyList<OpsRevenueTypeDto> ByType, DateOnly AsOf);
+// ForfeitedRefunds (D44/D45): tiền mặt hoàn quá 30 ngày khách không nhận trong 6 tháng, triệu đồng, dòng riêng ngoài doanh thu thuê và phí.
+public record OpsRevenueDto(IReadOnlyList<OpsRevenueMonthDto> Months, IReadOnlyList<OpsRevenueTypeDto> ByType, DateOnly AsOf, decimal ForfeitedRefunds = 0);
 
 /// <summary>
 /// Dữ liệu vận hành của cơ sở được phân công. Nhân viên chỉ nhận phần S01–S09;

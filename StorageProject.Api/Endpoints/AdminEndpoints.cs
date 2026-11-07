@@ -188,6 +188,26 @@ public static class AdminEndpoints
         .WithName("RevokeRoleFromUser")
         .WithSummary("Thu hồi vai trò của người dùng");
 
+        // T24: đổi vai trò trong một giao dịch (FE A05 không gán rồi gỡ thay thế).
+        group.MapPost("/users/{id:long}/role-change", async (
+            long id,
+            ChangeRoleRequest request,
+            IAdminService adminService,
+            ClaimsPrincipal principal,
+            CancellationToken ct) =>
+        {
+            try
+            {
+                await adminService.ChangeRoleAsync(id, request, principal.GetUserId(), ct);
+                return Results.Ok(new { message = "Đổi vai trò thành công." });
+            }
+            catch (KeyNotFoundException ex) { return Results.NotFound(new { message = ex.Message }); }
+            catch (StorageProject.Core.Exceptions.OperationConflictException ex) { return Results.Conflict(new { message = ex.Message, details = ex.Details }); }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { return Results.BadRequest(new { message = ex.Message }); }
+        })
+        .WithName("ChangeUserRole")
+        .WithSummary("Đổi một vai trò của người dùng sang vai trò khác (một giao dịch)");
+
         group.MapGet("/permissions", async (IAdminService adminService, CancellationToken ct) =>
         {
             var permissions = await adminService.GetAllPermissionsAsync(ct);
@@ -196,51 +216,16 @@ public static class AdminEndpoints
         .WithName("GetAdminPermissions")
         .WithSummary("Danh mục toàn bộ quyền hạn trong hệ thống");
 
-        group.MapPost("/roles/{roleId:long}/permissions", async (
-            long roleId,
-            AssignPermissionRequest request,
-            IAdminService adminService,
-            ClaimsPrincipal principal,
-            CancellationToken ct) =>
-        {
-            try
-            {
-                var currentAdminId = principal.GetUserId();
-                await adminService.AssignPermissionToRoleAsync(roleId, request.PermissionId, currentAdminId, ct);
-                return Results.Ok(new { message = "Gán quyền hạn cho vai trò thành công." });
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return Results.NotFound(new { message = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Results.BadRequest(new { message = ex.Message });
-            }
-        })
-        .WithName("AssignPermissionToRole")
-        .WithSummary("Gán quyền hạn cho vai trò");
-
-        group.MapDelete("/roles/{roleId:long}/permissions/{permissionId:long}", async (
-            long roleId,
-            long permissionId,
-            IAdminService adminService,
-            ClaimsPrincipal principal,
-            CancellationToken ct) =>
-        {
-            try
-            {
-                var currentAdminId = principal.GetUserId();
-                await adminService.RevokePermissionFromRoleAsync(roleId, permissionId, currentAdminId, ct);
-                return Results.Ok(new { message = "Thu hồi quyền hạn khỏi vai trò thành công." });
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return Results.NotFound(new { message = ex.Message });
-            }
-        })
-        .WithName("RevokePermissionFromRole")
-        .WithSummary("Thu hồi quyền hạn khỏi vai trò");
+        // T25 / D32: ma trận quyền chỉ xem. Không cho gán/thu hồi quyền của vai trò qua API (kể cả gọi thẳng).
+        IResult PermissionEditGone() => Results.Json(
+            new { message = "Quyền của vai trò cố định theo D32, không sửa được qua API.", code = "ROLE_PERMISSIONS_READ_ONLY" },
+            statusCode: StatusCodes.Status410Gone);
+        group.MapPost("/roles/{roleId:long}/permissions", (long roleId) => PermissionEditGone())
+            .WithName("AssignPermissionToRole")
+            .WithSummary("Đã khoá (D32): quyền của vai trò chỉ xem");
+        group.MapDelete("/roles/{roleId:long}/permissions/{permissionId:long}", (long roleId, long permissionId) => PermissionEditGone())
+            .WithName("RevokePermissionFromRole")
+            .WithSummary("Đã khoá (D32): quyền của vai trò chỉ xem");
 
         // ==========================================
         // 4. Facility Scope Management (UC26)

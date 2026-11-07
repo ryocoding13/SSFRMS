@@ -230,6 +230,13 @@ public sealed partial class D32RefundEvidenceTests
         Assert.StartsWith("FORFEITED:", forfeitedPayment.TransactionReference);
         Assert.Null((await f.Db.ActivityLogs.SingleAsync(l => l.Action == "CASH_REFUND_FORFEITED")).UserId);
         Assert.Equal("FORFEITED", Assert.Single(await f.Ops.GetCustomerCashRefundsAsync(f.Customer.UserId)).Status);
+
+        // D45: khoản khách không nhận được cộng vào doanh thu, dòng riêng (báo cáo Vận hành KD và báo cáo cơ sở).
+        var system = await new OperationsReportService(f.Db).GetSystemReportAsync(
+            new StorageProject.Core.DTOs.Operations.ReportFilter(TodayVn.AddDays(-40), TodayVn.AddDays(40), null, null));
+        Assert.Equal(forfeitedPayment.Amount, system.Totals.ForfeitedRefunds);
+        var board = await f.Ops.GetBoardAsync(f.ManagerActor);
+        Assert.Equal(Math.Round(forfeitedPayment.Amount / 1_000_000m, 1, MidpointRounding.AwayFromZero), board.Revenue!.ForfeitedRefunds);
     }
 
     [Fact]

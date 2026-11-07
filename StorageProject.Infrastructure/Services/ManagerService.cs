@@ -167,8 +167,15 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
             });
         }
 
+        var forfeitedRefs = (await dbContext.Payments.AsNoTracking()
+            .Where(p => (p.ContractId != null ? p.Contract.Unit.FacilityId : p.Reservation.FacilityId) == fac.FacilityId
+                        && p.PaymentType == "REFUND" && p.Status == "CANCELLED" && p.TransactionReference != null
+                        && p.TransactionReference.StartsWith("FORFEITED:"))
+            .Select(p => p.Amount).ToListAsync(ct)).Sum(); // cộng trong bộ nhớ: SQLite không SUM được decimal
+
         board.Revenue = new OpsRevenueDto
         {
+            ForfeitedRefunds = Math.Round(forfeitedRefs / 1_000_000m, 1),
             Months = revenueMonths,
             ByType = new List<OpsRevenueByTypeDto>
             {

@@ -484,6 +484,12 @@ public partial class FacilityOpsService
             new("Kho lạnh", Million(current.Where(r => r.Cold).Sum(r => r.Amount))),
         };
 
-        return new OpsRevenueDto(months, byType, today);
+        var forfeited = (await dbContext.Payments.AsNoTracking()
+            .Where(p => (p.ContractId != null ? p.Contract.Unit.FacilityId : p.Reservation.FacilityId) == facilityId
+                        && p.PaymentType == "REFUND" && p.Status == "CANCELLED" && p.UpdatedAt >= fromUtc
+                        && p.TransactionReference != null && p.TransactionReference.StartsWith("FORFEITED:"))
+            .Select(p => p.Amount).ToListAsync(ct)).Sum(); // cộng trong bộ nhớ: SQLite không SUM được decimal
+
+        return new OpsRevenueDto(months, byType, today, Million(forfeited));
     }
 }

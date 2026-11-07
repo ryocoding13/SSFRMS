@@ -252,19 +252,4 @@ public class SupportTicketService(AppDbContext dbContext) : ISupportTicketServic
             ticket.Title, ticket.Priority, ticket.Status, ticket.CreatedAt, ticket.ResolvedAt, ticket.ClosedAt);
     }
 
-    public async Task CancelTicketAsync(long customerId, long ticketId, CancellationToken ct = default)
-    {
-        var ticket = await dbContext.SupportTickets
-            .FirstOrDefaultAsync(t => t.TicketId == ticketId && t.CustomerId == customerId, ct)
-            ?? throw new InvalidOperationException("Yêu cầu hỗ trợ không tồn tại.");
-
-        if (ticket.Status != "OPEN")
-        {
-            throw new InvalidOperationException("Chỉ có thể hủy yêu cầu hỗ trợ khi ở trạng thái 'OPEN'.");
-        }
-
-        ticket.Status = "CLOSED";
-        ticket.ClosedAt = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(ct);
-    }
 }

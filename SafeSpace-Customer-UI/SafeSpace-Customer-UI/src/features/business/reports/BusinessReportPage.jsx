@@ -24,6 +24,12 @@ const VIEWS = [
   ["status", "Theo tình trạng thuê"],
 ];
 
+// D45: tiền mặt hoàn quá 30 ngày khách không nhận — tính vào doanh thu, ghi dòng riêng (không gộp doanh thu thuê và phí).
+function ForfeitedNote({ value }) {
+  const amount = Number(value) || 0;
+  return <p className="hint report-forfeited">Tiền mặt hoàn khách không nhận trong kỳ (tính vào doanh thu, ghi riêng): <strong>{shortMoney(amount)}</strong></p>;
+}
+
 function FacilityView({ data }) {
   const rows = data.facilities;
   return (
@@ -34,22 +40,24 @@ function FacilityView({ data }) {
       />
       <h2 className="section-title">Chi tiết theo cơ sở</h2>
       <div className="panel table-wrap">
-        <table className="table"><colgroup><col style={{width:"27%"}}/><col style={{width:"17.46%"}}/><col style={{width:"17.46%"}}/><col/></colgroup>
-          <thead><tr><th>Cơ sở</th><th>Doanh thu</th><th>Tỷ lệ lấp đầy</th><th>Hợp đồng quá hạn</th></tr></thead>
+        <table className="table"><colgroup><col style={{width:"27%"}}/><col style={{width:"17.46%"}}/><col style={{width:"17.46%"}}/><col style={{width:"17.46%"}}/><col/></colgroup>
+          <thead><tr><th>Cơ sở</th><th>Doanh thu</th><th>Tỷ lệ lấp đầy</th><th>Hợp đồng quá hạn</th><th>Báo cáo</th></tr></thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={4} className="table__empty">Không có cơ sở phù hợp bộ lọc.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={5} className="table__empty">Không có cơ sở phù hợp bộ lọc.</td></tr>}
             {rows.map((r) => (
               <tr key={r.facilityId}>
                 <td className="cell-strong">{r.facilityName}</td>
                 <td>{shortMoney(r.metrics.rentalAndFeeRevenue)}</td>
                 <td>{rateLabel(r.metrics.occupancyRate)}</td>
                 <td>{r.metrics.overdueContracts}</td>
+                <td><a className="table-link" href={`#/business/facility-report?id=${encodeURIComponent(r.facilityId)}`}>Xem chi tiết →</a></td>
               </tr>
             ))}
           </tbody>
 
         </table>
       </div>
+      <ForfeitedNote value={data.totals?.forfeitedRefunds} />
     </>
   );
 }

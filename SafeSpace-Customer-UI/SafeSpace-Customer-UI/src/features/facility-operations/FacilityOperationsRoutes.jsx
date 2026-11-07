@@ -10,8 +10,6 @@ import { OverdueRemovalPage } from "../staff/overdue/OverdueRemovalPage.jsx";
 import { StaffInquiryPage } from "../staff/support/StaffInquiryPage.jsx";
 import { OverdueCasePage } from "../manager/overdue/OverdueCasePage.jsx";
 import { IncidentManagementPage } from "../manager/incidents/IncidentManagementPage.jsx";
-import { DamageReviewPage } from "../manager/damage/DamageReviewPage.jsx";
-import { DamageInspectionPage } from "../manager/damage/DamageInspectionPage.jsx";
 import { DepositRefundPage } from "../manager/refunds/DepositRefundPage.jsx";
 
 import { Empty, LinkButton } from "../../shared/components/UI.jsx";
@@ -61,8 +59,6 @@ const STAFF = {
 };
 const MANAGER = {
   incidents: [IncidentManagementPage, "manager/contracts"],
-  "damage-responses": [DamageReviewPage, "manager/contracts"],
-  "damage-inspections": [DamageInspectionPage, "manager/contracts"],
   overdue: [OverdueCasePage, "manager/contracts"],
   "cash-refunds": [CashRefundApprovalPage, "manager/contracts"],
   "unit-conflicts": [UnitConflictListPage, "manager/contracts"],

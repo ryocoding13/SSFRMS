@@ -1,3 +1,37 @@
+## 2026-11-07 — Phiên tài liệu: D48 và đồng bộ map / coverage
+
+- `DECISIONS.md`: thêm **D48** (đợt sửa lỗi 07/11 không đổi database; demo một cơ sở; bỏ Batch06; đồ khách bỏ ở ô cũ, không phí quá hạn ô cũ; chỉ chuông cho đề xuất đổi kho; tiền mặt khách không nhận là dòng doanh thu riêng; huỷ gia hạn chờ duyệt; gỡ route thừa; quyền chỉ xem; B04a, C11h).
+- `FRONTEND-MAP.md`: Batch06 ghi đã gỡ, thêm B04a, C11h có lọc thời gian. `OPS-FLOW-COVERAGE.md`: bỏ dòng hư hỏng, S04-ô cũ theo D48. `BUSINESS-FLOW-COVERAGE.md`: thêm B04a. `ADMIN-FLOW-COVERAGE.md`: role-change, A03 chỉ xem. `APPROVED-FE-API-GAPS.md`: bỏ `discrepancies`, ghi trạng thái. `BACKEND-TODO.md`: Batch06 ghi huỷ.
+- Không đổi code. Không sửa lịch sử các mục D/IMPL cũ. `feature_list.json` chưa đổi (cần người phụ trách xác nhận trạng thái).
+
+## 2026-11-07 — Phiên 5 (sau rà soát): báo cáo chi tiết cơ sở (3.5) và lịch sử thanh toán (3.6), chỉ FE
+
+- **3.5 · Figma B04 + B04a (Thắng duyệt 07/11):** bảng "Chi tiết theo cơ sở" thêm cột "Báo cáo" · "Xem chi tiết →"; màn mới `FacilityReportDetailPage.jsx` (`#/business/facility-report?id=…&status=&unitType=`) gọi `GET /api/operations/reports/facilities/{id}/contracts` có sẵn: 4 thẻ tổng (hợp đồng hiệu lực, quá hạn, khoản chờ thu, hồ sơ quá hạn mở — FE cộng từ danh sách), lọc trạng thái / loại kho, mỗi hợp đồng một thẻ, trạng thái rỗng / lỗi. Trường `outstanding` hiển thị là "Khoản chờ thu" (D32: không có công nợ ngoài cọc). Hàm thuần `facilityReportModel.js`; máy chủ giả thêm route tương ứng.
+- **3.6 · Figma C11h + LS02 (đã có sẵn):** `apiMappers` đọc thêm `paidAt`, `paymentMethod`, mã giao dịch (ẩn mã nội bộ `DEPOSIT:`, `WAIVED:`, `CASH:`, `FORFEITED:`, `TRU-COC-`), cờ trừ cọc; `PaymentHistoryPage` hiện thời gian · loại khoản, số tiền · phương thức · mã, lọc thêm theo tháng (giờ Việt Nam), xếp mới nhất trước; popup chi tiết đủ 6 dòng như LS02. Không dùng `GET /api/contracts/{id}/payments` (chi tiết hợp đồng đã có payments; nhóm chốt giữ route này ở BE).
+- **Test:** `npm test` 160/160 (thêm test lịch sử thanh toán), `test:business` 12/12 (thêm 2 test B04a), `test:workflows` 11/11, `test:render` 178 route (thêm 2 route B04a), `check:structure` PASS, `build` OK. Chưa xem trình duyệt với dữ liệu thật. Không đổi BE, không đổi database.
+
+## 2026-11-07 — Phiên 3 (sau rà soát): FE nối các sửa lỗi Phiên 2, không đổi database
+
+- **2.1 (D48):** gỡ màn hồ sơ hư hỏng cũ Batch06 — `DamageResponsePage` (`#/units/:id/damage`), `DamageReviewPage` (`#/manager/damage-responses`), `DamageInspectionPage` (`#/manager/damage-inspections`), `damageApi.js`, `useDamageCases.js`, `DamageManagerView.jsx` và 3 nút dẫn tới (Tiến độ trả kho, Hợp đồng & quá hạn của quản lý). `damageModel.js` / `DamageComponents.jsx` chỉ còn hàm dùng chung (giờ Việt Nam, kiểm ảnh, ảnh bằng chứng). Khấu trừ trả kho đi theo D39 (`#/units/:id/deduction`).
+- **1.3:** gỡ `cancelTicket`, `CANCEL_TICKET` (reducer + provider) và route giả `/api/tickets/{id}/cancel`.
+- **3.2 (Figma C07b-L5c):** chi tiết hợp đồng có yêu cầu gia hạn chờ duyệt → "Xem yêu cầu" + "Huỷ yêu cầu" (popup xác nhận / thành công / thất bại), `POST /api/renewals/{id}/cancel`; `CANCEL_RENEWAL` cho cả chế độ API và mô phỏng; gia hạn `CANCELLED` hiện "Bạn đã huỷ yêu cầu" (trước đây map nhầm thành "Đã từ chối"). Dòng Trả kho ghi lý do khoá.
+- **3.1 (D48):** `OldUnitInspectionPage` — "Ghi nhận đồ khách bỏ" (popup có ô "Đồ còn lại") gửi `goodsRemaining: true`; danh sách hiện "Đồ khách bỏ · đang dọn"; bỏ dòng phí quá hạn ô cũ ở tạm tính (`oldUnitInspectionModel.js`). Chữ khách (`UnitMoveCard`, gia hạn sang ô khác) đổi theo D48: hết kỳ cũ khoá mã ô cũ, đồ còn lại coi là đồ bạn bỏ.
+- **3.7 (D45 mục 11, chỉ chuông):** `customerNotifications` thêm đề xuất đổi kho (OPEN) và "Hệ thống đã tự đổi kho" từ `GET /api/unit-conflicts`; C-D41a ghi "Đã gửi thông báo vào chuông trong ứng dụng".
+- **1.2:** hiện `forfeitedRefunds` — báo cáo cơ sở (dòng riêng + CSV), báo cáo Vận hành KD theo cơ sở (ghi chú dưới bảng), tổng quan Vận hành KD (dòng nhỏ dưới doanh thu tháng).
+- **3.3:** bỏ `assignPermission` / `revokePermission` khỏi `adminApi` (BE trả 410).
+- **Test:** `npm test` 159/159 (thêm test huỷ gia hạn, chuông đề xuất đổi kho; rút `damage-workflow.test.js` còn 2 test hàm dùng chung), `test:business` 10/10, `test:workflows` 11/11, `test:render` 176 route PASS (bỏ 8 route hư hỏng, thêm kiểm nút huỷ gia hạn và không còn nút hư hỏng), `check:structure` PASS, `build` OK. Chưa chạy với BE thật; Playwright `batch10` chỉ kiểm cú pháp.
+
+## 2026-11-07 — Phiên 2 (sau rà soát): sửa lỗi BE không đổi database
+
+- **2.2 · T24:** `AdminService.ChangeRoleAsync` + `POST /api/admin/users/{id}/role-change`: đổi một vai trò trong một giao dịch (khoá `user-roles:{id}`), so bộ vai trò FE gửi (`expectedRoleIds`, sai → 409), giữ vai trò khác, không gỡ ADMIN của admin hoạt động cuối, log `ROLE_CHANGE`. Test mới `AdminRoleChangeTests` (4 test).
+- **3.3 · T25:** `POST`/`DELETE /api/admin/roles/{id}/permissions` trả 410; bỏ `AssignPermissionToRoleAsync`, `RevokePermissionFromRoleAsync`, `AssignPermissionRequest`.
+- **1.3:** gỡ `POST /api/tickets/{id}/cancel` và `CancelTicketAsync` (D43/D45).
+- **3.4:** gỡ `POST /api/contracts/{id}/request-key` (`/key-request`), `ContractService.RequestKeyAsync`, `KeyRequestInput` và 4 test C06 tương ứng; nhận chìa khóa chỉ qua hỗ trợ chủ đề "Nhận chìa khóa" (D40, đã có test trong `CheckoutTests`).
+- **3.1 (Thắng chốt 07/11):** kiểm tra ô cũ còn đồ → ghi nhận đồ khách bỏ (`RENEWAL_OLD_UNIT_GOODS_ABANDONED`), không trừ phí, `UnitMoveDto.GoodsAbandoned/GoodsNote`. Hệ thống tự chuyển ô không còn tính phí quá hạn ô cũ (thay ý D46b). Test `D48_NotMovedByEndOfOldTerm_AutoMoves_GoodsLeftAreAbandoned_NoOverdueFee` thay test quá hạn cũ.
+- **1.2 · D45:** `ReportMetrics.ForfeitedRefunds` (báo cáo hệ thống, cơ sở, loại kho, CSV) và `revenue.forfeitedRefunds` ở `/api/ops/board`, `/api/manager/board`. Test bổ sung trong `D32RefundEvidenceTests.Phien3`.
+- **Lỗi có sẵn từ PR #82:** khấu trừ ô cũ lưu `PENDING`, thiếu `CreatedAt` (chú thích nuốt phần gán) → sửa thành `PAID`; test `D46_LargeDamage…` kiểm thêm trạng thái.
+- **Kiểm tra:** FE không đổi ở phiên này. **Chưa chạy `dotnet build/test`** (môi trường không tải được .NET SDK/NuGet) — cần CI hoặc máy có SQL Server chạy `dotnet test`. Không migration.
+
 ## 2026-11-07 — M03: màn duyệt gia hạn hiện ô mới và cọc chênh (D46)
 
 - **BE:** `OpsRenewalDto` (cả bản `DTOs/Ops` dùng cho `/api/manager/board` và bản `DTOs/FacilityOps` dùng cho `/api/ops/board`) thêm `TargetUnit`, `DepositTopUp`; `ManagerService.GetManagerBoardAsync` và `FacilityOpsService.Board` đọc kế hoạch chuyển ô từ `activity_logs` (`RENEWAL_UNIT_CHANGE` / `RENEWAL_UNIT_HELD`).

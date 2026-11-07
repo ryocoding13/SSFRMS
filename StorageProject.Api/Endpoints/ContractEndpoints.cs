@@ -59,27 +59,7 @@ public static class ContractEndpoints
         })
         .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(StorageProject.Infrastructure.Services.EvidencePhotos.RequestBodyLimit));
 
-        // Khách hàng yêu cầu nhận chìa khóa vật lý tại quầy theo D36 (L10)
-        async Task<IResult> HandleKeyRequest(long id, StorageProject.Core.DTOs.Contract.KeyRequestInput? input, ClaimsPrincipal user, IContractService contractService, CancellationToken ct)
-        {
-            try
-            {
-                var customerId = user.GetUserId();
-                var result = await contractService.RequestKeyAsync(customerId, id, input, ct);
-                return Results.Ok(result);
-            }
-            catch (KeyNotFoundException ex)
-            {
-                return Results.NotFound(new { error = ex.Message });
-            }
-            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-            {
-                return Results.BadRequest(new { error = ex.Message });
-            }
-        }
-
-        group.MapPost("/contracts/{id:long}/request-key", HandleKeyRequest);
-        group.MapPost("/contracts/{id:long}/key-request", HandleKeyRequest);
+        // D40: khách yêu cầu nhận chìa khóa qua hỗ trợ chủ đề "Nhận chìa khóa" (SupportTicketService), không còn route riêng.
 
         return group;
     }

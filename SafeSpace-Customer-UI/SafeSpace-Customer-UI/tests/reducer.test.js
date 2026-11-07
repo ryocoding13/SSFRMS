@@ -94,6 +94,19 @@ test("gia hạn: chỉ 1 yêu cầu chờ duyệt, chặn trả kho song song, h
   assert.match(run(s, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 2 }).error.message, /1, 3 hoặc 6/);
 });
 
+test("3.2: huỷ yêu cầu gia hạn chờ duyệt → mở lại trả kho; đã huỷ/đã duyệt không huỷ được", () => {
+  const s = createSeedData(T);
+  const a = run(s, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 3 });
+  const id = a.state.renewals[0].renewal_id;
+  const b = run(a.state, "CANCEL_RENEWAL", { renewal_id: id });
+  assert.equal(b.state.renewals[0].status, "CANCELLED");
+  assert.ok(!b.state.ledger.some((l) => l.status === "RENEWAL_PENDING" && l.contract_id === "HĐ-2026-0086"));
+  assert.doesNotMatch(run(b.state, "REQUEST_RETURN", { contract_id: "HĐ-2026-0086", date: T, slot: "09:00–09:30" }).error?.message || "", /gia hạn/);
+  assert.match(run(b.state, "CANCEL_RENEWAL", { renewal_id: id }).error.message, /chờ quản lý duyệt/);
+  const approved = { ...a.state, renewals: a.state.renewals.map((r) => ({ ...r, status: "APPROVED" })) };
+  assert.match(run(approved, "CANCEL_RENEWAL", { renewal_id: id }).error.message, /chờ quản lý duyệt/);
+});
+
 test("trả kho: tạo lịch hẹn chờ xác nhận, không đổi trạng thái hợp đồng", () => {
   const s = createSeedData(T);
   s.contracts.find(c => c.contract_id === "HĐ-2026-0142").start_date = "2026-09-21";
@@ -112,14 +125,13 @@ test("hợp đồng: trạng thái suy ra theo ngày (30 ngày → sắp hết h
   assert.equal(contractStatus({ ...s.contracts[1], end_date: "2026-09-01" }, NOW), "OVERDUE");
 });
 
-test("hỗ trợ: tạo, huỷ (chỉ khi mới gửi), yêu cầu đang xử lý không huỷ được", () => {
+test("hỗ trợ: tạo yêu cầu; khách không huỷ yêu cầu (D43/D45)", () => {
   const s = createSeedData(T);
   assert.match(run(s, "CREATE_TICKET", { contract_id: "HĐ-2026-0142", topic: "ACCESS", description: "  " }).error.message, /mô tả/);
   const a = run(s, "CREATE_TICKET", { contract_id: "HĐ-2026-0142", topic: "LOCK", description: "Mất chìa", attachments: ["a.png"] });
   const id = a.result.ticket_id;
   assert.equal(id, "HT-0083");
-  assert.equal(run(a.state, "CANCEL_TICKET", { ticket_id: id }).state.tickets[0].status, "CANCELLED");
-  assert.match(run(a.state, "CANCEL_TICKET", { ticket_id: "HT-0082" }).error.message, /không thể huỷ/);
+  assert.ok(run(a.state, "CANCEL_TICKET", { ticket_id: id }).error, "Không còn thao tác huỷ yêu cầu hỗ trợ");
 });
 
 test("hồ sơ: đổi tên, đổi mật khẩu kiểm tra mật khẩu hiện tại", () => {

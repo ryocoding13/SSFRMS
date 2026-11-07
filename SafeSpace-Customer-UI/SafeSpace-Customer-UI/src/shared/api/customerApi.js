@@ -2,6 +2,8 @@
 import { request } from "./httpClient.js";
 
 export const api = {
+  // 3.2 · BE chỉ cho huỷ khi yêu cầu còn chờ duyệt (đã duyệt thì 409).
+  cancelRenewal: (id) => request(`/api/renewals/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
   chooseRenewalCounter: (id) => request(`/api/renewals/${encodeURIComponent(id)}/counter-payment`, { method: "POST" }),
   // Auth
   login: (username, password) => request("/api/auth/login", { method: "POST", body: { username, password }, auth: false }),
@@ -72,7 +74,6 @@ export const api = {
   tickets: () => request("/api/tickets"),
   ticket: (id) => request(`/api/tickets/${id}`),
   createTicket: (body) => request("/api/tickets", { method: "POST", body }),
-  cancelTicket: (id) => request(`/api/tickets/${id}/cancel`, { method: "POST" }),
 
   // payOS VietQR Integration
   createPayOSQr: (body) => request("/api/v1/reservations/create-payos-qr", { method: "POST", body }),

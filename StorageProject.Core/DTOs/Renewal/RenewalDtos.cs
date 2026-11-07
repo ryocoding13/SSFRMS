@@ -20,7 +20,9 @@ public record RenewalUnitOptionsDto(
 public record UnitMoveDto(
     long RenewalId, long ContractId, string CustomerName, string FromUnit, string ToUnit,
     DateOnly OldEndDate, DateOnly MoveFrom, decimal DepositTopUp, string Status,
-    DateTime? MovedAt, bool AutoMoved, decimal? Deduction, decimal DepositHeld = 0);
+    DateTime? MovedAt, bool AutoMoved, decimal? Deduction, decimal DepositHeld = 0,
+    // D48: nhân viên đã ghi nhận ô cũ còn đồ khách bỏ (đang dọn), kèm ghi chú đồ còn lại.
+    bool GoodsAbandoned = false, string? GoodsNote = null);
 
 public record UnitMoveInspectionRequest(
     bool GoodsRemaining, bool CleaningRequired, decimal? DamageFee, string? Note);

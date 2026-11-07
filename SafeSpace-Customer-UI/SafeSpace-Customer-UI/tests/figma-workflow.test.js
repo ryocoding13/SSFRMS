@@ -53,3 +53,20 @@ test('customer event IDs persist on refresh and replies use server timestamp', a
   assert.deepEqual(a,b); assert.equal(new Set(a.map(n=>n.id)).size,3);
   assert.equal(a.at(-1).created_at,'2026-10-22T01:01:00Z'); assert.match(a.at(-1).detail,/Đã cấp lại/);
 });
+
+test('D41/D45: đề xuất đổi kho hiện trong chuông (không email), ID ổn định, có thông báo tự đổi', async()=>{
+  const {customerNotifications}=await import('../src/features/customer/notifications/customerNotifications.js');
+  const unitConflicts=[
+    {id:'XD-0012',contractId:'HĐ-2026-0151',oldUnit:'K02',startDate:'2026-10-01',detectedAt:'2026-09-26T00:00:00',expiresAt:'2026-09-28T00:00:00',status:'OPEN'},
+    {id:'XD-0013',contractId:'HĐ-2026-0152',oldUnit:'K05',proposedUnit:'K06',newUnit:'K06',startDate:'2026-10-02',detectedAt:'2026-09-27T00:00:00',status:'RESOLVED',resolution:'AUTO_SWAP',resolvedAt:'2026-09-29T00:00:00'},
+    {id:'XD-0014',contractId:'HĐ-2026-0153',oldUnit:'K07',startDate:'2026-10-03',detectedAt:'2026-09-28T00:00:00',status:'RESOLVED',resolution:'ACCEPT',resolvedAt:'2026-09-29T00:00:00'},
+  ];
+  const a=customerNotifications({unitConflicts}), b=customerNotifications({unitConflicts});
+  assert.deepEqual(a,b);
+  assert.deepEqual(a.map(n=>n.id),['SERVER-UNIT-CHANGE-XD-0012','SERVER-UNIT-CHANGE-XD-0013-AUTO']);
+  assert.equal(a[0].to,'units/HĐ-2026-0151/unit-change');
+  assert.match(a[0].title,/K02 chưa sẵn sàng ngày 01\/10/); assert.match(a[0].detail,/trước 28\/09 · 00:00/);
+  assert.equal(a[0].created_at,'2026-09-25T17:00:00.000Z');
+  assert.match(a[1].detail,/ô K06/);
+  assert.ok(!a.some(n=>/email/i.test(n.title+n.detail)));
+});

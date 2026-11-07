@@ -17,7 +17,7 @@ Dữ liệu: `src/features/facility-operations/data/facilityOperationsSeed.js` (
 | S06 Đã ghi nhận | `#/staff/done?kind=` | Màn kết quả theo từng thao tác |
 | Thu gia hạn tại quầy | `#/staff/renewal-payments` | Khoản `RENEWAL` khách chọn trả tại quầy; xác nhận đã thu |
 | S10 / S10b Chi tiền hoàn tại quầy | `#/staff/cash-refunds` | Khoản tiền mặt quản lý đã duyệt: ghi kết quả gọi nhắc ngày 10 / 20 / 25 (có ngày hẹn thì tạm dừng nhắc), chi tiền khi tick đủ 4 mục; không nhập số phiếu chi (D42, D44, D47) |
-| S04-ô cũ / S04-ô cũ-chi tiết Kiểm tra ô cũ | `#/staff/unit-moves` | Sau gia hạn sang ô khác: biên bản 3 mục như D38, không hoàn cọc, khấu trừ vào cọc đang giữ (tối đa bằng cọc); "Báo ô còn đồ" → chưa ghi được (D46, D46b) |
+| S04-ô cũ / S04-ô cũ-chi tiết Kiểm tra ô cũ | `#/staff/unit-moves` | Sau gia hạn sang ô khác: biên bản 3 mục như D38, không hoàn cọc, khấu trừ vào cọc đang giữ (tối đa bằng cọc); "Ghi nhận đồ khách bỏ" → ghi nhận, không trừ phí, dọn rồi ghi kết quả; không tính phí quá hạn ô cũ (D46, D46b, D48) |
 | S04-kiểm tra lại | `#/staff/recheck` | Khách chọn tự dọn / tự thay / khiếu nại: kiểm tra lại, tick đạt thì không trừ khoản tương ứng (D39, D40) |
 | D30-11 Xử lý đồ quá hạn ngày 20 | `#/staff/overdue` | Lập biên bản + ảnh sau khi đã thực hiện; rỗng → "Không có kho quá hạn đến ngày 20" |
 | Hỗ trợ chưa có hợp đồng | `#/staff/inquiries` | Trả lời tư vấn khách chưa thuê kho (chờ BE `/api/support/inquiries`, T19) |
@@ -41,7 +41,6 @@ Dữ liệu: `src/features/facility-operations/data/facilityOperationsSeed.js` (
 | M04-cuối ngày Báo cáo cuối ngày | `#/manager/daily-report` | Việc chưa xong và đã làm của từng nhân viên, hệ thống ghi lúc 22:00 (D42) |
 | Hồ sơ quá hạn | `#/manager/overdue` | Nhắc khách ngày 10–14, phân công xử lý ngày 20 (chờ BE `overdue-cases`, T12) |
 | Sự cố cơ sở | `#/manager/incidents` | Lối vào từ M07 → "Sự cố cơ sở"; phương án chuyển ô / kết thúc (T13) |
-| Phản hồi / kiểm khắc phục hư hỏng | `#/manager/damage-responses`, `#/manager/damage-inspections` | D30-18; chờ BE damage-cases (T23) |
 
 ## Chỗ Figma tự mâu thuẫn, code chọn như sau
 - Figma dùng ngày cố định (14/09, 20/09) → code tính theo ngày hiện tại để lịch hẹn luôn ở tương lai.

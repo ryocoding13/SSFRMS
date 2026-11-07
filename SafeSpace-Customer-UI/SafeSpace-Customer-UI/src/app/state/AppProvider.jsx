@@ -339,7 +339,9 @@ function ApiProvider({ children }) {
 
   const loadCustomer = useCallback(async () => {
     const activeSession = refs.current.session;
-    const [reservations, contracts, tickets] = await Promise.all([api.reservations(), api.contracts(), api.tickets()]);
+    // D41: đề xuất đổi kho chỉ để hiện chuông; lỗi tải không chặn các dữ liệu khác của khách.
+    const [reservations, contracts, tickets, unitConflicts] = await Promise.all([api.reservations(), api.contracts(), api.tickets(),
+      api.unitConflicts().catch(e => { if (e?.status === 401) throw e; return []; })]);
     const [reservationDetails, contractDetails, ticketDetails] = await Promise.all([
       Promise.all(reservations.filter((r) => r.status !== "CANCELLED").map((r) => api.reservation(r.reservationId).catch(() => null))),
       Promise.all(contracts.map((c) => api.contract(c.contractId).catch(() => ({ ...c, payments: [], renewals: [] })))),
@@ -357,7 +359,7 @@ function ApiProvider({ children }) {
       contracts: contractDetails,
       tickets: ticketDetails,
     };
-    const events = customerNotifications({ contracts: contractDetails, tickets: ticketDetails, reservations });
+    const events = customerNotifications({ contracts: contractDetails, tickets: ticketDetails, reservations, unitConflicts });
     updateOverlay(o => {
       const ids = new Set(o.notifications.map(n => n.id));
       const incoming = events.filter(n => !ids.has(n.id));
@@ -655,6 +657,16 @@ function ApiProvider({ children }) {
             await loadCustomer();
             return { ok: true, renewal_id: `GH-${String(dto.renewalId).padStart(4, "0")}` };
           }
+          case "CANCEL_RENEWAL": {
+            const r = d.renewals.find((x) => x.renewal_id === p.renewal_id);
+            if (!r) return fail("Không tìm thấy yêu cầu gia hạn.", "NOT_FOUND");
+            if (r.status !== "PENDING") return fail("Chỉ huỷ được yêu cầu gia hạn đang chờ quản lý duyệt.");
+            await api.cancelRenewal(r.api_id);
+            const c = d.contracts.find((x) => x.contract_id === r.contract_id);
+            remember("Đã huỷ yêu cầu gia hạn", `${r.renewal_id} · Kho ${c?.unit_number ?? ""}`.trim(), `units/${r.contract_id}`, `Yêu cầu gia hạn ${r.renewal_id} đã huỷ`);
+            await loadCustomer();
+            return { ok: true, renewal_id: r.renewal_id };
+          }
           case "CREATE_TICKET": {
             const topic = TICKET_TOPICS[p.topic];
             if (!topic) return fail("Vui lòng chọn chủ đề.");
@@ -684,13 +696,6 @@ function ApiProvider({ children }) {
             remember("Đã gửi yêu cầu hỗ trợ", `${ticketCode(dto.ticketId)} · ${title}`, "support", `Yêu cầu hỗ trợ ${ticketCode(dto.ticketId)} đã được gửi`, "blue");
             await loadCustomer();
             return { ok: true, ticket_id: ticketCode(dto.ticketId) };
-          }
-          case "CANCEL_TICKET": {
-            const t = d.tickets.find((x) => x.ticket_id === p.ticket_id);
-            if (!t) return fail("Không tìm thấy yêu cầu.", "NOT_FOUND");
-            await api.cancelTicket(t.api_id);
-            await loadCustomer();
-            return { ok: true, ticket_id: t.ticket_id };
           }
           case "CONFIRM_HANDOVER": {
             const c = d.contracts.find((x) => x.contract_id === p.contract_id);

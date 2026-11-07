@@ -109,3 +109,34 @@ test('D41 · ngày đệm cho thuê lại (RELET_BUFFER) lưu FIXED số ngày 0
  assert.throws(()=>policyJobs([],{relet:'61 ngày'},day),/0 đến 60/);
  assert.equal(fieldValue({calculationType:'FIXED',value:5},field('relet')),'5 ngày');
 });
+
+test('3.5 · B04a: tổng hợp hợp đồng, khoản chờ thu, mã hợp đồng và dòng mô tả', async()=>{
+ const { summarizeFacilityContracts, facilityContractLine, contractCodeOf } = await import('../src/features/business/reports/facilityReportModel.js');
+ const rows=[
+  {contractId:102,startDate:'2026-06-01',status:'OVERDUE',outstanding:1150000,overdueCases:1},
+  {contractId:86,startDate:'2026-06-25',status:'EXPIRING',outstanding:920000,overdueCases:0},
+  {contractId:142,startDate:'2026-09-14',status:'ACTIVE',outstanding:0,overdueCases:0},
+  {contractId:50,startDate:'2026-01-01',status:'COMPLETED',outstanding:-5,overdueCases:null},
+ ];
+ assert.deepEqual(summarizeFacilityContracts(rows),{active:3,overdue:1,pending:2070000,openCases:1});
+ assert.deepEqual(summarizeFacilityContracts(null),{active:0,overdue:0,pending:0,openCases:0});
+ assert.equal(contractCodeOf(rows[0]),'HĐ-2026-0102');
+ const money=v=>`${v} đ`;
+ assert.equal(facilityContractLine(rows[0],money),'Khoản chờ thu 1150000 đ · 1 hồ sơ quá hạn đang mở');
+ assert.equal(facilityContractLine(rows[2],money),'Không có khoản chờ thu · không có hồ sơ quá hạn');
+});
+
+test('3.5 · facilityContracts gọi đúng route BE kèm bộ lọc; máy chủ giả trả danh sách theo cơ sở', async()=>{
+ const {server}=await startMockApi(0,{business:true,ops:false,legacy:false});
+ const base=`http://127.0.0.1:${server.address().port}`, realFetch=globalThis.fetch, seen=[];
+ try{
+  globalThis.fetch=(url,options)=>{const t=new URL(url);seen.push(`${t.pathname}${t.search}`);return realFetch(`${base}${t.pathname}${t.search}`,options);};
+  const login=await realFetch(`${base}/api/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'ops01',password:'Ops@123'})});
+  setToken((await login.json()).token);
+  const rows=await businessApi.facilityContracts(1,{status:'ACTIVE',unitTypeId:undefined});
+  assert.ok(Array.isArray(rows));
+  assert.ok(rows.every(r=>r.status==='ACTIVE' && typeof r.outstanding==='number'));
+  assert.equal(seen.at(-1),'/api/operations/reports/facilities/1/contracts?status=ACTIVE');
+  await assert.rejects(()=>businessApi.facilityContracts(999999,{}));
+ } finally { globalThis.fetch=realFetch; setToken(null); await new Promise(r=>server.close(r)); }
+});

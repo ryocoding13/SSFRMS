@@ -125,6 +125,12 @@ try {
   const expiredRenewalHtml = renderToStaticMarkup(React.createElement(App));
   assert.ok(expiredRenewalHtml.includes("Đã hết hạn thanh toán"));
   assert.ok(!expiredRenewalHtml.includes("Thanh toán PayOS") && !expiredRenewalHtml.includes("Chọn thanh toán tại quầy"));
+  // 3.2 · C07b-L5c: yêu cầu gia hạn chờ duyệt → nút Xem yêu cầu + Huỷ yêu cầu; trả kho ghi lý do khoá.
+  lifecycleData.renewals = [{renewal_id:"GH-0043",contract_id:"HĐ-2026-0086",months:3,status:"PENDING",old_end:"2026-09-25",new_end:"2026-12-25",amount:1500000}];
+  memory.set(STORAGE_KEY, JSON.stringify({version:5,authed:true,data:lifecycleData}));
+  window.location.hash = "#/units/HĐ-2026-0086";
+  const pendingRenewalHtml = renderToStaticMarkup(React.createElement(App));
+  for (const text of ["Xem yêu cầu", "Huỷ yêu cầu", "GH-0043 chờ quản lý duyệt · huỷ được trước khi duyệt"]) assert.ok(pendingRenewalHtml.includes(text), text);
   window.location.hash = "#/profile";
   assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Tên đăng nhập"));
   window.location.hash = "#/register";
@@ -169,7 +175,7 @@ try {
       "staff/reconcile?id=SS-20260914-0142", "staff/verify?id=XM-0142", "staff/handover?id=BG-0115", "staff/return?id=TK-0098",
       "staff/support?id=HT-0082", "staff/done?kind=payment", "staff/nope",
     ],
-    MANAGER: ["manager/incidents", "manager/incidents?id=SC-local-0086", "manager/incidents?id=missing","manager/damage-responses", "manager/damage-responses?id=HH-local-0086", "manager/damage-responses?id=missing", "manager/damage-inspections", "manager/damage-inspections?id=HH-inspect-0086","manager/overdue", "manager/cash-refunds", "manager/unit-conflicts", "manager/daily-report", "manager/deposit-refunds","manager", "manager/units", "manager/units?tab=OVERDUE", "manager/units?tab=MAINTENANCE", "manager/allocate", "manager/assign", "manager/renewals", "manager/contracts", "manager/refunds", "manager/report", "manager/done", "staff"],
+    MANAGER: ["manager/incidents", "manager/incidents?id=SC-local-0086", "manager/incidents?id=missing","manager/overdue", "manager/cash-refunds", "manager/unit-conflicts", "manager/daily-report", "manager/deposit-refunds","manager", "manager/units", "manager/units?tab=OVERDUE", "manager/units?tab=MAINTENANCE", "manager/allocate", "manager/assign", "manager/renewals", "manager/contracts", "manager/refunds", "manager/report", "manager/done", "staff"],
   };
   for (const acc of OPS_ACCOUNTS) {
     seed(true, acc);
@@ -283,35 +289,17 @@ try {
   assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Đổi trạng thái"), "M02: thiếu nút Đổi trạng thái");
   count++;
 
-  // Damage fixtures are isolated from the settlement store; verify scope and stage UI.
-  const { createDamageSeed } = await vite.ssrLoadModule("/src/features/facility-operations/damage/damageModel.js");
-  const { DAMAGE_DEMO_KEY } = await vite.ssrLoadModule("/src/features/facility-operations/damage/useDamageCases.js");
-  const damageCases = createDamageSeed();
-  const saveDamage = () => memory.set(DAMAGE_DEMO_KEY, JSON.stringify({version:1,cases:damageCases}));
-  saveDamage(); seed(true);
-  window.location.hash = "#/units/HĐ-2026-0086/damage?case=HH-local-0086";
-  let damageHtml = renderToStaticMarkup(React.createElement(App));
-  for (const text of ["Chọn phương án phản hồi", "Đính kèm ảnh / ảnh hoá đơn", "Gửi phản hồi cho cơ sở"]) assert.ok(damageHtml.includes(text),text);
-  assert.ok(!/type="radio"[^>]*checked/.test(damageHtml),"Không tự chọn phản hồi");
-  window.location.hash = "#/units/HĐ-2026-0086/damage?case=HH-api-0001";
-  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Không tìm thấy hồ sơ"),"Không lộ hồ sơ khách khác");
-  damageCases[0].status="RESPONSE_SUBMITTED";
-  damageCases[0].response={choice:"REMEDIATE",note:"Xin khắc phục",files:[]}; saveDamage();
-  window.location.hash = "#/units/HĐ-2026-0086/damage?case=HH-local-0086";
-  damageHtml=renderToStaticMarkup(React.createElement(App));
-  assert.ok(damageHtml.includes("Đã gửi phản hồi") && !damageHtml.includes("Gửi phản hồi cho cơ sở"));
-  seed(true,manager);
-  window.location.hash = "#/manager/damage-responses?id=HH-local-0086";
-  damageHtml=renderToStaticMarkup(React.createElement(App));
-  for(const text of ["Xin khắc phục","datetime-local","Lý do (bắt buộc khi từ chối)"]) assert.ok(damageHtml.includes(text),text);
-  window.location.hash = "#/manager/damage-inspections?id=HH-inspect-0086";
-  damageHtml=renderToStaticMarkup(React.createElement(App));
-  for(const text of ["Ghi chú kiểm tra","Ghi nhận kết quả","Đạt · bỏ khấu trừ hư hỏng"]) assert.ok(damageHtml.includes(text),text);
-  damageCases.forEach(c=>c.facilityId=999999); saveDamage();
-  window.location.hash = "#/manager/damage-responses?id=HH-local-0086";
-  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Không tìm thấy hồ sơ"),"Không lộ hồ sơ cơ sở khác");
-  memory.delete(DAMAGE_DEMO_KEY);
-  count+=6;
+  // D48: màn hồ sơ hư hỏng cũ (Batch06) đã gỡ; route cũ không còn mở màn phản hồi/khắc phục.
+  seed(true);
+  window.location.hash = "#/units/HĐ-2026-0086/damage";
+  assert.ok(!renderToStaticMarkup(React.createElement(App)).includes("Gửi phản hồi cho cơ sở"), "Route hư hỏng cũ vẫn mở màn phản hồi");
+  window.location.hash = "#/units/HĐ-2026-0086/progress";
+  assert.ok(!renderToStaticMarkup(React.createElement(App)).includes("Đối chiếu hư hỏng / khắc phục"), "Còn nút hư hỏng cũ");
+  seed(true, manager);
+  window.location.hash = "#/manager/contracts";
+  const contractsHtml = renderToStaticMarkup(React.createElement(App));
+  assert.ok(!contractsHtml.includes("Phản hồi hư hỏng") && !contractsHtml.includes("Kiểm tra khắc phục"), "Còn nút hư hỏng cũ ở quản lý");
+  count+=3;
 
   const { createIncidentSeed, applyIncidentAction } = await vite.ssrLoadModule("/src/features/facility-operations/incidents/incidentModel.js");
   const { INCIDENT_DEMO_KEY } = await vite.ssrLoadModule("/src/features/facility-operations/incidents/useIncidents.js");
@@ -373,7 +361,7 @@ try {
   b9html=renderToStaticMarkup(React.createElement(SelectionPanel,{title:"Đổi vai trò",items:[{id:1,label:"Quản trị",disabled:true},{id:2,label:"Nhân viên"}],onClose(){},onSelect(){}}));
   assert.match(b9html,/<button[^>]*disabled[^>]*>Dùng lựa chọn này<\/button>/);
   b9html=renderToStaticMarkup(React.createElement(SelectionPanel,{title:"Cấp lại vai trò",items:[],onClose(){},onSelect(){}}));assert.ok(b9html.includes("Chưa có lựa chọn phù hợp"));count+=4;
-  for(const [role,routes] of [["ADMIN",["admin","admin/new","admin/users/3","admin/permissions","admin/logs"]],["OPERATIONS",["business","business/facilities","business/policy-status","business/policy-content","business/reports","business/export"]]]) {
+  for(const [role,routes] of [["ADMIN",["admin","admin/new","admin/users/3","admin/permissions","admin/logs"]],["OPERATIONS",["business","business/facilities","business/policy-status","business/policy-content","business/reports","business/export","business/facility-report?id=1","business/facility-report"]]]) {
    seed(true,{user_id:991,username:"qa",full_name:"QA vận hành",role});
    for(const route of routes){window.location.hash=`#/${route}`;const html=renderToStaticMarkup(React.createElement(App));assert.ok(html.includes("QA vận hành"),route);assert.ok(!html.includes("NaN")&&!html.includes("undefined"),route);count++;}
   }

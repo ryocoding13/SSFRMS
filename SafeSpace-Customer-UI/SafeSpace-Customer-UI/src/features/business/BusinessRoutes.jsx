@@ -1,5 +1,6 @@
 import React from "react";
 import { ReportExportPage } from "./reports/ReportExportPage.jsx";
+import { FacilityReportDetailPage } from "./reports/FacilityReportDetailPage.jsx";
 import { RentalPolicyEditorPage } from "./policies/RentalPolicyEditorPage.jsx";
 import { PolicyStatusPage } from "./policies/PolicyStatusPage.jsx";
 import { FacilityRatePage } from "./pricing/FacilityRatePage.jsx";
@@ -19,6 +20,7 @@ export default function BusinessRoutes({ parts, query }) {
   let body;
   if (!a) body = <BusinessDashboardPage />;
   else if (a === "export") { active = "business/reports"; body = <ReportExportPage />; }
+  else if (a === "facility-report") { active = "business/reports"; body = <FacilityReportDetailPage query={query} />; }
   else if (a === "policy-content") { active = "business/policies"; body = <RentalPolicyEditorPage />; }
   else if (a === "policy-status") { active = "business/policies"; body = <PolicyStatusPage />; }
   else if (a === "rates") { active = "business/pricing"; body = query?.get("facility") ? <FacilityRatePage query={query} /> : <PricingPage />; }
