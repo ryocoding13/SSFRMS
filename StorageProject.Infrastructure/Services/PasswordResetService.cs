@@ -62,8 +62,9 @@ public sealed class PasswordResetService(AppDbContext db, IPasswordResetEmailSen
 
         // Nếu SMTP lỗi, rollback giữ nguyên mã cũ; không báo đã gửi hoặc trả mã ra response.
         await sender.SendAsync(user.Email, code, ct);
-        await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
+        // SMTP đã nhận thư. Việc khách rời trang không được làm mất hiệu lực mã vừa gửi.
+        await db.SaveChangesAsync(CancellationToken.None);
+        await tx.CommitAsync(CancellationToken.None);
         return reply;
     }
 

@@ -93,6 +93,8 @@ public sealed class AuthSupportTests
         await using var f = await Fixture.Create(); var service = new AuthService(f.Db, new ConfigurationBuilder().Build());
         await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateUserProfileAsync(f.Customer.UserId, new("  ", null)));
         await Assert.ThrowsAsync<ArgumentException>(() => service.ChangePasswordAsync(f.Customer.UserId, new("Customer@123", "1234567")));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.ChangePasswordAsync(f.Customer.UserId, new("Customer@123", new string('đ', 37))));
         var profile = await service.UpdateUserProfileAsync(f.Customer.UserId, new("  Tên mới  ", null));
         Assert.Equal("Tên mới", profile.FullName);
         Assert.True(BCrypt.Net.BCrypt.Verify("Customer@123", f.Customer.PasswordHash));
