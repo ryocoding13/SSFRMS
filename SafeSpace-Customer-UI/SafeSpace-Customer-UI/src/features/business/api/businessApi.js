@@ -42,6 +42,8 @@ export const businessApi = {
 
   // B01, B04 · Báo cáo (UC22, UC23)
   facilityReport: (filter) => request(`/api/operations/reports/facilities${q(filter)}`),
+  // 3.5 · B04a: hợp đồng, khoản chờ thu và hồ sơ quá hạn của một cơ sở (lọc trạng thái / loại kho)
+  facilityContracts: (facilityId, filter) => request(`/api/operations/reports/facilities/${encodeURIComponent(facilityId)}/contracts${q(filter)}`),
   unitTypeReport: (filter) => request(`/api/operations/reports/unit-types${q(filter)}`),
   revenueTrend: (filter) => request(`/api/operations/reports/revenue-trend${q(filter)}`),
   rentalStatus: (filter) => request(`/api/operations/reports/rental-status${q(filter)}`),

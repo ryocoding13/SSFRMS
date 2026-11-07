@@ -1,5 +1,7 @@
 # Hợp đồng BE cần bổ sung — không phải API đã triển khai
 
+> Cập nhật 07/11/2026: các resource dưới đây đều đã có trên BE (`overdue-cases`, `deposit-refunds`, `counter-renewals`, `support/inquiries`, `rental-policy`). Đã bỏ `discrepancies` (D42 gỡ báo cáo sai lệch) và `damage-cases` (D48 gỡ màn hư hỏng cũ). Phần còn lại giữ làm lịch sử hợp đồng FE–BE.
+
 ## Bổ sung 30/10/2026 — F43 / D35
 
 Giữ API/cờ T05/T07/T08/T13 của PR #55 trên main efc0c40. Phần mới:
@@ -17,7 +19,6 @@ FE đã có adapter; 404/405 hiện thông báo chưa hỗ trợ. Cần BE revie
 
 | Resource | GET dự kiến | POST action |
 |---|---|---|
-| discrepancies | /api/ops/discrepancies | REPORT_DISCREPANCY, RESOLVE_DISCREPANCY |
 | overdue | /api/ops/overdue-cases | ASSIGN_REMOVAL, RECORD_REMOVAL |
 | depositRefunds | /api/ops/deposit-refunds | CONFIRM_DEPOSIT_REFUND |
 | counterRenewals | /api/ops/counter-renewals | COLLECT_RENEWAL |

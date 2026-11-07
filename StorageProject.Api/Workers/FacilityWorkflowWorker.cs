@@ -2,6 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using StorageProject.Core.Interfaces;
+using StorageProject.Infrastructure.Data;
+using StorageProject.Infrastructure.Services;
 
 namespace StorageProject.Api.Workers;
 
@@ -32,6 +34,8 @@ public sealed class FacilityWorkflowWorker(IServiceScopeFactory scopes, ILogger<
                 if (conflicts > 0) logger.LogInformation("Đề xuất đổi kho mới (D41): {Count}.", conflicts);
                 await ops.ExpireUnitConflictsAsync(stoppingToken);
                 await ops.WriteDailyReportsAsync(stoppingToken);
+                // D46: hết kỳ cũ mà khách chưa báo chuyển đồ → tự chuyển hợp đồng sang ô mới, tạo việc kiểm tra ô cũ
+                await RenewalUnitMove.AutoCompleteAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>(), stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

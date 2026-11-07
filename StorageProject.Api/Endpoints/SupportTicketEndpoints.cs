@@ -43,19 +43,7 @@ public static class SupportTicketEndpoints
             }
         }).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(StorageProject.Infrastructure.Services.EvidencePhotos.RequestBodyLimit));
 
-        group.MapPost("/{id:long}/cancel", async (long id, ClaimsPrincipal user, ISupportTicketService ticketService, CancellationToken ct) =>
-        {
-            try
-            {
-                var customerId = user.GetUserId();
-                await ticketService.CancelTicketAsync(customerId, id, ct);
-                return Results.Ok(new { message = "Đã hủy yêu cầu hỗ trợ thành công." });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Results.BadRequest(new { error = ex.Message });
-            }
-        });
+        // D43/D45: hỗ trợ là cuộc trò chuyện, khách không huỷ/đóng yêu cầu nên không có route /cancel.
 
         return group;
     }

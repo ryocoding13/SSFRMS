@@ -123,7 +123,7 @@ const mapKeys = (v, fn) =>
   Array.isArray(v) ? v.map((x) => mapKeys(x, fn)) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [fn(k), mapKeys(x, fn)])) : v;
 const STAFF_PARTS = ["facility", "staff", "units", "payments", "verifications", "handovers", "returns", "tickets", "fee_collections", "counter_renewals"];
 const OPS_ROUTES = [
-  ["POST", /^\/api\/(?:ops|manager)\/reservations\/([^/]+)\/refund$/, "MANAGER", "CONFIRM_RESERVATION_REFUND", (b, id) => ({ id, method: b?.method, transaction_ref: b?.transactionRef })],
+  ["POST", /^\/api\/(?:ops|manager)\/reservations\/([^/]+)\/refund$/, "MANAGER", "CONFIRM_RESERVATION_REFUND", (b, id) => ({ id, method: b?.method, transaction_ref: b?.transactionRef, transferredAt: b?.transferredAt, confirmed: b?.confirmed })],
   ["POST", /^\/api\/(?:ops|staff)\/fees\/([^/]+)\/confirm$/, "STAFF", "CONFIRM_FEE_COLLECTION", (b, id) => ({ id })],
   // [method, regex, role, action, payload(body, id)]
   ["POST", /^\/api\/(?:ops|staff)\/payments\/([^/]+)\/confirm$/, "STAFF", "CONFIRM_PAYMENT", (b, id) => ({ id })],
@@ -752,13 +752,6 @@ export function startMockApi(
       S.tickets.push(t);
       return send(201, { ...ticketDto(t), createdAt: iso(t.createdAt) });
     }
-    if (req.method === "POST" && (m = path.match(/^\/api\/tickets\/(\d+)\/cancel$/))) {
-      const t = S.tickets.find((x) => x.ticketId === +m[1] && x.customerId === me);
-      if (!t) return bad("Yêu cầu hỗ trợ không tồn tại.");
-      if (t.status !== "OPEN") return bad("Chỉ có thể hủy yêu cầu đang ở trạng thái mở.");
-      t.status = "CANCELLED";
-      return send(200, { message: "Đã hủy yêu cầu hỗ trợ." });
-    }
     // ---- Khu vận hành (chỉ khi bật ops)
     if (O && (path.startsWith("/api/ops/") || path.startsWith("/api/staff/") || path.startsWith("/api/manager/"))) {
       const u = auth();
@@ -770,7 +763,8 @@ export function startMockApi(
       if (req.method === "GET" && (path === "/api/ops/board" || path === "/api/staff/board" || path === "/api/manager/board")) {
         const { log: _log, version: _v, ...all } = O;
         const board = isManager ? all : Object.fromEntries(STAFF_PARTS.map((k) => [k, O[k]]));
-        return send(200, mapKeys({ ...board, me }, camel));
+        // Giống BE thật (FacilityOpsEndpoints.cs): báo đã hỗ trợ lưu bằng chứng biên bản trả kho và hoàn tiền.
+        return send(200, mapKeys({ ...board, me, inspection_evidence_supported: true, refund_evidence_supported: true }, camel));
       }
       for (const [method, re, role, type, toPayload] of OPS_ROUTES) {
         const hit = req.method === method && path.match(re);

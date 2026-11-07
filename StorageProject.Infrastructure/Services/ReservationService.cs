@@ -355,6 +355,9 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             ?? throw new KeyNotFoundException("Không tìm thấy đơn đặt chỗ.");
 
         if (reservation.Status == "PENDING_VERIFICATION") return ToDto(reservation);
+        // Phiên 7: tiến trình nền có thể đã chuyển đơn quá hạn sang EXPIRED trước khi khách bấm; vẫn trả mã EXPIRED như cũ.
+        if (reservation.Status == "EXPIRED" && reservation.PaidAt == null)
+            throw new ReservationExpiredException("Đơn đặt chỗ đã hết thời gian giữ chỗ.");
         if (reservation.Status != "PENDING_PAYMENT")
         {
             throw new InvalidOperationException("Đơn đặt chỗ này không còn chờ chuyển khoản.");

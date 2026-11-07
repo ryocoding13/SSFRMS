@@ -2,6 +2,7 @@ import React from "react";
 import { RenewalCollectionPage } from "../staff/payments/RenewalCollectionPage.jsx";
 import { CashRefundCounterPage } from "../staff/payments/CashRefundCounterPage.jsx";
 import { ReturnRecheckPage } from "../staff/returns/ReturnRecheckPage.jsx";
+import { OldUnitInspectionPage } from "../staff/returns/OldUnitInspectionPage.jsx";
 import { CashRefundApprovalPage } from "../manager/cash/CashRefundApprovalPage.jsx";
 import { DailyStaffReportPage } from "../manager/reports/DailyStaffReportPage.jsx";
 import { UnitConflictListPage } from "../manager/conflicts/UnitConflictListPage.jsx";
@@ -9,8 +10,6 @@ import { OverdueRemovalPage } from "../staff/overdue/OverdueRemovalPage.jsx";
 import { StaffInquiryPage } from "../staff/support/StaffInquiryPage.jsx";
 import { OverdueCasePage } from "../manager/overdue/OverdueCasePage.jsx";
 import { IncidentManagementPage } from "../manager/incidents/IncidentManagementPage.jsx";
-import { DamageReviewPage } from "../manager/damage/DamageReviewPage.jsx";
-import { DamageInspectionPage } from "../manager/damage/DamageInspectionPage.jsx";
 import { DepositRefundPage } from "../manager/refunds/DepositRefundPage.jsx";
 
 import { Empty, LinkButton } from "../../shared/components/UI.jsx";
@@ -46,6 +45,7 @@ const STAFF = {
   "renewal-payments": [RenewalCollectionPage, "staff/reconcile"],
   "cash-refunds": [CashRefundCounterPage, "staff/reconcile"],
   recheck: [ReturnRecheckPage, "staff/return"],
+  "unit-moves": [OldUnitInspectionPage, "staff/return"],
   overdue: [OverdueRemovalPage, "staff"],
   inquiries: [StaffInquiryPage, "staff/support"],
   "": [StaffDashboardPage, "staff"],
@@ -59,8 +59,6 @@ const STAFF = {
 };
 const MANAGER = {
   incidents: [IncidentManagementPage, "manager/contracts"],
-  "damage-responses": [DamageReviewPage, "manager/contracts"],
-  "damage-inspections": [DamageInspectionPage, "manager/contracts"],
   overdue: [OverdueCasePage, "manager/contracts"],
   "cash-refunds": [CashRefundApprovalPage, "manager/contracts"],
   "unit-conflicts": [UnitConflictListPage, "manager/contracts"],

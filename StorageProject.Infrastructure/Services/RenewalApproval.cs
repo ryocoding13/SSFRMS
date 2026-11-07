@@ -42,7 +42,9 @@ public static class RenewalApproval
         if (await db.ContractRenewals.AnyAsync(r => r.ContractId == contract.ContractId && r.RenewalId != renewal.RenewalId
                 && r.Status == "APPROVED", ct))
             throw new InvalidOperationException("Hợp đồng đang có một yêu cầu gia hạn khác chờ thanh toán.");
-        if (await UnitAvailability.NextBookingAsync(db, contract, ct) is DateOnly bookedFrom)
+        // D46: gia hạn sang ô khác không bị khoá D41 ở ô cũ; kiểm lại ô mới còn trống rồi giữ ô khi duyệt.
+        var unitPlan = await RenewalUnitMove.PlanAsync(db, renewal.RenewalId, ct);
+        if (unitPlan == null && await UnitAvailability.NextBookingAsync(db, contract, ct) is DateOnly bookedFrom)
             throw new InvalidOperationException($"Ô đã có khách đặt từ {bookedFrom:dd/MM/yyyy} (D41). Từ chối gia hạn hoặc chuyển khách sang ô khác.");
 
         var now = DateTime.UtcNow;
@@ -60,6 +62,9 @@ public static class RenewalApproval
             .OrderByDescending(r => r.EffectiveFrom)
             .FirstOrDefaultAsync(ct);
         var newRate = activeRate?.MonthlyRate ?? contract.AgreedMonthlyRate;
+        var depositTopUp = 0m;
+        if (unitPlan != null)
+            (newRate, depositTopUp) = await RenewalUnitMove.HoldAsync(db, userId, renewal, unitPlan, ct);
         renewal.NewMonthlyRate = newRate;
         renewal.RenewalAmount = newRate * renewal.RenewalPeriodMonths;
         renewal.PaymentDeadlineAt = deadline;
@@ -74,14 +79,14 @@ public static class RenewalApproval
             payment = new Payment
             {
                 ContractId = contract.ContractId, RenewalId = renewal.RenewalId, PaymentType = "RENEWAL",
-                Amount = renewal.RenewalAmount, Currency = "VND", PaymentMethod = "BANK_TRANSFER",
+                Amount = renewal.RenewalAmount + depositTopUp, Currency = "VND", PaymentMethod = "BANK_TRANSFER",
                 DueDate = renewal.OldEndDate, Status = "PENDING", CreatedAt = now, UpdatedAt = now
             };
             db.Payments.Add(payment);
         }
         else
         {
-            payment.Amount = renewal.RenewalAmount;
+            payment.Amount = renewal.RenewalAmount + depositTopUp; // D46: cọc chênh gộp cùng khoản gia hạn, tách khi thu đủ
             payment.Status = "PENDING";
             payment.UpdatedAt = now;
         }
@@ -91,7 +96,7 @@ public static class RenewalApproval
             UserId = userId, EntityType = "RENEWAL", EntityId = renewal.RenewalId, Action = "RENEWAL_APPROVED",
             NewValue = JsonSerializer.Serialize(new
             {
-                renewal.RenewalId, contractId = contract.ContractId, amount = renewal.RenewalAmount,
+                renewal.RenewalId, contractId = contract.ContractId, amount = renewal.RenewalAmount, depositTopUp,
                 paymentDeadlineAt = deadline, newEndDate = renewal.NewEndDate.ToString("yyyy-MM-dd")
             }),
             LoggedAt = now

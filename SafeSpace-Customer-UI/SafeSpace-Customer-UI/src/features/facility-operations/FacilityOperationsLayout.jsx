@@ -124,6 +124,9 @@ export default function FacilityOperationsLayout({ role, active, subActive, chil
             <LinkButton to="staff/recheck" variant="outline" className={subActive === "recheck" ? "is-active" : ""}>
               Kiểm tra lại trả kho<PendingBadge count={counts["staff/recheck"]} />
             </LinkButton>
+            <LinkButton to="staff/unit-moves" variant="outline" className={subActive === "unit-moves" ? "is-active" : ""}>
+              Kiểm tra ô cũ<PendingBadge count={counts["staff/unit-moves"]} />
+            </LinkButton>
             <LinkButton to="staff/overdue" variant="outline" className={subActive === "overdue" ? "is-active" : ""}>
               Đồ quá hạn<PendingBadge count={counts["staff/overdue"]} />
             </LinkButton>

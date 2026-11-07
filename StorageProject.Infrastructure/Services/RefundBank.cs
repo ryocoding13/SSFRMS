@@ -11,7 +11,7 @@ namespace StorageProject.Infrastructure.Services;
 /// </summary>
 public static class RefundBank
 {
-    private static readonly Regex AccountNumberPattern = new(@"^\d{6,19}$");
+    private static readonly Regex AccountNumberPattern = new(@"\A[0-9]{6,19}\z");
 
     public sealed record Account(string BankName, string AccountNumber, string AccountHolder);
 

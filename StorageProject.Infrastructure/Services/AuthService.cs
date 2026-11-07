@@ -280,15 +280,17 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
         {
             throw new ArgumentException("Vui lòng nhập mật khẩu hiện tại.");
         }
-        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8 ||
+            Encoding.UTF8.GetByteCount(request.NewPassword) > 72)
         {
-            throw new ArgumentException("Mật khẩu mới phải có ít nhất 8 ký tự.");
+            throw new ArgumentException("Mật khẩu mới cần ít nhất 8 ký tự và tối đa 72 byte UTF-8.");
         }
         if (request.NewPassword == request.CurrentPassword)
         {
             throw new ArgumentException("Mật khẩu mới phải khác mật khẩu hiện tại.");
         }
 
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"password-reset:{userId}", ct);
         var user = await dbContext.Users.FirstOrDefaultAsync(u => u.UserId == userId, ct);
         if (user == null)
         {
@@ -303,5 +305,6 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
         user.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 }

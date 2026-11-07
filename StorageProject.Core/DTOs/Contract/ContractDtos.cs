@@ -79,10 +79,3 @@ public record MoveOutResponseDto(
     string Message
 );
 
-/// <summary>
-/// Yêu cầu nhận chìa khóa vật lý tại quầy theo D36 (L10).
-/// </summary>
-public record KeyRequestInput(
-    DateTime? ScheduledAt = null,
-    string? Notes = null
-);

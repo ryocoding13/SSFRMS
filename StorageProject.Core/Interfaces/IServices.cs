@@ -48,7 +48,6 @@ public interface IContractService
     Task<IReadOnlyList<ContractSummaryDto>> GetMyContractsAsync(long customerId, CancellationToken ct = default);
     Task<ContractDetailDto?> GetContractDetailAsync(long customerId, long contractId, CancellationToken ct = default);
     Task<MoveOutResponseDto> RegisterMoveOutAsync(long customerId, long contractId, MoveOutRequest request, CancellationToken ct = default);
-    Task<HandoverSummaryDto> RequestKeyAsync(long customerId, long contractId, StorageProject.Core.DTOs.Contract.KeyRequestInput? input = null, CancellationToken ct = default);
 }
 
 public interface IAccessService
@@ -75,6 +74,12 @@ public interface IRenewalService
     /// <summary>L5 (D40): khách huỷ yêu cầu gia hạn còn chờ duyệt để chuyển sang trả kho.</summary>
     Task CancelRenewalAsync(long customerId, long renewalId, CancellationToken ct = default);
     Task ExpirePendingRenewalsAsync(CancellationToken ct = default);
+    // D46 · Gia hạn sang ô khác / về loại cũ sau nâng cấp miễn phí
+    Task<StorageProject.Core.DTOs.Renewal.RenewalUnitOptionsDto> GetRenewalUnitOptionsAsync(long customerId, long contractId, CancellationToken ct = default);
+    Task<StorageProject.Core.DTOs.Renewal.UnitMoveDto?> GetUnitMoveAsync(long customerId, long contractId, CancellationToken ct = default);
+    Task<StorageProject.Core.DTOs.Renewal.UnitMoveDto> MarkUnitMovedAsync(long customerId, long contractId, CancellationToken ct = default);
+    Task<IReadOnlyList<StorageProject.Core.DTOs.Renewal.UnitMoveDto>> GetOldUnitInspectionsAsync(long userId, CancellationToken ct = default);
+    Task<StorageProject.Core.DTOs.Renewal.UnitMoveDto> InspectOldUnitAsync(long userId, long renewalId, StorageProject.Core.DTOs.Renewal.UnitMoveInspectionRequest request, CancellationToken ct = default);
 }
 
 public interface IRentalPolicyService
@@ -91,7 +96,6 @@ public interface ISupportTicketService
     Task<IReadOnlyList<SupportTicketDto>> GetMyTicketsAsync(long customerId, CancellationToken ct = default);
     Task<SupportTicketDetailDto?> GetTicketDetailAsync(long customerId, long ticketId, CancellationToken ct = default);
     Task<SupportTicketDto> CreateTicketAsync(long customerId, CreateTicketRequest request, CancellationToken ct = default);
-    Task CancelTicketAsync(long customerId, long ticketId, CancellationToken ct = default);
 }
 
 public interface IHandoverService
@@ -112,11 +116,10 @@ public interface IAdminService
     Task<IReadOnlyList<StorageProject.Core.DTOs.Admin.RoleWithPermissionsDto>> GetAllRolesAsync(CancellationToken ct = default);
     Task AssignRoleAsync(long userId, long roleId, long currentAdminId, CancellationToken ct = default);
     Task RevokeRoleAsync(long userId, long roleId, long currentAdminId, CancellationToken ct = default);
+    Task ChangeRoleAsync(long userId, StorageProject.Core.DTOs.Admin.ChangeRoleRequest request, long currentAdminId, CancellationToken ct = default);
 
     // UC26: Permissions & Facility Scopes
     Task<IReadOnlyList<StorageProject.Core.DTOs.Admin.PermissionDto>> GetAllPermissionsAsync(CancellationToken ct = default);
-    Task AssignPermissionToRoleAsync(long roleId, long permissionId, long currentAdminId, CancellationToken ct = default);
-    Task RevokePermissionFromRoleAsync(long roleId, long permissionId, long currentAdminId, CancellationToken ct = default);
     Task<IReadOnlyList<StorageProject.Core.DTOs.Admin.UserFacilityDto>> GetUserFacilitiesAsync(long userId, CancellationToken ct = default);
     Task<StorageProject.Core.DTOs.Admin.UserFacilityDto> AssignUserFacilityAsync(StorageProject.Core.DTOs.Admin.AssignUserFacilityRequest request, long currentAdminId, CancellationToken ct = default);
     Task UpdateUserFacilityStatusAsync(long userFacilityId, string status, long currentAdminId, CancellationToken ct = default);

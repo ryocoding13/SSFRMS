@@ -68,7 +68,7 @@ export function UnitChangePage({ id }) {
         <div className="customer-detail__column">
           <section className="panel customer-detail__card"><h2>Kho bạn đã đặt</h2>
             <DetailList items={[["Kho đã đặt", <strong>{booked}</strong>], ["Lý do", <strong>{item.reason || "Ô chưa về trạng thái Trống"}</strong>], ...(item.earliestFreeDate ? [["Có ô trống sớm nhất từ", vnDate(item.earliestFreeDate)]] : [])]} />
-            <p className="hint">Hệ thống kiểm tra lúc {vnStamp(item.detectedAt)} (5 ngày trước ngày nhận kho).</p>
+            <p className="hint">Hệ thống kiểm tra lúc {vnStamp(item.detectedAt)} (5 ngày trước ngày nhận kho). Đã gửi thông báo vào chuông trong ứng dụng.</p>
             {item.status !== "OPEN" && <Notice tone="success">{RESOLUTION[item.resolution] || "Đã xử lý"}{item.newUnit ? ` · ô ${item.newUnit}` : ""}{item.newStartDate ? ` · nhận kho từ ${vnDate(item.newStartDate)}` : ""}.</Notice>}
           </section>
           {item.status === "OPEN" && <form className="panel customer-detail__card" onSubmit={submit} noValidate><h2>Chọn phương án</h2>

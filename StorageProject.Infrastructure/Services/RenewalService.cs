@@ -70,8 +70,16 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
             throw new InvalidOperationException("Hợp đồng đã đến hoặc quá ngày hết hạn, không thể gửi yêu cầu gia hạn.");
         }
 
+        // D46: gia hạn sang ô khác — kiểm ô khách chọn còn trống (cùng loại, hoặc loại đã đặt ban đầu sau nâng cấp D41).
+        RenewalUnitOptionDto? targetOption = null;
+        if (request.TargetUnitId is long targetUnitId)
+        {
+            if (await RenewalUnitMove.HasPendingMoveAsync(dbContext, contractId, ct))
+                throw new InvalidOperationException("Hợp đồng đang chuyển sang ô mới. Gửi gia hạn tiếp sau khi chuyển đồ xong.");
+            targetOption = await RenewalUnitMove.ValidateAsync(dbContext, contract, targetUnitId, ct);
+        }
         // D41: ô đã có khách mới đặt trước từ ngày hết hạn → khoá gia hạn ô này (khách có thể chuyển sang ô khác còn trống)
-        if (await UnitAvailability.NextBookingAsync(dbContext, contract, ct) is DateOnly bookedFrom)
+        else if (await UnitAvailability.NextBookingAsync(dbContext, contract, ct) is DateOnly bookedFrom)
         {
             throw new InvalidOperationException($"Ô đã có khách đặt từ {bookedFrom:dd/MM/yyyy}, không gia hạn được ô này. Liên hệ cơ sở để chuyển sang ô khác còn trống.");
         }
@@ -113,7 +121,7 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
             .OrderByDescending(r => r.EffectiveFrom)
             .FirstOrDefaultAsync(ct);
 
-        var newRate = activeRate?.MonthlyRate ?? contract.AgreedMonthlyRate;
+        var newRate = targetOption?.MonthlyRate ?? activeRate?.MonthlyRate ?? contract.AgreedMonthlyRate;
         var oldEndDate = contract.EndDate;
         var newEndDate = oldEndDate.AddMonths(request.RenewalPeriodMonths);
         var renewalAmount = newRate * request.RenewalPeriodMonths;
@@ -136,6 +144,11 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
 
         dbContext.ContractRenewals.Add(renewal);
         await dbContext.SaveChangesAsync(ct);
+        if (targetOption != null)
+        {
+            RenewalUnitMove.Record(dbContext, contract, renewal, targetOption);
+            await dbContext.SaveChangesAsync(ct);
+        }
 
         if (consentVersion.HasValue)
         {
@@ -540,6 +553,7 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
                 }
             }
 
+            await RenewalUnitMove.ReleaseAsync(dbContext, r.RenewalId, null, $"Hết hạn thanh toán gia hạn GH-{r.RenewalId:0000} · trả ô giữ", ct);
             dbContext.ActivityLogs.Add(new ActivityLog
             {
                 EntityType = "RENEWAL",
@@ -553,4 +567,29 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
             await tx.CommitAsync(ct);
         }
     }
+
+    // ===== D46 · Gia hạn sang ô khác =====
+    public async Task<RenewalUnitOptionsDto> GetRenewalUnitOptionsAsync(long customerId, long contractId, CancellationToken ct = default)
+    {
+        var contract = await dbContext.RentalContracts.Include(c => c.Unit)
+            .FirstOrDefaultAsync(c => c.ContractId == contractId && c.CustomerId == customerId, ct)
+            ?? throw new KeyNotFoundException("Không tìm thấy hợp đồng.");
+        return await RenewalUnitMove.OptionsAsync(dbContext, contract, ct);
+    }
+
+    public Task<UnitMoveDto?> GetUnitMoveAsync(long customerId, long contractId, CancellationToken ct = default) =>
+        RenewalUnitMove.CurrentForContractAsync(dbContext, customerId, contractId, ct);
+
+    public Task<UnitMoveDto> MarkUnitMovedAsync(long customerId, long contractId, CancellationToken ct = default) =>
+        RenewalUnitMove.MarkMovedAsync(dbContext, customerId, contractId, ct);
+
+    private async Task<long> FacilityOfAsync(long userId, CancellationToken ct) =>
+        (await dbContext.UserFacilities.AsNoTracking().FirstOrDefaultAsync(uf => uf.UserId == userId && uf.Status == "ACTIVE", ct)
+            ?? throw new UnauthorizedAccessException("Bạn chưa được phân công phụ trách cơ sở.")).FacilityId;
+
+    public async Task<IReadOnlyList<UnitMoveDto>> GetOldUnitInspectionsAsync(long userId, CancellationToken ct = default) =>
+        await RenewalUnitMove.PendingInspectionsAsync(dbContext, await FacilityOfAsync(userId, ct), ct);
+
+    public async Task<UnitMoveDto> InspectOldUnitAsync(long userId, long renewalId, UnitMoveInspectionRequest request, CancellationToken ct = default) =>
+        await RenewalUnitMove.InspectAsync(dbContext, userId, await FacilityOfAsync(userId, ct), renewalId, request, ct);
 }

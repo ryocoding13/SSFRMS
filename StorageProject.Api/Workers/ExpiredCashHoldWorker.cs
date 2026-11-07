@@ -13,6 +13,7 @@ public sealed class ExpiredCashHoldWorker(IServiceScopeFactory scopes, ILogger<E
                 using var scope = scopes.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 await CashHoldExpiry.ExpireAsync(db, stoppingToken);
+                await UnpaidReservationExpiry.ExpireAsync(db, stoppingToken); // Phiên 7: đơn chờ PayOS/chuyển khoản quá hạn
                 await UnitStartActivation.ActivateAsync(db, stoppingToken);
             } catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
             catch (Exception ex) { logger.LogError(ex, "Không xử lý được các đơn hết hạn giữ chỗ"); }

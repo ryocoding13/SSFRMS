@@ -45,6 +45,7 @@ export default function BusinessDashboardPage() {
                   <strong className="ok">{shortMoney(t.rentalAndFeeRevenue)}</strong>
                   <span>Tổng doanh thu tháng</span>
                   {growth && <small className={growth.startsWith("+") ? "ok" : "warn"}>{growth} so với tháng trước</small>}
+                  {Number(t.forfeitedRefunds) > 0 && <small>+ {shortMoney(t.forfeitedRefunds)} tiền mặt hoàn khách không nhận</small>}
                 </div>
                 <div className="stat"><strong className="tone-blue">{rateLabel(t.occupancyRate)}</strong><span>Tỷ lệ lấp đầy trung bình</span></div>
                 <div className="stat"><strong className="danger">{t.overdueContracts}</strong><span>Hợp đồng quá hạn toàn hệ thống</span></div>

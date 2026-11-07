@@ -337,6 +337,12 @@ public sealed partial class D32RefundEvidenceTests
         await f.Db.SaveChangesAsync();
 
         var reservations = new ReservationService(f.Db);
+        var preview = await reservations.GetCancelPreviewAsync(f.Customer.UserId, r.ReservationId);
+        Assert.Equal(4_000_000m, preview.PaidAmount);
+        Assert.Equal(50_000m, preview.CancellationFee);
+        Assert.Equal(3_950_000m, preview.RefundAmount);
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            reservations.GetCancelPreviewAsync(f.Staff.UserId, r.ReservationId));
         // Đã thanh toán mà thiếu tài khoản chính chủ → không huỷ
         await Assert.ThrowsAsync<ArgumentException>(() => reservations.CancelReservationAsync(f.Customer.UserId, r.ReservationId, "Đổi kế hoạch"));
         await reservations.CancelReservationAsync(f.Customer.UserId, r.ReservationId, "Đổi kế hoạch",
@@ -383,6 +389,103 @@ public sealed partial class D32RefundEvidenceTests
         Assert.Equal("PAID",rent.Status);Assert.Equal(1_000_000m,rent.Amount);Assert.Equal("PENDING",renewal.Status);Assert.Equal(500_000m,renewal.Amount);
         Assert.Equal(3,await f.Db.ActivityLogs.CountAsync(x=>x.Action=="RETURN_FEE_WAIVED"));
     }
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task OpsInspection_RequiresExplicitFees_WithoutChangingTheInspection(bool hasDamageFee, bool hasCleaningChoice)
+    {
+        await using var f = await Fixture.CreateAsync();
+        var c = await f.ActiveContractAsync();
+        var move = await new ContractService(f.Db).RegisterMoveOutAsync(f.Customer.UserId, c.ContractId, MoveOut(Photo(Jpeg)));
+        var request = new OpsReturnInspectionRequest("Đạt · không còn đồ", "Đạt tiêu chuẩn", "Đã nhận đủ chìa", "Sẵn sàng cho thuê lại",
+            hasDamageFee ? 0m : null, hasCleaningChoice ? false : null);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => f.Ops.SubmitReturnInspectionAsync(
+            f.StaffActor, $"TK-{move.InspectionId:0000}", request));
+
+        f.Db.ChangeTracker.Clear();
+        var inspection = await f.Db.ReturnInspections.SingleAsync(i => i.InspectionId == move.InspectionId);
+        Assert.Equal("SCHEDULED", inspection.Status);
+        Assert.Null(inspection.InspectedAt);
+        Assert.Equal("RETURN_PENDING", (await f.Db.RentalContracts.FindAsync(c.ContractId))!.Status);
+        Assert.False(await f.Db.ActivityLogs.AnyAsync(l => l.Action == "RETURN_INSPECTED"));
+
+        // Không có phí vẫn hợp lệ, nhưng biểu mẫu phải gửi rõ 0 và false.
+        await f.Ops.SubmitReturnInspectionAsync(f.StaffActor, $"TK-{move.InspectionId:0000}",
+            request with { DamageFee = 0m, CleaningRequired = false });
+        Assert.Equal("COMPLETED", inspection.Status);
+        Assert.Equal(0m, inspection.DamageFee);
+        Assert.Equal(0m, inspection.CleaningFee);
+    }
+
+    [Theory]
+    [InlineData("DIRTY", false, 900_000)]
+    [InlineData("GOOD", true, 900_000)]
+    [InlineData("DAMAGED", false, 1_000_000)]
+    [InlineData("MAINTENANCE_REQUIRED", false, 1_000_000)]
+    [InlineData("GOOD", false, 1_000_000)]
+    public async Task Settlement_PreservesLegacyInspectionMaintenance(string condition, bool hasCleaningFee, int expectedRefund)
+    {
+        await using var f = await Fixture.CreateAsync();
+        var c = await f.ActiveContractAsync();
+        var move = await new ContractService(f.Db).RegisterMoveOutAsync(f.Customer.UserId, c.ContractId, MoveOut(Photo(Jpeg)));
+        var inspection = await f.Db.ReturnInspections.SingleAsync(i => i.InspectionId == move.InspectionId);
+        // Dữ liệu cũ có ConditionStatus/CleaningFee nhưng chưa có các cờ mới.
+        inspection.Status = "COMPLETED";
+        inspection.InspectedAt = DateTime.UtcNow.AddHours(-49);
+        inspection.ConditionStatus = condition;
+        inspection.CleaningFee = hasCleaningFee ? 100_000m : 0m;
+        inspection.CleaningRequired = false;
+        inspection.MaintenanceRequired = false;
+        await f.Db.SaveChangesAsync();
+        f.Db.ChangeTracker.Clear();
+
+        var result = await f.Ops.ConfirmRefundAsync(f.ManagerActor, $"HĐ-{c.StartDate.Year}-{c.ContractId:0000}");
+        Assert.Equal((decimal)expectedRefund, result.Refund);
+        var expectedUnitStatus = condition == "GOOD" && !hasCleaningFee ? "AVAILABLE" : "MAINTENANCE";
+        Assert.Equal(expectedUnitStatus, (await f.Db.StorageUnits.AsNoTracking().SingleAsync(u => u.UnitId == c.UnitId)).Status);
+        var refund = await f.Db.Payments.AsNoTracking().SingleAsync(p => p.ContractId == c.ContractId && p.PaymentType == "REFUND");
+        Assert.Equal("PENDING", refund.Status);
+        Assert.Null(refund.PaidAt);
+        Assert.Null(refund.TransactionReference);
+    }
+
+    [Theory]
+    [InlineData("١٢٣٤٥٦")]
+    [InlineData("１２３４５６")]
+    [InlineData("123456\n")]
+    public void RefundBank_RejectsNonAsciiOrTrailingNewlineInStoredAccount(string number)
+    {
+        Assert.False(RefundBank.IsComplete("VCB", number, "Nguyen Van An"));
+        if (!number.EndsWith('\n'))
+            Assert.Throws<ArgumentException>(() => RefundBank.Validate(new("VCB", number, "Nguyen Van An"), "Nguyễn Văn An"));
+    }
+
+    [Fact]
+    public async Task DepositRefund_ShowsInspectionTimeSeparatelyFromSettlementTime()
+    {
+        await using var f = await Fixture.CreateAsync();
+        var c = await f.ActiveContractAsync();
+        var move = await new ContractService(f.Db).RegisterMoveOutAsync(f.Customer.UserId, c.ContractId, MoveOut(Photo(Jpeg)));
+        await f.Ops.SubmitReturnInspectionAsync(f.StaffActor, $"TK-{move.InspectionId:0000}",
+            new("Đạt · không còn đồ", "Đạt tiêu chuẩn", "Đã nhận đủ chìa", "Sẵn sàng cho thuê lại", 0m, false));
+        var inspection = await f.Db.ReturnInspections.SingleAsync(i => i.InspectionId == move.InspectionId);
+        // Đặt các mốc khác nhau để phát hiện DTO lấy nhầm giờ chốt làm giờ kiểm kê.
+        var inspectedAt = DateTime.UtcNow.AddHours(-1);
+        inspection.CreatedAt = inspectedAt.AddHours(-1);
+        inspection.InspectedAt = inspectedAt;
+        c.EndDate = DateOnly.FromDateTime(inspection.CreatedAt.AddHours(7));
+        await f.Db.SaveChangesAsync();
+        await f.Ops.ConfirmRefundAsync(f.ManagerActor, $"HĐ-{c.StartDate.Year}-{c.ContractId:0000}");
+
+        var item = Assert.Single(await f.Ops.GetDepositRefundsAsync(f.ManagerActor));
+        Assert.Equal(inspectedAt, item.InspectedAt);
+        Assert.Equal(inspection.CreatedAt, item.RequestedAt);
+        Assert.True(item.ApprovedAt > item.InspectedAt);
+        Assert.Equal("PENDING", item.Status);
+    }
+
     [Fact] public async Task LegacyInspectionRequiresExplicitFeesAndUsesTheSamePersistedRules()
     {
         await using var f=await Fixture.CreateAsync();var c=await f.ActiveContractAsync();

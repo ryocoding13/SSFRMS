@@ -20,9 +20,9 @@ import { PaymentHistoryPage } from "../features/customer/history/PaymentHistoryP
 import { DepositLedgerPage } from "../features/customer/contracts/DepositLedgerPage.jsx";
 import { RenewalStatusPage } from "../features/customer/contracts/RenewalStatusPage.jsx";
 import { IncidentChoicePage } from "../features/customer/contracts/IncidentChoicePage.jsx";
-import { DamageResponsePage } from "../features/customer/contracts/DamageResponsePage.jsx";
 import { ReturnDeductionPage } from "../features/customer/contracts/ReturnDeductionPage.jsx";
 import { UnitChangePage } from "../features/customer/contracts/UnitChangePage.jsx";
+import { RenewalUnitChangePage } from "../features/customer/contracts/RenewalUnitChangePage.jsx";
 import { CashRefundPage } from "../features/customer/payments/CashRefundPage.jsx";
 import { ReturnProgressPage } from "../features/customer/contracts/ReturnProgressPage.jsx";
 import { InquiryListPage } from "../features/customer/support/InquiryListPage.jsx";
@@ -110,13 +110,13 @@ function renderPage({ page, parts, query }) {
     case "reservations": return a && b === "cancel" ? <CancelReservationPage key={a} id={a} /> : a ? <ReservationDetailPage id={a} mode="detail" /> : <ReservationListPage />;
     case "units":
       if (a && b === "incident") return <IncidentChoicePage key={`${a}:${query.get("incident") || ""}`} id={a} query={query} />;
-      if (a && b === "damage") return <DamageResponsePage key={a} id={a} query={query} />;
       if (a && b === "deduction") return <ReturnDeductionPage key={a} id={a} />;
       if (a && b === "unit-change") return <UnitChangePage key={a} id={a} />;
       if (a && b === "renewal-status") return <RenewalStatusPage id={a} />;
       if (a && b === "deposit") return <DepositLedgerPage id={a} />;
       if (a && b === "progress") return <ReturnProgressPage id={a} />;
       if (a && b === "renew") return <RenewalRequestPage id={a} />;
+      if (a && b === "renew-other") return <RenewalUnitChangePage key={a} id={a} />;
       if (a && b === "return") return <ReturnRequestPage key={a} id={a} />;
       return a ? <RentedUnitDetailPage id={a} /> : <RentedUnitListPage />;
     case "sent": return <RequestSentPage query={query} />;

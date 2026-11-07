@@ -86,8 +86,11 @@ public record AssignRoleRequest(
     long RoleId
 );
 
-public record AssignPermissionRequest(
-    long PermissionId
+/// <summary>T24: đổi một vai trò sang vai trò khác trong một giao dịch. ExpectedRoleIds là bộ vai trò FE đang thấy.</summary>
+public record ChangeRoleRequest(
+    long PreviousRoleId,
+    long RoleId,
+    IReadOnlyList<long>? ExpectedRoleIds
 );
 
 // --- Facility Scope DTOs ---

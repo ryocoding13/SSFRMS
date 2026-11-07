@@ -17,6 +17,10 @@ export function parseUtc(value) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 const isoOf = (value) => parseUtc(value)?.toISOString() ?? null;
+// Mã hệ thống tự sinh (trừ cọc, miễn phí, chi tiền mặt, mất khoản hoàn) không phải mã giao dịch ngân hàng/PayOS.
+const INTERNAL_REF = /^(DEPOSIT:|WAIVED:|CASH:|FORFEITED:|TRU-COC-)/;
+export const publicTransactionRef = (ref) => (typeof ref === "string" && ref.trim() && !INTERNAL_REF.test(ref) ? ref : null);
+export const isDepositDeduction = (ref) => typeof ref === "string" && /^(DEPOSIT:|TRU-COC-)/.test(ref);
 const pad = (n, w = 4) => String(n).padStart(w, "0");
 const dateOnly = (v) => (v ? String(v).slice(0, 10) : null);
 
@@ -119,7 +123,7 @@ const TICKET_NOTE = {
   RESOLVED: "Yêu cầu đã được xử lý.",
   CANCELLED: "Bạn đã huỷ yêu cầu này.",
 };
-const RENEWAL = { PENDING: "PENDING", PENDING_PAYMENT: "PENDING", PENDING_APPROVAL: "PENDING", PAID: "PAID", APPROVED: "APPROVED", COMPLETED: "PAID", REJECTED: "REJECTED", CANCELLED: "REJECTED", EXPIRED: "EXPIRED" };
+const RENEWAL = { PENDING: "PENDING", PENDING_PAYMENT: "PENDING", PENDING_APPROVAL: "PENDING", PAID: "PAID", APPROVED: "APPROVED", COMPLETED: "PAID", REJECTED: "REJECTED", CANCELLED: "CANCELLED", EXPIRED: "EXPIRED" };
 
 function offerOfType(unitTypes, id, name) {
   const t = unitTypes.find((x) => x.unitTypeId === id) || unitTypes.find((x) => x.typeName === name);
@@ -339,7 +343,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
               ? "REFUNDED"
               : fee && open && overlay.feesAtCounter?.[p.paymentId] ? "AT_COUNTER" : "UNPAID";
       const isCash = p.paymentMethod === "CASH" || (p.transactionReference && p.transactionReference.startsWith("CASH"));
-      const transactionRef = isCash ? null : (paid ? (p.transactionReference || null) : null);
+      const transactionRef = isCash ? null : (paid ? publicTransactionRef(p.transactionReference) : null);
       ledger.push({
         ref: p.transactionReference || `TT-${pad(p.paymentId)}`,
         api_id: p.paymentId,
@@ -356,6 +360,10 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
         payable: p.status === "PENDING" && kind === "RENEWAL" && !expiredRenewal,
         fee,
         period: ren ? { from: dateOnly(ren.oldEndDate), to: dateOnly(ren.newEndDate), months: ren.renewalPeriodMonths } : null,
+        // 3.6 · Figma C11h / LS02: thời gian, phương thức và mã giao dịch thật (mã nội bộ của hệ thống không hiện cho khách)
+        code: `TT-${pad(p.paymentId)}`,
+        paid_at: isoOf(p.paidAt),
+        deducted: fee && paid && isDepositDeduction(p.transactionReference),
       });
     }
     for (const r of c.renewals || []) {

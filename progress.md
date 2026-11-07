@@ -300,6 +300,81 @@
   - Frontend Tests: `npm test` PASS 161/161 tests, `test:business` PASS 10/10, `test:workflows` PASS 11/11, `check:structure` PASS, `test:render` PASS 181 routes, `npm run build` PASS.
   - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
 
+## 2026-11-07 — Phiên tài liệu: D48 và đồng bộ map / coverage
+
+- `DECISIONS.md`: thêm **D48** (đợt sửa lỗi 07/11 không đổi database; demo một cơ sở; bỏ Batch06; đồ khách bỏ ở ô cũ, không phí quá hạn ô cũ; chỉ chuông cho đề xuất đổi kho; tiền mặt khách không nhận là dòng doanh thu riêng; huỷ gia hạn chờ duyệt; gỡ route thừa; quyền chỉ xem; B04a, C11h).
+- `FRONTEND-MAP.md`: Batch06 ghi đã gỡ, thêm B04a, C11h có lọc thời gian. `OPS-FLOW-COVERAGE.md`: bỏ dòng hư hỏng, S04-ô cũ theo D48. `BUSINESS-FLOW-COVERAGE.md`: thêm B04a. `ADMIN-FLOW-COVERAGE.md`: role-change, A03 chỉ xem. `APPROVED-FE-API-GAPS.md`: bỏ `discrepancies`, ghi trạng thái. `BACKEND-TODO.md`: Batch06 ghi huỷ.
+- Không đổi code. Không sửa lịch sử các mục D/IMPL cũ. `feature_list.json` chưa đổi (cần người phụ trách xác nhận trạng thái).
+
+## 2026-11-07 — Phiên 5 (sau rà soát): báo cáo chi tiết cơ sở (3.5) và lịch sử thanh toán (3.6), chỉ FE
+
+- **3.5 · Figma B04 + B04a (Thắng duyệt 07/11):** bảng "Chi tiết theo cơ sở" thêm cột "Báo cáo" · "Xem chi tiết →"; màn mới `FacilityReportDetailPage.jsx` (`#/business/facility-report?id=…&status=&unitType=`) gọi `GET /api/operations/reports/facilities/{id}/contracts` có sẵn: 4 thẻ tổng (hợp đồng hiệu lực, quá hạn, khoản chờ thu, hồ sơ quá hạn mở — FE cộng từ danh sách), lọc trạng thái / loại kho, mỗi hợp đồng một thẻ, trạng thái rỗng / lỗi. Trường `outstanding` hiển thị là "Khoản chờ thu" (D32: không có công nợ ngoài cọc). Hàm thuần `facilityReportModel.js`; máy chủ giả thêm route tương ứng.
+- **3.6 · Figma C11h + LS02 (đã có sẵn):** `apiMappers` đọc thêm `paidAt`, `paymentMethod`, mã giao dịch (ẩn mã nội bộ `DEPOSIT:`, `WAIVED:`, `CASH:`, `FORFEITED:`, `TRU-COC-`), cờ trừ cọc; `PaymentHistoryPage` hiện thời gian · loại khoản, số tiền · phương thức · mã, lọc thêm theo tháng (giờ Việt Nam), xếp mới nhất trước; popup chi tiết đủ 6 dòng như LS02. Không dùng `GET /api/contracts/{id}/payments` (chi tiết hợp đồng đã có payments; nhóm chốt giữ route này ở BE).
+- **Test:** `npm test` 160/160 (thêm test lịch sử thanh toán), `test:business` 12/12 (thêm 2 test B04a), `test:workflows` 11/11, `test:render` 178 route (thêm 2 route B04a), `check:structure` PASS, `build` OK. Chưa xem trình duyệt với dữ liệu thật. Không đổi BE, không đổi database.
+
+## 2026-11-07 — Phiên 3 (sau rà soát): FE nối các sửa lỗi Phiên 2, không đổi database
+
+- **2.1 (D48):** gỡ màn hồ sơ hư hỏng cũ Batch06 — `DamageResponsePage` (`#/units/:id/damage`), `DamageReviewPage` (`#/manager/damage-responses`), `DamageInspectionPage` (`#/manager/damage-inspections`), `damageApi.js`, `useDamageCases.js`, `DamageManagerView.jsx` và 3 nút dẫn tới (Tiến độ trả kho, Hợp đồng & quá hạn của quản lý). `damageModel.js` / `DamageComponents.jsx` chỉ còn hàm dùng chung (giờ Việt Nam, kiểm ảnh, ảnh bằng chứng). Khấu trừ trả kho đi theo D39 (`#/units/:id/deduction`).
+- **1.3:** gỡ `cancelTicket`, `CANCEL_TICKET` (reducer + provider) và route giả `/api/tickets/{id}/cancel`.
+- **3.2 (Figma C07b-L5c):** chi tiết hợp đồng có yêu cầu gia hạn chờ duyệt → "Xem yêu cầu" + "Huỷ yêu cầu" (popup xác nhận / thành công / thất bại), `POST /api/renewals/{id}/cancel`; `CANCEL_RENEWAL` cho cả chế độ API và mô phỏng; gia hạn `CANCELLED` hiện "Bạn đã huỷ yêu cầu" (trước đây map nhầm thành "Đã từ chối"). Dòng Trả kho ghi lý do khoá.
+- **3.1 (D48):** `OldUnitInspectionPage` — "Ghi nhận đồ khách bỏ" (popup có ô "Đồ còn lại") gửi `goodsRemaining: true`; danh sách hiện "Đồ khách bỏ · đang dọn"; bỏ dòng phí quá hạn ô cũ ở tạm tính (`oldUnitInspectionModel.js`). Chữ khách (`UnitMoveCard`, gia hạn sang ô khác) đổi theo D48: hết kỳ cũ khoá mã ô cũ, đồ còn lại coi là đồ bạn bỏ.
+- **3.7 (D45 mục 11, chỉ chuông):** `customerNotifications` thêm đề xuất đổi kho (OPEN) và "Hệ thống đã tự đổi kho" từ `GET /api/unit-conflicts`; C-D41a ghi "Đã gửi thông báo vào chuông trong ứng dụng".
+- **1.2:** hiện `forfeitedRefunds` — báo cáo cơ sở (dòng riêng + CSV), báo cáo Vận hành KD theo cơ sở (ghi chú dưới bảng), tổng quan Vận hành KD (dòng nhỏ dưới doanh thu tháng).
+- **3.3:** bỏ `assignPermission` / `revokePermission` khỏi `adminApi` (BE trả 410).
+- **Test:** `npm test` 159/159 (thêm test huỷ gia hạn, chuông đề xuất đổi kho; rút `damage-workflow.test.js` còn 2 test hàm dùng chung), `test:business` 10/10, `test:workflows` 11/11, `test:render` 176 route PASS (bỏ 8 route hư hỏng, thêm kiểm nút huỷ gia hạn và không còn nút hư hỏng), `check:structure` PASS, `build` OK. Chưa chạy với BE thật; Playwright `batch10` chỉ kiểm cú pháp.
+
+## 2026-11-07 — Phiên 2 (sau rà soát): sửa lỗi BE không đổi database
+
+- **2.2 · T24:** `AdminService.ChangeRoleAsync` + `POST /api/admin/users/{id}/role-change`: đổi một vai trò trong một giao dịch (khoá `user-roles:{id}`), so bộ vai trò FE gửi (`expectedRoleIds`, sai → 409), giữ vai trò khác, không gỡ ADMIN của admin hoạt động cuối, log `ROLE_CHANGE`. Test mới `AdminRoleChangeTests` (4 test).
+- **3.3 · T25:** `POST`/`DELETE /api/admin/roles/{id}/permissions` trả 410; bỏ `AssignPermissionToRoleAsync`, `RevokePermissionFromRoleAsync`, `AssignPermissionRequest`.
+- **1.3:** gỡ `POST /api/tickets/{id}/cancel` và `CancelTicketAsync` (D43/D45).
+- **3.4:** gỡ `POST /api/contracts/{id}/request-key` (`/key-request`), `ContractService.RequestKeyAsync`, `KeyRequestInput` và 4 test C06 tương ứng; nhận chìa khóa chỉ qua hỗ trợ chủ đề "Nhận chìa khóa" (D40, đã có test trong `CheckoutTests`).
+- **3.1 (Thắng chốt 07/11):** kiểm tra ô cũ còn đồ → ghi nhận đồ khách bỏ (`RENEWAL_OLD_UNIT_GOODS_ABANDONED`), không trừ phí, `UnitMoveDto.GoodsAbandoned/GoodsNote`. Hệ thống tự chuyển ô không còn tính phí quá hạn ô cũ (thay ý D46b). Test `D48_NotMovedByEndOfOldTerm_AutoMoves_GoodsLeftAreAbandoned_NoOverdueFee` thay test quá hạn cũ.
+- **1.2 · D45:** `ReportMetrics.ForfeitedRefunds` (báo cáo hệ thống, cơ sở, loại kho, CSV) và `revenue.forfeitedRefunds` ở `/api/ops/board`, `/api/manager/board`. Test bổ sung trong `D32RefundEvidenceTests.Phien3`.
+- **Lỗi có sẵn từ PR #82:** khấu trừ ô cũ lưu `PENDING`, thiếu `CreatedAt` (chú thích nuốt phần gán) → sửa thành `PAID`; test `D46_LargeDamage…` kiểm thêm trạng thái.
+- **Kiểm tra:** FE không đổi ở phiên này. **Chưa chạy `dotnet build/test`** (môi trường không tải được .NET SDK/NuGet) — cần CI hoặc máy có SQL Server chạy `dotnet test`. Không migration.
+
+## 2026-11-07 — M03: màn duyệt gia hạn hiện ô mới và cọc chênh (D46)
+
+- **BE:** `OpsRenewalDto` (cả bản `DTOs/Ops` dùng cho `/api/manager/board` và bản `DTOs/FacilityOps` dùng cho `/api/ops/board`) thêm `TargetUnit`, `DepositTopUp`; `ManagerService.GetManagerBoardAsync` và `FacilityOpsService.Board` đọc kế hoạch chuyển ô từ `activity_logs` (`RENEWAL_UNIT_CHANGE` / `RENEWAL_UNIT_HELD`).
+- **FE:** `RenewalApprovalPage.jsx` hiện "Sang ô X · cọc chênh Y (thu cùng tiền gia hạn) · khách tự chuyển đồ trong 3 ngày cuối kỳ" ở yêu cầu chờ duyệt và đã duyệt; hàm `renewalApprovalModel.js`.
+- **Test:** BE `D46_ManagerBoard_ShowsTargetUnitAndDepositTopUp` (cả 2 board, trước và sau duyệt); FE thêm 1 test trong `renewal-unit-move.test.js`.
+- **Kiểm tra:** `npm test` 167/167, `test:business` 10/10, `test:render` 184 route, `check:structure`, `build` đạt; BE biên dịch Roslyn với stub không lỗi; `dotnet test` chờ CI.
+
+## 2026-11-07 — Sửa CI đỏ sau Phiên 8: trùng mã giao dịch khi tách cọc chênh / khấu trừ ô cũ
+
+- **Lỗi (CI `main` 867c0d5, job Backend):** 2 test D46 đỏ vì `payments.TransactionReference` là duy nhất mà `RenewalUnitMove` tạo 2 khoản cùng mã: khoản `DEPOSIT` cọc chênh dùng lại mã của khoản `RENEWAL`; các khoản khấu trừ ô cũ (vệ sinh, hư hỏng, quá hạn) dùng chung `TRU-COC-GH-xxxx`. Lỗi này cũng xảy ra khi chạy thật.
+- **Sửa:** cọc chênh dùng mã khoản gia hạn kèm hậu tố `-COC` (cắt về tối đa 150 ký tự); mỗi khoản khấu trừ có mã riêng `TRU-COC-GH-xxxx-<loại phí>`. Test bổ sung kiểm mã không trùng.
+- **Kiểm tra:** biên dịch Roslyn với stub không lỗi; chưa chạy `dotnet test` cục bộ (NuGet bị chặn) — CI là kiểm chứng thật.
+
+## 2026-11-06 — Phiên 9: FE gia hạn sang ô khác (D46, D46b)
+
+- **Figma (vẽ trước, viền đỏ chờ duyệt):** C07b-D46 + 3 popup; S04-ô cũ, S04-ô cũ-chi tiết + 4 popup.
+- **FE khách:** `RenewalUnitChangePage.jsx` (`#/units/:id/renew-other`, C08-D41a/b): chọn ô trống cụ thể / giữ ô lớn sau nâng cấp, số tháng, đồng ý chính sách, tạm tính tiền gia hạn + cọc chênh, popup xác nhận / thành công / "Ô vừa có người đặt" (tải lại danh sách). `UnitMoveCard.jsx` trong chi tiết hợp đồng: trạng thái chuyển ô, "Đã chuyển đồ" có ô tick, thành công / thất bại. Chi tiết hợp đồng: ô đã có khách đặt → nút "Gia hạn sang ô khác".
+- **FE nhân viên:** `OldUnitInspectionPage.jsx` (`#/staff/unit-moves`): danh sách ô cũ, biên bản 3 mục, vệ sinh 10% cọc, hư hỏng, đối chiếu khấu trừ (tạm tính, tối đa bằng cọc), "Báo ô còn đồ", popup xác nhận / thành công / cảnh báo / thất bại. Link nhanh "Kiểm tra ô cũ".
+- **BE nhỏ:** `UnitMoveDto.DepositHeld`; `MovedAt` giờ Việt Nam.
+- Hàm thuần `renewalUnitModel.js`, `oldUnitInspectionModel.js` + test `tests/renewal-unit-move.test.js` (7 test).
+- **Kiểm tra:** `npm test` 163/163, `test:business` 10/10, `test:render` 184 route PASS (thêm `units/:id/renew-other`, `staff/unit-moves`), `test:workflows` 11/11, `check:structure` PASS, `build` OK; BE biên dịch Roslyn với stub không lỗi. Chưa chạy `dotnet test`, chưa chạy với máy chủ thật (màn mới cần API Phiên 8; chế độ mô phỏng chỉ báo chưa có dữ liệu). Chưa xem trình duyệt với dữ liệu thật.
+- Patch xếp sau Phiên 7 và Phiên 8.
+
+## 2026-11-06 — Phiên 8: BE gia hạn sang ô khác (D46, D46b)
+
+- **BE** `RenewalUnitMove.cs` (mới): ô chọn được (cùng loại; thêm loại đã đặt ban đầu khi đã được nâng cấp miễn phí), ghi kế hoạch chuyển ô, giữ ô khi duyệt, trả ô khi hết hạn thanh toán, tách cọc chênh khi thu đủ, "Đã chuyển đồ" trong 3 ngày cuối kỳ cũ, tự chuyển khi hết kỳ cũ, kiểm tra ô cũ có trừ cọc (không vượt cọc). Trạng thái lưu `activity_logs`, không đổi schema.
+- Sửa `RenewalService` (gửi gia hạn có `targetUnitId`, hết hạn thanh toán trả ô, 5 hàm mới), `RenewalApproval` (không khoá D41 khi chuyển ô, giữ ô, khoản gia hạn gộp cọc chênh), `RenewalSettlement` (trả ô khi tiền về quá hạn, tách cọc chênh), `UnitAvailability.SlotsAsync` (gia hạn chuyển ô không giữ ô cũ thêm kỳ mới), `AccessService.ScanAsync` (mã hiện tại mở ô mới trong thời gian chuyển), `FacilityWorkflowWorker` (tự chuyển khi hết kỳ cũ). DTO `CreateRenewalRequest.TargetUnitId` + 4 DTO mới; 6 route trong `RenewalEndpoints`.
+- Test mới `RenewalPolicyD32Tests.D46.cs` (5 test): luồng đủ (giữ ô, cọc chênh 300.000 tách đúng, chưa tới 3 ngày cuối không chuyển / không mở ô mới, chuyển xong đổi ô + cấp mã mới + ô cũ chờ kiểm tra, bấm lại bị chặn, kiểm tra đạt trả ô); ô cũ có khách đặt: gia hạn thường bị chặn, sang ô khác được; ô bị lấy trước khi duyệt; hết hạn thanh toán trả ô; tự chuyển khi hết kỳ + phí quá hạn trừ cọc; hư hỏng lớn chỉ trừ tối đa bằng cọc.
+- **Kiểm tra:** biên dịch Roslyn với stub (Core, Infrastructure, Api, Tests) không lỗi. **Chưa chạy `dotnet test`** (NuGet bị chặn trong môi trường) — CI là kiểm chứng thật; chưa chạy SQL Server / PayOS thật. FE chưa làm (Phiên 9).
+- Patch xếp sau Phiên 7 (áp Phiên 7 trước). Không đổi `feature_list.json`.
+
+## 2026-11-06 — Phiên 7: tự huỷ đơn chờ thanh toán quá hạn, sửa 3 script kiểm tra giao diện, CI, tài liệu
+
+- **BE** `UnpaidReservationExpiry.cs` (mới): đơn `PENDING_PAYMENT` quá hạn giữ chỗ chưa trả tiền → `EXPIRED` (lý do + log `RESERVATION_PAYMENT_EXPIRED`), chạy cùng tiến trình 1 phút của `ExpiredCashHoldWorker`. Trước đây đơn chỉ hết hạn khi khách bấm "Đã chuyển khoản". Không đụng `PENDING_VERIFICATION`; tiền PayOS về muộn vẫn vào `PAYMENT_REVIEW_REQUIRED`. Không đổi schema. `ReservationService.ConfirmTransferAsync`: đơn đã bị tiến trình nền chuyển `EXPIRED` vẫn trả mã lỗi `EXPIRED` như trước. Test mới `CheckoutTests.Phien7.cs` (3 test); `CheckoutTests` đổi thành `partial`.
+- **FE script kiểm tra (không chạy trong CI):** `test:approved-ui`, `test:workflow-actions`, `test:api-pending` đỏ vì còn màn báo sai lệch đã gỡ (D42) và chưa theo các bước bằng chứng chuyển tiền (Batch08). Bỏ route / bước sai lệch, thêm 5 route Phiên 6; bước hoàn tiền nhập thêm thời gian chuyển + tick chính chủ, đóng popup thành công; `test:api-pending` kiểm `staff/overdue` và `staff/cash-refunds` báo "chưa cung cấp dữ liệu", không rơi về dữ liệu mô phỏng. Không nới assertion nghiệp vụ.
+- **Máy chủ giả** `mock/mock-api.mjs`: board trả `inspectionEvidenceSupported` / `refundEvidenceSupported` như BE thật; route hoàn tiền đơn huỷ chuyển tiếp `transferredAt`, `confirmed` mà FE gửi.
+- **CI / GitHub:** bước chặn chữ "sạch / bẩn / sai lệch" trong `.jsx`; `.github/dependabot.yml` (mới); `.github/pull_request_template.md` (mới).
+- **Tài liệu:** D46 (gia hạn sang ô khác, 4 điểm Thắng chốt 19:28), D47 (không dùng số phiếu chi, quản lý không đổi cách nhận hoàn), IMPL-2026-11-06-P7; `OPS-FLOW-COVERAGE.md`, `CUSTOMER-FLOW-COVERAGE.md` thêm màn Phiên 5–6, bỏ màn sai lệch.
+- **Kiểm tra:** `npm test` 156/156, `test:business` 10/10, `test:render` 181 route PASS, `test:workflows` 11/11, `check:structure` PASS, `build` OK; `test:approved-ui` 27 route không lỗi / không tràn ngang, `test:workflow-actions` 8 bước PASS, `test:api-pending` PASS, `test:password-reset` PASS (Chromium cục bộ). BE biên dịch Roslyn với stub (Core, Infrastructure, Api, Tests) không lỗi; **chưa chạy `dotnet test`** (NuGet bị chặn trong môi trường) — CI là kiểm chứng thật. Chưa chạy với SQL Server / PayOS thật.
+- **Không đổi** trạng thái `feature_list.json` (6 mục `active` cần người phụ trách xác nhận).
+
 ## 2026-11-07 — Sửa lỗi thiếu bằng chứng đồng ý chính sách trên hợp đồng mới
 
 - **Mục tiêu:** Đảm bảo khách hàng sau khi tạo đơn và đồng ý chính sách cho thuê, hoàn tất thanh toán (online hoặc tại quầy), mở lại mục "Chính sách → Theo hợp đồng của tôi → Khi đặt chỗ / ký hợp đồng ban đầu" luôn hiển thị đầy đủ bằng chứng (Phiên bản, Thời điểm, Kênh và Nội dung phiên bản chính sách đã đồng ý), kể cả khi đăng xuất, đổi trình duyệt hoặc khi chính sách hiện hành được cập nhật.
