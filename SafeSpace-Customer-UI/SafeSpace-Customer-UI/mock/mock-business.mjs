@@ -205,6 +205,20 @@ export function handleBusiness({ req, res, path, url, body, S, me, send }) {
     const all = scoped(fl.facilityId, fl.unitTypeId);
     return send(200, { filter: fl, snapshotAt, totals: metrics(all.units, all.contracts, all.payments), facilities: rows }), true;
   }
+  if (req.method === "GET" && (m = path.match(/^\/api\/operations\/reports\/facilities\/(\d+)\/contracts$/))) {
+    const facilityId = +m[1];
+    if (!S.facilities.some((f) => f.facilityId === facilityId)) return send(404, { message: "Không tìm thấy cơ sở." }), true;
+    const status = (url.searchParams.get("status") || "").toUpperCase(), unitTypeId = num("unitTypeId");
+    const units = new Map(S.units.filter((u) => u.facilityId === facilityId && (!unitTypeId || u.unitTypeId === unitTypeId)).map((u) => [u.unitId, u]));
+    const rows = S.contracts.filter((c) => units.has(c.unitId) && (!status || c.status === status)).map((c) => {
+      const u = units.get(c.unitId);
+      const outstanding = S.payments.filter((p) => p.contractId === c.contractId && p.paymentType !== "REFUND" && ["PENDING", "FAILED"].includes(p.status)).reduce((s, p) => s + Number(p.amount || 0), 0);
+      return { contractId: c.contractId, customerName: S.users.find((x) => x.userId === c.customerId)?.fullName || "Khách hàng", unitNumber: u.unitNumber,
+        unitTypeName: S.unitTypes.find((t) => t.unitTypeId === u.unitTypeId)?.typeName || "", startDate: c.startDate, endDate: c.endDate, status: c.status,
+        outstanding: ["CANCELLED", "COMPLETED", "TERMINATED"].includes(c.status) ? 0 : outstanding, overdueCases: c.status === "OVERDUE" ? 1 : 0 };
+    });
+    return send(200, rows), true;
+  }
   if (req.method === "GET" && path === "/api/operations/reports/unit-types") {
     const fl = filter();
     const rows = S.unitTypes.map((t) => {

@@ -25,6 +25,8 @@
 
 .customer-history__filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .customer-history__filters select { width: 100%; }
+.customer-history__filters--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 760px) { .customer-history__filters--3 { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .customer-history__filters { grid-template-columns: minmax(0, 1fr); } }
 
 .customer-detail__task { padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }

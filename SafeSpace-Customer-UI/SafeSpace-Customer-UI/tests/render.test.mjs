@@ -361,7 +361,7 @@ try {
   b9html=renderToStaticMarkup(React.createElement(SelectionPanel,{title:"Đổi vai trò",items:[{id:1,label:"Quản trị",disabled:true},{id:2,label:"Nhân viên"}],onClose(){},onSelect(){}}));
   assert.match(b9html,/<button[^>]*disabled[^>]*>Dùng lựa chọn này<\/button>/);
   b9html=renderToStaticMarkup(React.createElement(SelectionPanel,{title:"Cấp lại vai trò",items:[],onClose(){},onSelect(){}}));assert.ok(b9html.includes("Chưa có lựa chọn phù hợp"));count+=4;
-  for(const [role,routes] of [["ADMIN",["admin","admin/new","admin/users/3","admin/permissions","admin/logs"]],["OPERATIONS",["business","business/facilities","business/policy-status","business/policy-content","business/reports","business/export"]]]) {
+  for(const [role,routes] of [["ADMIN",["admin","admin/new","admin/users/3","admin/permissions","admin/logs"]],["OPERATIONS",["business","business/facilities","business/policy-status","business/policy-content","business/reports","business/export","business/facility-report?id=1","business/facility-report"]]]) {
    seed(true,{user_id:991,username:"qa",full_name:"QA vận hành",role});
    for(const route of routes){window.location.hash=`#/${route}`;const html=renderToStaticMarkup(React.createElement(App));assert.ok(html.includes("QA vận hành"),route);assert.ok(!html.includes("NaN")&&!html.includes("undefined"),route);count++;}
   }

@@ -217,3 +217,22 @@ test("chế độ API: hợp đồng nhận policy_consent từ PolicyConsentDto
   assert.equal(c.policy_consent.customer_id, 3);
   assert.equal(c.policy_consent.consent_id, 42);
 });
+
+test("3.6 · lịch sử thanh toán: thời gian, phương thức, mã giao dịch thật; ẩn mã nội bộ; trừ cọc", async () => {
+  const { publicTransactionRef, isDepositDeduction } = await import("../src/shared/api/apiMappers.js");
+  const { historyRows, historyMonths, methodLabel, vnMonthOf } = await import("../src/features/customer/history/paymentHistoryModel.js");
+  assert.equal(publicTransactionRef("FT26298 4471"), "FT26298 4471");
+  for (const ref of ["DEPOSIT:12:34", "WAIVED:1:2", "CASH:9:202611011200:5", "FORFEITED:7", "TRU-COC-GH-0012-CLEANING_FEE", "", null]) assert.equal(publicTransactionRef(ref), null, String(ref));
+  assert.equal(isDepositDeduction("DEPOSIT:12:34"), true); assert.equal(isDepositDeduction("PAY-1"), false);
+  const ledger = [
+    { api_id: 1, status: "RECONCILED", kind: "RENT", contract_id: "HĐ-2026-0098", paid_at: "2026-07-20T02:12:00Z", method: "PAYMENT_GATEWAY", amount: 4600000 },
+    { api_id: 2, status: "RECONCILED", kind: "CLEANING_FEE", contract_id: "HĐ-2026-0098", paid_at: "2026-10-25T03:45:00Z", method: "CASH", deducted: true, amount: 115000 },
+    { api_id: 3, status: "REFUNDED", kind: "REFUND", contract_id: "HĐ-2026-0098", paid_at: "2026-10-31T17:30:00Z", method: "BANK_TRANSFER", amount: 540000 },
+    { api_id: 4, status: "UNPAID", kind: "RENEWAL", contract_id: "HĐ-2026-0098", amount: 1 },
+  ];
+  assert.deepEqual(historyRows(ledger).map((r) => r.api_id), [3, 2, 1]); // mới nhất trước, bỏ khoản chưa ghi nhận
+  assert.equal(vnMonthOf("2026-10-31T17:30:00Z"), "2026-11"); // theo giờ Việt Nam
+  assert.deepEqual(historyMonths(ledger), ["2026-11", "2026-10", "2026-07"]);
+  assert.deepEqual(historyRows(ledger, { month: "2026-10" }).map((r) => r.api_id), [2]);
+  assert.equal(methodLabel(ledger[1]), "trừ vào cọc"); assert.equal(methodLabel(ledger[0]), "PayOS"); assert.equal(methodLabel({}), "Chưa có dữ liệu");
+});
