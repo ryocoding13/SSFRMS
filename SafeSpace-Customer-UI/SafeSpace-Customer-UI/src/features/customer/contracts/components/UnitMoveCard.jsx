@@ -30,12 +30,12 @@ export function UnitMoveCard({ contractApiId, onMoved }) {
     <DetailList items={rows} />
     {m.status === "MOVED"
       ? <Notice tone="success">{UNIT_MOVE_STATUS.MOVED[0]}. Nhân viên kiểm tra ô {m.fromUnit}; hư hỏng hoặc chưa đạt tiêu chuẩn vệ sinh trừ vào cọc đang giữ, không bắt bù cọc.</Notice>
-      : <Notice>Chuyển xong bấm “Đã chuyển đồ”: mã ô {m.fromUnit} hết hiệu lực, bạn nhận QR/PIN mới cho {m.toUnit}. Hết {dateLabel(m.oldEndDate)} mà chưa bấm, hệ thống tự chuyển; nếu ô cũ còn đồ sẽ tính phí quá hạn 5% cọc/ngày.</Notice>}
+      : <Notice>Chuyển xong bấm “Đã chuyển đồ”: mã ô {m.fromUnit} hết hiệu lực, bạn nhận QR/PIN mới cho {m.toUnit}. Hết {dateLabel(m.oldEndDate)} mà chưa bấm, hệ thống tự chuyển và khoá mã ô {m.fromUnit}. Đồ còn lại trong ô cũ coi là đồ bạn bỏ; nhân viên dọn, cơ sở không nhận bảo quản.</Notice>}
     {m.status !== "MOVED" && <div className="customer-detail__actions">
       <Button disabled={!can || busy} onClick={() => { setTicked(false); setConfirm(true); }}>{m.status === "HELD" ? "Thanh toán gia hạn trước" : can ? "Đã chuyển đồ" : `Chuyển đồ từ ${dateLabel(from)}`}</Button>
     </div>}
     {confirm && <ConfirmDialog title={`Đã chuyển hết đồ sang ${m.toUnit}?`} busy={busy} onCancel={() => setConfirm(false)} onConfirm={() => ticked && send()} label="Xác nhận đã chuyển"
-      text={`Mã ô ${m.fromUnit} hết hiệu lực ngay; bạn nhận QR/PIN mới cho ${m.toUnit}. Nhân viên sẽ kiểm tra ô ${m.fromUnit}.`}
+      text={`Mã ô ${m.fromUnit} hết hiệu lực ngay; bạn nhận QR/PIN mới cho ${m.toUnit}. Nhân viên sẽ kiểm tra ô ${m.fromUnit}; đồ còn lại coi là đồ bạn bỏ.`}
       hint="Ô cũ có hư hỏng hoặc chưa đạt tiêu chuẩn vệ sinh thì trừ vào cọc đang giữ, không bắt bù cọc.">
       <label className="customer-detail__choice"><input type="checkbox" checked={ticked} onChange={e => setTicked(e.target.checked)} /><span>Tôi đã chuyển hết đồ khỏi ô {m.fromUnit}</span></label>
     </ConfirmDialog>}

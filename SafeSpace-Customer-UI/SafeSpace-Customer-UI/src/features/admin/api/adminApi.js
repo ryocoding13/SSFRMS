@@ -76,11 +76,7 @@ export const adminApi = {
   // Thu hồi một vai trò khỏi người dùng (DELETE /api/admin/users/{userId}/roles/{roleId})
   revokeRole: (userId, roleId) => request(`/api/admin/users/${userId}/roles/${roleId}`, { method: "DELETE" }),
 
-  // Gán một quyền cho vai trò (POST /api/admin/roles/{roleId}/permissions)
-  assignPermission: (roleId, permissionId) => request(`/api/admin/roles/${roleId}/permissions`, { method: "POST", body: { permissionId } }),
 
-  // Thu hồi một quyền khỏi vai trò (DELETE /api/admin/roles/{roleId}/permissions/{permissionId})
-  revokePermission: (roleId, permissionId) => request(`/api/admin/roles/${roleId}/permissions/${permissionId}`, { method: "DELETE" }),
 
   /*
    * 4. PHÂN CÔNG CƠ SỞ (FACILITY ASSIGNMENT)

@@ -41,13 +41,13 @@ test("chỉ bấm Đã chuyển đồ trong 3 ngày cuối kỳ cũ, khi đã th
 
 test("kiểm tra ô cũ: khách báo đúng hạn không tính quá hạn; vệ sinh 10% + hư hỏng", () => {
   const r = oldUnitDeduction({ depositHeld: 1800000, autoMoved: false, oldEndDate: "2026-11-30" }, { walls: "DAMAGED", damage: "200000", cleaning: true }, "2026-12-01");
-  assert.deepEqual([r.overdue, r.cleaning, r.damageTaken, r.total, r.left], [0, 180000, 200000, 380000, 1420000]);
+  assert.deepEqual([r.cleaning, r.damageTaken, r.total, r.left], [180000, 200000, 380000, 1420000]);
 });
 
-test("hệ thống tự chuyển: quá hạn 5% cọc/ngày từ ngày sau hết kỳ cũ", () => {
-  const r = oldUnitDeduction({ depositHeld: 1500000, autoMoved: true, oldEndDate: "2026-11-30" }, { walls: "OK" }, "2026-12-02");
-  assert.equal(r.overdueDays, 2);
-  assert.equal(r.overdue, 150000);
+test("D48: hệ thống tự chuyển không tính phí quá hạn ô cũ", () => {
+  const r = oldUnitDeduction({ depositHeld: 1500000, autoMoved: true, oldEndDate: "2026-11-30" }, { walls: "OK" });
+  assert.deepEqual([r.total, r.left], [0, 1500000]);
+  assert.equal("overdue" in r, false);
 });
 
 test("khấu trừ không vượt cọc đang giữ, không tạo nợ", () => {

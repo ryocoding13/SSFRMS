@@ -32,6 +32,12 @@
 .customer-detail__task h3 { margin: 0; font-size: 16px; font-weight: 600; }
 .customer-detail__task p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
 .customer-detail__task .btn { margin-left: auto; }
+/* 3.2 · C07b-L5c: hai nút xếp dọc, cùng chiều rộng, nút chính trên */
+.customer-detail__task-actions { margin-left: auto; display: flex; flex-direction: column; gap: 8px; width: 140px; animation: task-actions-in .22s ease-out; }
+.customer-detail__task-actions .btn { margin-left: 0; width: 100%; justify-content: center; transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease; }
+.customer-detail__task-actions .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15, 23, 42, .10); }
+@keyframes task-actions-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .customer-detail__task-actions, .customer-detail__task-actions .btn { animation: none; transition: none; } }
 
 .return-request__fields { margin: 0; min-inline-size: 0; }
 /* Khung tải ảnh: ảnh nằm trong khung, tiêu đề đổi theo số ảnh (ReturnPhotoInput) */

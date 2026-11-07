@@ -291,6 +291,20 @@ const handlers = {
     return { state: next, result: { reservation_id: r.reservation_id, refund: preview?.refund ?? 0 } };
   },
 
+  CANCEL_RENEWAL(state, p, ctx) {
+    const r = state.renewals.find((x) => x.renewal_id === p.renewal_id);
+    if (!r) fail("Không tìm thấy yêu cầu gia hạn.", "NOT_FOUND");
+    if (r.status !== "PENDING") fail("Chỉ huỷ được yêu cầu gia hạn đang chờ quản lý duyệt.");
+    let next = {
+      ...state,
+      renewals: state.renewals.map((x) => (x.renewal_id === r.renewal_id ? { ...x, status: "CANCELLED", cancelled_at: iso(ctx.now) } : x)),
+      ledger: state.ledger.filter((l) => !(l.status === "RENEWAL_PENDING" && l.contract_id === r.contract_id)),
+    };
+    next = notify(next, "Đã huỷ yêu cầu gia hạn", `${r.renewal_id} · kỳ thuê hiện tại giữ nguyên`, `units/${r.contract_id}`, ctx.now);
+    next = log(next, `Yêu cầu gia hạn ${r.renewal_id} đã huỷ`, "gray", ctx.now);
+    return { state: next, result: { renewal_id: r.renewal_id } };
+  },
+
   REQUEST_RENEWAL(state, p, ctx) {
     const c = contractOf(state, p.contract_id);
     if (!c || c.status === "ENDED" || c.end_date <= localDate(ctx.now)) fail("Hợp đồng chưa thể gia hạn.");
@@ -398,23 +412,6 @@ const handlers = {
     next = notify(next, "Đã gửi yêu cầu hỗ trợ", `${ticket.ticket_id} · ${TICKET_TOPICS[p.topic].title}`, "support", ctx.now);
     next = log(next, `Yêu cầu hỗ trợ ${ticket.ticket_id} đã được gửi`, "blue", ctx.now);
     return { state: next, result: { ticket_id: ticket.ticket_id } };
-  },
-
-  CANCEL_TICKET(state, p, ctx) {
-    const t = state.tickets.find((x) => x.ticket_id === p.ticket_id);
-    if (!t) fail("Không tìm thấy yêu cầu.", "NOT_FOUND");
-    if (t.status !== "OPEN") fail("Yêu cầu đã được cơ sở tiếp nhận nên không thể huỷ.");
-    return {
-      state: {
-        ...state,
-        tickets: state.tickets.map((x) =>
-          x.ticket_id === t.ticket_id
-            ? { ...x, status: "CANCELLED", staff_note: "Bạn đã huỷ yêu cầu này.", updated_at: iso(ctx.now) }
-            : x,
-        ),
-      },
-      result: { ticket_id: t.ticket_id },
-    };
   },
 
   // C13: lưu tên hiển thị và (nếu gửi kèm) số điện thoại

@@ -752,13 +752,6 @@ export function startMockApi(
       S.tickets.push(t);
       return send(201, { ...ticketDto(t), createdAt: iso(t.createdAt) });
     }
-    if (req.method === "POST" && (m = path.match(/^\/api\/tickets\/(\d+)\/cancel$/))) {
-      const t = S.tickets.find((x) => x.ticketId === +m[1] && x.customerId === me);
-      if (!t) return bad("Yêu cầu hỗ trợ không tồn tại.");
-      if (t.status !== "OPEN") return bad("Chỉ có thể hủy yêu cầu đang ở trạng thái mở.");
-      t.status = "CANCELLED";
-      return send(200, { message: "Đã hủy yêu cầu hỗ trợ." });
-    }
     // ---- Khu vận hành (chỉ khi bật ops)
     if (O && (path.startsWith("/api/ops/") || path.startsWith("/api/staff/") || path.startsWith("/api/manager/"))) {
       const u = auth();

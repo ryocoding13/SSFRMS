@@ -24,6 +24,12 @@ const VIEWS = [
   ["status", "Theo tình trạng thuê"],
 ];
 
+// D45: tiền mặt hoàn quá 30 ngày khách không nhận — tính vào doanh thu, ghi dòng riêng (không gộp doanh thu thuê và phí).
+function ForfeitedNote({ value }) {
+  const amount = Number(value) || 0;
+  return <p className="hint report-forfeited">Tiền mặt hoàn khách không nhận trong kỳ (tính vào doanh thu, ghi riêng): <strong>{shortMoney(amount)}</strong></p>;
+}
+
 function FacilityView({ data }) {
   const rows = data.facilities;
   return (
@@ -50,6 +56,7 @@ function FacilityView({ data }) {
 
         </table>
       </div>
+      <ForfeitedNote value={data.totals?.forfeitedRefunds} />
     </>
   );
 }

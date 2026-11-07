@@ -87,7 +87,7 @@ export function RenewalUnitChangePage({ id }) {
           <h2>Chi phí dự kiến</h2>
           <DetailList items={[["Ô kỳ mới", choice ? (choice.kind === "KEEP" ? `${choice.unitNumber} (giữ nguyên)` : choice.unitNumber) : "Chưa chọn"], ["Giá / tháng", choice?.kind === "KEEP" ? "Theo bảng giá ô hiện tại" : money(est.rate)], ["Số tháng", months], ["Tiền gia hạn", choice?.kind === "KEEP" ? "Chốt khi duyệt" : money(est.rent)], ["Cọc chênh", money(est.topUp)]]} />
           <div className="summary-total"><span>Tạm tính phải trả</span><strong>{choice?.kind === "KEEP" ? "Chốt khi duyệt" : money(est.total)}</strong></div>
-          <p className="hint">Giá chốt khi cơ sở duyệt; thanh toán một lần (tiền gia hạn + cọc chênh) trong 24 giờ. Đổi sang ô khác: bạn tự chuyển đồ trong 3 ngày cuối kỳ cũ, mã QR/PIN hiện tại mở được cả ô mới trong thời gian chuyển. Cọc ô mới thấp hơn thì phần chênh hoàn khi kết thúc hợp đồng.</p>
+          <p className="hint">Giá chốt khi cơ sở duyệt; thanh toán một lần (tiền gia hạn + cọc chênh) trong 24 giờ. Đổi sang ô khác: bạn tự chuyển đồ trong 3 ngày cuối kỳ cũ, mã QR/PIN hiện tại mở được cả ô mới trong thời gian chuyển; hết kỳ cũ mã ô cũ bị khoá, đồ còn lại coi là đồ bạn bỏ. Cọc ô mới thấp hơn thì phần chênh hoàn khi kết thúc hợp đồng.</p>
         </aside>
       </div>}
     {confirm && choice && <ConfirmDialog title={choice.kind === "KEEP" ? `Gửi yêu cầu gia hạn ${c.unit_number}?` : `Gửi yêu cầu gia hạn sang ô ${choice.unitNumber}?`} busy={busy} onCancel={() => setConfirm(false)} onConfirm={send} label="Gửi yêu cầu"

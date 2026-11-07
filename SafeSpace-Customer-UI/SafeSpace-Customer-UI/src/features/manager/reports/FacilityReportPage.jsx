@@ -16,10 +16,12 @@ export function FacilityReportPage() {
   const cur = months.at(-1) || { value: 0, month: now.getMonth() + 1, year: now.getFullYear(), label: `Tháng ${now.getMonth() + 1}` };
   const max = 100;
   const typeTotal = ops.revenue.by_type.reduce((s, x) => s + x.value, 0);
+  // D45: tiền mặt hoàn quá 30 ngày khách không nhận, tính vào doanh thu cơ sở, dòng riêng (6 tháng gần nhất)
+  const forfeited = Number(ops.revenue.forfeited_refunds) || 0;
   const occ = occupancy(ops.units);
   const rented = ops.units.filter((u) => RENTED.includes(u.status)).length;
   const exportCsv = () => {
-    const rows = [["Tháng", "Doanh thu (triệu đồng)"], ...months.map((m) => [`${m.month}/${m.year}`, m.value]), [], ["Loại kho", "Doanh thu (triệu đồng)"], ...ops.revenue.by_type.map((t) => [t.label, t.value]), [], ["Tỷ lệ lấp đầy", `${occ}%`]];
+    const rows = [["Tháng", "Doanh thu (triệu đồng)"], ...months.map((m) => [`${m.month}/${m.year}`, m.value]), [], ["Loại kho", "Doanh thu (triệu đồng)"], ...ops.revenue.by_type.map((t) => [t.label, t.value]), [], ["Tiền mặt hoàn khách không nhận · 6 tháng (triệu đồng)", forfeited], [], ["Tỷ lệ lấp đầy", `${occ}%`]];
     const csv = "﻿" + rows.map((r) => r.join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -75,6 +77,8 @@ export function FacilityReportPage() {
             <div className="meter__row"><span>Tỷ lệ lấp đầy kho</span><strong>{occ}%</strong></div>
             <div className="meter__track"><i className="meter__fill meter__fill--2" style={{ width: `${occ}%` }} /></div>
           </div>
+          <div className="meter__row report-forfeited"><span>Tiền mặt hoàn khách không nhận · 6 tháng</span><strong>{millions(forfeited)}</strong></div>
+          <p className="hint">Khoản hoàn tiền mặt quá 30 ngày khách không đến nhận được tính vào doanh thu, ghi riêng ngoài doanh thu thuê và phí.</p>
           <p className="hint">Số liệu tháng {cur.month}/{cur.year} · cập nhật đến {dateLabel(today())}</p>
         </aside>
       </div>

@@ -119,7 +119,7 @@ const TICKET_NOTE = {
   RESOLVED: "Yêu cầu đã được xử lý.",
   CANCELLED: "Bạn đã huỷ yêu cầu này.",
 };
-const RENEWAL = { PENDING: "PENDING", PENDING_PAYMENT: "PENDING", PENDING_APPROVAL: "PENDING", PAID: "PAID", APPROVED: "APPROVED", COMPLETED: "PAID", REJECTED: "REJECTED", CANCELLED: "REJECTED", EXPIRED: "EXPIRED" };
+const RENEWAL = { PENDING: "PENDING", PENDING_PAYMENT: "PENDING", PENDING_APPROVAL: "PENDING", PAID: "PAID", APPROVED: "APPROVED", COMPLETED: "PAID", REJECTED: "REJECTED", CANCELLED: "CANCELLED", EXPIRED: "EXPIRED" };
 
 function offerOfType(unitTypes, id, name) {
   const t = unitTypes.find((x) => x.unitTypeId === id) || unitTypes.find((x) => x.typeName === name);

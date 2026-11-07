@@ -1,3 +1,14 @@
+## 2026-11-07 — Phiên 3 (sau rà soát): FE nối các sửa lỗi Phiên 2, không đổi database
+
+- **2.1 (D48):** gỡ màn hồ sơ hư hỏng cũ Batch06 — `DamageResponsePage` (`#/units/:id/damage`), `DamageReviewPage` (`#/manager/damage-responses`), `DamageInspectionPage` (`#/manager/damage-inspections`), `damageApi.js`, `useDamageCases.js`, `DamageManagerView.jsx` và 3 nút dẫn tới (Tiến độ trả kho, Hợp đồng & quá hạn của quản lý). `damageModel.js` / `DamageComponents.jsx` chỉ còn hàm dùng chung (giờ Việt Nam, kiểm ảnh, ảnh bằng chứng). Khấu trừ trả kho đi theo D39 (`#/units/:id/deduction`).
+- **1.3:** gỡ `cancelTicket`, `CANCEL_TICKET` (reducer + provider) và route giả `/api/tickets/{id}/cancel`.
+- **3.2 (Figma C07b-L5c):** chi tiết hợp đồng có yêu cầu gia hạn chờ duyệt → "Xem yêu cầu" + "Huỷ yêu cầu" (popup xác nhận / thành công / thất bại), `POST /api/renewals/{id}/cancel`; `CANCEL_RENEWAL` cho cả chế độ API và mô phỏng; gia hạn `CANCELLED` hiện "Bạn đã huỷ yêu cầu" (trước đây map nhầm thành "Đã từ chối"). Dòng Trả kho ghi lý do khoá.
+- **3.1 (D48):** `OldUnitInspectionPage` — "Ghi nhận đồ khách bỏ" (popup có ô "Đồ còn lại") gửi `goodsRemaining: true`; danh sách hiện "Đồ khách bỏ · đang dọn"; bỏ dòng phí quá hạn ô cũ ở tạm tính (`oldUnitInspectionModel.js`). Chữ khách (`UnitMoveCard`, gia hạn sang ô khác) đổi theo D48: hết kỳ cũ khoá mã ô cũ, đồ còn lại coi là đồ bạn bỏ.
+- **3.7 (D45 mục 11, chỉ chuông):** `customerNotifications` thêm đề xuất đổi kho (OPEN) và "Hệ thống đã tự đổi kho" từ `GET /api/unit-conflicts`; C-D41a ghi "Đã gửi thông báo vào chuông trong ứng dụng".
+- **1.2:** hiện `forfeitedRefunds` — báo cáo cơ sở (dòng riêng + CSV), báo cáo Vận hành KD theo cơ sở (ghi chú dưới bảng), tổng quan Vận hành KD (dòng nhỏ dưới doanh thu tháng).
+- **3.3:** bỏ `assignPermission` / `revokePermission` khỏi `adminApi` (BE trả 410).
+- **Test:** `npm test` 159/159 (thêm test huỷ gia hạn, chuông đề xuất đổi kho; rút `damage-workflow.test.js` còn 2 test hàm dùng chung), `test:business` 10/10, `test:workflows` 11/11, `test:render` 176 route PASS (bỏ 8 route hư hỏng, thêm kiểm nút huỷ gia hạn và không còn nút hư hỏng), `check:structure` PASS, `build` OK. Chưa chạy với BE thật; Playwright `batch10` chỉ kiểm cú pháp.
+
 ## 2026-11-07 — Phiên 2 (sau rà soát): sửa lỗi BE không đổi database
 
 - **2.2 · T24:** `AdminService.ChangeRoleAsync` + `POST /api/admin/users/{id}/role-change`: đổi một vai trò trong một giao dịch (khoá `user-roles:{id}`), so bộ vai trò FE gửi (`expectedRoleIds`, sai → 409), giữ vai trò khác, không gỡ ADMIN của admin hoạt động cuối, log `ROLE_CHANGE`. Test mới `AdminRoleChangeTests` (4 test).
