@@ -5,14 +5,18 @@ using StorageProject.Core.Entities;
 namespace StorageProject.Infrastructure.Services;
 
 /// <summary>
-/// Phiên 4 · D41 — đặt trước ô sắp hết hạn và xử lý khi khách cũ chưa trả kho / chưa kiểm tra đạt (D38).
+/// Phiên 4 · D41 — Quản lý đặt trước ô sắp hết hạn và giải quyết xung đột khi khách cũ chưa trả kho hoặc chưa kiểm tra đạt (D38).
 /// Mốc 5 ngày trước ngày nhận kho (giờ Việt Nam): nếu ô chưa về Trống thì hệ thống tạo đề xuất đổi kho:
-/// đổi ngang cùng loại → nâng cấp miễn phí (giữ giá, cọc) → không còn ô: dời ngày hoặc huỷ hoàn 100% (không phí D40).
-/// Ô đề xuất được giữ RESERVED 48 giờ; quá hạn hệ thống tự nhận ô đề xuất. Trạng thái lưu trong activity_logs của hợp đồng mới.
+/// 1. Đổi ngang cùng loại (SWAP)
+/// 2. Nâng cấp miễn phí lên ô lớn hơn (UPGRADE - giữ nguyên đơn giá và cọc cũ)
+/// 3. Không còn ô khả dụng (NONE): cho phép khách dời ngày nhận kho hoặc huỷ đơn hoàn 100% tiền (không trừ phí huỷ D40).
+/// Ô đề xuất được giữ RESERVED trong 48 giờ; nếu quá hạn mà khách chưa chọn thì tự động chấp nhận đề xuất.
 /// </summary>
 public partial class FacilityOpsService
 {
+    /// <summary>Số ngày trước ngày nhận kho bắt đầu kiểm tra và phát hiện xung đột ô (5 ngày).</summary>
     internal const int ConflictCheckDays = 5;
+    /// <summary>Thời gian giữ ô đề xuất cho khách hàng lựa chọn: 48 giờ.</summary>
     internal static readonly TimeSpan ConflictHold = TimeSpan.FromHours(48);
 
     private static class ConflictAction
@@ -21,9 +25,12 @@ public partial class FacilityOpsService
         public const string Resolved = "UNIT_CONFLICT_RESOLVED";
     }
 
+    /// <summary>Các trạng thái của khách cũ cho thấy ô kho vẫn chưa sẵn sàng bàn giao.</summary>
     private static readonly string[] OldTenantStatuses = ["ACTIVE", "EXPIRING", "OVERDUE", "RETURN_PENDING"];
+    /// <summary>Các trạng thái kỹ thuật của ô kho chưa sẵn sàng cho khách mới.</summary>
     private static readonly string[] NotReadyUnitStatuses = ["INSPECTION", "MAINTENANCE", "OUT_OF_SERVICE"];
 
+    /// <summary>Bản ghi thể hiện trạng thái giải quyết xung đột hiện tại của một hợp đồng.</summary>
     private sealed record ConflictState(ActivityLog Proposal, ActivityLog? Resolution)
     {
         public bool Open => Resolution == null;
@@ -33,6 +40,7 @@ public partial class FacilityOpsService
             System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var t) ? t : null;
     }
 
+    /// <summary>Lấy trạng thái xung đột mới nhất của hợp đồng từ danh sách nhật ký ActivityLog.</summary>
     private static ConflictState? LatestConflict(IEnumerable<ActivityLog> logs, long contractId)
     {
         var list = logs.Where(l => l.EntityId == contractId && l.EntityType == LogEntity.Contract).OrderBy(l => l.LoggedAt).ToList();
@@ -42,6 +50,7 @@ public partial class FacilityOpsService
         return new ConflictState(proposal, resolution);
     }
 
+    /// <summary>Tải danh sách ActivityLog liên quan đến xung đột ô kho của các hợp đồng.</summary>
     private async Task<List<ActivityLog>> ConflictLogsAsync(ICollection<long> contractIds, CancellationToken ct) =>
         contractIds.Count == 0 ? [] : await dbContext.ActivityLogs.AsNoTracking()
             .Where(l => l.EntityType == LogEntity.Contract && l.EntityId != null && contractIds.Contains(l.EntityId.Value)
@@ -49,7 +58,7 @@ public partial class FacilityOpsService
             .OrderBy(l => l.LoggedAt)
             .ToListAsync(ct);
 
-    /// <summary>Lý do ô chưa sẵn sàng cho khách mới (null = sẵn sàng).</summary>
+    /// <summary>Kiểm tra lý do ô chưa sẵn sàng cho khách mới (null = ô đã hoàn toàn sẵn sàng).</summary>
     private async Task<(string Reason, long? BlockingContractId)?> NotReadyAsync(RentalContract c, CancellationToken ct)
     {
         var old = await dbContext.RentalContracts.AsNoTracking()
@@ -65,9 +74,11 @@ public partial class FacilityOpsService
     }
 
     /// <summary>
-    /// D41 · Tiến trình nền: hợp đồng sắp nhận kho (còn ≤ 5 ngày, đơn tạo muộn thì kiểm ngay) mà ô chưa về Trống
-    /// → tạo đề xuất đổi kho và giữ ô đề xuất 48 giờ. Mỗi hợp đồng chỉ có một đề xuất đang mở.
+    /// D41 · Tiến trình nền: Quét các hợp đồng sắp nhận kho (trong vòng 5 ngày tới) mà ô kho chưa về AVAILABLE
+    /// để tự động khởi tạo đề xuất đổi ô và khoá ô đề xuất trong 48 giờ.
     /// </summary>
+    /// <param name="ct">Token hủy không đồng bộ.</param>
+    /// <returns>Số lượng đề xuất đổi kho mới được tạo.</returns>
     public async Task<int> DetectUnitConflictsAsync(CancellationToken ct = default)
     {
         var today = VnToday;
@@ -92,6 +103,7 @@ public partial class FacilityOpsService
         return created;
     }
 
+    /// <summary>Khởi tạo đề xuất đổi kho cho một hợp đồng cụ thể bị xung đột.</summary>
     private async Task<bool> ProposeForContractAsync(long contractId, CancellationToken ct)
     {
         var facilityId = await dbContext.RentalContracts.Where(c => c.ContractId == contractId).Select(c => c.Unit.FacilityId).FirstAsync(ct);
@@ -119,7 +131,9 @@ public partial class FacilityOpsService
         return true;
     }
 
-    /// <summary>Đổi ngang cùng loại đang trống thật; không có thì nâng cấp loại lớn hơn (cùng kho lạnh/thường trước); không có → NONE.</summary>
+    /// <summary>
+    /// Tìm phương án thay thế: ưu tiên đổi ngang cùng loại đang trống thật; không có thì nâng cấp loại lớn hơn; không có → NONE.
+    /// </summary>
     private async Task<(string Option, UnitAvailability.UnitSlot? Target)> AlternativeAsync(RentalContract c, DateOnly today, CancellationToken ct)
     {
         var facilityId = c.Unit.FacilityId;
@@ -137,8 +151,7 @@ public partial class FacilityOpsService
     }
 
     /// <summary>
-    /// Chuyển hợp đồng (chưa bắt đầu) sang ô mới: phân bổ, mã QR/PIN ô cũ hết hiệu lực, cấp mã mới. Giữ giá và cọc (nâng cấp miễn phí).
-    /// recordedBy: người thao tác hoặc mã khách khi hệ thống tự làm (cột lịch sử ô bắt buộc người dùng).
+    /// Chuyển hợp đồng (chưa bắt đầu) sang ô mới: phân bổ lại, mã QR/PIN ô cũ hết hiệu lực, cấp mã mới. Giữ giá và cọc (nâng cấp miễn phí).
     /// </summary>
     private async Task MoveContractUnitAsync(RentalContract c, StorageUnit target, long recordedBy, string reason, CancellationToken ct)
     {
@@ -183,7 +196,7 @@ public partial class FacilityOpsService
         }
     }
 
-    /// <summary>Ô đang giữ cho hợp đồng này (RESERVED) mà không còn ai giữ → AVAILABLE. Ô khách cũ đang dùng giữ nguyên.</summary>
+    /// <summary>Ô đang giữ cho hợp đồng này (RESERVED) mà không còn ai giữ → chuyển về AVAILABLE. Ô khách cũ đang dùng giữ nguyên.</summary>
     private async Task ReleaseUnitIfFreeAsync(StorageUnit unit, long contractId, long recordedBy, string reason, CancellationToken ct)
     {
         if (unit.Status != "RESERVED") return;
@@ -192,10 +205,15 @@ public partial class FacilityOpsService
         if (!held) SetUnitStatus(unit, "AVAILABLE", recordedBy, reason);
     }
 
+    /// <summary>Lấy thực thể StorageUnit của ô được đề xuất từ ConflictState.</summary>
     private async Task<StorageUnit?> ProposedUnitAsync(ConflictState state, CancellationToken ct) =>
         state.ProposedUnitId is long id ? await dbContext.StorageUnits.FirstOrDefaultAsync(u => u.UnitId == id, ct) : null;
 
-    /// <summary>D41 · Tiến trình nền: đề xuất quá 48 giờ khách chưa trả lời → hệ thống nhận ô đề xuất (đổi ngang / nâng cấp).</summary>
+    /// <summary>
+    /// D41 · Tiến trình nền: Quét các đề xuất đổi kho đã quá 48 giờ mà khách chưa phản hồi để tự động xác nhận nhận ô (đổi ngang / nâng cấp).
+    /// </summary>
+    /// <param name="ct">Token hủy không đồng bộ.</param>
+    /// <returns>Số lượng đề xuất đã tự động xử lý.</returns>
     public async Task<int> ExpireUnitConflictsAsync(CancellationToken ct = default)
     {
         var now = NowUtc;
@@ -238,12 +256,14 @@ public partial class FacilityOpsService
     // Khách xem và chọn phương án
     // ---------------------------------------------------------------------------------------------
 
+    /// <summary>Lấy danh sách các đề xuất đổi kho của khách hàng.</summary>
     public async Task<IReadOnlyList<UnitConflictDto>> GetCustomerUnitConflictsAsync(long customerId, CancellationToken ct = default)
     {
         var contracts = await dbContext.RentalContracts.AsNoTracking().Where(c => c.CustomerId == customerId).Select(c => c.ContractId).ToListAsync(ct);
         return await ConflictDtosAsync(contracts, ct);
     }
 
+    /// <summary>Lấy danh sách các đề xuất đổi kho thuộc cơ sở đang phụ trách dành cho nhân viên/quản lý.</summary>
     public async Task<IReadOnlyList<UnitConflictDto>> GetUnitConflictsAsync(OpsActor actor, CancellationToken ct = default)
     {
         var facility = await FacilityOfAsync(actor, ct);
@@ -259,6 +279,7 @@ public partial class FacilityOpsService
         return list.Where(d => d.Status == "OPEN" || string.CompareOrdinal(d.ResolvedAt ?? "", Local(since)!) >= 0).ToList();
     }
 
+    /// <summary>Chuyển đổi danh sách hợp đồng thành DTO UnitConflictDto hoàn chỉnh.</summary>
     private async Task<IReadOnlyList<UnitConflictDto>> ConflictDtosAsync(ICollection<long> contractIds, CancellationToken ct)
     {
         var logs = await ConflictLogsAsync(contractIds, ct);
@@ -291,7 +312,7 @@ public partial class FacilityOpsService
         return result;
     }
 
-    /// <summary>Ngày sớm nhất có ô cùng loại đặt được cho kỳ thuê cùng độ dài (để khách dời ngày).</summary>
+    /// <summary>Tính ngày sớm nhất có ô cùng loại đặt được cho chu kỳ thuê tương đương (dành cho phương án dời ngày).</summary>
     private async Task<DateOnly?> EarliestFreeDateAsync(RentalContract c, DateOnly today, CancellationToken ct)
     {
         var buffer = await UnitAvailability.BufferDaysAsync(dbContext, c.Unit.FacilityId, c.Unit.UnitTypeId, today, ct);
@@ -304,13 +325,19 @@ public partial class FacilityOpsService
         return null;
     }
 
+    /// <summary>Tính số tháng tròn giữa hai mốc ngày.</summary>
     private static int MonthsBetween(DateOnly start, DateOnly end)
     {
         var months = (end.Year - start.Year) * 12 + end.Month - start.Month;
         return Math.Max(1, months);
     }
 
-    /// <summary>D41: khách chọn ACCEPT (nhận ô đề xuất) · RESCHEDULE (dời ngày nhận kho) · CANCEL (huỷ, hoàn 100%, không phí D40).</summary>
+    /// <summary>
+    /// D41: Khách hàng lựa chọn phương án giải quyết xung đột:
+    /// - ACCEPT: Nhận ô đề xuất (đổi ngang hoặc nâng cấp miễn phí).
+    /// - RESCHEDULE: Dời ngày nhận kho sang thời điểm ô khả dụng.
+    /// - CANCEL: Huỷ đơn, hoàn trả 100% tiền thuê và cọc đã thanh toán (không áp dụng phí huỷ 5%).
+    /// </summary>
     public async Task<UnitConflictDto> ChooseUnitConflictAsync(long customerId, string contractCode, UnitConflictChoiceRequest request,
         CancellationToken ct = default)
     {
@@ -354,6 +381,7 @@ public partial class FacilityOpsService
         return (await ConflictDtosAsync([contractId], ct)).Single();
     }
 
+    /// <summary>Xử lý phương án dời ngày nhận kho cho hợp đồng.</summary>
     private async Task<object> RescheduleAsync(RentalContract c, DateOnly? newStart, StorageUnit? proposed, long customerId, CancellationToken ct)
     {
         var today = VnToday;
@@ -389,7 +417,7 @@ public partial class FacilityOpsService
             newEndDate = end.ToString("yyyy-MM-dd"), newUnit = pick.Unit.UnitNumber };
     }
 
-    /// <summary>D41: không còn ô phù hợp → khách huỷ, hoàn 100% tiền thuê + cọc đã trả, không áp phí huỷ 5% (D40). Cách nhận hoàn theo D42/D44.</summary>
+    /// <summary>D41: Không còn ô phù hợp → khách huỷ, hoàn 100% tiền thuê + cọc đã trả, không áp phí huỷ 5% (D40). Cách nhận hoàn theo D42/D44.</summary>
     private async Task<object> CancelForConflictAsync(RentalContract c, StorageProject.Core.DTOs.Evidence.RefundBankInput? bank,
         StorageUnit? proposed, long customerId, CancellationToken ct)
     {

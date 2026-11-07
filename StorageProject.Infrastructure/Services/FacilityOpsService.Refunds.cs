@@ -5,24 +5,36 @@ using StorageProject.Core.Entities;
 
 namespace StorageProject.Infrastructure.Services;
 
-/// <summary>Phiên bản client gửi đã cũ (người khác vừa xử lý) → 409 để giao diện tải lại, không ghi đè.</summary>
+/// <summary>
+/// Ngoại lệ ném ra khi phiên bản bản ghi client gửi đã cũ (bị người khác xử lý trước) → mã HTTP 409 để giao diện tải lại dữ liệu mới nhất.
+/// </summary>
 public sealed class OpsConflictException(string message) : InvalidOperationException(message);
 
 /// <summary>
-/// Hoàn cọc sau trả kho (D32 / T07). Bước 1 ở M07 tạo khoản REFUND PENDING ("Chờ hoàn");
-/// bước 2 quản lý ghi mã giao dịch → PAID ("Đã hoàn"). Mỗi khoản chỉ đổi trạng thái một lần nên version = 1 hoặc 2.
+/// Quản lý quy trình hoàn cọc sau khi thanh lý / trả kho (D32 / T07).
+/// Bước 1 ở M07 tạo khoản REFUND PENDING ("Chờ hoàn");
+/// bước 2 quản lý ghi mã giao dịch chuyển khoản → PAID ("Đã hoàn"). Mỗi khoản chỉ đổi trạng thái một lần nên version = 1 hoặc 2.
 /// Khoản hoàn cọc là REFUND gắn hợp đồng, không gắn đơn đặt chỗ (hoàn đơn huỷ xem M08 / ConfirmReservationRefundAsync).
 /// </summary>
 public partial class FacilityOpsService
 {
     private const string ConfirmDepositRefundAction = "CONFIRM_DEPOSIT_REFUND";
 
+    /// <summary>
+    /// Tạo IQueryable cơ sở cho các khoản hoàn cọc hợp đồng (PaymentType = REFUND, ContractId != null, ReservationId == null).
+    /// </summary>
     private IQueryable<Payment> DepositRefundQuery() => dbContext.Payments
         .Include(p => p.Contract).ThenInclude(c => c.Unit)
         .Include(p => p.Contract).ThenInclude(c => c.Customer)
         .Include(p => p.Contract).ThenInclude(c => c.ReturnInspections)
         .Where(p => p.PaymentType == "REFUND" && p.ReservationId == null && p.ContractId != null);
 
+    /// <summary>
+    /// Lấy danh sách các khoản hoàn cọc của cơ sở hiện tại (gồm các khoản PENDING hoặc hoàn trong vòng 60 ngày gần đây).
+    /// </summary>
+    /// <param name="actor">Thông tin nhân viên hoặc quản lý thực hiện.</param>
+    /// <param name="ct">Token hủy thao tác không đồng bộ.</param>
+    /// <returns>Danh sách DepositRefundDto chuẩn hoá.</returns>
     public async Task<IReadOnlyList<DepositRefundDto>> GetDepositRefundsAsync(OpsActor actor, CancellationToken ct = default)
     {
         var facility = await FacilityOfAsync(actor, ct);
@@ -33,6 +45,12 @@ public partial class FacilityOpsService
         return await ToDepositRefundDtosAsync(rows, ct);
     }
 
+    /// <summary>
+    /// Lấy toàn bộ lịch sử các khoản hoàn cọc của một khách hàng cụ thể.
+    /// </summary>
+    /// <param name="customerId">ID khách hàng.</param>
+    /// <param name="ct">Token hủy không đồng bộ.</param>
+    /// <returns>Danh sách DepositRefundDto.</returns>
     public async Task<IReadOnlyList<DepositRefundDto>> GetCustomerDepositRefundsAsync(long customerId, CancellationToken ct = default)
     {
         var rows = await DepositRefundQuery().AsNoTracking().AsSplitQuery()
@@ -41,6 +59,14 @@ public partial class FacilityOpsService
         return await ToDepositRefundDtosAsync(rows, ct);
     }
 
+    /// <summary>
+    /// Quản lý cơ sở xác nhận đã chuyển khoản hoàn cọc cho khách hàng (M08).
+    /// Ghi nhận mã giao dịch ngân hàng, kiểm tra tính chính chủ tài khoản và cập nhật trạng thái PAID.
+    /// </summary>
+    /// <param name="actor">Thông tin quản lý cơ sở.</param>
+    /// <param name="request">Thông tin xác nhận hoàn cọc kèm mã giao dịch.</param>
+    /// <param name="ct">Token hủy không đồng bộ.</param>
+    /// <returns>DepositRefundDto sau khi cập nhật.</returns>
     public async Task<DepositRefundDto> ConfirmDepositRefundAsync(OpsActor actor, DepositRefundActionRequest request, CancellationToken ct = default)
     {
         RequireManager(actor);
@@ -92,6 +118,7 @@ public partial class FacilityOpsService
         return (await ToDepositRefundDtosAsync([p], ct))[0];
     }
 
+    /// <summary>Xác định phiên bản lạc quan (optimistic locking) của khoản hoàn: PENDING = 1, PAID = 2.</summary>
     private static int VersionOf(Payment p) => p.Status == "PENDING" ? 1 : 2;
 
     /// <summary>Tài khoản nhận hoàn: khai khi kết thúc do sự cố cơ sở (T13) hoặc khi gửi trả kho (T08).</summary>
@@ -103,14 +130,18 @@ public partial class FacilityOpsService
         return i?.RefundBankName == null ? null : new RefundBank.Account(i.RefundBankName, i.RefundAccountNumber ?? "", i.RefundAccountHolder ?? "");
     }
 
+    /// <summary>Biên bản kiểm tra trả kho COMPLETED mới nhất của hợp đồng.</summary>
     private static ReturnInspection? LatestInspection(RentalContract c) =>
         c.ReturnInspections.Where(i => i.Status == "COMPLETED").OrderByDescending(i => i.InspectedAt ?? i.CreatedAt).FirstOrDefault();
 
+    /// <summary>Lấy danh sách ảnh minh chứng tương ứng với ID đối tượng sở hữu.</summary>
     private static IReadOnlyList<EvidencePhotoDto> PhotosOf(Dictionary<long, List<EvidencePhotoDto>> photos, long? ownerId) =>
         ownerId.HasValue && photos.TryGetValue(ownerId.Value, out var list) ? (IReadOnlyList<EvidencePhotoDto>)list : Array.Empty<EvidencePhotoDto>();
 
+    /// <summary>Định dạng DateTime thành chuẩn UTC có DateTimeKind.Utc rõ ràng.</summary>
     private static DateTime? Utc(DateTime? value) => value.HasValue ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc) : null;
 
+    /// <summary>Chuyển đổi danh sách Payment thành danh sách DepositRefundDto hoàn chỉnh thông tin.</summary>
     private async Task<IReadOnlyList<DepositRefundDto>> ToDepositRefundDtosAsync(List<Payment> rows, CancellationToken ct)
     {
         var logs = await LogsAsync(LogEntity.Contract, rows.Select(p => p.Contract.ContractId).Distinct().ToList(), ct);
