@@ -27,12 +27,13 @@ public sealed class SmtpPasswordResetEmailSender(IConfiguration configuration) :
             if (!string.IsNullOrEmpty(settings.Username))
                 await client.AuthenticateAsync(settings.Username, settings.Password ?? "", timeout.Token);
             await client.SendAsync(message, timeout.Token);
-            // SMTP đã nhận thư; lỗi ngắt kết nối sau đó không làm mất hiệu lực mã vừa gửi.
-            try { await client.DisconnectAsync(true, timeout.Token); }
-            catch (Exception) when (!ct.IsCancellationRequested) { }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception) { throw new PasswordResetDeliveryException(); }
+
+        // SMTP đã nhận thư; lỗi hoặc hủy khi ngắt kết nối không thay đổi kết quả gửi.
+        try { await client.DisconnectAsync(true, timeout.Token); }
+        catch (Exception) { }
     }
 
     private (string Host, int Port, string From, string? Username, string? Password, SecureSocketOptions Security) ReadSettings()

@@ -37,11 +37,13 @@ public sealed class ResetMailbox : IPasswordResetEmailSender
 {
     public List<(string Email, string Code)> Messages { get; } = [];
     public bool Fail { get; set; }
+    public Action? AfterSend { get; set; }
     public void ValidateConfiguration() { if (Fail) throw new PasswordResetDeliveryException(); }
     public Task SendAsync(string email, string code, CancellationToken ct = default)
     {
         ValidateConfiguration();
         Messages.Add((email, code));
+        AfterSend?.Invoke();
         return Task.CompletedTask;
     }
 }
@@ -236,6 +238,21 @@ public sealed class PasswordResetTests
         using var c = f.Client(); Assert.Equal(HttpStatusCode.ServiceUnavailable, (await c.PostAsJsonAsync("/api/auth/password-reset/request", new { email = "customer@example.com" })).StatusCode);
         f.Mailbox.Fail = false; (await f.Confirm()).EnsureSuccessStatusCode();
     }
+    [Fact] public async Task RequestCancelledAfterSmtpAcceptanceKeepsTheDeliveredCodeValid()
+    {
+        await using var f = await PasswordResetFixture.Create();
+        using var aborted = new CancellationTokenSource();
+        f.Mailbox.AfterSend = aborted.Cancel;
+        using var scope = f.Scope();
+        var service = scope.ServiceProvider.GetRequiredService<IPasswordResetService>();
+
+        await service.RequestAsync(new("customer@example.com"), aborted.Token);
+
+        Assert.True(aborted.IsCancellationRequested);
+        Assert.Single(f.Mailbox.Messages);
+        (await f.Confirm()).EnsureSuccessStatusCode();
+    }
+
     [Fact] public async Task IpRateLimitReturnsJsonAndRetryAfter()
     {
         await using var f = await PasswordResetFixture.Create(); using var c = f.Client();

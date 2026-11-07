@@ -140,7 +140,7 @@ public partial class FacilityOpsService
                 return new DepositRefundDto(
                     $"HC-{p.PaymentId:0000}", c.Unit.FacilityId, c.CustomerId, ContractCode(c), c.Unit.UnitNumber, c.Customer.FullName,
                     VersionOf(p), c.DepositAmount, overdue, cleaning, damage, p.Amount, paid ? "PAID" : p.Status,
-                    Utc(i?.CreatedAt), Utc(p.CreatedAt), Utc(p.CreatedAt), paid ? Utc(p.PaidAt) : null, p.DueDate,
+                    Utc(i?.CreatedAt), Utc(i?.InspectedAt), Utc(p.CreatedAt), paid ? Utc(p.PaidAt) : null, p.DueDate,
                     paid ? p.TransactionReference : null, account?.BankName, account?.AccountNumber, account?.AccountHolder,
                     incident != null ? $"Kết thúc do sự cố cơ sở ({incident.CaseCode}): {incident.Description}" : i?.Notes,
                     incident != null ? Array.Empty<EvidencePhotoDto>() : PhotosOf(photos, i?.InspectionId),
