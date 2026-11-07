@@ -26,6 +26,26 @@ test("khách không được xác nhận hoàn cọc, quản lý không ghi trù
   assert.equal(next.depositRefunds[0].status, "PAID"); assert.equal(s.depositRefunds[0].status, "PENDING");
   assert.throws(() => applyWorkflowAction(next, "CONFIRM_DEPOSIT_REFUND", p, actor(["MANAGER"])), /không còn/);
 });
+test("quản lý có thể xác nhận chi tiền mặt tại quầy cho khoản hoàn cọc không có tài khoản ngân hàng", () => {
+  const s = createWorkflowSeed();
+  s.depositRefunds[0].bankName = "";
+  s.depositRefunds[0].accountNumber = "";
+  s.depositRefunds[0].method = "CASH";
+  s.depositRefunds[0].inspectedAt = new Date(Date.now() - 120000).toISOString();
+
+  const p = {
+    id: "HC-0098",
+    confirmed: true,
+    transferredAt: new Date(Date.now() - 60000).toISOString(),
+    transactionRef: "PC-HC-0098",
+    method: "CASH"
+  };
+
+  const next = applyWorkflowAction(s, "CONFIRM_DEPOSIT_REFUND", p, actor(["MANAGER"]));
+  assert.equal(next.depositRefunds[0].status, "PAID");
+  assert.equal(next.depositRefunds[0].method, "CASH");
+  assert.equal(next.depositRefunds[0].transactionRef, "PC-HC-0098");
+});
 test("biên bản bắt buộc đủ thông tin và thời gian không ở tương lai", () => {
   const s = createWorkflowSeed(), p = { id: "QH-0061", inventory: "03 thùng", location: "Khu ngoài K03", performedAt: "2099-01-01T10:00:00Z", unitStatus: "INSPECTION",confirmed:true,beforePhotos:[{name:"before.png",type:"image/png",size:20}],afterPhotos:[{name:"after.png",type:"image/png",size:20}] };
   assert.throws(() => applyWorkflowAction(s, "RECORD_REMOVAL", p, actor(["STAFF"])), /tương lai/);

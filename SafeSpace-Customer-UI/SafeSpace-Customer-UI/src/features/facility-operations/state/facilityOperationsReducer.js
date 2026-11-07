@@ -93,7 +93,8 @@ const ACTIONS = {
     const need = ["items", "walls", "keys", "proposal"];
     if (need.some((k) => !String(report?.[k] || "").trim())) fail("Điền đủ 4 mục kiểm tra trước khi gửi biên bản.");
     if (!Number.isFinite(Number(report.damage_fee ?? 0)) || Number(report.damage_fee ?? 0) < 0) fail("Phí hư hỏng phải không âm.");
-    if ((Number(report.damage_fee) > 0 || report.cleaning_required) && !String(report.fee_reason || "").trim()) fail("Nhập lý do khấu trừ.");
+    if (Number(report.damage_fee) > 0 && !String(report.fee_reason || "").trim()) fail("Nhập lý do khấu trừ.");
+    if (report.cleaning_required && !String(report.fee_reason || "").trim()) report = { ...report, fee_reason: "Kho chưa đạt tiêu chuẩn vệ sinh (10% cọc)" };
     report = { ...report,photo_files:files.map(f=>({fileName:f.name,contentType:f.type,size:f.size})), cleaning_fee: cleaningFee(r.deposit, report.cleaning_required) };
     const next = {
       ...state,

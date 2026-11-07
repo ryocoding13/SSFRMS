@@ -512,4 +512,26 @@ public sealed partial class RenewalPolicyD32Tests
         var contract = await f.Db.RentalContracts.FindAsync(f.Contract.ContractId);
         Assert.Equal(f.Contract.EndDate, contract!.EndDate);
     }
+
+    [Fact]
+    public async Task GetBoardAsync_StaffReceivesCounterRenewals()
+    {
+        await using var f = await Fixture.CreateAsync();
+        var opsSvc = new FacilityOpsService(f.Db);
+
+        var request = new CreateRenewalRequest(RenewalPeriodMonths: 1, PolicyVersion: 1, Accepted: true);
+        var renewalDto = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, request);
+        await f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, renewalDto.RenewalId);
+        await f.RenewalSvc.SelectCounterPaymentAsync(f.CustomerUser.UserId, renewalDto.RenewalId);
+
+        // Call GetBoardAsync as Staff
+        var staffActor = new StorageProject.Core.DTOs.FacilityOps.OpsActor(f.StaffUser.UserId, IsManager: false);
+        var board = await opsSvc.GetBoardAsync(staffActor);
+
+        Assert.NotNull(board.CounterRenewals);
+        Assert.Single(board.CounterRenewals);
+        var item = board.CounterRenewals[0];
+        Assert.Equal(renewalDto.RenewalId, item.RenewalId);
+        Assert.Equal("PENDING", item.Status);
+    }
 }

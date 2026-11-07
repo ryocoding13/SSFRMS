@@ -12,10 +12,21 @@ export function DamageState({ load, children }) {
     {load.loading ? <p role="status">Đang tải hồ sơ hư hỏng…</p> : load.error ? <Empty title="Chưa tải được hồ sơ hư hỏng" text={load.error}><Button onClick={load.reload}>Thử lại</Button></Empty> : children}
   </>;
 }
-const safeImageUrl = value => typeof value === "string" && (/^https:\/\//i.test(value) || (value.startsWith("/") && !value.startsWith("//")));
-export function DamagePhotos({ photos = [] }) {
-  const valid = (Array.isArray(photos) ? photos : []).filter(photo => safeImageUrl(photo?.url));
-  return valid.length ? <div className="damage-photos">{valid.map((photo,index) => <a key={`${photo.url}-${index}`} href={photo.url} target="_blank" rel="noreferrer"><img src={photo.url} alt={photo.caption || `Ảnh bằng chứng ${index+1}`} loading="lazy" /></a>)}</div> : <p className="hint">Chưa có ảnh bằng chứng từ cơ sở.</p>;
+export const safeImageUrl = value => typeof value === "string" && (/^https?:\/\//i.test(value) || (value.startsWith("/") && !value.startsWith("//")) || value.startsWith("data:image/"));
+export function DamagePhotos({ photos = [], emptyText = "Chưa có ảnh bằng chứng từ cơ sở." }) {
+  const valid = (Array.isArray(photos) ? photos : []).map(photo => {
+    if (typeof photo === "string") return { url: photo, caption: "" };
+    if (photo?.url) return photo;
+    if (photo?.Url) return { url: photo.Url, caption: photo.Caption || "" };
+    if (photo?.dataBase64) {
+      const src = photo.dataBase64.startsWith("data:")
+        ? photo.dataBase64
+        : `data:${photo.contentType || "image/jpeg"};base64,${photo.dataBase64}`;
+      return { url: src, caption: photo.fileName || photo.caption || "" };
+    }
+    return photo;
+  }).filter(photo => safeImageUrl(photo?.url));
+  return valid.length ? <div className="damage-photos">{valid.map((photo,index) => <a key={`${photo.url}-${index}`} href={photo.url} target="_blank" rel="noreferrer" title={photo.caption || "Bấm để mở ảnh gốc trong tab mới"}><img src={photo.url} alt={photo.caption || `Ảnh bằng chứng ${index+1}`} loading="lazy" /></a>)}</div> : <p className="hint">{emptyText}</p>;
 }
 export function DamageRecord({ item }) {
   return <section className="panel customer-detail__card"><h2>Hạng mục được ghi nhận</h2><DetailList items={[["Khách hàng", item.customer || "Chưa có thông tin"], ["Hợp đồng / kho", `${item.contractId} · ${item.unit || "Chưa có thông tin"}`], ["Hạng mục", item.item || "Chưa có nội dung biên bản"], ["Khấu trừ đề xuất", amountLabel(item.damageAmount)]]} /><DamagePhotos photos={item.photos} /><p className="hint">Biên bản: {item.recordedBy || "Chưa có người lập"} · {timeLabel(item.recordedAt)}</p></section>;

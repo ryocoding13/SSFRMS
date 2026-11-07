@@ -31,13 +31,17 @@ export async function loadBoard(role) {
     }
   }
   const data = fromApi(res);
-  const lists = ["payments", "allocations", "verifications", "handovers", "returns", "tickets", "renewals", "contracts", "assignments", "units", "staff", "counter_renewals"];
+  const lists = [
+    "payments", "allocations", "verifications", "handovers", "returns", "tickets",
+    "renewals", "contracts", "assignments", "units", "staff", "counter_renewals",
+    "cash_refunds", "deposit_refunds", "unit_conflicts", "overdue_cases", "inquiries"
+  ];
   return {
     version: 1,
     log: [],
     payments: [], allocations: [], verifications: [], handovers: [], returns: [], tickets: [],
     renewals: [], contracts: [], refunds: [], fee_collections: [], assignments: [], units: [], staff: [],
-    counter_renewals: [],
+    counter_renewals: [], cash_refunds: [], deposit_refunds: [], unit_conflicts: [], overdue_cases: [], inquiries: [],
     revenue: { months: [], by_type: [], as_of: null },
     ...data,
     ...Object.fromEntries(lists.map(key => [key, Array.isArray(data[key]) ? data[key] : []])),

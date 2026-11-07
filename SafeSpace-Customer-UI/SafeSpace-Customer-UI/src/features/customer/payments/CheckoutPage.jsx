@@ -55,9 +55,19 @@ export function CheckoutPage({ id }) {
     if (!r || !services || !consentReady) return;
     setQrState("loading");
     setQrError("");
-    const res = await services.startPayos({ kind: "reservation", item: r });
+    let res = await services.startPayos({ kind: "reservation", item: r });
     if (!alive.current) return;
     if (res.code === "POLICY_REQUIRED") { go(`checkout/${id}/confirm`, { replace: true }); return; }
+
+    // Nếu lần đầu bị lỗi (không phải do chưa hỗ trợ), tự động thử làm mới lại ngay trước khi hiện thông báo
+    if (!res.ok && !res.unsupported) {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      if (!alive.current) return;
+      res = await services.startPayos({ kind: "reservation", item: r });
+      if (!alive.current) return;
+      if (res.code === "POLICY_REQUIRED") { go(`checkout/${id}/confirm`, { replace: true }); return; }
+    }
+
     if (res.ok) {
       setCheckout(res.checkout);
       setQrState("ready");

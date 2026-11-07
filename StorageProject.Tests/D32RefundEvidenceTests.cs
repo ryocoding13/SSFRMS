@@ -250,6 +250,41 @@ public sealed partial class D32RefundEvidenceTests
     }
 
     [Fact]
+    public async Task ConfirmDepositRefundAsync_CashMethod_DoesNotRequireBankDetails()
+    {
+        await using var f = await Fixture.CreateAsync();
+        var c = await f.ActiveContractAsync();
+        // Payment without bank account
+        var refundPayment = new Payment
+        {
+            ContractId = c.ContractId,
+            PaymentType = "REFUND",
+            Amount = 300_000m,
+            Status = "PENDING",
+            PaymentMethod = "CASH",
+            CreatedAt = DateTime.UtcNow.AddHours(-1)
+        };
+        f.Db.Payments.Add(refundPayment);
+        await f.Db.SaveChangesAsync();
+
+        var request = new DepositRefundActionRequest(
+            "CONFIRM_DEPOSIT_REFUND",
+            $"HC-{refundPayment.PaymentId:0000}",
+            1,
+            "PC-001",
+            DateTime.UtcNow,
+            Confirmed: true,
+            Method: "CASH"
+        );
+
+        var result = await f.Ops.ConfirmDepositRefundAsync(f.ManagerActor, request);
+        Assert.Equal("PAID", result.Status);
+        Assert.Equal("CASH", result.Method);
+        Assert.Equal("PC-001", result.TransactionRef);
+        Assert.NotNull(result.PaidAt);
+    }
+
+    [Fact]
     public async Task Verification_Checklist_RequiresAllFourItems_WithoutDocumentNumber()
     {
         await using var f = await Fixture.CreateAsync();

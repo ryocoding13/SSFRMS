@@ -304,6 +304,8 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
     });
     const paidRenewals = new Set();
     const renewalById = new Map((c.renewals || []).map((r) => [r.renewalId, r]));
+    const isContractActive = ["ACTIVE", "EXPIRING", "OVERDUE"].includes(c.status) && c.status !== "RETURN_PENDING";
+    const hasRefundRow = (c.payments || []).some((x) => x.paymentType === "REFUND");
     for (const p of c.payments || []) {
       if (p.renewalId) paidRenewals.add(p.renewalId);
       const kind = p.paymentType || "OTHER";
@@ -325,11 +327,17 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       const deadline = parseUtc(p.paymentDeadlineAt || ren?.paymentDeadlineAt);
       const expiredRenewal = kind === "RENEWAL" && !paid && (ren?.status === "EXPIRED" || p.status === "FAILED" || (deadline && deadline <= now));
       const open = !paid && !["CANCELLED", "REFUNDED", "FAILED"].includes(p.status);
-      const status = expiredRenewal ? "EXPIRED" : kind === "REFUND" ? (paid ? "REFUNDED" : p.status === "PENDING" ? "REFUND_PENDING" : p.status) : paid
-        ? kind === "DEPOSIT" ? "DEPOSIT_HELD" : "RECONCILED"
-        : p.status === "REFUNDED" || kind === "REFUND"
-          ? "REFUNDED"
-          : fee && open && overlay.feesAtCounter?.[p.paymentId] ? "AT_COUNTER" : "UNPAID";
+      const status = expiredRenewal
+        ? "EXPIRED"
+        : kind === "REFUND"
+          ? (paid ? "REFUNDED" : p.status === "PENDING" ? "REFUND_PENDING" : p.status)
+          : paid
+            ? kind === "DEPOSIT"
+              ? (isContractActive ? "DEPOSIT_HELD" : (c.status === "RETURN_PENDING" && !hasRefundRow ? "REFUND_PENDING" : "RECONCILED"))
+              : "RECONCILED"
+            : p.status === "REFUNDED" || kind === "REFUND"
+              ? "REFUNDED"
+              : fee && open && overlay.feesAtCounter?.[p.paymentId] ? "AT_COUNTER" : "UNPAID";
       const isCash = p.paymentMethod === "CASH" || (p.transactionReference && p.transactionReference.startsWith("CASH"));
       const transactionRef = isCash ? null : (paid ? (p.transactionReference || null) : null);
       ledger.push({

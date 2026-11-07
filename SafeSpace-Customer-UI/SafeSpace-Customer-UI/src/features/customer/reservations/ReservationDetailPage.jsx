@@ -42,7 +42,7 @@ export function ReservationDetailPage({ id, mode = "confirmation" }) {
     CANCELLED: "Đơn đặt chỗ đã huỷ",
   };
   const rows = [
-    ["Cơ sở", facility.district && /^SafeSpace/.test(facility.name) ? `SafeSpace ${facility.district} — ${shortName(facility)}` : facility.name],
+    ["Cơ sở", facility?.name || (facility?.district ? `SafeSpace ${facility.district}` : "SafeSpace")],
     ["Kỳ thuê", `${rangeLabel(r.start_date, r.end_date)} · ${r.months} tháng`],
   ];
   if (isDetail) {

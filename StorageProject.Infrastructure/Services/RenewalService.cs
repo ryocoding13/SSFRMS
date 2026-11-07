@@ -287,7 +287,12 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
                          && uf.AssignedFrom <= today
                          && (uf.AssignedTo == null || uf.AssignedTo >= today))
             .OrderByDescending(uf => uf.AssignedFrom)
-            .FirstOrDefaultAsync(ct);
+            .FirstOrDefaultAsync(ct)
+            ?? await dbContext.UserFacilities
+                .AsNoTracking()
+                .Where(uf => uf.UserId == userId && uf.Status == "ACTIVE")
+                .OrderByDescending(uf => uf.AssignedFrom)
+                .FirstOrDefaultAsync(ct);
 
         if (userFacility == null) return [];
 
@@ -348,6 +353,11 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
                          && (uf.AssignedTo == null || uf.AssignedTo >= today))
             .OrderByDescending(uf => uf.AssignedFrom)
             .FirstOrDefaultAsync(ct)
+            ?? await dbContext.UserFacilities
+                .AsNoTracking()
+                .Where(uf => uf.UserId == userId && uf.Status == "ACTIVE")
+                .OrderByDescending(uf => uf.AssignedFrom)
+                .FirstOrDefaultAsync(ct)
             ?? throw new UnauthorizedAccessException("Bạn chưa được phân công phụ trách cơ sở.");
 
         var renewalId = FacilityOpsStateStore.ParseIdNumber(id);

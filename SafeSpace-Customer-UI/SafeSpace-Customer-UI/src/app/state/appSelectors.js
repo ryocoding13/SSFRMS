@@ -1,4 +1,5 @@
 import { daysBetween, localDate } from "../../shared/utils/format.js";
+import { canPayLedger } from "../../shared/utils/returnPolicy.js";
 
 // Luôn trả về một cơ sở (dự phòng khi dữ liệu máy chủ chỉ có tên cơ sở)
 export const facilityOf = (data, id, name) =>
@@ -28,7 +29,8 @@ export const activeContracts = (data, now) =>
 export const expiringContracts = (data, now) =>
   data.contracts.filter((c) => ["EXPIRING", "OVERDUE"].includes(contractStatus(c, now)));
 
-export const unpaidCount = (data) => data.ledger.filter((l) => l.status === "UNPAID").length;
+export const payableCount = (data) => (data?.ledger || []).filter(canPayLedger).length;
+export const unpaidCount = (data) => payableCount(data);
 
 export const pendingRenewal = (data, contractId) =>
   data.renewals.find((r) => r.contract_id === contractId && (r.status === "PENDING" || (r.status === "APPROVED" && !data.ledger.some(l => l.kind === "RENEWAL" && l.contract_id === contractId && l.period?.to === r.new_end && l.status === "RECONCILED"))));

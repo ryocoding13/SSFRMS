@@ -75,6 +75,17 @@ export function staffTasks(ops, me, kind = "all") {
           cta: "Thu tiền", to: "staff/renewal-payments", sort: r.payment_deadline_at || "",
         }),
       );
+    (ops.cash_refunds || [])
+      .filter((r) => ["READY", "REMIND", "APPOINTMENT"].includes(r.status) &&
+        (!r.staff_id && !r.staffId || !me?.staff_id || (r.staff_id || r.staffId) === me.staff_id))
+      .forEach((r) =>
+        list.push({
+          key: r.id, kind: "reconcile", status: ["Chờ chi tiền", "amber"], title: `Hoàn tiền ${r.id}`,
+          meta: `${r.customer} · ${r.reference || "Tiền mặt"}`,
+          when: `${money(r.amount)} · Chi tiền mặt tại quầy`,
+          cta: "Chi tiền", to: "staff/cash-refunds", sort: r.deadlineDate || r.deadline_date || "",
+        }),
+      );
   }
   if (kind === "all" || kind === "handover" || kind === "verify")
     ops.handovers
@@ -102,7 +113,7 @@ export function staffTasks(ops, me, kind = "all") {
           cta: "Xác minh", to: `staff/verify?id=${v.id}`, sort: v.appointment,
         }),
       );
-  if (kind === "all" || kind === "support")
+  if (kind === "all" || kind === "support") {
     ops.tickets
       .filter((t) => ["OPEN", "IN_PROGRESS"].includes(t.status) && (t.assignee === me?.staff_id || !t.assignee))
       .forEach((t) =>
@@ -113,7 +124,17 @@ export function staffTasks(ops, me, kind = "all") {
           cta: "Xử lý", to: `staff/support?id=${t.id}`, sort: t.schedule,
         }),
       );
-  if (kind === "all" || kind === "return")
+    (ops.inquiries || [])
+      .filter((i) => i.status === "OPEN")
+      .forEach((i) =>
+        list.push({
+          key: `inquiry-${i.id}`, kind: "support", status: ["Chờ phản hồi", "amber"], title: `Tư vấn · ${i.title || i.id}`,
+          meta: i.customer ? `${i.customer} · Khách chưa thuê kho` : "Khách chưa thuê kho", when: "Yêu cầu tư vấn mới",
+          cta: "Trả lời", to: "staff/inquiries", sort: i.createdAt || i.created_at || "",
+        }),
+      );
+  }
+  if (kind === "all" || kind === "return") {
     ops.returns
       .filter((r) => r.status === "SCHEDULED")
       .forEach((r) =>
@@ -121,6 +142,26 @@ export function staffTasks(ops, me, kind = "all") {
           key: r.id, kind: "return", status: ["Đã lên lịch", "gray"], title: `Kho #${r.unit} · ${r.customer}`,
           meta: `Cọc đang giữ ${money(r.deposit)}`, when: `Hẹn ${slot(r.appointment)}`,
           cta: "Kiểm tra", outline: true, to: `staff/return?id=${r.id}`, sort: r.appointment,
+        }),
+      );
+    (ops.returns || [])
+      .filter((r) => ["SELF_CLEAN", "SELF_REPLACE", "DISPUTE"].includes(r.deduction_status))
+      .forEach((r) =>
+        list.push({
+          key: `recheck-${r.id}`, kind: "return", status: ["Chờ kiểm tra lại", "blue"], title: `Kiểm tra lại #${r.unit} · ${r.customer}`,
+          meta: `Cọc đang giữ ${money(r.deposit)}`, when: "Khách phản hồi phương án",
+          cta: "Ghi kết quả", to: "staff/recheck", sort: r.appointment || "",
+        }),
+      );
+  }
+  if (kind === "all")
+    (ops.overdue_cases || [])
+      .filter((c) => c.status !== "DONE" && (!c.assignee || c.assignee === me?.full_name || c.assignee === me?.staff_id))
+      .forEach((c) =>
+        list.push({
+          key: `overdue-${c.id || c.overdueCaseId}`, kind: "reconcile", status: ["Quá hạn", "red"], title: `Đồ quá hạn · Kho ${c.unit || c.unitNumber}`,
+          meta: `${c.customer} · Hết hạn thuê`, when: "Cần xử lý đồ trong kho",
+          cta: "Xử lý", to: "staff/overdue", sort: c.endDate || "",
         }),
       );
   // Trong cùng một loại: việc đến hạn sớm trước (thứ tự loại giữ theo mức ưu tiên ở trên)
