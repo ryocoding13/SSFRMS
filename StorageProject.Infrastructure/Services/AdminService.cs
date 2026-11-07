@@ -404,6 +404,52 @@ public class AdminService(AppDbContext dbContext) : IAdminService
         await dbContext.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// T24: thay đúng một vai trò bằng vai trò khác trong một giao dịch (không gán rồi gỡ qua hai lệnh).
+    /// Bộ vai trò hiện tại phải trùng bộ FE gửi lên; khác thì 409 để FE tải lại. Giữ nguyên các vai trò khác
+    /// và không gỡ vai trò ADMIN của quản trị viên đang hoạt động cuối cùng.
+    /// </summary>
+    public async Task ChangeRoleAsync(long userId, ChangeRoleRequest request, long currentAdminId, CancellationToken ct = default)
+    {
+        if (request.PreviousRoleId <= 0 || request.RoleId <= 0) throw new ArgumentException("Chọn vai trò cần thay và vai trò mới hợp lệ.");
+        if (request.PreviousRoleId == request.RoleId) throw new ArgumentException("Vai trò mới phải khác vai trò cần thay.");
+        if (request.ExpectedRoleIds is null) throw new ArgumentException("Thiếu danh sách vai trò hiện tại (expectedRoleIds).");
+
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"user-roles:{userId}", ct);
+        var user = await dbContext.Users.Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
+            .FirstOrDefaultAsync(u => u.UserId == userId, ct)
+            ?? throw new KeyNotFoundException($"Không tìm thấy user với ID: {userId}");
+        var target = await dbContext.Roles.FirstOrDefaultAsync(r => r.RoleId == request.RoleId, ct)
+            ?? throw new KeyNotFoundException($"Không tìm thấy vai trò với ID: {request.RoleId}");
+
+        var current = user.UserRoles.Select(ur => ur.RoleId).OrderBy(id => id).ToList();
+        var expected = request.ExpectedRoleIds.Distinct().OrderBy(id => id).ToList();
+        if (!current.SequenceEqual(expected))
+            throw new StorageProject.Core.Exceptions.OperationConflictException(
+                "Vai trò của tài khoản vừa thay đổi. Tải lại tài khoản rồi thao tác lại.", new { currentRoleIds = current });
+
+        var previous = user.UserRoles.FirstOrDefault(ur => ur.RoleId == request.PreviousRoleId)
+            ?? throw new InvalidOperationException("Tài khoản không có vai trò cần thay.");
+        if (current.Contains(request.RoleId)) throw new InvalidOperationException($"Người dùng đã có vai trò '{target.RoleName}'.");
+
+        if (previous.Role.RoleName == "ADMIN" && user.Status == "ACTIVE")
+        {
+            var otherActiveAdmins = await dbContext.Users
+                .CountAsync(u => u.UserId != userId && u.Status == "ACTIVE" && u.UserRoles.Any(ur => ur.Role.RoleName == "ADMIN"), ct);
+            if (otherActiveAdmins == 0)
+                throw new InvalidOperationException("Không thể đổi vai trò Quản trị viên (ADMIN) của tài khoản Admin hoạt động duy nhất.");
+        }
+
+        var oldRoleName = previous.Role.RoleName;
+        dbContext.UserRoles.Remove(previous);
+        dbContext.UserRoles.Add(new UserRole { UserId = userId, RoleId = target.RoleId, AssignedBy = currentAdminId, AssignedAt = DateTime.UtcNow });
+        await LogActivityAsync(currentAdminId, "ROLE_CHANGE", "user_roles", userId,
+            new { UserId = userId, RoleId = request.PreviousRoleId, RoleName = oldRoleName },
+            new { UserId = userId, target.RoleId, target.RoleName }, ct);
+        await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+    }
+
     // ==========================================
     // UC26: Permissions & Facility Scopes
     // ==========================================
@@ -417,66 +463,6 @@ public class AdminService(AppDbContext dbContext) : IAdminService
             p.PermissionName,
             p.Description
         )).ToList();
-    }
-
-    public async Task AssignPermissionToRoleAsync(long roleId, long permissionId, long currentAdminId, CancellationToken ct = default)
-    {
-        var role = await dbContext.Roles.FindAsync([roleId], ct);
-        if (role == null) throw new KeyNotFoundException($"Không tìm thấy role: {roleId}");
-
-        var perm = await dbContext.Permissions.FindAsync([permissionId], ct);
-        if (perm == null) throw new KeyNotFoundException($"Không tìm thấy permission: {permissionId}");
-
-        var exists = await dbContext.RolePermissions.AnyAsync(rp => rp.RoleId == roleId && rp.PermissionId == permissionId, ct);
-        if (exists)
-        {
-            throw new InvalidOperationException("Quyền này đã được gán cho vai trò.");
-        }
-
-        dbContext.RolePermissions.Add(new RolePermission
-        {
-            RoleId = roleId,
-            PermissionId = permissionId
-        });
-
-        await LogActivityAsync(
-            currentAdminId,
-            "PERMISSION_ASSIGN",
-            "role_permissions",
-            roleId,
-            null,
-            new { RoleId = roleId, role.RoleName, PermissionId = permissionId, perm.PermissionCode },
-            ct
-        );
-
-        await dbContext.SaveChangesAsync(ct);
-    }
-
-    public async Task RevokePermissionFromRoleAsync(long roleId, long permissionId, long currentAdminId, CancellationToken ct = default)
-    {
-        var rolePerm = await dbContext.RolePermissions
-            .Include(rp => rp.Role)
-            .Include(rp => rp.Permission)
-            .FirstOrDefaultAsync(rp => rp.RoleId == roleId && rp.PermissionId == permissionId, ct);
-
-        if (rolePerm == null)
-        {
-            throw new KeyNotFoundException("Liên kết quyền của vai trò không tồn tại.");
-        }
-
-        dbContext.RolePermissions.Remove(rolePerm);
-
-        await LogActivityAsync(
-            currentAdminId,
-            "PERMISSION_REVOKE",
-            "role_permissions",
-            roleId,
-            new { RoleId = roleId, rolePerm.Role.RoleName, PermissionId = permissionId, rolePerm.Permission.PermissionCode },
-            null,
-            ct
-        );
-
-        await dbContext.SaveChangesAsync(ct);
     }
 
     public async Task<IReadOnlyList<UserFacilityDto>> GetUserFacilitiesAsync(long userId, CancellationToken ct = default)

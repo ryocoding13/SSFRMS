@@ -132,7 +132,8 @@ public record ReportMetrics(
     decimal DepositRefunded = 0,    // Tiền hoàn cọc trong kỳ
     decimal RentalRefunded = 0,     // Tiền hoàn tiền thuê/phí trong kỳ
     decimal UnclassifiedRefunded = 0, // Tiền hoàn chưa phân loại được
-    decimal PendingRefunds = 0      // Tiền hoàn đang chờ xử lý (PENDING)
+    decimal PendingRefunds = 0,     // Tiền hoàn đang chờ xử lý (PENDING)
+    decimal ForfeitedRefunds = 0    // D44/D45: tiền mặt hoàn quá 30 ngày khách không nhận, cộng vào doanh thu (dòng riêng)
 );
 
 public record FacilityReportRow(long FacilityId, string FacilityName, string FacilityStatus, ReportMetrics Metrics);

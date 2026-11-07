@@ -20,13 +20,15 @@ public static class RenewalUnitMove
     public const string Held = "RENEWAL_UNIT_HELD";
     public const string Moved = "RENEWAL_UNIT_MOVED";
     public const string Inspected = "RENEWAL_OLD_UNIT_INSPECTED";
+    /// <summary>D48: ô cũ còn đồ khi kiểm tra → coi là đồ khách bỏ (khách đã tick chuyển hết đồ hoặc đã được báo khoá mã).</summary>
+    public const string GoodsAbandoned = "RENEWAL_OLD_UNIT_GOODS_ABANDONED";
     public const int MoveWindowDays = 3;
-    private static readonly string[] Actions = [Requested, Held, Moved, Inspected];
+    private static readonly string[] Actions = [Requested, Held, Moved, Inspected, GoodsAbandoned];
 
     public sealed record Plan(long RenewalId, long FromUnitId, string FromUnit, long TargetUnitId, string TargetUnit,
         long TargetUnitTypeId, decimal TargetRate, decimal DepositRequired, decimal TopUp);
 
-    private sealed record State(Plan Plan, ActivityLog? MovedLog, ActivityLog? InspectedLog);
+    private sealed record State(Plan Plan, ActivityLog? MovedLog, ActivityLog? InspectedLog, ActivityLog? AbandonedLog = null);
 
     private static string Json(object o) => JsonSerializer.Serialize(o);
 
@@ -54,7 +56,8 @@ public static class RenewalUnitMove
             Field<long>(req, "targetUnitId"), Field<string>(req, "targetUnit") ?? "",
             Field<long>(req, "targetUnitTypeId"),
             Field<decimal>(held ?? req, "targetRate"), Field<decimal>(held ?? req, "depositRequired"), Field<decimal>(held ?? req, "topUp"));
-        return new State(plan, logs.LastOrDefault(l => l.Action == Moved), logs.LastOrDefault(l => l.Action == Inspected));
+        return new State(plan, logs.LastOrDefault(l => l.Action == Moved), logs.LastOrDefault(l => l.Action == Inspected),
+            logs.LastOrDefault(l => l.Action == GoodsAbandoned));
     }
 
     public static async Task<Plan?> PlanAsync(AppDbContext db, long renewalId, CancellationToken ct) =>
@@ -326,33 +329,38 @@ public static class RenewalUnitMove
         var oldUnit = await db.StorageUnits.SingleAsync(u => u.UnitId == state.Plan.FromUnitId, ct);
         if (oldUnit.FacilityId != facilityId) throw new UnauthorizedAccessException("Ô không thuộc cơ sở bạn phụ trách.");
         if (request.GoodsRemaining)
-            throw new InvalidOperationException("Ô cũ còn đồ: liên hệ khách chuyển hết rồi kiểm tra lại. Phí quá hạn tính đến ngày kiểm tra đạt.");
+        {
+            // D48: khách đã tick "đã chuyển hết đồ" (hoặc được báo trước sẽ khoá mã khi hết kỳ cũ) nên đồ còn lại là đồ khách bỏ.
+            // Chỉ ghi nhận, không trừ phí; nhân viên dọn rồi gửi lại biên bản với GoodsRemaining = false để hoàn tất.
+            if (state.AbandonedLog == null)
+            {
+                db.ActivityLogs.Add(new ActivityLog
+                {
+                    UserId = staffId, EntityType = "RENEWAL", EntityId = renewalId, Action = GoodsAbandoned, LoggedAt = DateTime.UtcNow,
+                    NewValue = Json(new { contractId, unit = oldUnit.UnitNumber, note = request.Note?.Trim() })
+                });
+                await db.SaveChangesAsync(ct);
+            }
+            await tx.CommitAsync(ct);
+            return (await DtoAsync(db, renewalId, ct))!;
+        }
         var damage = request.DamageFee ?? 0m;
         if (damage < 0 || damage != decimal.Truncate(damage)) throw new ArgumentException("Phí hư hỏng phải là số tiền VND không âm.");
         var contract = await db.RentalContracts.Include(c => c.Unit).SingleAsync(c => c.ContractId == contractId, ct);
-        var renewal = await db.ContractRenewals.SingleAsync(r => r.RenewalId == renewalId, ct);
         var now = DateTime.UtcNow;
-        var auto = Field<bool>(state.MovedLog, "auto");
-        // Khách không báo chuyển kịp: ô cũ tính quá hạn theo D32 từ ngày sau hết kỳ cũ đến ngày kiểm tra đạt.
-        var overdueDays = auto ? Math.Max(0, OpsRules.TodayLocal.DayNumber - renewal.OldEndDate.DayNumber) : 0;
-        var overdue = 0m;
-        if (overdueDays > 0)
-        {
-            var policy = await OpsRules.FindApplicablePolicyAsync(db, "OVERDUE", oldUnit.FacilityId, oldUnit.UnitTypeId, OpsRules.TodayLocal, ct);
-            overdue = policy != null
-                ? StorageProject.Core.Policies.RefundPolicy.OverdueFeeFor(policy.CalculationType, policy.Value, contract.DepositAmount, overdueDays, maxCap: contract.DepositAmount)
-                : StorageProject.Core.Policies.RefundPolicy.OverdueFeeFor("DEPOSIT_PERCENT_PER_DAY", OpsRules.DefaultOverdueRatePerDay, contract.DepositAmount, overdueDays, maxCap: contract.DepositAmount);
-        }
+        // D48 (thay ý quá hạn của D46b): hết kỳ cũ hệ thống khoá mã ô cũ, đồ còn lại coi là đồ khách bỏ nên ô cũ không tính phí quá hạn.
         var cleaning = request.CleaningRequired ? FacilityOpsService.CleaningFeeFor(contract.DepositAmount) : 0m;
-        // Khấu trừ tối đa bằng cọc đang giữ, không tạo nợ (D31); thứ tự trừ: quá hạn, vệ sinh, hư hỏng.
+        // Khấu trừ tối đa bằng cọc đang giữ, không tạo nợ (D31); thứ tự trừ: vệ sinh, hư hỏng.
         var left = contract.DepositAmount;
         decimal Take(decimal x) { var t = Math.Min(left, x); left -= t; return t; }
-        var fees = new (string Type, decimal Amount)[] { ("OVERDUE_FEE", Take(overdue)), ("CLEANING_FEE", Take(cleaning)), ("DAMAGE_FEE", Take(damage)) };
+        var fees = new (string Type, decimal Amount)[] { ("CLEANING_FEE", Take(cleaning)), ("DAMAGE_FEE", Take(damage)) };
         foreach (var (type, amount) in fees.Where(f => f.Amount > 0))
             db.Payments.Add(new Payment
             {
                 ContractId = contractId, RenewalId = renewalId, PaymentType = type, Amount = amount, Currency = "VND", PaymentMethod = "CASH",
-                TransactionReference = $"TRU-COC-GH-{renewalId:0000}-{type}", PaidAt = now, // mỗi khoản một mã (unique) Status = "PAID", CreatedAt = now, UpdatedAt = now
+                // Mỗi khoản một mã (payments.TransactionReference là duy nhất).
+                TransactionReference = $"TRU-COC-GH-{renewalId:0000}-{type}",
+                PaidAt = now, Status = "PAID", CreatedAt = now, UpdatedAt = now
             });
         var deduction = fees.Sum(f => f.Amount);
         contract.DepositAmount -= deduction;
@@ -364,8 +372,8 @@ public static class RenewalUnitMove
         db.ActivityLogs.Add(new ActivityLog
         {
             UserId = staffId, EntityType = "RENEWAL", EntityId = renewalId, Action = Inspected, LoggedAt = now,
-            NewValue = Json(new { contractId, unit = oldUnit.UnitNumber, overdueDays, overdue = fees[0].Amount, cleaning = fees[1].Amount,
-                damage = fees[2].Amount, deduction, depositLeft = contract.DepositAmount, note = request.Note?.Trim() })
+            NewValue = Json(new { contractId, unit = oldUnit.UnitNumber, cleaning = fees[0].Amount, damage = fees[1].Amount, deduction,
+                depositLeft = contract.DepositAmount, goodsAbandoned = state.AbandonedLog != null, note = request.Note?.Trim() })
         });
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
@@ -396,7 +404,8 @@ public static class RenewalUnitMove
             // Giờ Việt Nam không kèm múi giờ, như các DTO vận hành khác (FE hiển thị trực tiếp).
             state.MovedLog == null ? null : DateTime.SpecifyKind(state.MovedLog.LoggedAt.AddHours(7), DateTimeKind.Unspecified),
             state.MovedLog != null && Field<bool>(state.MovedLog, "auto"),
-            state.InspectedLog != null ? Field<decimal>(state.InspectedLog, "deduction") : null, r.Deposit);
+            state.InspectedLog != null ? Field<decimal>(state.InspectedLog, "deduction") : null, r.Deposit,
+            state.AbandonedLog != null, state.AbandonedLog == null ? null : Field<string>(state.AbandonedLog, "note"));
     }
 
     private const int ReferenceMaxLength = 150; // ReservationContractConfigurations: TransactionReference HasMaxLength(150)

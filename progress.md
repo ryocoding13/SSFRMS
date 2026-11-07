@@ -1,3 +1,14 @@
+## 2026-11-07 — Phiên 2 (sau rà soát): sửa lỗi BE không đổi database
+
+- **2.2 · T24:** `AdminService.ChangeRoleAsync` + `POST /api/admin/users/{id}/role-change`: đổi một vai trò trong một giao dịch (khoá `user-roles:{id}`), so bộ vai trò FE gửi (`expectedRoleIds`, sai → 409), giữ vai trò khác, không gỡ ADMIN của admin hoạt động cuối, log `ROLE_CHANGE`. Test mới `AdminRoleChangeTests` (4 test).
+- **3.3 · T25:** `POST`/`DELETE /api/admin/roles/{id}/permissions` trả 410; bỏ `AssignPermissionToRoleAsync`, `RevokePermissionFromRoleAsync`, `AssignPermissionRequest`.
+- **1.3:** gỡ `POST /api/tickets/{id}/cancel` và `CancelTicketAsync` (D43/D45).
+- **3.4:** gỡ `POST /api/contracts/{id}/request-key` (`/key-request`), `ContractService.RequestKeyAsync`, `KeyRequestInput` và 4 test C06 tương ứng; nhận chìa khóa chỉ qua hỗ trợ chủ đề "Nhận chìa khóa" (D40, đã có test trong `CheckoutTests`).
+- **3.1 (Thắng chốt 07/11):** kiểm tra ô cũ còn đồ → ghi nhận đồ khách bỏ (`RENEWAL_OLD_UNIT_GOODS_ABANDONED`), không trừ phí, `UnitMoveDto.GoodsAbandoned/GoodsNote`. Hệ thống tự chuyển ô không còn tính phí quá hạn ô cũ (thay ý D46b). Test `D48_NotMovedByEndOfOldTerm_AutoMoves_GoodsLeftAreAbandoned_NoOverdueFee` thay test quá hạn cũ.
+- **1.2 · D45:** `ReportMetrics.ForfeitedRefunds` (báo cáo hệ thống, cơ sở, loại kho, CSV) và `revenue.forfeitedRefunds` ở `/api/ops/board`, `/api/manager/board`. Test bổ sung trong `D32RefundEvidenceTests.Phien3`.
+- **Lỗi có sẵn từ PR #82:** khấu trừ ô cũ lưu `PENDING`, thiếu `CreatedAt` (chú thích nuốt phần gán) → sửa thành `PAID`; test `D46_LargeDamage…` kiểm thêm trạng thái.
+- **Kiểm tra:** FE không đổi ở phiên này. **Chưa chạy `dotnet build/test`** (môi trường không tải được .NET SDK/NuGet) — cần CI hoặc máy có SQL Server chạy `dotnet test`. Không migration.
+
 ## 2026-11-07 — M03: màn duyệt gia hạn hiện ô mới và cọc chênh (D46)
 
 - **BE:** `OpsRenewalDto` (cả bản `DTOs/Ops` dùng cho `/api/manager/board` và bản `DTOs/FacilityOps` dùng cho `/api/ops/board`) thêm `TargetUnit`, `DepositTopUp`; `ManagerService.GetManagerBoardAsync` và `FacilityOpsService.Board` đọc kế hoạch chuyển ô từ `activity_logs` (`RENEWAL_UNIT_CHANGE` / `RENEWAL_UNIT_HELD`).

@@ -156,7 +156,7 @@ public sealed partial class RenewalPolicyD32Tests
     }
 
     [Fact]
-    public async Task D46_NotMovedByEndOfOldTerm_AutoMoves_InspectionChargesOverdueFromDeposit_NoDebt()
+    public async Task D48_NotMovedByEndOfOldTerm_AutoMoves_GoodsLeftAreAbandoned_NoOverdueFee()
     {
         await using var f = await Fixture.CreateAsync();
         var k02 = await AddFreeUnitAsync(f);
@@ -169,15 +169,17 @@ public sealed partial class RenewalPolicyD32Tests
         Assert.Equal(("MOVED", true), (move!.Status, move.AutoMoved));
         Assert.Equal(k02.UnitId, (await f.Db.RentalContracts.AsNoTracking().SingleAsync(c => c.ContractId == f.Contract.ContractId)).UnitId);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            f.RenewalSvc.InspectOldUnitAsync(f.StaffUser.UserId, dto.RenewalId, new UnitMoveInspectionRequest(true, false, 0, null))); // còn đồ
-        var inspected = await f.RenewalSvc.InspectOldUnitAsync(f.StaffUser.UserId, dto.RenewalId, new UnitMoveInspectionRequest(false, false, 0, null));
+        // D48: còn đồ → ghi nhận đồ khách bỏ, không báo lỗi, chưa hoàn tất kiểm tra; gửi lại không ghi trùng.
+        var abandoned = await f.RenewalSvc.InspectOldUnitAsync(f.StaffUser.UserId, dto.RenewalId, new UnitMoveInspectionRequest(true, false, 0, "2 thùng carton"));
+        Assert.Equal(("MOVED", true, "2 thùng carton"), (abandoned.Status, abandoned.GoodsAbandoned, abandoned.GoodsNote));
+        await f.RenewalSvc.InspectOldUnitAsync(f.StaffUser.UserId, dto.RenewalId, new UnitMoveInspectionRequest(true, false, 0, null));
+        Assert.Equal(1, await f.Db.ActivityLogs.CountAsync(l => l.Action == RenewalUnitMove.GoodsAbandoned && l.EntityId == dto.RenewalId));
 
-        var expected = RefundPolicy.OverdueFeeFor("PERCENTAGE", 5.0m, 1_500_000m, 2, maxCap: 1_500_000m);
-        Assert.True(expected > 0);
-        Assert.Equal(expected, inspected.Deduction);
-        Assert.Equal(expected, (await f.Db.Payments.AsNoTracking().SingleAsync(p => p.RenewalId == dto.RenewalId && p.PaymentType == "OVERDUE_FEE")).Amount);
-        Assert.Equal(1_500_000m - expected, (await f.Db.RentalContracts.AsNoTracking().SingleAsync(c => c.ContractId == f.Contract.ContractId)).DepositAmount);
+        // Dọn xong ghi kết quả: hệ thống tự chuyển nhưng không tính phí quá hạn ô cũ (thay ý D46b).
+        var inspected = await f.RenewalSvc.InspectOldUnitAsync(f.StaffUser.UserId, dto.RenewalId, new UnitMoveInspectionRequest(false, false, 0, null));
+        Assert.Equal(("INSPECTED", 0m), (inspected.Status, inspected.Deduction ?? -1));
+        Assert.False(await f.Db.Payments.AnyAsync(p => p.RenewalId == dto.RenewalId && p.PaymentType == "OVERDUE_FEE"));
+        Assert.Equal(1_500_000m, (await f.Db.RentalContracts.AsNoTracking().SingleAsync(c => c.ContractId == f.Contract.ContractId)).DepositAmount);
     }
 
     [Fact]
@@ -197,6 +199,9 @@ public sealed partial class RenewalPolicyD32Tests
             .Select(p => p.TransactionReference).ToListAsync();
         Assert.Equal(2, refs.Count); // vệ sinh + hư hỏng, mỗi khoản một mã giao dịch
         Assert.Equal(refs.Count, refs.Distinct().Count());
+        // Khoản khấu trừ đã trừ vào cọc nên phải là PAID (doanh thu) và có thời điểm tạo.
+        var fees = await f.Db.Payments.AsNoTracking().Where(p => p.RenewalId == dto.RenewalId && p.PaymentType != "RENEWAL" && p.PaymentType != "DEPOSIT").ToListAsync();
+        Assert.All(fees, p => { Assert.Equal("PAID", p.Status); Assert.NotEqual(default, p.CreatedAt); });
     }
 
     [Fact]
