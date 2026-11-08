@@ -8,6 +8,10 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Dịch vụ quản lý phiên bản chính sách cho thuê và lưu trữ bằng chứng chấp thuận (RentalPolicyService) thực thi IRentalPolicyService.
+/// Hỗ trợ ban hành chính sách mới (BO04, W5), kiểm tra optimistic concurrency và ghi nhận PolicyConsent cho đơn đặt chỗ và hợp đồng gia hạn.
+/// </summary>
 public class RentalPolicyService(AppDbContext dbContext) : IRentalPolicyService
 {
     private static readonly string[] RequiredSections =
@@ -26,6 +30,11 @@ public class RentalPolicyService(AppDbContext dbContext) : IRentalPolicyService
         ["support"] = "Xem ngày hết hạn, lịch sử thanh toán, lịch trừ cọc và tiến độ trả kho trong tài khoản. Bạn có thể gửi hỗ trợ tới cơ sở liên quan, kể cả khi chưa có hợp đồng, để được tư vấn loại kho phù hợp."
     };
 
+    /// <summary>
+    /// Lấy phiên bản chính sách cho thuê hiện hành đang được áp dụng (IsCurrent = true).
+    /// </summary>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Dữ liệu RentalPolicyDto của phiên bản hiện hành.</returns>
     public async Task<RentalPolicyDto> GetCurrentPolicyAsync(CancellationToken ct = default)
     {
         var current = await dbContext.RentalPolicyVersions
@@ -56,6 +65,12 @@ public class RentalPolicyService(AppDbContext dbContext) : IRentalPolicyService
         );
     }
 
+    /// <summary>
+    /// Lấy nội dung chi tiết một phiên bản chính sách cho thuê theo số version.
+    /// </summary>
+    /// <param name="version">Số phiên bản cần tra cứu.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Thông tin chính sách hoặc null nếu không tồn tại.</returns>
     public async Task<RentalPolicyDto?> GetPolicyVersionAsync(int version, CancellationToken ct = default)
     {
         var policy = await dbContext.RentalPolicyVersions
@@ -76,6 +91,14 @@ public class RentalPolicyService(AppDbContext dbContext) : IRentalPolicyService
         );
     }
 
+    /// <summary>
+    /// Ban hành phiên bản chính sách cho thuê mới bởi Quản lý Vận hành (BO04).
+    /// Áp dụng khóa phân tán và kiểm soát xung đột đồng thời (optimistic concurrency).
+    /// </summary>
+    /// <param name="userId">ID người thực hiện.</param>
+    /// <param name="request">Yêu cầu ban hành chính sách mới.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Phiên bản chính sách mới ban hành.</returns>
     public async Task<RentalPolicyDto> SaveRentalPolicyAsync(long userId, SaveRentalPolicyRequest request, CancellationToken ct = default)
     {
         if (request.Action != "SAVE_RENTAL_POLICY")
@@ -193,6 +216,15 @@ public class RentalPolicyService(AppDbContext dbContext) : IRentalPolicyService
         );
     }
 
+    /// <summary>
+    /// Ghi nhận bằng chứng đồng ý chính sách cho thuê đối với đơn đặt chỗ (PolicyConsent).
+    /// </summary>
+    /// <param name="customerId">ID khách hàng.</param>
+    /// <param name="reservationId">ID đơn đặt chỗ.</param>
+    /// <param name="request">Yêu cầu chấp thuận chính sách.</param>
+    /// <param name="channel">Kênh thực hiện ("WEB_CUSTOMER", "COUNTER").</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Dữ liệu xác nhận PolicyConsentDto.</returns>
     public async Task<PolicyConsentDto> RecordReservationConsentAsync(long customerId, long reservationId, PolicyConsentRequest request, string channel = "WEB_CUSTOMER", CancellationToken ct = default)
     {
         if (!request.Accepted)
@@ -252,6 +284,15 @@ public class RentalPolicyService(AppDbContext dbContext) : IRentalPolicyService
         );
     }
 
+    /// <summary>
+    /// Ghi nhận bằng chứng đồng ý chính sách cho thuê đối với yêu cầu gia hạn hợp đồng (PolicyConsent).
+    /// </summary>
+    /// <param name="customerId">ID khách hàng.</param>
+    /// <param name="renewalId">ID yêu cầu gia hạn.</param>
+    /// <param name="request">Yêu cầu chấp thuận chính sách.</param>
+    /// <param name="channel">Kênh thực hiện ("WEB_CUSTOMER", "COUNTER").</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Dữ liệu xác nhận PolicyConsentDto.</returns>
     public async Task<PolicyConsentDto> RecordRenewalConsentAsync(long customerId, long renewalId, PolicyConsentRequest request, string channel = "WEB_CUSTOMER", CancellationToken ct = default)
     {
         if (!request.Accepted)

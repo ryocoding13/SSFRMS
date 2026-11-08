@@ -10,52 +10,73 @@ using StorageProject.Infrastructure.Data;
 namespace StorageProject.Infrastructure.Services;
 
 /// <summary>
-/// Khu Nhân viên cơ sở (S01–S09) và Quản lý cơ sở (M01–M08) — /api/ops/*.
-/// Mọi truy vấn và thao tác chỉ trong cơ sở đang được phân công cho tài khoản (SRS A06).
-/// Phần dùng chung: xác định cơ sở, mã hiển thị, giờ Việt Nam, nhật ký. Màn hình: FacilityOpsService.Board.cs;
-/// thao tác: FacilityOpsService.Actions.cs. Nghiệp vụ khớp src/ops/reducer.js của giao diện.
+/// Dịch vụ vận hành cơ sở dành cho Nhân viên cơ sở (S01–S09) và Quản lý cơ sở (M01–M08) — tiền tố route /api/ops/*.
+/// Mọi truy vấn và thao tác chỉ trong phạm vi cơ sở đang được phân công cho tài khoản nhân viên/quản lý (SRS A06).
+/// Phần dùng chung: xác định cơ sở, mã hiển thị, định dạng giờ Việt Nam, ghi nhật ký hoạt động.
 /// </summary>
 public partial class FacilityOpsService(AppDbContext dbContext) : IFacilityOpsService
 {
+    /// <summary>Độ lệch múi giờ Việt Nam (UTC+7).</summary>
     private static readonly TimeSpan VnOffset = TimeSpan.FromHours(7);
+    /// <summary>Định dạng văn hoá bất biến dùng cho số và ngày tháng.</summary>
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
-    // Hợp đồng còn gắn với ô kho (ô đang có khách hoặc đã giữ cho khách)
+    /// <summary>Các trạng thái hợp đồng còn gắn với ô kho (ô đang có khách hoặc đã giữ cho khách).</summary>
     private static readonly string[] HeldContractStatuses = ["DRAFT", "ACTIVE", "EXPIRING", "OVERDUE", "RETURN_PENDING"];
 
-    // Khoảng thời gian còn hiện việc đã xong trên bảng (để nhân viên / quản lý thấy kết quả vừa xử lý)
+    /// <summary>Khoảng thời gian (ngày) còn hiển thị công việc đã xong trên bảng Kanban/Board.</summary>
     private const int RecentDays = 14;
 
+    /// <summary>Thời điểm hiện tại theo chuẩn UTC.</summary>
     private static DateTime NowUtc => DateTime.UtcNow;
+    /// <summary>Ngày hiện tại theo giờ Việt Nam (UTC+7).</summary>
     private static DateOnly VnToday => DateOnly.FromDateTime(DateTime.UtcNow + VnOffset);
 
-    /// <summary>Giờ Việt Nam "yyyy-MM-ddTHH:mm:ss" (DB lưu UTC — D10).</summary>
+    /// <summary>Chuyển đổi DateTime UTC sang chuỗi giờ Việt Nam định dạng chuẩn ISO "yyyy-MM-ddTHH:mm:ss" (D10).</summary>
     private static string? Local(DateTime? utc) =>
         utc.HasValue ? (utc.Value + VnOffset).ToString("yyyy-MM-dd'T'HH:mm:ss", Invariant) : null;
 
+    /// <summary>Chuyển đổi DateTime UTC hoặc ngày dự phòng thành chuỗi giờ địa phương.</summary>
     private static string LocalOrDate(DateTime? utc, DateOnly fallback, int hour = 9) =>
         Local(utc) ?? fallback.ToDateTime(new TimeOnly(hour, 0)).ToString("yyyy-MM-dd'T'HH:mm:ss", Invariant);
 
+    /// <summary>Chuyển đổi ngày và giờ Việt Nam sang chuẩn DateTime UTC.</summary>
     private static DateTime UtcFromLocal(DateOnly date, int hour) =>
         DateTime.SpecifyKind(date.ToDateTime(new TimeOnly(hour, 0)) - VnOffset, DateTimeKind.Utc);
 
+    /// <summary>Định dạng số tiền VND hiển thị thân thiện (ví dụ: "1,500,000 đ").</summary>
     private static string Money(decimal amount) =>
         string.Format(CultureInfo.GetCultureInfo("vi-VN"), "{0:#,0} đ", amount);
 
     // ------------------------------------------------------------------
-    // Mã hiển thị — giống mã khách hàng thấy (src/api/mappers.js)
+    // Mã hiển thị nghiệp vụ — khớp hoàn toàn với giao diện khách hàng (src/api/mappers.js)
     // ------------------------------------------------------------------
+    
+    /// <summary>Tạo mã đơn đặt chỗ hiển thị: SS-yyyyMMdd-xxxx.</summary>
     internal static string ReservationCode(Reservation r) =>
         $"SS-{(r.CreatedAt + VnOffset):yyyyMMdd}-{r.ReservationId:0000}";
+    /// <summary>Tạo mã hợp đồng hiển thị: HĐ-yyyy-xxxx.</summary>
     internal static string ContractCode(RentalContract c) => $"HĐ-{c.StartDate.Year}-{c.ContractId:0000}";
+    /// <summary>Tạo mã xác minh nhận kho hiển thị: XM-xxxx.</summary>
     internal static string VerificationCode(long handoverId) => $"XM-{handoverId:0000}";
+    /// <summary>Tạo mã bàn giao kho hiển thị: BG-xxxx.</summary>
     internal static string HandoverCode(long handoverId) => $"BG-{handoverId:0000}";
+    /// <summary>Tạo mã biên bản trả kho hiển thị: TK-xxxx.</summary>
     internal static string ReturnCode(long inspectionId) => $"TK-{inspectionId:0000}";
+    /// <summary>Tạo mã phiếu hỗ trợ kỹ thuật hiển thị: HT-xxxx.</summary>
     internal static string TicketCode(long ticketId) => $"HT-{ticketId:0000}";
+    /// <summary>Tạo mã yêu cầu gia hạn hiển thị: GH-xxxx.</summary>
     internal static string RenewalCode(long renewalId) => $"GH-{renewalId:0000}";
+    /// <summary>Tạo mã nhân viên hiển thị: NV-xx.</summary>
     internal static string StaffCode(long userId) => $"NV-{userId:00}";
 
-    /// <summary>Đọc số cuối của mã ("SS-20261014-0012" → 12). Sai tiền tố / không có số → 404.</summary>
+    /// <summary>
+    /// Trích xuất ID số nguyên từ chuỗi mã hiển thị (ví dụ "SS-20261014-0012" → 12). Ném lỗi KeyNotFoundException nếu sai định dạng.
+    /// </summary>
+    /// <param name="code">Chuỗi mã cần phân tích.</param>
+    /// <param name="prefix">Tiền tố bắt buộc (SS-, HĐ-, TK-,...).</param>
+    /// <param name="what">Tên đối tượng mô tả khi ném lỗi.</param>
+    /// <returns>ID số nguyên dài (long).</returns>
     internal static long ParseCode(string? code, string prefix, string what)
     {
         var text = (code ?? string.Empty).Trim();
@@ -71,14 +92,20 @@ public partial class FacilityOpsService(AppDbContext dbContext) : IFacilityOpsSe
         return id;
     }
 
+    /// <summary>Tạo nhãn tóm tắt thông số loại kho (ví dụ: "Kho lạnh · Cỡ M · 12 m²").</summary>
     private static string OfferLabel(UnitType type) =>
         $"{(type.ClimateControlled ? "Kho lạnh" : "Kho thường")} · Cỡ {(type.Area <= 20 ? "M" : "L")} · {type.Area.ToString("0.#", Invariant)} m²";
 
+    /// <summary>Phân loại kho: "climate" (lạnh) hoặc "normal" (thường).</summary>
     private static string TypeKey(UnitType type) => type.ClimateControlled ? "climate" : "normal";
 
     // ------------------------------------------------------------------
     // Cơ sở được phân công + nhân viên của cơ sở
     // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Lấy thực thể Facility mà tài khoản hiện tại đang được phân công hoạt động ACTIVE.
+    /// </summary>
     private async Task<Facility> FacilityOfAsync(OpsActor actor, CancellationToken ct)
     {
         var today = VnToday;
@@ -96,6 +123,7 @@ public partial class FacilityOpsService(AppDbContext dbContext) : IFacilityOpsSe
             ?? throw new UnauthorizedAccessException("Tài khoản chưa được phân công cơ sở. Liên hệ quản trị hệ thống.");
     }
 
+    /// <summary>Kiểm tra quyền bắt buộc phải là Quản lý cơ sở (IsManager).</summary>
     private static void RequireManager(OpsActor actor)
     {
         if (!actor.IsManager)
@@ -104,7 +132,7 @@ public partial class FacilityOpsService(AppDbContext dbContext) : IFacilityOpsSe
         }
     }
 
-    /// <summary>Nhân viên (role STAFF) đang được phân công cùng cơ sở.</summary>
+    /// <summary>Lấy danh sách các nhân viên (role STAFF) đang được phân công cùng cơ sở.</summary>
     private async Task<List<User>> FacilityStaffAsync(long facilityId, CancellationToken ct)
     {
         var today = VnToday;
@@ -120,14 +148,14 @@ public partial class FacilityOpsService(AppDbContext dbContext) : IFacilityOpsSe
             .ToListAsync(ct);
     }
 
+    /// <summary>Lấy chuỗi hiển thị ca làm việc theo giờ mở/đóng cửa của cơ sở.</summary>
     private static string Shift(Facility f) =>
         f.OpeningTime.HasValue && f.ClosingTime.HasValue
             ? $"{f.OpeningTime.Value:HH\\:mm}–{f.ClosingTime.Value:HH\\:mm}"
             : "Theo giờ cơ sở";
 
     // ------------------------------------------------------------------
-    // Nhật ký (activity_logs, BR13) — cũng là nơi lưu phần giao diện cần mà bảng chưa có cột
-    // (giấy tờ đã xác minh, biên bản trả kho, phản hồi hỗ trợ, lý do từ chối, lần nhắc khách)
+    // Nhật ký (activity_logs, BR13) — lưu trữ vết kiểm toán và thông tin mở rộng
     // ------------------------------------------------------------------
     private static class LogAction
     {
@@ -156,6 +184,7 @@ public partial class FacilityOpsService(AppDbContext dbContext) : IFacilityOpsSe
         public const string Contract = "RENTAL_CONTRACT";
     }
 
+    /// <summary>Ghi một bản ghi nhật ký hoạt động ActivityLog.</summary>
     private void Log(long? userId, string action, string entityType, long entityId, object value) =>
         dbContext.ActivityLogs.Add(new ActivityLog
         {
@@ -167,6 +196,7 @@ public partial class FacilityOpsService(AppDbContext dbContext) : IFacilityOpsSe
             LoggedAt = NowUtc
         });
 
+    /// <summary>Đọc một trường thuộc tính JSON từ NewValue của ActivityLog.</summary>
     private static string? Read(ActivityLog log, string field)
     {
         if (string.IsNullOrWhiteSpace(log.NewValue)) return null;
@@ -183,6 +213,7 @@ public partial class FacilityOpsService(AppDbContext dbContext) : IFacilityOpsSe
         }
     }
 
+    /// <summary>Tải danh sách ActivityLog của một tập các entityId.</summary>
     private async Task<List<ActivityLog>> LogsAsync(string entityType, ICollection<long> ids, CancellationToken ct)
     {
         if (ids.Count == 0) return [];
@@ -193,6 +224,7 @@ public partial class FacilityOpsService(AppDbContext dbContext) : IFacilityOpsSe
             .ToListAsync(ct);
     }
 
+    /// <summary>Cập nhật trạng thái ô kho và ghi lịch sử UnitStatusHistory tương ứng.</summary>
     private void SetUnitStatus(StorageUnit unit, string status, long userId, string reason)
     {
         if (unit.Status == status) return;
@@ -209,9 +241,11 @@ public partial class FacilityOpsService(AppDbContext dbContext) : IFacilityOpsSe
         unit.UpdatedAt = NowUtc;
     }
 
+    /// <summary>Tính tổng số tiền chưa thanh toán của hợp đồng.</summary>
     private static decimal Unpaid(RentalContract c) =>
         c.Payments.Where(p => (p.Status == "PENDING" || p.Status == "FAILED") && p.PaymentType != "REFUND").Sum(p => p.Amount);
 
+    /// <summary>Cắt ngắn chuỗi văn bản nếu vượt quá độ dài tối đa cho phép.</summary>
     private static string Clip(string? text, int max = 1000)
     {
         var t = (text ?? string.Empty).Trim();

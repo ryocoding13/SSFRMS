@@ -5,10 +5,10 @@ using StorageProject.Core.Entities;
 namespace StorageProject.Infrastructure.Data;
 
 /// <summary>
-/// Khu Nhân viên cơ sở / Quản lý cơ sở (BACKEND-TODO A1):
-/// - Quyền của role STAFF, MANAGER; tài khoản manager01 / Manager@123 và staff02 / Staff@123.
-/// - Phân công cơ sở: staff01, staff02, manager01 → SafeSpace Nguyễn Lương Bằng (SRS A06: mỗi người 1 cơ sở).
-/// - Dữ liệu vận hành mẫu tại cơ sở đó để màn S01–S09, M01–M08 có việc để xử lý ngay sau khi tạo DB.
+/// Tiến trình khởi tạo dữ liệu mẫu cho Phân hệ Vận hành Cơ sở (Facility Operations - BACKEND-TODO A1).
+/// - Khởi tạo quyền hạn chi tiết cho vai trò STAFF, MANAGER và các tài khoản mẫu manager01, staff02.
+/// - Phân công cơ sở phụ trách: staff01, staff02, manager01 → SafeSpace Nguyễn Lương Bằng (SRS A06: mỗi người 1 cơ sở).
+/// - Dữ liệu vận hành mẫu phong phú tại cơ sở để sẵn sàng kiểm thử các màn hình S01–S09, M01–M08.
 /// </summary>
 public static partial class DbSeeder
 {
@@ -17,6 +17,7 @@ public static partial class DbSeeder
     private static readonly string[] ManagerPermissionCodes =
         ["HANDOVER_MANAGE", "RETURN_MANAGE", "TICKET_MANAGE", "PAYMENT_CONFIRM", "UNIT_MANAGE", "ASSIGNMENT_MANAGE", "RENEWAL_MANAGE", "REPORT_VIEW"];
 
+    /// <summary>Đảm bảo tài khoản người dùng và vai trò tương ứng tồn tại trong hệ thống.</summary>
     private static async Task<User> EnsureUserAsync(AppDbContext context, string username, string email, string password, string fullName, string phone, string roleName)
     {
         var user = await context.Users.FirstOrDefaultAsync(u => u.Username == username);
@@ -39,6 +40,7 @@ public static partial class DbSeeder
         return user;
     }
 
+    /// <summary>Đảm bảo phân quyền cho vai trò STAFF và MANAGER cùng các tài khoản nhân sự cơ sở mẫu.</summary>
     private static async Task EnsureFacilityRolesAsync(AppDbContext context)
     {
         var staffRole = await context.Roles.FirstAsync(r => r.RoleName == "STAFF");

@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 namespace StorageProject.Infrastructure.Data;
 
 /// <summary>
-/// Điền toạ độ ghim bản đồ cho 12 cơ sở SafeSpace (khớp src/config/geo.js của giao diện).
+/// Điền toạ độ ghim bản đồ cho 12 cơ sở SafeSpace (khớp src/config/geo.js của giao diện - D12/D17).
 /// Chỉ điền cơ sở CHƯA có toạ độ, nên toạ độ Vận hành KD sửa ở màn B05 không bị ghi đè khi chạy lại.
 /// Khớp theo một phần tên cơ sở (vd. "SafeSpace Phú Xuân" chứa "Phú Xuân").
 /// </summary>
@@ -25,6 +25,11 @@ public static class FacilityCoordinateSeeder
         ("Bình Tân", 10.739000m, 106.615000m),
     ];
 
+    /// <summary>
+    /// Điền tọa độ GPS cho các cơ sở chưa có tọa độ trong cơ sở dữ liệu.
+    /// </summary>
+    /// <param name="context">EF Core database context của hệ thống.</param>
+    /// <param name="ct">Token hủy bất đồng bộ.</param>
     public static async Task SeedAsync(AppDbContext context, CancellationToken ct = default)
     {
         var missing = await context.Facilities

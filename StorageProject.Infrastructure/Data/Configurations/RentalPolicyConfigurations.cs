@@ -4,8 +4,13 @@ using StorageProject.Core.Entities;
 
 namespace StorageProject.Infrastructure.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Phiên bản điều khoản thuê kho (RentalPolicyVersion) sang bảng 'rental_policy_versions'.
+/// Quản lý nội dung các điều khoản, tỷ lệ giá, và đánh dấu phiên bản hiện hành đang áp dụng (BO07).
+/// </summary>
 public class RentalPolicyVersionConfiguration : IEntityTypeConfiguration<RentalPolicyVersion>
 {
+    /// <summary>Cấu hình bảng rental_policy_versions, ràng buộc CHECK số phiên bản và tỷ lệ.</summary>
     public void Configure(EntityTypeBuilder<RentalPolicyVersion> b)
     {
         b.ToTable("rental_policy_versions", t =>
@@ -34,8 +39,13 @@ public class RentalPolicyVersionConfiguration : IEntityTypeConfiguration<RentalP
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Chấp thuận điều khoản chính sách (PolicyConsent) sang bảng 'policy_consents'.
+/// Lưu trữ bằng chứng khách hàng đã đọc và chấp thuận điều khoản hợp đồng khi đặt chỗ hoặc gia hạn (BO07).
+/// </summary>
 public class PolicyConsentConfiguration : IEntityTypeConfiguration<PolicyConsent>
 {
+    /// <summary>Cấu hình bảng policy_consents, khóa ngoại và chỉ mục tìm kiếm theo khách hàng/hợp đồng.</summary>
     public void Configure(EntityTypeBuilder<PolicyConsent> b)
     {
         b.ToTable("policy_consents");

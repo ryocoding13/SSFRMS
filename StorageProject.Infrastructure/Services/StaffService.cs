@@ -6,8 +6,20 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Dịch vụ vận hành cơ sở dành cho Nhân viên (StaffService) thực thi IStaffService.
+/// Triển khai các tác vụ vận hành tại cơ sở theo Figma S01–S09:
+/// Bảng việc nhân viên (Board), thu tiền mặt, xác minh giấy tờ, kiểm kê trả kho, phản hồi ticket, đổi trạng thái ô kho và cấp lại mã truy cập.
+/// </summary>
 public class StaffService(AppDbContext dbContext) : IStaffService
 {
+    /// <summary>
+    /// Lấy dữ liệu bảng vận hành cơ sở (Board) dành riêng cho Nhân viên tại cơ sở được phân công.
+    /// Bao gồm danh sách kho, đối soát thu tiền, xác minh nhận kho, trả kho và hỗ trợ kỹ thuật.
+    /// </summary>
+    /// <param name="userId">ID người dùng vai trò Nhân viên.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Dữ liệu OpsBoardDto cho nhân viên.</returns>
     public async Task<OpsBoardDto> GetStaffBoardAsync(long userId, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
@@ -226,38 +238,6 @@ public class StaffService(AppDbContext dbContext) : IStaffService
             } : null
         }).ToList();
 
-        // Code cũ được giữ để đối chiếu.
-        // // 6. Tickets
-        // var tickets = await dbContext.SupportTickets
-        //     .AsNoTracking()
-        //     .Include(t => t.Customer)
-        //     .Include(t => t.Unit)
-        //     .Include(t => t.AssignedStaff)
-        //     .Where(t => t.Unit != null && t.Unit.FacilityId == fac.FacilityId)
-        //     .OrderByDescending(t => t.CreatedAt)
-        //     .ToListAsync(ct);
-        //
-        // var ticketDtos = tickets.Select(t => new OpsTicketDto
-        // {
-        //     Id = $"HT-{t.TicketId:D4}",
-        //     Unit = t.Unit?.UnitNumber ?? "KHO",
-        //     Customer = t.Customer.FullName,
-        //     Title = t.Title,
-        //     CreatedAt = t.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss"),
-        //     Schedule = t.CreatedAt.AddHours(4).ToString("yyyy-MM-ddTHH:mm:ss"),
-        //     Status = t.Status,
-        //     Assignee = t.AssignedStaff != null ? $"NV-{t.AssignedStaff.UserId:D2}" : null,
-        //     Notes = new List<OpsTicketNoteDto>
-        //     {
-        //         new()
-        //         {
-        //             Author = t.Customer.FullName,
-        //             Content = t.Description,
-        //             CreatedAt = t.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss")
-        //         }
-        //     }
-        // }).ToList();
-        // S05 đọc ticket theo hợp đồng, trả đúng trạng thái và lịch sử để nhân viên thấy yêu cầu và phản hồi đã ghi.
         // 6. Tickets: hợp đồng xác định cơ sở, kể cả dữ liệu cũ thiếu UnitId trên ticket.
         var tickets = await dbContext.SupportTickets.AsNoTracking()
             .Include(t => t.Customer).Include(t => t.Unit)
@@ -326,6 +306,13 @@ public class StaffService(AppDbContext dbContext) : IStaffService
         };
     }
 
+    /// <summary>
+    /// Nhân viên xác nhận đã thu đủ tiền mặt tại quầy cho đơn đặt chỗ (S09).
+    /// Tự động cập nhật thanh toán và chuẩn bị hợp đồng/mã PIN nếu đủ điều kiện.
+    /// </summary>
+    /// <param name="userId">ID nhân viên thu tiền.</param>
+    /// <param name="id">Mã đơn đặt chỗ.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task ConfirmPaymentAsync(long userId, string id, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
@@ -355,6 +342,14 @@ public class StaffService(AppDbContext dbContext) : IStaffService
         await tx.CommitAsync(ct);
     }
 
+    /// <summary>
+    /// Xác minh giấy tờ tùy thân của khách hàng khi đến cơ sở nhận kho (S02).
+    /// Chỉ lưu 4 số cuối của giấy tờ để bảo vệ dữ liệu cá nhân.
+    /// </summary>
+    /// <param name="userId">ID nhân viên xác minh.</param>
+    /// <param name="id">Mã đơn đặt chỗ.</param>
+    /// <param name="request">Yêu cầu đối chiếu ảnh và số giấy tờ.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task VerifyCustomerAsync(long userId, string id, VerifyCustomerRequest request, CancellationToken ct = default)
     {
         if (!request.PhotoMatched || !request.InfoMatched)
@@ -381,10 +376,23 @@ public class StaffService(AppDbContext dbContext) : IStaffService
         }
     }
 
-    // Legacy URL delegates to key receipt; it never activates a contract or selects an unlock method.
+    /// <summary>
+    /// Ghi nhận khách hàng nhận chìa khóa vật lý tại cơ sở (ủy quyền xử lý cho RecordKeyReceiptAsync).
+    /// </summary>
+    /// <param name="userId">ID nhân viên thực hiện.</param>
+    /// <param name="id">Mã đơn hoặc biên bản.</param>
+    /// <param name="request">Yêu cầu hoàn tất.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public Task CompleteHandoverAsync(long userId, string id, CompleteHandoverRequest request, CancellationToken ct = default) =>
         new FacilityOpsService(dbContext).RecordKeyReceiptAsync(new(userId, false), id, ct);
 
+    /// <summary>
+    /// Gửi biên bản kiểm tra kho khi khách trả kho (S04) gồm 4 hạng mục, phí hư hỏng, vệ sinh và ảnh bằng chứng.
+    /// </summary>
+    /// <param name="userId">ID nhân viên lập biên bản.</param>
+    /// <param name="id">Mã biên bản trả kho.</param>
+    /// <param name="request">Nội dung biên bản kiểm tra.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task SubmitReturnInspectionAsync(long userId, string id, ReturnInspectionRequest request, CancellationToken ct = default)
     {
         if (!request.DamageFee.HasValue || !request.CleaningRequired.HasValue)
@@ -396,29 +404,26 @@ public class StaffService(AppDbContext dbContext) : IStaffService
                 request.CleaningRequired, request.DamageItem, request.FeeReason, request.Photos), ct);
     }
 
-    // Code cũ được giữ để đối chiếu.
-    // public async Task AddTicketResponseAsync(long userId, string id, TicketResponseRequest request, CancellationToken ct = default)
-    // {
-    //     var num = FacilityOpsStateStore.ParseIdNumber(id);
-    //     var ticket = await dbContext.SupportTickets.FindAsync([num], ct);
-    //     if (ticket != null)
-    //     {
-    //         ticket.Status = request.NextStatus;
-    //         ticket.AssignedStaffId = userId;
-    //         if (request.NextStatus == "RESOLVED" || request.NextStatus == "DONE")
-    //         {
-    //             ticket.ResolvedAt = DateTime.UtcNow;
-    //         }
-    //         await dbContext.SaveChangesAsync(ct);
-    //     }
-    // }
-    // S05 dùng chung xử lý có kiểm tra cơ sở, trạng thái và lưu nội dung phản hồi vào nhật ký.
+    /// <summary>
+    /// Thêm phản hồi cho yêu cầu hỗ trợ khách hàng (S05).
+    /// </summary>
+    /// <param name="userId">ID nhân viên phản hồi.</param>
+    /// <param name="id">Mã vé hỗ trợ.</param>
+    /// <param name="request">Nội dung phản hồi và trạng thái mới.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public Task AddTicketResponseAsync(long userId, string id, TicketResponseRequest request, CancellationToken ct = default)
     {
         return new FacilityOpsService(dbContext).RespondTicketAsync(
             new(userId, false), id, new(request.Note, request.NextStatus), ct);
     }
 
+    /// <summary>
+    /// Cập nhật trạng thái của ô kho theo chuyển tiếp trạng thái hợp lệ và lưu lịch sử (UC09).
+    /// </summary>
+    /// <param name="userId">ID nhân viên thực hiện.</param>
+    /// <param name="id">Mã ô kho.</param>
+    /// <param name="request">Trạng thái mới và lý do.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task UpdateUnitStatusAsync(long userId, string id, UpdateUnitStatusRequest request, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
@@ -444,8 +449,12 @@ public class StaffService(AppDbContext dbContext) : IStaffService
         await tx.CommitAsync(ct);
     }
 
-
-
+    /// <summary>
+    /// Cấp lại mã PIN hoặc yêu cầu cấp lại chìa khóa vật lý khi khách hàng báo mất hoặc quên mã.
+    /// </summary>
+    /// <param name="userId">ID nhân viên thực hiện.</param>
+    /// <param name="request">Yêu cầu cấp lại gồm mã ô kho, loại phương thức và lý do.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task ReissueCredentialAsync(long userId, ReissueCredentialRequest request, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);

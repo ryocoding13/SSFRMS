@@ -13,6 +13,10 @@ namespace StorageProject.Api.Endpoints;
 /// </summary>
 public static class FacilityOpsEndpoints
 {
+    /// <summary>
+    /// Đăng ký các Minimal API endpoints phục vụ vận hành cơ sở (Board, xác minh, kiểm kê, phân bổ, xử lý sự cố, hoàn tiền).
+    /// </summary>
+    /// <param name="routes">Đối tượng cấu hình route của ứng dụng.</param>
     public static void MapFacilityOpsEndpoints(this IEndpointRouteBuilder routes)
     {
         var group = routes.MapGroup("/api/ops")

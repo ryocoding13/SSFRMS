@@ -13,6 +13,10 @@ namespace StorageProject.Api.Workers;
 /// </summary>
 public sealed class OverdueWorker(IServiceScopeFactory scopes, ILogger<OverdueWorker> logger) : BackgroundService
 {
+    /// <summary>
+    /// Vòng lặp thực thi quét hợp đồng quá hạn mỗi 5 phút.
+    /// </summary>
+    /// <param name="stoppingToken">Cờ huỷ khi ứng dụng dừng hoạt động.</param>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(5));

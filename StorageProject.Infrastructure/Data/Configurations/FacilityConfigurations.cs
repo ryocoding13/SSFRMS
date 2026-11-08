@@ -4,8 +4,13 @@ using StorageProject.Core.Entities;
 
 namespace StorageProject.Infrastructure.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Cơ sở kho tự quản (Facility) sang bảng 'facilities'.
+/// Quản lý thông tin chi nhánh, địa chỉ, số điện thoại, tọa độ địa lý (Latitude/Longitude) và trạng thái (D16/D17).
+/// </summary>
 public class FacilityConfiguration : IEntityTypeConfiguration<Facility>
 {
+    /// <summary>Cấu hình bảng facilities, ràng buộc tọa độ GPS và trạng thái hoạt động.</summary>
     public void Configure(EntityTypeBuilder<Facility> b)
     {
         b.ToTable("facilities", t =>
@@ -28,8 +33,13 @@ public class FacilityConfiguration : IEntityTypeConfiguration<Facility>
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Phân công nhân sự cơ sở (UserFacility) sang bảng 'user_facilities'.
+/// Gán nhân viên và quản lý vào từng cơ sở kho cụ thể (SRS A06: mỗi người phụ trách 1 cơ sở).
+/// </summary>
 public class UserFacilityConfiguration : IEntityTypeConfiguration<UserFacility>
 {
+    /// <summary>Cấu hình bảng user_facilities, khóa chính, ràng buộc CHECK trạng thái và quan hệ khóa ngoại.</summary>
     public void Configure(EntityTypeBuilder<UserFacility> b)
     {
         b.ToTable("user_facilities", t =>
@@ -51,8 +61,13 @@ public class UserFacilityConfiguration : IEntityTypeConfiguration<UserFacility>
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Lịch sử đăng nhập (LoginHistory) sang bảng 'login_history'.
+/// Lưu trữ dấu vết truy cập, địa chỉ IP, thông tin thiết bị và kết quả đăng nhập (SUCCESS, FAILED, BLOCKED).
+/// </summary>
 public class LoginHistoryConfiguration : IEntityTypeConfiguration<LoginHistory>
 {
+    /// <summary>Cấu hình bảng login_history, khóa chính và ràng buộc CHECK trạng thái đăng nhập.</summary>
     public void Configure(EntityTypeBuilder<LoginHistory> b)
     {
         b.ToTable("login_history", t =>
@@ -71,8 +86,13 @@ public class LoginHistoryConfiguration : IEntityTypeConfiguration<LoginHistory>
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Nhật ký hoạt động kiểm toán (ActivityLog) sang bảng 'activity_logs'.
+/// Ghi nhận chi tiết mọi hành vi thay đổi dữ liệu, thao tác nghiệp vụ quan trọng trong hệ thống.
+/// </summary>
 public class ActivityLogConfiguration : IEntityTypeConfiguration<ActivityLog>
 {
+    /// <summary>Cấu hình bảng activity_logs, khóa chính, loại đối tượng và liên kết người dùng.</summary>
     public void Configure(EntityTypeBuilder<ActivityLog> b)
     {
         b.ToTable("activity_logs");

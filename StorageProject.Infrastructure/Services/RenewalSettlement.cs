@@ -5,8 +5,24 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Bộ xử lý quyết toán gia hạn hợp đồng nguyên tử (RenewalSettlement).
+/// Đảm bảo tính nhất quán dữ liệu (ACID) khi ghi nhận thanh toán phí gia hạn:
+/// cập nhật payment PAID, renewal PAID, gia hạn ngày kết thúc hợp đồng EndDate và khôi phục hợp đồng về ACTIVE (T02/T03).
+/// </summary>
 public static class RenewalSettlement
 {
+    /// <summary>
+    /// Ghi nhận quyết toán thanh toán khoản gia hạn hợp đồng (hỗ trợ cả thanh toán qua cổng PayOS và tiền mặt tại quầy).
+    /// </summary>
+    /// <param name="db">Database Context.</param>
+    /// <param name="contractId">ID hợp đồng.</param>
+    /// <param name="renewalId">ID yêu cầu gia hạn.</param>
+    /// <param name="paymentMethod">Phương thức thanh toán ("PAYMENT_GATEWAY" hoặc "CASH").</param>
+    /// <param name="transactionRef">Mã giao dịch hoặc chuỗi tham chiếu thu tiền.</param>
+    /// <param name="staffUserId">ID nhân viên thu tiền (nếu thu tại quầy).</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>True nếu quyết toán thành công hoặc giao dịch lặp hợp lệ (Idempotent), False nếu thất bại hoặc cần đối soát.</returns>
     public static async Task<bool> RecordAsync(
         AppDbContext db,
         long contractId,

@@ -7,8 +7,9 @@ using StorageProject.Core.Policies;
 namespace StorageProject.Infrastructure.Services;
 
 /// <summary>
-/// Thao tác của nhân viên (S02–S05, S09) và quản lý (M03, M05–M07). Mỗi thao tác lưu trong một lần SaveChanges
-/// (một giao dịch) và ghi activity_logs. Điều kiện chặn giống src/ops/reducer.js (có test ở giao diện).
+/// Các thao tác tác nghiệp trực tiếp của nhân viên cơ sở (S02–S05, S09) và quản lý cơ sở (M03, M05–M07).
+/// Mỗi thao tác được lưu trong một giao dịch (SaveChanges) và ghi nhận kiểm toán ActivityLog.
+/// Quy tắc và điều kiện kiểm tra nghiêm ngặt bảo đảm an toàn dữ liệu và đồng bộ với logic phía frontend (src/ops/reducer.js).
 /// </summary>
 public partial class FacilityOpsService
 {
@@ -18,6 +19,8 @@ public partial class FacilityOpsService
     // ------------------------------------------------------------------
     // Tải thực thể trong cơ sở được phân công (khác cơ sở → 404, không lộ dữ liệu)
     // ------------------------------------------------------------------
+    
+    /// <summary>Truy vấn đơn đặt chỗ trong cơ sở.</summary>
     private async Task<Reservation> ReservationAsync(long facilityId, string code, CancellationToken ct)
     {
         var id = ParseCode(code, "SS-", "đơn đặt chỗ");
@@ -28,6 +31,7 @@ public partial class FacilityOpsService
                ?? throw new KeyNotFoundException("Không tìm thấy đơn đặt chỗ tại cơ sở của bạn.");
     }
 
+    /// <summary>Truy vấn lịch nhận chìa khóa / bàn giao trong cơ sở.</summary>
     private async Task<HandoverRecord> HandoverAsync(long facilityId, string code, string prefix, CancellationToken ct)
     {
         var id = ParseCode(code, prefix, prefix == "XM-" ? "lịch xác minh" : "lịch nhận chìa khóa");
@@ -39,6 +43,7 @@ public partial class FacilityOpsService
                ?? throw new KeyNotFoundException("Không tìm thấy lịch nhận chìa khóa tại cơ sở của bạn.");
     }
 
+    /// <summary>Truy vấn biên bản kiểm tra trả kho trong cơ sở.</summary>
     private async Task<ReturnInspection> InspectionAsync(long facilityId, string code, CancellationToken ct)
     {
         var id = ParseCode(code, "TK-", "lịch trả kho");
@@ -49,6 +54,7 @@ public partial class FacilityOpsService
                ?? throw new KeyNotFoundException("Không tìm thấy lịch trả kho tại cơ sở của bạn.");
     }
 
+    /// <summary>Truy vấn phiếu yêu cầu hỗ trợ trong cơ sở.</summary>
     private async Task<SupportTicket> TicketAsync(long facilityId, string code, CancellationToken ct)
     {
         var id = ParseCode(code, "HT-", "yêu cầu hỗ trợ");
@@ -63,6 +69,7 @@ public partial class FacilityOpsService
                ?? throw new KeyNotFoundException("Không tìm thấy yêu cầu hỗ trợ tại cơ sở của bạn.");
     }
 
+    /// <summary>Truy vấn hợp đồng thuê trong cơ sở.</summary>
     private async Task<RentalContract> ContractAsync(long facilityId, string code, CancellationToken ct)
     {
         var id = ParseCode(code, "HĐ-", "hợp đồng");
@@ -79,6 +86,8 @@ public partial class FacilityOpsService
     // =====================================================================
     // S09 · Đối soát chuyển khoản
     // =====================================================================
+
+    /// <summary>Nhân viên đối soát xác nhận đã nhận chuyển khoản đơn đặt chỗ (S09).</summary>
     public async Task ConfirmPaymentAsync(OpsActor actor, string id, CancellationToken ct = default)
     {
         await new StaffService(dbContext).ConfirmPaymentAsync(actor.UserId, id, ct);
@@ -87,6 +96,11 @@ public partial class FacilityOpsService
     // =====================================================================
     // S02 · Xác minh khách khi đến nhận kho — chỉ lưu 4 số cuối giấy tờ
     // =====================================================================
+
+    /// <summary>
+    /// Nhân viên xác minh danh tính khách hàng khi đến cơ sở nhận kho lần đầu (S02).
+    /// Hỗ trợ checklist 4 mục theo Figma hoặc đối chiếu số giấy tờ (chỉ lưu 4 số cuối vì bảo mật).
+    /// </summary>
     public async Task VerifyCustomerAsync(OpsActor actor, string id, OpsVerifyRequest request, CancellationToken ct = default)
     {
         var facility = await FacilityOfAsync(actor, ct);
@@ -133,12 +147,18 @@ public partial class FacilityOpsService
     // =====================================================================
     // S03 · Bàn giao kho + cấp phương thức mở khoá
     // =====================================================================
+
+    /// <summary>Hoàn tất bàn giao kho (gọi tiếp RecordKeyReceiptAsync).</summary>
     public Task CompleteHandoverAsync(OpsActor actor, string id, OpsHandoverRequest request, CancellationToken ct = default) =>
         RecordKeyReceiptAsync(actor, id, ct);
 
+    /// <summary>Ghi nhận việc giao chìa khóa vật lý tại quầy không kèm checklist.</summary>
     public Task RecordKeyReceiptAsync(OpsActor actor, string id, CancellationToken ct = default) =>
         RecordKeyReceiptAsync(actor, id, null, ct);
 
+    /// <summary>
+    /// Ghi nhận nhân viên đã đối chiếu 3 mục và thực tế giao chìa khóa vật lý cho khách tại quầy (S03).
+    /// </summary>
     public async Task RecordKeyReceiptAsync(OpsActor actor, string id, OpsKeyReceiptRequest? request, CancellationToken ct = default)
     {
         // Màn mới gửi checklist: chỉ ghi nhận khi nhân viên đã đối chiếu và thực sự giao chìa khóa.
@@ -172,9 +192,14 @@ public partial class FacilityOpsService
     // =====================================================================
     // S04 · Kiểm tra trả kho → chờ quản lý xác nhận hoàn cọc
     // =====================================================================
+
     /// <summary>Đề xuất "cho thuê lại ngay" trên màn S04 — chỉ được chọn khi không có hư hỏng và không cần vệ sinh.</summary>
     internal const string ReadyToRelet = "Sẵn sàng cho thuê lại";
 
+    /// <summary>
+    /// Nhân viên gửi biên bản kiểm tra trả kho (S04).
+    /// Đánh giá tình trạng đồ đạc, tường sàn, chìa khoá và tính toán các khoản khấu trừ hư hỏng, vệ sinh.
+    /// </summary>
     public async Task SubmitReturnInspectionAsync(OpsActor actor, string id, OpsReturnInspectionRequest request, CancellationToken ct = default)
     {
         var facility = await FacilityOfAsync(actor, ct);
@@ -263,6 +288,8 @@ public partial class FacilityOpsService
     // =====================================================================
     // S05 · Phản hồi yêu cầu hỗ trợ
     // =====================================================================
+
+    /// <summary>Nhân viên phản hồi ticket yêu cầu hỗ trợ và cập nhật tiến độ (S05).</summary>
     public async Task RespondTicketAsync(OpsActor actor, string id, OpsTicketResponseRequest request, CancellationToken ct = default)
     {
         var facility = await FacilityOfAsync(actor, ct);
@@ -301,6 +328,8 @@ public partial class FacilityOpsService
     // =====================================================================
     // M05 · Phân bổ ô cho đơn đã đối soát → hợp đồng nháp + lịch xác minh / bàn giao
     // =====================================================================
+
+    /// <summary>Quản lý phân bổ ô kho cụ thể cho đơn đặt chỗ đã hoàn tất đối soát (M05).</summary>
     public async Task AllocateAsync(OpsActor actor, string id, OpsAllocateRequest request, CancellationToken ct = default)
     {
         RequireManager(actor);
@@ -312,6 +341,8 @@ public partial class FacilityOpsService
     // =====================================================================
     // M06 · Giao việc bàn giao / trả kho / hỗ trợ cho nhân viên cùng cơ sở
     // =====================================================================
+
+    /// <summary>Quản lý phân công công việc nhận chìa khóa, kiểm tra trả kho hoặc xử lý ticket cho nhân viên (M06).</summary>
     public async Task AssignAsync(OpsActor actor, string id, OpsAssignRequest request, CancellationToken ct = default)
     {
         RequireManager(actor);
@@ -356,6 +387,8 @@ public partial class FacilityOpsService
     // =====================================================================
     // M03 · Duyệt / từ chối gia hạn
     // =====================================================================
+
+    /// <summary>Truy vấn yêu cầu gia hạn tại cơ sở.</summary>
     private async Task<ContractRenewal> RenewalAsync(long facilityId, string code, CancellationToken ct)
     {
         var id = ParseCode(code, "GH-", "yêu cầu gia hạn");
@@ -365,6 +398,7 @@ public partial class FacilityOpsService
                ?? throw new KeyNotFoundException("Không tìm thấy yêu cầu gia hạn tại cơ sở của bạn.");
     }
 
+    /// <summary>Quản lý duyệt yêu cầu gia hạn hợp đồng (M03 / M01).</summary>
     public async Task ApproveRenewalAsync(OpsActor actor, string id, CancellationToken ct = default)
     {
         RequireManager(actor);
@@ -373,6 +407,7 @@ public partial class FacilityOpsService
         await RenewalApproval.ApproveAsync(dbContext, actor.UserId, ParseCode(id, "GH-", "yêu cầu gia hạn"), facility.FacilityId, ct);
     }
 
+    /// <summary>Quản lý từ chối yêu cầu gia hạn hợp đồng kèm lý do (M03).</summary>
     public async Task RejectRenewalAsync(OpsActor actor, string id, OpsRejectRequest request, CancellationToken ct = default)
     {
         RequireManager(actor);
@@ -392,6 +427,8 @@ public partial class FacilityOpsService
     // =====================================================================
     // M07 · Nhắc khách / xác nhận hoàn cọc sau trả kho
     // =====================================================================
+
+    /// <summary>Quản lý ghi nhận nhật ký nhắc nhở khách hàng thanh toán / quá hạn (M07).</summary>
     public async Task RemindAsync(OpsActor actor, string id, OpsNoteRequest request, CancellationToken ct = default)
     {
         RequireManager(actor);
@@ -399,7 +436,6 @@ public partial class FacilityOpsService
         var contract = await ContractAsync(facility.FacilityId, id, ct);
         var note = Clip(request.Note, 500);
         if (note.Length == 0) note = "Đã liên hệ nhắc khách thanh toán / xử lý hợp đồng.";
-
         var stamp = (NowUtc + VnOffset).ToString("dd/MM/yyyy HH:mm", Invariant);
         foreach (var oc in contract.OverdueCases.Where(o => o.Status is not ("RESOLVED" or "ESCALATED")))
         {
@@ -523,7 +559,7 @@ public partial class FacilityOpsService
         return day;
     }
 
-    // Giữ tổng tiền ghi nhận: tách phần bù cọc và phần miễn, không giả đã thu toàn bộ.
+    /// <summary>Giữ tổng tiền ghi nhận: tách phần bù cọc và phần miễn, không giả đã thu toàn bộ.</summary>
     private void SettleFromDeposit(RentalContract contract, string type, decimal budget, DateTime now, long? actorId)
     {
         foreach (var p in contract.Payments.Where(p => p.PaymentType == type && (p.Status == "PENDING" || p.Status == "FAILED"))
@@ -597,6 +633,8 @@ public partial class FacilityOpsService
     // ------------------------------------------------------------------
     // Bằng chứng chuyển tiền dùng chung cho M08 (đơn huỷ) và hoàn cọc sau trả kho
     // ------------------------------------------------------------------
+
+    /// <summary>Chuẩn hoá và kiểm tra định dạng mã giao dịch ngân hàng.</summary>
     internal static string TransactionRefOf(string? value)
     {
         var reference = (value ?? string.Empty).Trim();
@@ -624,6 +662,7 @@ public partial class FacilityOpsService
         return utc;
     }
 
+    /// <summary>Kiểm tra tính duy nhất của mã giao dịch chuyển tiền.</summary>
     private async Task EnsureUniqueTransactionRefAsync(string reference, long paymentId, CancellationToken ct)
     {
         if (await dbContext.Payments.AnyAsync(p => p.TransactionReference == reference && p.PaymentId != paymentId, ct))

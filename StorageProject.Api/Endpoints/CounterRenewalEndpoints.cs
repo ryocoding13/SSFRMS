@@ -5,15 +5,24 @@ using StorageProject.Core.Interfaces;
 
 namespace StorageProject.Api.Endpoints;
 
+/// <summary>
+/// Định nghĩa các Minimal API Endpoints phục vụ thu tiền gia hạn hợp đồng trực tiếp tại quầy cơ sở (S02 / D32).
+/// Cho phép khách chọn nộp tiền mặt tại quầy, nhân viên xem hàng đợi thu tiền và xác nhận đã thu đủ tiền gia hạn.
+/// </summary>
 public static class CounterRenewalEndpoints
 {
+    /// <summary>
+    /// Đăng ký các route thu tiền gia hạn tại quầy (/api/renewals/.../counter-payment, /api/ops/counter-renewals).
+    /// </summary>
+    /// <param name="app">Builder đăng ký route.</param>
+    /// <returns>Nhóm route /api đã cấu hình quyền xác thực.</returns>
     public static RouteGroupBuilder MapCounterRenewalEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api")
             .WithTags("Counter Renewals")
             .RequireAuthorization();
 
-        // POST /api/renewals/{id:long}/counter-payment — Customer selects counter payment
+        // POST /api/renewals/{id:long}/counter-payment: Khách hàng chọn phương thức thanh toán tiền mặt tại quầy
         group.MapPost("/renewals/{id:long}/counter-payment", async (long id, ClaimsPrincipal user, IRenewalService renewalService, CancellationToken ct) =>
         {
             try
@@ -36,7 +45,7 @@ public static class CounterRenewalEndpoints
             }
         });
 
-        // GET /api/ops/counter-renewals — Staff / Manager queue
+        // GET /api/ops/counter-renewals: Danh sách hàng đợi các khoản gia hạn cần thu tiền tại quầy cho Nhân viên / Quản lý cơ sở
         group.MapGet("/ops/counter-renewals", async (ClaimsPrincipal user, IRenewalService renewalService, CancellationToken ct) =>
         {
             try
@@ -61,7 +70,7 @@ public static class CounterRenewalEndpoints
             }
         });
 
-        // POST /api/ops/counter-renewals/actions — Staff / Manager confirm cash collection
+        // POST /api/ops/counter-renewals/actions: Nhân viên / Quản lý cơ sở xác nhận đã thu tiền gia hạn và kéo dài hợp đồng
         group.MapPost("/ops/counter-renewals/actions", async (CounterRenewalActionRequest request, ClaimsPrincipal user, IRenewalService renewalService, CancellationToken ct) =>
         {
             try

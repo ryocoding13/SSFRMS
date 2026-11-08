@@ -9,6 +9,9 @@ using StorageProject.Core.DTOs.Support;
 
 namespace StorageProject.Core.Interfaces;
 
+/// <summary>
+/// Dịch vụ xác thực và quản lý tài khoản người dùng (Đăng ký, Đăng nhập, Hồ sơ, Đổi mật khẩu).
+/// </summary>
 public interface IAuthService
 {
     Task<AuthUserDto> RegisterAsync(RegisterRequest request, CancellationToken ct = default);
@@ -19,6 +22,9 @@ public interface IAuthService
     Task ChangePasswordAsync(long userId, ChangePasswordRequest request, CancellationToken ct = default);
 }
 
+/// <summary>
+/// Dịch vụ tra cứu cơ sở kho, loại kho, bảng giá và kiểm tra phòng trống cho khách hàng (F01 / UC01).
+/// </summary>
 public interface IFacilityService
 {
     Task<IReadOnlyList<FacilityDto>> GetActiveFacilitiesAsync(CancellationToken ct = default);
@@ -30,7 +36,9 @@ public interface IFacilityService
     Task<IReadOnlyList<FacilityUnitDto>> GetUnitsByFacilityIdAsync(long facilityId, CancellationToken ct = default);
 }
 
-
+/// <summary>
+/// Dịch vụ quản lý đơn đặt chỗ của khách hàng (Tạo đơn, Hủy đơn, Xác nhận chuyển khoản theo F02, F03, D02).
+/// </summary>
 public interface IReservationService
 {
     Task<IReadOnlyList<ReservationDto>> GetMyReservationsAsync(long customerId, CancellationToken ct = default);
@@ -43,6 +51,9 @@ public interface IReservationService
     Task<ReservationDto> ConfirmTransferAsync(long customerId, long reservationId, CancellationToken ct = default);
 }
 
+/// <summary>
+/// Dịch vụ quản lý hợp đồng thuê của khách hàng và đăng ký trả kho (F05, F06).
+/// </summary>
 public interface IContractService
 {
     Task<IReadOnlyList<ContractSummaryDto>> GetMyContractsAsync(long customerId, CancellationToken ct = default);
@@ -50,18 +61,27 @@ public interface IContractService
     Task<MoveOutResponseDto> RegisterMoveOutAsync(long customerId, long contractId, MoveOutRequest request, CancellationToken ct = default);
 }
 
+/// <summary>
+/// Dịch vụ cấp mã QR/PIN mở cửa kho và xác thực quét mã tại cửa kho (F11 / T16).
+/// </summary>
 public interface IAccessService
 {
     Task<AccessQrDto> GetQrAsync(long customerId, long contractId, CancellationToken ct = default);
     Task<ScanResultDto> ScanAsync(string? code, string? ipAddress, CancellationToken ct = default, string? unitNumber = null);
 }
 
+/// <summary>
+/// Dịch vụ tra cứu lịch sử và chi tiết các khoản thanh toán của hợp đồng (F07 / UC07).
+/// </summary>
 public interface IPaymentService
 {
     Task<IReadOnlyList<PaymentDto>> GetContractPaymentsAsync(long customerId, long contractId, CancellationToken ct = default);
     Task<PaymentDto?> GetPaymentByIdAsync(long customerId, long paymentId, CancellationToken ct = default);
 }
 
+/// <summary>
+/// Dịch vụ gia hạn hợp đồng thuê kho (F06 / B06 / D32).
+/// </summary>
 public interface IRenewalService
 {
     Task<IReadOnlyList<RenewalDto>> GetContractRenewalsAsync(long customerId, long contractId, CancellationToken ct = default);
@@ -82,6 +102,9 @@ public interface IRenewalService
     Task<StorageProject.Core.DTOs.Renewal.UnitMoveDto> InspectOldUnitAsync(long userId, long renewalId, StorageProject.Core.DTOs.Renewal.UnitMoveInspectionRequest request, CancellationToken ct = default);
 }
 
+/// <summary>
+/// Dịch vụ quản lý các phiên bản điều khoản hợp đồng cho thuê và ghi nhận chấp thuận (D32 / T20).
+/// </summary>
 public interface IRentalPolicyService
 {
     Task<StorageProject.Core.DTOs.Policy.RentalPolicyDto> GetCurrentPolicyAsync(CancellationToken ct = default);
@@ -91,6 +114,9 @@ public interface IRentalPolicyService
     Task<StorageProject.Core.DTOs.Policy.PolicyConsentDto> RecordRenewalConsentAsync(long customerId, long renewalId, StorageProject.Core.DTOs.Policy.PolicyConsentRequest request, string channel = "WEB_CUSTOMER", CancellationToken ct = default);
 }
 
+/// <summary>
+/// Dịch vụ quản lý yêu cầu hỗ trợ kỹ thuật và sự cố của khách hàng (F08 / UC11 / C12).
+/// </summary>
 public interface ISupportTicketService
 {
     Task<IReadOnlyList<SupportTicketDto>> GetMyTicketsAsync(long customerId, CancellationToken ct = default);
@@ -98,11 +124,17 @@ public interface ISupportTicketService
     Task<SupportTicketDto> CreateTicketAsync(long customerId, CreateTicketRequest request, CancellationToken ct = default);
 }
 
+/// <summary>
+/// Dịch vụ xác nhận nhận bàn giao kho phía khách hàng (F04 / UC04).
+/// </summary>
 public interface IHandoverService
 {
     Task ConfirmCustomerHandoverAsync(long customerId, long handoverId, CancellationToken ct = default);
 }
 
+/// <summary>
+/// Dịch vụ quản trị hệ thống (Người dùng, Phân vai trò, Phân cơ sở, Nhật ký Audit theo UC24–UC27).
+/// </summary>
 public interface IAdminService
 {
     // UC24: User Management
@@ -131,4 +163,3 @@ public interface IAdminService
     // Dashboard Stats
     Task<StorageProject.Core.DTOs.Admin.AdminDashboardStatsDto> GetDashboardStatsAsync(CancellationToken ct = default);
 }
-

@@ -9,12 +9,16 @@ using StorageProject.Core.Policies;
 namespace StorageProject.Infrastructure.Services;
 
 /// <summary>
-/// T13 · Sự cố do cơ sở (D32). Luồng: quản lý ghi nhận (DRAFT) → gửi phương án cho khách (PROPOSED, giữ ô thay thế)
-/// → khách tự chọn đổi ô (TRANSFER_PENDING) hoặc kết thúc (TERMINATION_PENDING, khai tài khoản chính chủ)
-/// → quản lý xác nhận đã chuyển đồ (TRANSFERRED: ô cũ MAINTENANCE, ô mới OCCUPIED, mã cũ hết hiệu lực, cấp mã ô mới)
-///   hoặc chốt kết thúc (TERMINATED: hợp đồng kết thúc, khoản hoàn PENDING = tháng đang thuê + tháng chưa dùng + 100% cọc).
-/// Mỗi thao tác kiểm expectedVersion (409 khi cũ), khoá theo hợp đồng, server tự lấy giờ / tiền / chủ hợp đồng.
-/// Không có API thu hồi mã thủ công; mã ô cũ chỉ đổi khi hoàn tất chuyển.
+/// T13 · Quản lý và xử lý sự cố do cơ sở gây ảnh hưởng đến ô kho của khách hàng (D32).
+/// Luồng chuẩn:
+/// 1. Quản lý lập biên bản ghi nhận (DRAFT)
+/// 2. Gửi phương án hỗ trợ cho khách hàng (PROPOSED, khoá giữ ô thay thế)
+/// 3. Khách hàng lựa chọn phương án:
+///    - Đổi sang ô kho tương đương (TRANSFER_PENDING)
+///    - Kết thúc hợp đồng sớm (TERMINATION_PENDING, khai tài khoản ngân hàng chính chủ hoặc chọn tiền mặt D44)
+/// 4. Quản lý xác nhận hoàn tất:
+///    - Chuyển đồ sang ô mới (TRANSFERRED: ô cũ sang MAINTENANCE, ô mới sang OCCUPIED, vô hiệu mã cũ, cấp mã mới)
+///    - Hoặc chốt thanh lý kết thúc (TERMINATED: hoàn 100% tiền thuê tháng hiện tại + các tháng chưa dùng + 100% cọc ban đầu).
 /// </summary>
 public partial class FacilityOpsService
 {
@@ -22,8 +26,12 @@ public partial class FacilityOpsService
     private static readonly Regex CaseCodePattern = new(@"^SC-(\d+)-(\d+)$");
     private const string IncidentPhotoOwner = "INCIDENT";
 
-    // ------------------------------------------------------------------ đọc
-
+    // ------------------------------------------------------------------ Đọc dữ liệu
+    
+    /// <summary>
+    /// Lấy danh sách các hồ sơ sự cố đang mở hoặc đã cập nhật trong vòng 90 ngày gần đây tại cơ sở.
+    /// Kèm theo các hợp đồng đủ điều kiện tạo sự cố mới (DRAFT).
+    /// </summary>
     public async Task<IncidentListDto> GetIncidentsAsync(OpsActor actor, CancellationToken ct = default)
     {
         RequireManager(actor);
@@ -55,7 +63,9 @@ public partial class FacilityOpsService
         return new IncidentListDto(items);
     }
 
-    /// <summary>Khách chỉ thấy hồ sơ đã gửi (không thấy nháp) của hợp đồng mình.</summary>
+    /// <summary>
+    /// Lấy danh sách hồ sơ sự cố dành cho khách hàng xem (chỉ xem các hồ sơ đã gửi PROPOSED trở lên, không thấy DRAFT).
+    /// </summary>
     public async Task<IncidentListDto> GetCustomerIncidentsAsync(long customerId, CancellationToken ct = default)
     {
         var incidents = await IncidentQuery().AsNoTracking().AsSplitQuery()
@@ -69,8 +79,11 @@ public partial class FacilityOpsService
             .ToList());
     }
 
-    // ------------------------------------------------------------------ quản lý ghi nhận / gửi phương án
+    // ------------------------------------------------------------------ Quản lý ghi nhận / gửi phương án
 
+    /// <summary>
+    /// Quản lý lưu nháp hoặc gửi phương án xử lý sự cố cho khách hàng (SAVE_INCIDENT / SEND_INCIDENT_PROPOSAL).
+    /// </summary>
     public async Task<IncidentReceiptDto> SaveIncidentAsync(OpsActor actor, IncidentActionRequest request, CancellationToken ct = default)
     {
         RequireManager(actor);
@@ -159,8 +172,11 @@ public partial class FacilityOpsService
         return new IncidentReceiptDto(await IncidentDtoAsync(incident.CaseCode, ct));
     }
 
-    // ------------------------------------------------------------------ khách tự chọn
+    // ------------------------------------------------------------------ Khách tự chọn
 
+    /// <summary>
+    /// Khách hàng lựa chọn phương án xử lý sự cố (CHOOSE_INCIDENT_OPTION: TRANSFER hoặc TERMINATE).
+    /// </summary>
     public async Task<IncidentReceiptDto> ChooseIncidentOptionAsync(long customerId, string contractCode, IncidentActionRequest request, CancellationToken ct = default)
     {
         if ((request.Action ?? string.Empty).Trim() != "CHOOSE_INCIDENT_OPTION") throw new ArgumentException("Thao tác sự cố không hợp lệ.");
@@ -217,8 +233,11 @@ public partial class FacilityOpsService
         return new IncidentReceiptDto(await IncidentDtoAsync(incident.CaseCode, ct));
     }
 
-    // ------------------------------------------------------------------ quản lý hoàn tất chuyển / chốt kết thúc
+    // ------------------------------------------------------------------ Quản lý hoàn tất chuyển / chốt kết thúc
 
+    /// <summary>
+    /// Quản lý xác nhận đã hoàn tất di dời tài sản sang ô kho mới (COMPLETE_INCIDENT_TRANSFER).
+    /// </summary>
     public async Task<IncidentReceiptDto> CompleteIncidentTransferAsync(OpsActor actor, string id, IncidentActionRequest request, CancellationToken ct = default)
     {
         RequireManager(actor);
@@ -303,6 +322,9 @@ public partial class FacilityOpsService
         return new IncidentReceiptDto(await IncidentDtoAsync(incident.CaseCode, ct));
     }
 
+    /// <summary>
+    /// Quản lý chốt kết thúc hợp đồng do sự cố cơ sở và khởi tạo khoản hoàn tiền (FINALIZE_INCIDENT_TERMINATION).
+    /// </summary>
     public async Task<IncidentReceiptDto> FinalizeIncidentTerminationAsync(OpsActor actor, string id, IncidentActionRequest request, CancellationToken ct = default)
     {
         RequireManager(actor);
@@ -365,19 +387,22 @@ public partial class FacilityOpsService
         return new IncidentReceiptDto(await IncidentDtoAsync(incident.CaseCode, ct));
     }
 
-    // ------------------------------------------------------------------ hỗ trợ
+    // ------------------------------------------------------------------ Hỗ trợ nội bộ
 
+    /// <summary>Query cơ sở cho các thực thể FacilityIncident với eager loading đầy đủ.</summary>
     private IQueryable<FacilityIncident> IncidentQuery() => dbContext.FacilityIncidents
         .Include(i => i.Contract).ThenInclude(c => c.Customer)
         .Include(i => i.Contract).ThenInclude(c => c.Unit).ThenInclude(u => u.UnitType)
         .Include(i => i.OldUnit).ThenInclude(u => u.UnitType)
         .Include(i => i.TargetUnit).ThenInclude(u => u!.UnitType);
 
+    /// <summary>Kiểm tra hợp đồng còn hiệu lực để xử lý sự cố.</summary>
     private static void RequireIncidentContract(RentalContract c)
     {
         if (c.Status is not ("ACTIVE" or "EXPIRING")) throw new InvalidOperationException("Hợp đồng không còn đủ điều kiện xử lý sự cố này.");
     }
 
+    /// <summary>Phân tích mã sự cố "SC-xxxx-yy" thành ID hợp đồng và số thứ tự.</summary>
     private static (long ContractId, int Sequence) ParseCaseCode(string? code)
     {
         var m = CaseCodePattern.Match((code ?? string.Empty).Trim());
@@ -399,11 +424,14 @@ public partial class FacilityOpsService
         return new DateTime(utc.Ticks - utc.Ticks % TimeSpan.TicksPerMillisecond, DateTimeKind.Utc);
     }
 
+    /// <summary>Định dạng ngày giờ UTC sang chuỗi ISO 8601 chuẩn UTC ("yyyy-MM-ddTHH:mm:ss.fffZ").</summary>
     internal static string? Iso(DateTime? utc) =>
         utc.HasValue ? DateTime.SpecifyKind(utc.Value, DateTimeKind.Utc).ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture) : null;
 
+    /// <summary>Làm tròn thời gian xuống tròn phút.</summary>
     private static DateTime FloorMinute(DateTime utc) => new(utc.Ticks - utc.Ticks % TimeSpan.TicksPerMinute, DateTimeKind.Utc);
 
+    /// <summary>Ghi log hoạt động xử lý sự cố cơ sở vào ActivityLog.</summary>
     private void LogIncident(long userId, string action, FacilityIncident incident, object value) =>
         dbContext.ActivityLogs.Add(new ActivityLog
         {
@@ -411,6 +439,7 @@ public partial class FacilityOpsService
             NewValue = System.Text.Json.JsonSerializer.Serialize(new { incident = incident.CaseCode, detail = value }), LoggedAt = NowUtc
         });
 
+    /// <summary>Đếm số lượng sự cố đã tạo cho từng hợp đồng.</summary>
     private async Task<Dictionary<long, int>> IncidentCountsAsync(List<long> contractIds, CancellationToken ct)
     {
         if (contractIds.Count == 0) return new Dictionary<long, int>();
@@ -421,6 +450,7 @@ public partial class FacilityOpsService
             .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
     }
 
+    /// <summary>Lấy thông tin IncidentCaseDto từ CaseCode.</summary>
     private async Task<IncidentCaseDto> IncidentDtoAsync(string caseCode, CancellationToken ct)
     {
         dbContext.ChangeTracker.Clear(); // đọc lại đúng dữ liệu đã lưu, không dùng bản đang theo dõi
@@ -433,6 +463,7 @@ public partial class FacilityOpsService
     /// <summary>Ảnh / tệp và khoản hoàn của các hồ sơ (một lần truy vấn cho cả danh sách).</summary>
     private sealed record IncidentExtras(Dictionary<long, List<(long PhotoId, string FileName, string ContentType, int Size)>> Photos, Dictionary<long, Payment> Refunds);
 
+    /// <summary>Tải danh sách dữ liệu mở rộng (ảnh chứng cứ, payment hoàn cọc) của tập sự cố.</summary>
     private async Task<IncidentExtras> IncidentExtrasAsync(List<FacilityIncident> incidents, CancellationToken ct)
     {
         var ids = incidents.Select(i => i.IncidentId).ToList();
@@ -460,6 +491,7 @@ public partial class FacilityOpsService
         public int VersionOf(long unitId) => HistoryCounts.GetValueOrDefault(unitId) + 1;
     }
 
+    /// <summary>Xây dựng ngữ cảnh ô kho phục vụ tìm kiếm ô thay thế cho cơ sở.</summary>
     private async Task<IncidentUnitContext> IncidentUnitsAsync(long facilityId, CancellationToken ct)
     {
         var units = await dbContext.StorageUnits.AsNoTracking().Include(u => u.UnitType)
@@ -505,14 +537,17 @@ public partial class FacilityOpsService
             .ToList();
     }
 
+    /// <summary>Tạo DTO mô tả ô kho trong hồ sơ sự cố.</summary>
     private static IncidentUnitDto UnitDto(StorageUnit u, IncidentUnitContext ctx) => new(
         u.UnitId.ToString(CultureInfo.InvariantCulture), u.UnitNumber, u.FacilityId, u.UnitType.TypeName,
         (int)Math.Round(u.UnitType.Area, MidpointRounding.AwayFromZero), u.Status, ctx.VersionOf(u.UnitId),
         ctx.ReservedFor.TryGetValue(u.UnitId, out var code) && u.Status == "RESERVED" ? code : null);
 
+    /// <summary>Chuẩn hoá trạng thái hiển thị của hợp đồng.</summary>
     private static string ContractStatusOf(RentalContract c) =>
         c.Status is "ACTIVE" or "EXPIRING" or "OVERDUE" or "RETURN_PENDING" ? c.Status : "ENDED";
 
+    /// <summary>Chuyển đổi thực thể FacilityIncident sang IncidentCaseDto đầy đủ thuộc tính.</summary>
     private IncidentCaseDto ToIncidentDto(string code, int version, string status, RentalContract c, StorageUnit oldUnit,
         FacilityIncident? i, IncidentUnitContext ctx, IncidentExtras extras)
     {

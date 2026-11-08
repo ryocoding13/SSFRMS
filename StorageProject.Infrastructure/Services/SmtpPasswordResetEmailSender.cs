@@ -6,10 +6,25 @@ using StorageProject.Core.Interfaces;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Dịch vụ gửi email chứa mã OTP đặt lại mật khẩu qua giao thức SMTP (MailKit) thực thi IPasswordResetEmailSender.
+/// Hỗ trợ bảo mật StartTls / SslOnConnect, cấu hình cổng và timeout an toàn.
+/// </summary>
 public sealed class SmtpPasswordResetEmailSender(IConfiguration configuration) : IPasswordResetEmailSender
 {
+    /// <summary>
+    /// Kiểm tra tính hợp lệ của các thông số cấu hình SMTP (Host, Port, FromEmail, Username, Password, Security).
+    /// </summary>
+    /// <exception cref="PasswordResetDeliveryException">Ném ra nếu cấu hình SMTP bị thiếu hoặc không hợp lệ.</exception>
     public void ValidateConfiguration() => ReadSettings();
 
+    /// <summary>
+    /// Gửi email chứa mã OTP 6 số tới địa chỉ người dùng qua SMTP client.
+    /// </summary>
+    /// <param name="email">Địa chỉ email người nhận.</param>
+    /// <param name="code">Mã OTP đặt lại mật khẩu.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <exception cref="PasswordResetDeliveryException">Ném ra nếu kết nối hoặc quá trình gửi thư qua SMTP gặp lỗi.</exception>
     public async Task SendAsync(string email, string code, CancellationToken ct = default)
     {
         var settings = ReadSettings();

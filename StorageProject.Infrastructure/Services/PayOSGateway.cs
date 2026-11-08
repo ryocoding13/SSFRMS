@@ -6,18 +6,56 @@ using PayOS.Models.Webhooks;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Bản ghi thanh toán đơn đặt chỗ hoặc gia hạn đã được PayOS xác thực qua Webhook.
+/// </summary>
+/// <param name="OrderCode">Mã đơn hàng PayOS.</param>
+/// <param name="Amount">Số tiền thanh toán.</param>
+/// <param name="TransactionReference">Mã tham chiếu giao dịch ngân hàng.</param>
 public record VerifiedReservationPayment(long OrderCode, decimal Amount, string? TransactionReference = null);
+
+/// <summary>
+/// Đường dẫn thanh toán và mã QR được tạo từ cổng PayOS.
+/// </summary>
+/// <param name="Url">URL trang thanh toán trực tuyến.</param>
+/// <param name="Qr">Chuỗi dữ liệu mã VietQR thanh toán.</param>
 public record CheckoutLink(string Url, string Qr);
+
+/// <summary>
+/// Giao diện cổng thanh toán PayOS Gateway (tạo link thanh toán, huỷ link và xác thực Webhook).
+/// </summary>
 public interface IPayOSGateway
 {
+    /// <summary>
+    /// Kiểm tra cấu hình PayOS (ClientId, ApiKey, ChecksumKey) đã hợp lệ hay chưa.
+    /// </summary>
     void EnsureConfigured();
+
+    /// <summary>
+    /// Tạo liên kết thanh toán PayOS cho đơn đặt chỗ mới.
+    /// </summary>
     Task<CheckoutLink> CreateAsync(long orderCode, int amount, long reservationId, long expiresAt, string returnUrl, string cancelUrl);
+
+    /// <summary>
+    /// Tạo liên kết thanh toán PayOS cho yêu cầu gia hạn hợp đồng.
+    /// </summary>
     Task<CheckoutLink> CreateRenewalAsync(long orderCode, int amount, long renewalId, long expiresAt, string returnUrl, string cancelUrl)
         => CreateAsync(orderCode, amount, renewalId, expiresAt, returnUrl, cancelUrl);
+
+    /// <summary>
+    /// Huỷ liên kết thanh toán PayOS theo mã đơn hàng.
+    /// </summary>
     Task CancelAsync(long orderCode);
+
+    /// <summary>
+    /// Xác thực dữ liệu Webhook gửi từ PayOS bằng ChecksumKey.
+    /// </summary>
     Task<VerifiedReservationPayment?> VerifyAsync(string body);
 }
 
+/// <summary>
+/// Triển khai cổng thanh toán PayOS sử dụng thư viện chính thức PayOS SDK.
+/// </summary>
 public sealed class SdkPayOSGateway(IConfiguration config) : IPayOSGateway
 {
     private PayOSClient Client()
@@ -30,8 +68,14 @@ public sealed class SdkPayOSGateway(IConfiguration config) : IPayOSGateway
         return new PayOSClient(new PayOSOptions { ClientId = clientId!, ApiKey = apiKey!, ChecksumKey = checksum! });
     }
 
+    /// <summary>
+    /// Đảm bảo thông tin kết nối PayOS đã được cấu hình đầy đủ.
+    /// </summary>
     public void EnsureConfigured() => _ = Client();
 
+    /// <summary>
+    /// Tạo liên kết thanh toán PayOS cho đơn đặt chỗ.
+    /// </summary>
     public async Task<CheckoutLink> CreateAsync(long orderCode, int amount, long reservationId, long expiresAt, string returnUrl, string cancelUrl)
     {
         var result = await Client().PaymentRequests.CreateAsync(new CreatePaymentLinkRequest {
@@ -41,6 +85,9 @@ public sealed class SdkPayOSGateway(IConfiguration config) : IPayOSGateway
         return new CheckoutLink(result.CheckoutUrl, result.QrCode);
     }
 
+    /// <summary>
+    /// Tạo liên kết thanh toán PayOS cho khoản gia hạn hợp đồng.
+    /// </summary>
     public async Task<CheckoutLink> CreateRenewalAsync(long orderCode, int amount, long renewalId, long expiresAt, string returnUrl, string cancelUrl)
     {
         var result = await Client().PaymentRequests.CreateAsync(new CreatePaymentLinkRequest {
@@ -50,6 +97,9 @@ public sealed class SdkPayOSGateway(IConfiguration config) : IPayOSGateway
         return new CheckoutLink(result.CheckoutUrl, result.QrCode);
     }
 
+    /// <summary>
+    /// Hủy liên kết thanh toán trên PayOS nếu khách hàng đổi phương thức hoặc huỷ đơn.
+    /// </summary>
     public async Task CancelAsync(long orderCode)
     {
         var client = Client();
@@ -64,6 +114,9 @@ public sealed class SdkPayOSGateway(IConfiguration config) : IPayOSGateway
             throw new InvalidOperationException("Chưa huỷ được link PayOS. Vui lòng thử lại trước khi đổi phương thức.");
     }
 
+    /// <summary>
+    /// Xác thực tính toàn vẹn của webhook payload từ PayOS bằng chữ ký checksum.
+    /// </summary>
     public async Task<VerifiedReservationPayment?> VerifyAsync(string body)
     {
         var webhook = JsonSerializer.Deserialize<Webhook>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })

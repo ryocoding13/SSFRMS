@@ -6,23 +6,24 @@ using StorageProject.Core.Entities;
 namespace StorageProject.Infrastructure.Services;
 
 /// <summary>
-/// Phiên 3 (05/11/2026):
-/// - D39/D40: khách xác nhận khấu trừ trả kho trong 48 giờ, quá hạn tự chốt theo biên bản nhân viên;
-///   khách tự dọn / tự thay / khiếu nại → cơ sở kiểm tra lại, đạt thì không trừ khoản tương ứng.
-/// - D42/D43: hoàn tiền mặt tại quầy (quản lý duyệt, nhân viên chi, tick 4 mục), gọi nhắc ngày 10/20/25, hạn 30 ngày,
-///   ngày hẹn tạm dừng gọi nhắc; báo cáo việc tồn cuối ngày 22:00 cho quản lý cơ sở.
-/// Trạng thái lưu trong activity_logs (không thêm cột/bảng mới).
+/// Quản lý các luồng công việc nâng cao và xử lý hậu kỳ (Workflows) của cơ sở:
+/// 1. Khấu trừ trả kho (D39/D40): Khách có 48 giờ để xác nhận hoặc lựa chọn phương án khắc phục (tự dọn, tự thay, khiếu nại).
+///    Quá 48 giờ hệ thống tự chốt theo biên bản kiểm tra của nhân viên.
+/// 2. Hoàn tiền mặt tại quầy (D42/D44): Quản lý duyệt chi, nhân viên chi tiền (tick 4 mục), các mốc gọi nhắc 10, 20, 25 ngày.
+///    Hạn nhận tiền mặt 30 ngày (quá 30 ngày mất khoản hoàn D44), khách được quyền đổi sang nhận chuyển khoản trong 30 ngày.
+/// 3. Báo cáo công việc tồn cuối ngày (D42): Tổng hợp hiệu suất làm việc lúc 22:00 hàng ngày cho Quản lý cơ sở.
 /// </summary>
 public partial class FacilityOpsService
 {
-    /// <summary>D40/D42: nhân viên gửi biên bản trả kho trong 3 ngày kể từ khi khách gửi yêu cầu.</summary>
+    /// <summary>Thời hạn chuẩn nhân viên phải gửi biên bản trả kho sau khi khách tạo yêu cầu (3 ngày).</summary>
     private static readonly TimeSpan InspectionSla = TimeSpan.FromDays(3);
-    /// <summary>D40: khách có 48 giờ kể từ khi nhận biên bản để xác nhận khấu trừ.</summary>
+    /// <summary>Khung thời gian khách hàng xác nhận khấu trừ trả kho (48 giờ).</summary>
     internal static readonly TimeSpan DeductionWindow = TimeSpan.FromHours(48);
-    /// <summary>D42: khách nhận tiền mặt trong 30 ngày kể từ khi quản lý duyệt; nhắc ở ngày 10, 20, 25.</summary>
+    /// <summary>Thời hạn tối đa khách hàng có thể nhận tiền mặt tại quầy (30 ngày theo D44).</summary>
     internal const int CashRefundDays = 30;
+    /// <summary>Các mốc ngày cần gọi điện nhắc nhở khách hàng đến nhận tiền mặt tại quầy (ngày 10, 20, 25).</summary>
     internal static readonly int[] CashReminderDays = [10, 20, 25];
-    /// <summary>D42: giờ gửi báo cáo cuối ngày (giờ Việt Nam).</summary>
+    /// <summary>Giờ chốt báo cáo cuối ngày hàng ngày (22:00 giờ Việt Nam).</summary>
     internal const int DailyReportHour = 22;
 
     private static class FlowAction
@@ -45,6 +46,7 @@ public partial class FacilityOpsService
     private static readonly string[] DeductionDecisions = ["AGREE", "SELF_CLEAN", "SELF_REPLACE", "DISPUTE"];
     private static readonly string[] CallResults = ["APPOINTMENT", "NO_ANSWER", "SWITCH_TO_BANK", "WRONG_NUMBER"];
 
+    /// <summary>Tạo mã hiển thị cho khoản hoàn tiền mặt (ví dụ: "CH-0012").</summary>
     internal static string CashRefundCode(long paymentId) => $"CH-{paymentId:0000}";
 
     // =====================================================================
@@ -52,8 +54,8 @@ public partial class FacilityOpsService
     // =====================================================================
 
     /// <summary>
-    /// NONE (không có khấu trừ / chưa có biên bản) · WAITING (trong 48 giờ, khách chưa chọn) · AUTO_AGREED (quá 48 giờ) ·
-    /// AGREED · SELF_CLEAN / SELF_REPLACE / DISPUTE (chờ cơ sở kiểm tra lại) · RECHECKED (đã kiểm tra lại).
+    /// Phân giải trạng thái khấu trừ biên bản trả kho từ nhật ký:
+    /// NONE · WAITING (trong 48 giờ) · AUTO_AGREED (quá 48 giờ) · AGREED · SELF_CLEAN / SELF_REPLACE / DISPUTE · RECHECKED.
     /// </summary>
     private static (string Status, DateTime? DeadlineUtc) DeductionStateOf(ReturnInspection i, IEnumerable<ActivityLog> logs, DateTime now)
     {
@@ -92,12 +94,14 @@ public partial class FacilityOpsService
         }
     }
 
+    /// <summary>Phân tích mã hợp đồng khách gửi.</summary>
     private static long CustomerContractId(string? code)
     {
         var text = (code ?? string.Empty).Trim();
         return long.TryParse(text, out var id) && id > 0 ? id : ParseCode(text, "HĐ-", "hợp đồng");
     }
 
+    /// <summary>Lấy thông tin hợp đồng và biên bản kiểm tra tương ứng của khách hàng.</summary>
     private async Task<(RentalContract Contract, ReturnInspection Inspection)> CustomerInspectionAsync(
         long customerId, string contractCode, bool track, CancellationToken ct)
     {
@@ -113,6 +117,7 @@ public partial class FacilityOpsService
         return (contract, inspection);
     }
 
+    /// <summary>Ánh xạ dữ liệu sang ReturnDeductionDto.</summary>
     private async Task<ReturnDeductionDto> ToDeductionDtoAsync(RentalContract c, ReturnInspection i, CancellationToken ct)
     {
         var logs = await LogsAsync(LogEntity.Return, [i.InspectionId], ct);
@@ -134,12 +139,16 @@ public partial class FacilityOpsService
             customerPhotos.TryGetValue(i.InspectionId, out var mine) ? mine : []);
     }
 
+    /// <summary>Khách hàng lấy thông tin chi tiết khấu trừ biên bản trả kho.</summary>
     public async Task<ReturnDeductionDto> GetReturnDeductionAsync(long customerId, string contractCode, CancellationToken ct = default)
     {
         var (c, i) = await CustomerInspectionAsync(customerId, contractCode, track: false, ct);
         return await ToDeductionDtoAsync(c, i, ct);
     }
 
+    /// <summary>
+    /// Khách hàng gửi phản hồi lựa chọn phương án khấu trừ trả kho trong 48 giờ (AGREE, SELF_CLEAN, SELF_REPLACE, DISPUTE).
+    /// </summary>
     public async Task<ReturnDeductionDto> DecideReturnDeductionAsync(long customerId, string contractCode,
         ReturnDeductionDecisionRequest request, CancellationToken ct = default)
     {
@@ -179,7 +188,7 @@ public partial class FacilityOpsService
         return await ToDeductionDtoAsync(c, i, ct);
     }
 
-    /// <summary>D39: cơ sở kiểm tra lại sau khi khách tự dọn / tự thay / khiếu nại. Đạt → không trừ khoản tương ứng.</summary>
+    /// <summary>D39: Cơ sở kiểm tra lại sau khi khách tự dọn / tự thay / khiếu nại. Đạt → không trừ khoản tương ứng.</summary>
     public async Task RecheckReturnAsync(OpsActor actor, string id, ReturnRecheckRequest request, CancellationToken ct = default)
     {
         var facility = await FacilityOfAsync(actor, ct);
@@ -225,10 +234,9 @@ public partial class FacilityOpsService
     }
 
     /// <summary>
-    /// D40 + D44 (cách B): hệ thống tự chốt hoàn cọc theo biên bản (tạo khoản hoàn PENDING như M07), ghi nhật ký là
+    /// D40 + D44 (cách B): Hệ thống tự chốt hoàn cọc theo biên bản (tạo khoản hoàn PENDING như M07), ghi nhật ký là
     /// "Hệ thống" (UserId = null, system = true) — không cần cơ sở có quản lý.
     /// Chốt khi: quá 48 giờ khách chưa trả lời (AUTO_AGREED) hoặc khách đã bấm "Đồng ý khấu trừ · hoàn tất hoàn cọc" (AGREED).
-    /// Phương án khác (tự dọn / tự thay / khiếu nại) chờ cơ sở kiểm tra lại rồi quản lý chốt ở M07.
     /// </summary>
     public async Task<int> AutoSettleExpiredDeductionsAsync(CancellationToken ct = default)
     {
@@ -275,6 +283,7 @@ public partial class FacilityOpsService
         return settled;
     }
 
+    /// <summary>Lấy ID quản lý của cơ sở đang hoạt động.</summary>
     private async Task<long?> FacilityManagerIdAsync(long facilityId, CancellationToken ct)
     {
         var today = VnToday;
@@ -291,6 +300,7 @@ public partial class FacilityOpsService
     // D42 · Hoàn tiền mặt tại quầy
     // =====================================================================
 
+    /// <summary>Query cơ sở các khoản hoàn tiền mặt của cơ sở.</summary>
     private IQueryable<Payment> CashRefundQuery(long facilityId) => dbContext.Payments
         .Include(p => p.Reservation).ThenInclude(r => r.Customer)
         .Include(p => p.Contract).ThenInclude(c => c.Unit)
@@ -304,8 +314,8 @@ public partial class FacilityOpsService
         int? ReminderDay, DateOnly? Appointment, ActivityLog? LastCall, ActivityLog? Paid);
 
     /// <summary>
-    /// WAITING_APPROVAL (chờ quản lý duyệt) · READY (chờ khách đến quầy) · REMIND (đến mốc 10/20/25, cần gọi nhắc) ·
-    /// APPOINTMENT (đã hẹn ngày đến) · FORFEITED (D44: quá 30 ngày chưa nhận, khách mất khoản hoàn) · PAID.
+    /// Xác định trạng thái xử lý khoản hoàn tiền mặt:
+    /// WAITING_APPROVAL · READY · REMIND · APPOINTMENT · FORFEITED · PAID.
     /// </summary>
     private static CashState CashStateOf(Payment p, IEnumerable<ActivityLog> logs, DateOnly today)
     {
@@ -344,6 +354,7 @@ public partial class FacilityOpsService
         return new CashState("READY", approved.LoggedAt, staffId, deadline, days, null, appointment, lastCall, null);
     }
 
+    /// <summary>Xác định nguồn gốc và chủ thể của khoản tiền hoàn mặt.</summary>
     private static (string Source, string Reference, User Customer) CashOwner(Payment p,
         IReadOnlyDictionary<long, string>? incidentCodes = null) =>
         p.ReservationId != null
@@ -362,6 +373,7 @@ public partial class FacilityOpsService
             .ToDictionaryAsync(i => i.RefundPaymentId!.Value, i => i.CaseCode, ct);
     }
 
+    /// <summary>Chuyển đổi danh sách Payment thành CashRefundDto.</summary>
     private async Task<IReadOnlyList<CashRefundDto>> ToCashDtosAsync(List<Payment> rows, CancellationToken ct)
     {
         var logs = await LogsAsync(PaymentEntity, rows.Select(p => p.PaymentId).ToList(), ct);
@@ -395,6 +407,7 @@ public partial class FacilityOpsService
             .ToList();
     }
 
+    /// <summary>Lấy danh sách các khoản hoàn tiền mặt tại cơ sở.</summary>
     public async Task<IReadOnlyList<CashRefundDto>> GetCashRefundsAsync(OpsActor actor, CancellationToken ct = default)
     {
         var facility = await FacilityOfAsync(actor, ct);
@@ -412,6 +425,7 @@ public partial class FacilityOpsService
         return dtos;
     }
 
+    /// <summary>Lấy thông tin một khoản hoàn tiền mặt cụ thể.</summary>
     private async Task<Payment> CashPaymentAsync(long facilityId, string code, CancellationToken ct)
     {
         var id = ParseCode(code, "CH-", "khoản hoàn tiền mặt");
@@ -419,7 +433,7 @@ public partial class FacilityOpsService
                ?? throw new KeyNotFoundException("Không tìm thấy khoản hoàn tiền mặt tại cơ sở của bạn.");
     }
 
-    /// <summary>D42: quản lý duyệt chi tiền mặt theo lựa chọn của khách và giao việc cho nhân viên cùng cơ sở.</summary>
+    /// <summary>D42: Quản lý duyệt chi tiền mặt theo lựa chọn của khách và giao việc cho nhân viên cùng cơ sở.</summary>
     public async Task<CashRefundDto> ApproveCashRefundAsync(OpsActor actor, string id, OpsAssignRequest request, CancellationToken ct = default)
     {
         RequireManager(actor);
@@ -446,7 +460,7 @@ public partial class FacilityOpsService
         return (await ToCashDtosAsync([p], ct))[0];
     }
 
-    /// <summary>D42/D43 · S10b: ghi kết quả gọi nhắc; hẹn ngày đến thì tạm dừng gọi nhắc đến ngày đó.</summary>
+    /// <summary>D42/D43 · S10b: Ghi nhận kết quả cuộc gọi nhắc khách nhận tiền mặt; hẹn ngày đến thì tạm dừng gọi nhắc đến ngày đó.</summary>
     public async Task<CashRefundDto> RecordCashRefundCallAsync(OpsActor actor, string id, CashRefundCallRequest request, CancellationToken ct = default)
     {
         var facility = await FacilityOfAsync(actor, ct);
@@ -483,7 +497,7 @@ public partial class FacilityOpsService
         return (await ToCashDtosAsync([p], ct))[0];
     }
 
-    /// <summary>D42 · S10: nhân viên tick đủ 4 mục rồi xác nhận đã chi; không lưu ảnh / số phiếu chi.</summary>
+    /// <summary>D42 · S10: Nhân viên xác nhận đã chi tiền mặt cho khách sau khi tick đủ 4 mục kiểm tra.</summary>
     public async Task<CashRefundDto> PayCashRefundAsync(OpsActor actor, string id, CashRefundPayRequest request, CancellationToken ct = default)
     {
         if (!(request.IdentityChecked && request.CodeChecked && request.AmountCounted && request.Signed))
@@ -531,6 +545,7 @@ public partial class FacilityOpsService
     // D44 · Khách đổi sang chuyển khoản trong 30 ngày; quá 30 ngày chưa nhận thì mất khoản hoàn
     // =====================================================================
 
+    /// <summary>Query các khoản tiền hoàn mặt thuộc về một khách hàng.</summary>
     private IQueryable<Payment> CustomerCashQuery(long customerId) => dbContext.Payments
         .Include(p => p.Reservation).ThenInclude(r => r.Customer)
         .Include(p => p.Contract).ThenInclude(c => c.Unit)
@@ -548,7 +563,7 @@ public partial class FacilityOpsService
     }
 
     /// <summary>
-    /// D44: trong 30 ngày khách đổi khoản tiền mặt sang chuyển khoản vào tài khoản chính chủ (tên trùng hợp đồng).
+    /// D44: Trong 30 ngày khách đổi khoản tiền mặt sang chuyển khoản vào tài khoản chính chủ (tên trùng hợp đồng).
     /// Khoản trở về luồng chuyển khoản (M08 / hoàn cọc / sự cố) để quản lý ghi mã giao dịch; việc chi tiền mặt và gọi nhắc dừng.
     /// </summary>
     public async Task<CashRefundDto> SwitchCashRefundToBankAsync(long customerId, string id, StorageProject.Core.DTOs.Evidence.RefundBankInput bank,
@@ -608,7 +623,7 @@ public partial class FacilityOpsService
     }
 
     /// <summary>
-    /// D44 · Tiến trình nền: khoản tiền mặt đã duyệt quá 30 ngày chưa nhận → khách mất khoản hoàn.
+    /// D44 · Tiến trình nền: Khoản tiền mặt đã duyệt quá 30 ngày chưa nhận → khách mất khoản hoàn.
     /// Khoản REFUND chuyển CANCELLED (tham chiếu FORFEITED:{id}), ghi nhật ký hệ thống; không chi, không chuyển khoản.
     /// </summary>
     public async Task<int> ForfeitExpiredCashRefundsAsync(CancellationToken ct = default)
@@ -649,6 +664,7 @@ public partial class FacilityOpsService
     // D42 · Việc tồn cuối ngày (22:00) — tên nhân viên, số việc chưa xong, chi tiết + lịch sử trong ngày
     // =====================================================================
 
+    /// <summary>Quản lý xem báo cáo công việc tồn và đã làm trong ngày của nhân viên tại cơ sở.</summary>
     public async Task<DailyStaffReportDto> GetDailyReportAsync(OpsActor actor, DateOnly? date = null, CancellationToken ct = default)
     {
         RequireManager(actor);
@@ -656,6 +672,7 @@ public partial class FacilityOpsService
         return await BuildDailyReportAsync(facility.FacilityId, date ?? VnToday, ct);
     }
 
+    /// <summary>Xây dựng báo cáo chi tiết hiệu suất công việc trong ngày của đội ngũ nhân viên.</summary>
     internal async Task<DailyStaffReportDto> BuildDailyReportAsync(long facilityId, DateOnly day, CancellationToken ct)
     {
         var now = NowUtc;
@@ -725,6 +742,7 @@ public partial class FacilityOpsService
         return new DailyStaffReportDto(day.ToString("yyyy-MM-dd"), Local(now)!, rows);
     }
 
+    /// <summary>Chuyển đổi Action sang nhãn tiếng Việt dễ hiểu trên báo cáo.</summary>
     private static string HistoryLabel(ActivityLog l) => l.Action switch
     {
         LogAction.PaymentConfirmed => "Xác nhận đã thu",

@@ -7,8 +7,19 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Dịch vụ quản lý vòng đời gia hạn hợp đồng thuê (RenewalService) thực thi IRenewalService.
+/// Xử lý gửi yêu cầu gia hạn, chọn thanh toán tại quầy, duyệt/từ chối, huỷ yêu cầu, thu tiền mặt tại quầy và quét hết hạn thanh toán.
+/// </summary>
 public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRenewalService
 {
+    /// <summary>
+    /// Lấy danh sách lịch sử các đợt gia hạn của một hợp đồng thuê thuộc quyền sở hữu của khách hàng.
+    /// </summary>
+    /// <param name="customerId">ID khách hàng.</param>
+    /// <param name="contractId">ID hợp đồng.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Danh sách các đợt gia hạn.</returns>
     public async Task<IReadOnlyList<RenewalDto>> GetContractRenewalsAsync(long customerId, long contractId, CancellationToken ct = default)
     {
         var ownsContract = await dbContext.RentalContracts
@@ -45,6 +56,14 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
             .ToListAsync(ct);
     }
 
+    /// <summary>
+    /// Khách hàng gửi yêu cầu gia hạn hợp đồng thuê (phải chấp thuận chính sách hiện hành và ô chưa bị khách mới đặt trước D41).
+    /// </summary>
+    /// <param name="customerId">ID khách hàng.</param>
+    /// <param name="contractId">ID hợp đồng cần gia hạn.</param>
+    /// <param name="request">Yêu cầu gia hạn gồm số tháng và phiên bản chính sách đồng ý.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Bản ghi gia hạn mới tạo ở trạng thái PENDING.</returns>
     public async Task<RenewalDto> RequestRenewalAsync(long customerId, long contractId, CreateRenewalRequest request, CancellationToken ct = default)
     {
         if (request.RenewalPeriodMonths <= 0)
@@ -188,6 +207,13 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
         );
     }
 
+    /// <summary>
+    /// Khách hàng chọn phương thức thanh toán tiền mặt tại quầy cho khoản gia hạn đã duyệt (S02).
+    /// </summary>
+    /// <param name="customerId">ID khách hàng.</param>
+    /// <param name="renewalId">ID yêu cầu gia hạn.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Thông tin yêu cầu gia hạn đã chuyển phương thức thanh toán sang CASH.</returns>
     public async Task<RenewalDto> SelectCounterPaymentAsync(long customerId, long renewalId, CancellationToken ct = default)
     {
         // S02 (Phiên 3): khoá theo hợp đồng như lúc nhân viên thu tiền / PayOS ghi nhận, tránh đổi sang quầy giữa chừng.
@@ -291,6 +317,12 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
         );
     }
 
+    /// <summary>
+    /// Lấy danh sách các khoản gia hạn chờ thu tiền mặt tại quầy của cơ sở được phân công (S02).
+    /// </summary>
+    /// <param name="userId">ID nhân viên hoặc quản lý cơ sở.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Danh sách khoản gia hạn chờ thu tại quầy.</returns>
     public async Task<IReadOnlyList<CounterRenewalDto>> GetCounterRenewalsAsync(long userId, CancellationToken ct = default)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
@@ -356,6 +388,12 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
         return list;
     }
 
+    /// <summary>
+    /// Nhân viên cơ sở xác nhận thu tiền mặt cho khoản gia hạn tại quầy (S02).
+    /// </summary>
+    /// <param name="userId">ID nhân viên thu tiền.</param>
+    /// <param name="id">Mã khoản gia hạn.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task CollectCounterRenewalAsync(long userId, string id, CancellationToken ct = default)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
@@ -433,6 +471,13 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
         await tx.CommitAsync(ct);
     }
 
+    /// <summary>
+    /// Phê duyệt yêu cầu gia hạn (M01 / M03): tạo khoản thanh toán RENEWAL PENDING và đặt thời hạn thanh toán 24 giờ.
+    /// </summary>
+    /// <param name="userId">ID Quản lý phê duyệt.</param>
+    /// <param name="renewalId">ID yêu cầu gia hạn.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Thông tin gia hạn sau phê duyệt.</returns>
     public async Task<RenewalDto> ApproveRenewalAsync(long userId, long renewalId, CancellationToken ct = default)
     {
         var userFacility = await dbContext.UserFacilities.AsNoTracking()
@@ -453,6 +498,13 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
             renewal.PolicyVersion, renewal.AcceptedAt);
     }
 
+    /// <summary>
+    /// Từ chối yêu cầu gia hạn hợp đồng (M03) kèm lý do.
+    /// </summary>
+    /// <param name="userId">ID Quản lý thực hiện.</param>
+    /// <param name="renewalId">ID yêu cầu gia hạn.</param>
+    /// <param name="reason">Lý do từ chối gửi cho khách.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task RejectRenewalAsync(long userId, long renewalId, string reason, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(reason))
@@ -498,6 +550,12 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
         await dbContext.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Khách hàng tự huỷ yêu cầu gia hạn khi yêu cầu vẫn còn ở trạng thái PENDING chờ duyệt (L5).
+    /// </summary>
+    /// <param name="customerId">ID khách hàng.</param>
+    /// <param name="renewalId">ID yêu cầu gia hạn.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task CancelRenewalAsync(long customerId, long renewalId, CancellationToken ct = default)
     {
         var renewal = await dbContext.ContractRenewals
@@ -522,6 +580,10 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
         await dbContext.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Quét và xử lý các yêu cầu gia hạn APPROVED đã quá hạn thanh toán (PaymentDeadlineAt) chuyển sang EXPIRED (T02).
+    /// </summary>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task ExpirePendingRenewalsAsync(CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;

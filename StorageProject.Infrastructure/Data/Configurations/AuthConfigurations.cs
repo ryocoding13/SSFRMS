@@ -4,8 +4,13 @@ using StorageProject.Core.Entities;
 
 namespace StorageProject.Infrastructure.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Vai trò (Role) sang bảng 'roles'.
+/// Định nghĩa khóa chính, độ dài cột và chỉ mục duy nhất cho tên vai trò (D05/D16).
+/// </summary>
 public class RoleConfiguration : IEntityTypeConfiguration<Role>
 {
+    /// <summary>Cấu hình bảng roles, cột và chỉ mục.</summary>
     public void Configure(EntityTypeBuilder<Role> b)
     {
         b.ToTable("roles");
@@ -17,8 +22,13 @@ public class RoleConfiguration : IEntityTypeConfiguration<Role>
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Quyền hạn (Permission) sang bảng 'permissions'.
+/// Quản lý danh mục quyền truy cập hệ thống và mã quyền duy nhất (PermissionCode).
+/// </summary>
 public class PermissionConfiguration : IEntityTypeConfiguration<Permission>
 {
+    /// <summary>Cấu hình bảng permissions, cột và ràng buộc duy nhất cho PermissionCode.</summary>
     public void Configure(EntityTypeBuilder<Permission> b)
     {
         b.ToTable("permissions");
@@ -31,8 +41,13 @@ public class PermissionConfiguration : IEntityTypeConfiguration<Permission>
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Tài khoản người dùng (User) sang bảng 'users'.
+/// Bao gồm ràng buộc CHECK trạng thái tài khoản, chỉ mục duy nhất cho Username và Email (D03).
+/// </summary>
 public class UserConfiguration : IEntityTypeConfiguration<User>
 {
+    /// <summary>Cấu hình bảng users, khóa chính, ràng buộc CHECK và chỉ mục.</summary>
     public void Configure(EntityTypeBuilder<User> b)
     {
         b.ToTable("users", t =>
@@ -54,8 +69,13 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Gán vai trò người dùng (UserRole) sang bảng 'user_roles'.
+/// Khóa chính phức hợp (UserId, RoleId) và quan hệ khóa ngoại bảo vệ Restrict.
+/// </summary>
 public class UserRoleConfiguration : IEntityTypeConfiguration<UserRole>
 {
+    /// <summary>Cấu hình bảng user_roles, khóa chính phức hợp và quan hệ 1-n.</summary>
     public void Configure(EntityTypeBuilder<UserRole> b)
     {
         b.ToTable("user_roles");
@@ -71,8 +91,13 @@ public class UserRoleConfiguration : IEntityTypeConfiguration<UserRole>
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Phân quyền cho vai trò (RolePermission) sang bảng 'role_permissions'.
+/// Khóa chính phức hợp (RoleId, PermissionId) với quy tắc xóa Cascade theo vai trò và quyền.
+/// </summary>
 public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermission>
 {
+    /// <summary>Cấu hình bảng role_permissions, khóa chính và quan hệ khóa ngoại.</summary>
     public void Configure(EntityTypeBuilder<RolePermission> b)
     {
         b.ToTable("role_permissions");

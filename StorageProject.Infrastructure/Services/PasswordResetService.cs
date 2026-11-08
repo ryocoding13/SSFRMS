@@ -11,12 +11,24 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Dịch vụ cấp và xác thực mã OTP đặt lại mật khẩu (PasswordResetService) thực thi IPasswordResetService.
+/// Triển khai theo quy chuẩn bảo mật: mã OTP 6 số ngẫu nhiên, HMACSHA256, hạn 10 phút,
+/// giới hạn tối đa 5 lần gửi/giờ và khoá sau 5 lần nhập sai. Đóng toàn bộ phiên cũ sau khi đổi mật khẩu thành công.
+/// </summary>
 public sealed class PasswordResetService(AppDbContext db, IPasswordResetEmailSender sender,
     IConfiguration configuration, TimeProvider clock) : IPasswordResetService
 {
     public const string InvalidCodeMessage = "Mã xác nhận không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu mã mới nếu cần.";
     private const string AcceptedMessage = "Nếu email đã đăng ký và tài khoản được phép khôi phục, bạn sẽ nhận được mã xác nhận. Vui lòng kiểm tra cả thư rác.";
 
+    /// <summary>
+    /// Tiếp nhận yêu cầu gửi mã OTP đặt lại mật khẩu qua email.
+    /// </summary>
+    /// <param name="request">Yêu cầu chứa email người dùng.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Thông báo xác nhận đã tiếp nhận yêu cầu.</returns>
+    /// <exception cref="EmailNotRegisteredException">Ném ra nếu email chưa từng đăng ký trên hệ thống (L24).</exception>
     public async Task<PasswordResetRequestedDto> RequestAsync(PasswordResetRequest request, CancellationToken ct = default)
     {
         var email = NormalizeEmail(request.Email);
@@ -68,6 +80,12 @@ public sealed class PasswordResetService(AppDbContext db, IPasswordResetEmailSen
         return reply;
     }
 
+    /// <summary>
+    /// Xác thực mã OTP và cập nhật mật khẩu mới cho người dùng.
+    /// Sau khi đổi thành công, hủy toàn bộ phiên làm việc cũ để đảm bảo an toàn.
+    /// </summary>
+    /// <param name="request">Yêu cầu xác nhận gồm email, mã OTP và mật khẩu mới.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task ConfirmAsync(PasswordResetConfirmRequest request, CancellationToken ct = default)
     {
         var email = NormalizeEmail(request.Email);
@@ -99,6 +117,7 @@ public sealed class PasswordResetService(AppDbContext db, IPasswordResetEmailSen
             await tx.CommitAsync(ct);
             throw new ArgumentException(InvalidCodeMessage);
         }
+
         if (BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
             throw new ArgumentException("Mật khẩu mới phải khác mật khẩu hiện tại.");
 
