@@ -6,6 +6,10 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Dịch vụ hỗ trợ tư vấn và giải đáp thắc mắc khách hàng chưa có hợp đồng (SupportInquiryService) thực thi ISupportInquiryService.
+/// Triển khai theo T19: Khách hàng chọn cơ sở và gửi câu hỏi; nhân viên/quản lý đúng cơ sở trả lời; hỗ trợ cơ chế Idempotency với ClientRequestId.
+/// </summary>
 public sealed class SupportInquiryService(AppDbContext db) : ISupportInquiryService
 {
     private sealed record Actor(bool Customer, long? FacilityId);
@@ -31,12 +35,26 @@ public sealed class SupportInquiryService(AppDbContext db) : ISupportInquiryServ
         .Include(x => x.Customer).Include(x => x.Replies).ThenInclude(x => x.Author)
         .Where(x => actor.Customer ? x.CustomerId == userId : x.FacilityId == actor.FacilityId);
 
+    /// <summary>
+    /// Lấy danh sách các yêu cầu hỗ trợ tư vấn trong phạm vi người dùng (khách hàng xem của mình; nhân viên/quản lý xem của cơ sở phụ trách).
+    /// </summary>
+    /// <param name="userId">ID người dùng.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Danh sách các yêu cầu tư vấn.</returns>
     public async Task<IReadOnlyList<InquiryDto>> ListAsync(long userId, CancellationToken ct = default)
     {
         var actor = await ActorAsync(userId, ct);
         return (await Query(userId, actor).AsNoTracking().OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.InquiryId)
             .ToListAsync(ct)).Select(ToDto).ToList();
     }
+
+    /// <summary>
+    /// Lấy thông tin chi tiết một yêu cầu tư vấn kèm toàn bộ lịch sử trao đổi phản hồi.
+    /// </summary>
+    /// <param name="userId">ID người dùng.</param>
+    /// <param name="id">Mã yêu cầu tư vấn (dạng "TV-xxxx").</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Chi tiết yêu cầu tư vấn.</returns>
     public async Task<InquiryDto> GetAsync(long userId, string id, CancellationToken ct = default)
     {
         var actor = await ActorAsync(userId, ct);
@@ -45,6 +63,15 @@ public sealed class SupportInquiryService(AppDbContext db) : ISupportInquiryServ
             ?? throw new KeyNotFoundException("Không tìm thấy yêu cầu hỗ trợ thuộc phạm vi của bạn.");
         return ToDto(item);
     }
+
+    /// <summary>
+    /// Thực hiện hành động tạo mới (CREATE_INQUIRY) hoặc gửi phản hồi (REPLY_INQUIRY) cho yêu cầu tư vấn.
+    /// Đảm bảo Idempotency qua ClientRequestId và kiểm soát xung đột phiên bản qua ExpectedVersion.
+    /// </summary>
+    /// <param name="userId">ID người dùng.</param>
+    /// <param name="request">Yêu cầu hành động.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Dữ liệu yêu cầu tư vấn sau khi cập nhật.</returns>
     public async Task<InquiryDto> ActAsync(long userId, InquiryActionRequest request, CancellationToken ct = default)
     {
         var actor = await ActorAsync(userId, ct);

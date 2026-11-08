@@ -4,8 +4,16 @@ using Microsoft.AspNetCore.RateLimiting;
 
 namespace StorageProject.Api.Extensions;
 
+/// <summary>
+/// Cấu hình chính sách giới hạn tần suất gửi yêu cầu (Rate Limiting) cho tính năng đặt lại mật khẩu.
+/// Ngăn chặn tấn công brute-force hoặc spam gửi mã OTP qua email.
+/// </summary>
 public static class PasswordResetRateLimits
 {
+    /// <summary>
+    /// Đăng ký các chính sách giới hạn tần suất đặt lại mật khẩu vào RateLimiterOptions.
+    /// </summary>
+    /// <param name="options">Tùy chọn cấu hình Rate Limiter của ASP.NET Core.</param>
     public static void Configure(RateLimiterOptions options)
     {
         options.OnRejected = async (context, ct) =>

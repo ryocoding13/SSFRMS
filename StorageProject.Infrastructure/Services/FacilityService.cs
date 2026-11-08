@@ -5,8 +5,17 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Dịch vụ tra cứu cơ sở kho, loại kho, biểu phí và kiểm tra ô kho trống (FacilityService) thực thi IFacilityService.
+/// Phục vụ UC01 (Tra cứu kho & kiểm tra tình trạng kho trống).
+/// </summary>
 public class FacilityService(AppDbContext dbContext) : IFacilityService
 {
+    /// <summary>
+    /// Lấy danh sách tất cả các cơ sở kho đang hoạt động (ACTIVE).
+    /// </summary>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Danh sách cơ sở kho đang hoạt động.</returns>
     public async Task<IReadOnlyList<FacilityDto>> GetActiveFacilitiesAsync(CancellationToken ct = default)
     {
         return await dbContext.Facilities
@@ -27,6 +36,12 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
             .ToListAsync(ct);
     }
 
+    /// <summary>
+    /// Lấy thông tin chi tiết một cơ sở kho theo ID.
+    /// </summary>
+    /// <param name="facilityId">ID cơ sở kho.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Thông tin cơ sở hoặc null nếu không tồn tại.</returns>
     public async Task<FacilityDto?> GetFacilityByIdAsync(long facilityId, CancellationToken ct = default)
     {
         var f = await dbContext.Facilities
@@ -49,6 +64,11 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
         );
     }
 
+    /// <summary>
+    /// Lấy danh sách toàn bộ các loại ô kho đang hoạt động (ACTIVE), sắp xếp theo diện tích tăng dần.
+    /// </summary>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Danh sách loại kho.</returns>
     public async Task<IReadOnlyList<UnitTypeDto>> GetActiveUnitTypesAsync(CancellationToken ct = default)
     {
         return await dbContext.UnitTypes
@@ -69,6 +89,12 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
             .ToListAsync(ct);
     }
 
+    /// <summary>
+    /// Lấy thông tin chi tiết một loại ô kho theo ID.
+    /// </summary>
+    /// <param name="unitTypeId">ID loại kho.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Thông tin loại kho hoặc null nếu không tồn tại.</returns>
     public async Task<UnitTypeDto?> GetUnitTypeByIdAsync(long unitTypeId, CancellationToken ct = default)
     {
         var u = await dbContext.UnitTypes
@@ -91,6 +117,13 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
         );
     }
 
+    /// <summary>
+    /// Lấy bảng giá thuê đang áp dụng (ACTIVE) theo cơ sở và loại ô kho trong ngày hiện tại.
+    /// </summary>
+    /// <param name="facilityId">ID cơ sở kho (tuỳ chọn).</param>
+    /// <param name="unitTypeId">ID loại kho (tuỳ chọn).</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Danh sách bảng giá thuê đang có hiệu lực.</returns>
     public async Task<IReadOnlyList<RentalRateDto>> GetActiveRatesAsync(long? facilityId, long? unitTypeId, CancellationToken ct = default)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -124,6 +157,12 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
             .ToListAsync(ct);
     }
 
+    /// <summary>
+    /// Kiểm tra tình trạng kho trống và tính toán dự toán tiền thuê, tiền cọc theo chính sách hiện hành (D41).
+    /// </summary>
+    /// <param name="request">Yêu cầu kiểm tra gồm cơ sở, loại kho, ngày bắt đầu và thời hạn thuê.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Kết quả kiểm tra ô trống kèm số lượng khả dụng và dự toán tài chính.</returns>
     public async Task<AvailabilityResultDto?> CheckAvailabilityAsync(AvailabilityQueryRequest request, CancellationToken ct = default)
     {
         var facility = await dbContext.Facilities.FindAsync([request.FacilityId], ct);
@@ -175,6 +214,12 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
         );
     }
 
+    /// <summary>
+    /// Lấy danh sách ô kho của cơ sở phục vụ hiển thị sơ đồ mặt bằng, kèm ngày ô dự kiến trống và cờ quá hạn (D41).
+    /// </summary>
+    /// <param name="facilityId">ID cơ sở kho.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Danh sách các ô kho thuộc cơ sở.</returns>
     public async Task<IReadOnlyList<FacilityUnitDto>> GetUnitsByFacilityIdAsync(long facilityId, CancellationToken ct = default)
     {
         // D41: sơ đồ ô hiện "Trống từ dd/mm" cho ô đang thuê / chờ kiểm tra (ngày hết hạn + ngày đệm của chính sách).
@@ -202,4 +247,3 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
             .ToList();
     }
 }
-

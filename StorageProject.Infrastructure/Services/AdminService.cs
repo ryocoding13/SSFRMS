@@ -8,9 +8,17 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Dịch vụ quản trị hệ thống (AdminService) thực thi IAdminService.
+/// Triển khai các chức năng UC24 (Quản lý người dùng), UC25 (Quản lý vai trò & quyền hạn),
+/// UC26 (Phân công cơ sở kho), UC27 (Nhật ký kiểm toán & đăng nhập) và Thống kê tổng quan hệ thống.
+/// </summary>
 public class AdminService(AppDbContext dbContext) : IAdminService
 {
     // --- Helper: Audit Logging ---
+    /// <summary>
+    /// Ghi nhật ký hoạt động hệ thống (ActivityLog) phục vụ kiểm toán và truy vết.
+    /// </summary>
     private async Task LogActivityAsync(
         long? userId,
         string action,
@@ -37,6 +45,12 @@ public class AdminService(AppDbContext dbContext) : IAdminService
     // UC24: User Management
     // ==========================================
 
+    /// <summary>
+    /// Lấy danh sách người dùng trong hệ thống theo bộ lọc phân trang, tìm kiếm từ khóa, trạng thái và vai trò.
+    /// </summary>
+    /// <param name="filter">Bộ lọc danh sách người dùng.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Kết quả phân trang danh sách người dùng.</returns>
     public async Task<PagedResult<AdminUserListItemDto>> GetUsersAsync(UserQueryFilter filter, CancellationToken ct = default)
     {
         var query = dbContext.Users
@@ -89,6 +103,12 @@ public class AdminService(AppDbContext dbContext) : IAdminService
         return new PagedResult<AdminUserListItemDto>(items, totalItems, page, pageSize);
     }
 
+    /// <summary>
+    /// Lấy thông tin chi tiết một tài khoản người dùng kèm vai trò, phân công cơ sở, số hợp đồng và vé hỗ trợ.
+    /// </summary>
+    /// <param name="userId">Mã định danh người dùng.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Chi tiết tài khoản hoặc null nếu không tồn tại.</returns>
     public async Task<AdminUserDetailDto?> GetUserDetailAsync(long userId, CancellationToken ct = default)
     {
         var user = await dbContext.Users
@@ -149,6 +169,13 @@ public class AdminService(AppDbContext dbContext) : IAdminService
         );
     }
 
+    /// <summary>
+    /// Tạo người dùng mới trong hệ thống và gán vai trò ban đầu nếu có.
+    /// </summary>
+    /// <param name="request">Thông tin yêu cầu tạo người dùng.</param>
+    /// <param name="currentAdminId">ID của quản trị viên thực hiện thao tác.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Chi tiết tài khoản vừa tạo.</returns>
     public async Task<AdminUserDetailDto> CreateUserAsync(AdminCreateUserRequest request, long currentAdminId, CancellationToken ct = default)
     {
         var usernameExists = await dbContext.Users.AnyAsync(u => u.Username == request.Username, ct);
@@ -208,6 +235,14 @@ public class AdminService(AppDbContext dbContext) : IAdminService
         return (await GetUserDetailAsync(user.UserId, ct))!;
     }
 
+    /// <summary>
+    /// Cập nhật thông tin tài khoản người dùng và bảo vệ quản trị viên ACTIVE duy nhất.
+    /// </summary>
+    /// <param name="userId">ID người dùng cần cập nhật.</param>
+    /// <param name="request">Thông tin cập nhật mới.</param>
+    /// <param name="currentAdminId">ID của quản trị viên thực hiện thao tác.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Chi tiết tài khoản sau khi cập nhật.</returns>
     public async Task<AdminUserDetailDto> UpdateUserAsync(long userId, AdminUpdateUserRequest request, long currentAdminId, CancellationToken ct = default)
     {
         var user = await dbContext.Users
@@ -272,6 +307,13 @@ public class AdminService(AppDbContext dbContext) : IAdminService
         return (await GetUserDetailAsync(userId, ct))!;
     }
 
+    /// <summary>
+    /// Đặt lại mật khẩu cho tài khoản người dùng bởi Quản trị viên.
+    /// </summary>
+    /// <param name="userId">ID người dùng cần đặt lại mật khẩu.</param>
+    /// <param name="request">Yêu cầu chứa mật khẩu mới.</param>
+    /// <param name="currentAdminId">ID của quản trị viên thực hiện thao tác.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task ResetUserPasswordAsync(long userId, AdminResetPasswordRequest request, long currentAdminId, CancellationToken ct = default)
     {
         var user = await dbContext.Users.FindAsync([userId], ct);
@@ -305,6 +347,11 @@ public class AdminService(AppDbContext dbContext) : IAdminService
     // UC25: Roles & UserRoles
     // ==========================================
 
+    /// <summary>
+    /// Lấy danh sách toàn bộ các vai trò và quyền hạn tương ứng trong hệ thống.
+    /// </summary>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Danh sách các vai trò kèm quyền hạn.</returns>
     public async Task<IReadOnlyList<RoleWithPermissionsDto>> GetAllRolesAsync(CancellationToken ct = default)
     {
         var roles = await dbContext.Roles
@@ -326,6 +373,13 @@ public class AdminService(AppDbContext dbContext) : IAdminService
         )).ToList();
     }
 
+    /// <summary>
+    /// Gán vai trò cho tài khoản người dùng.
+    /// </summary>
+    /// <param name="userId">ID người dùng.</param>
+    /// <param name="roleId">ID vai trò cần gán.</param>
+    /// <param name="currentAdminId">ID quản trị viên thực hiện.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task AssignRoleAsync(long userId, long roleId, long currentAdminId, CancellationToken ct = default)
     {
         var user = await dbContext.Users.FindAsync([userId], ct);
@@ -361,6 +415,13 @@ public class AdminService(AppDbContext dbContext) : IAdminService
         await dbContext.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Thu hồi vai trò khỏi tài khoản người dùng, đồng thời bảo vệ quản trị viên ACTIVE cuối cùng.
+    /// </summary>
+    /// <param name="userId">ID người dùng.</param>
+    /// <param name="roleId">ID vai trò cần thu hồi.</param>
+    /// <param name="currentAdminId">ID quản trị viên thực hiện.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task RevokeRoleAsync(long userId, long roleId, long currentAdminId, CancellationToken ct = default)
     {
         var userRole = await dbContext.UserRoles
@@ -408,6 +469,11 @@ public class AdminService(AppDbContext dbContext) : IAdminService
     // UC26: Permissions & Facility Scopes
     // ==========================================
 
+    /// <summary>
+    /// Lấy danh mục tất cả quyền hạn có trong hệ thống.
+    /// </summary>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Danh sách quyền hạn.</returns>
     public async Task<IReadOnlyList<PermissionDto>> GetAllPermissionsAsync(CancellationToken ct = default)
     {
         var permissions = await dbContext.Permissions.AsNoTracking().ToListAsync(ct);
@@ -419,6 +485,13 @@ public class AdminService(AppDbContext dbContext) : IAdminService
         )).ToList();
     }
 
+    /// <summary>
+    /// Gán quyền hạn vào vai trò.
+    /// </summary>
+    /// <param name="roleId">ID vai trò.</param>
+    /// <param name="permissionId">ID quyền hạn.</param>
+    /// <param name="currentAdminId">ID quản trị viên thực hiện.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task AssignPermissionToRoleAsync(long roleId, long permissionId, long currentAdminId, CancellationToken ct = default)
     {
         var role = await dbContext.Roles.FindAsync([roleId], ct);
@@ -452,6 +525,13 @@ public class AdminService(AppDbContext dbContext) : IAdminService
         await dbContext.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Thu hồi quyền hạn khỏi vai trò.
+    /// </summary>
+    /// <param name="roleId">ID vai trò.</param>
+    /// <param name="permissionId">ID quyền hạn.</param>
+    /// <param name="currentAdminId">ID quản trị viên thực hiện.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task RevokePermissionFromRoleAsync(long roleId, long permissionId, long currentAdminId, CancellationToken ct = default)
     {
         var rolePerm = await dbContext.RolePermissions
@@ -479,6 +559,12 @@ public class AdminService(AppDbContext dbContext) : IAdminService
         await dbContext.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Lấy lịch sử phân công cơ sở của người dùng theo thứ tự thời gian giảm dần.
+    /// </summary>
+    /// <param name="userId">ID người dùng.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Danh sách phân công cơ sở.</returns>
     public async Task<IReadOnlyList<UserFacilityDto>> GetUserFacilitiesAsync(long userId, CancellationToken ct = default)
     {
         var assignments = await dbContext.UserFacilities
@@ -506,6 +592,13 @@ public class AdminService(AppDbContext dbContext) : IAdminService
         )).ToList();
     }
 
+    /// <summary>
+    /// Phân công cơ sở kho cho nhân viên hoặc quản lý (áp dụng ràng buộc SRS A06: tối đa 1 phân công ACTIVE).
+    /// </summary>
+    /// <param name="request">Yêu cầu phân công cơ sở.</param>
+    /// <param name="currentAdminId">ID quản trị viên thực hiện.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Bản ghi phân công mới tạo.</returns>
     public async Task<UserFacilityDto> AssignUserFacilityAsync(AssignUserFacilityRequest request, long currentAdminId, CancellationToken ct = default)
     {
         var user = await dbContext.Users
@@ -586,6 +679,13 @@ public class AdminService(AppDbContext dbContext) : IAdminService
         );
     }
 
+    /// <summary>
+    /// Cập nhật trạng thái phân công cơ sở kho (ACTIVE / ENDED / SUSPENDED).
+    /// </summary>
+    /// <param name="userFacilityId">ID bản ghi phân công cơ sở.</param>
+    /// <param name="status">Trạng thái mới.</param>
+    /// <param name="currentAdminId">ID quản trị viên thực hiện.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task UpdateUserFacilityStatusAsync(long userFacilityId, string status, long currentAdminId, CancellationToken ct = default)
     {
         var assignment = await dbContext.UserFacilities
@@ -635,6 +735,12 @@ public class AdminService(AppDbContext dbContext) : IAdminService
     // UC27: Logs & Auditing
     // ==========================================
 
+    /// <summary>
+    /// Tra cứu lịch sử đăng nhập hệ thống có phân trang và bộ lọc theo người dùng, trạng thái, thời gian.
+    /// </summary>
+    /// <param name="filter">Bộ lọc lịch sử đăng nhập.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Kết quả phân trang lịch sử đăng nhập.</returns>
     public async Task<PagedResult<LoginHistoryDto>> GetLoginHistoriesAsync(LogQueryFilter filter, CancellationToken ct = default)
     {
         var query = dbContext.LoginHistories
@@ -686,6 +792,12 @@ public class AdminService(AppDbContext dbContext) : IAdminService
         return new PagedResult<LoginHistoryDto>(items, total, page, pageSize);
     }
 
+    /// <summary>
+    /// Tra cứu nhật ký kiểm toán (Activity Logs) có phân trang và bộ lọc theo người dùng, hành động, loại thực thể, thời gian.
+    /// </summary>
+    /// <param name="filter">Bộ lọc nhật ký hoạt động.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Kết quả phân trang nhật ký hoạt động.</returns>
     public async Task<PagedResult<ActivityLogDto>> GetActivityLogsAsync(LogQueryFilter filter, CancellationToken ct = default)
     {
         var query = dbContext.ActivityLogs
@@ -747,6 +859,11 @@ public class AdminService(AppDbContext dbContext) : IAdminService
     // Dashboard Stats
     // ==========================================
 
+    /// <summary>
+    /// Lấy số liệu thống kê tổng quan toàn hệ thống cho Dashboard Quản trị viên (người dùng, cơ sở, ô kho, hợp đồng, vé hỗ trợ).
+    /// </summary>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Thống kê Dashboard của Quản trị viên.</returns>
     public async Task<AdminDashboardStatsDto> GetDashboardStatsAsync(CancellationToken ct = default)
     {
         var totalUsers = await dbContext.Users.CountAsync(ct);

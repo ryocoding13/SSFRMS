@@ -5,8 +5,19 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Dịch vụ tra cứu thông tin thanh toán (PaymentService) thực thi IPaymentService.
+/// Cung cấp lịch sử thanh toán theo hợp đồng hoặc chi tiết từng giao dịch thanh toán của khách hàng.
+/// </summary>
 public class PaymentService(AppDbContext dbContext) : IPaymentService
 {
+    /// <summary>
+    /// Lấy danh sách các khoản thanh toán gắn liền với hợp đồng thuê của khách hàng.
+    /// </summary>
+    /// <param name="customerId">ID khách hàng.</param>
+    /// <param name="contractId">ID hợp đồng thuê.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Danh sách các khoản thanh toán.</returns>
     public async Task<IReadOnlyList<PaymentDto>> GetContractPaymentsAsync(long customerId, long contractId, CancellationToken ct = default)
     {
         // Verify customer owns the contract
@@ -40,6 +51,13 @@ public class PaymentService(AppDbContext dbContext) : IPaymentService
             .ToListAsync(ct);
     }
 
+    /// <summary>
+    /// Lấy thông tin chi tiết của một khoản thanh toán thuộc sở hữu của khách hàng.
+    /// </summary>
+    /// <param name="customerId">ID khách hàng.</param>
+    /// <param name="paymentId">ID khoản thanh toán.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Chi tiết khoản thanh toán hoặc null nếu không tìm thấy.</returns>
     public async Task<PaymentDto?> GetPaymentByIdAsync(long customerId, long paymentId, CancellationToken ct = default)
     {
         var p = await dbContext.Payments

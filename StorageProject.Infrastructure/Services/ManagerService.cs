@@ -6,8 +6,20 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Dịch vụ quản lý cơ sở (ManagerService) thực thi IManagerService.
+/// Triển khai các chức năng của Quản lý cơ sở (Figma M01–M08):
+/// bảng điều hành Quản lý (Board), phân bổ ô kho, phân công nhân viên, duyệt/từ chối gia hạn, nhắc nhở quá hạn và quản trị ô kho.
+/// </summary>
 public class ManagerService(AppDbContext dbContext, IStaffService staffService) : IManagerService
 {
+    /// <summary>
+    /// Lấy toàn bộ dữ liệu bảng vận hành cơ sở (Board) dành riêng cho vai trò Quản lý cơ sở.
+    /// Bao gồm phân bổ đơn, hợp đồng, gia hạn, phân công nhân sự và thống kê doanh thu.
+    /// </summary>
+    /// <param name="userId">ID người dùng vai trò Quản lý.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Dữ liệu OpsBoardDto đầy đủ cho Quản lý.</returns>
     public async Task<OpsBoardDto> GetManagerBoardAsync(long userId, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
@@ -163,6 +175,13 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
         return board;
     }
 
+    /// <summary>
+    /// Phân bổ ô kho cụ thể cho đơn đặt chỗ đã đối soát hợp lệ (M05).
+    /// </summary>
+    /// <param name="userId">ID Quản lý thực hiện.</param>
+    /// <param name="id">Mã đơn đặt chỗ.</param>
+    /// <param name="request">Yêu cầu phân bổ chứa mã ô kho.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task AllocateUnitAsync(long userId, string id, AllocateUnitRequest request, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
@@ -171,6 +190,13 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
         await ReservationAllocation.AllocateAsync(dbContext, userId, fac.FacilityId, r.ReservationId, request.UnitCode, ct);
     }
 
+    /// <summary>
+    /// Phân công nhân viên phụ trách xử lý yêu cầu hỗ trợ (M06).
+    /// </summary>
+    /// <param name="userId">ID Quản lý thực hiện.</param>
+    /// <param name="id">Mã yêu cầu hỗ trợ.</param>
+    /// <param name="request">Yêu cầu chứa ID nhân viên được gán.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task AssignStaffAsync(long userId, string id, AssignStaffRequest request, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
@@ -193,6 +219,12 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
         await dbContext.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Duyệt yêu cầu gia hạn hợp đồng (M01 / M03) sử dụng logic tập trung RenewalApproval.
+    /// </summary>
+    /// <param name="userId">ID Quản lý thực hiện.</param>
+    /// <param name="id">Mã yêu cầu gia hạn.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task ApproveRenewalAsync(long userId, string id, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
@@ -200,6 +232,13 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
         await RenewalApproval.ApproveAsync(dbContext, userId, FacilityOpsStateStore.ParseIdNumber(id), fac.FacilityId, ct);
     }
 
+    /// <summary>
+    /// Từ chối yêu cầu gia hạn hợp đồng (M03) kèm lý do từ chối bắt buộc.
+    /// </summary>
+    /// <param name="userId">ID Quản lý thực hiện.</param>
+    /// <param name="id">Mã yêu cầu gia hạn.</param>
+    /// <param name="request">Yêu cầu từ chối chứa lý do.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task RejectRenewalAsync(long userId, string id, RejectRenewalRequest request, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(request.Reason))
@@ -236,6 +275,13 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
         await dbContext.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// Ghi nhận lời nhắc khách hàng quá hạn thanh toán/trả kho (M04 / M07), cập nhật hồ sơ OverdueCase.
+    /// </summary>
+    /// <param name="userId">ID Quản lý thực hiện.</param>
+    /// <param name="id">Mã hợp đồng.</param>
+    /// <param name="request">Yêu cầu ghi chú nhắc nhở.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task AddContractReminderAsync(long userId, string id, AddReminderRequest request, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
@@ -273,6 +319,12 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
         await tx.CommitAsync(ct);
     }
 
+    /// <summary>
+    /// Lấy danh sách toàn bộ ô kho trong cơ sở phụ trách kèm trạng thái vận hành.
+    /// </summary>
+    /// <param name="userId">ID Quản lý.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Danh sách ô kho thuộc cơ sở.</returns>
     public async Task<IReadOnlyList<OpsUnitDto>> GetFacilityUnitsAsync(long userId, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
@@ -301,6 +353,13 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
         }).ToList();
     }
 
+    /// <summary>
+    /// Tạo mới một ô kho trong cơ sở quản lý.
+    /// </summary>
+    /// <param name="userId">ID Quản lý thực hiện.</param>
+    /// <param name="request">Thông tin ô kho mới gồm mã số và tầng.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Thông tin ô kho vừa tạo.</returns>
     public async Task<OpsUnitDto> CreateUnitAsync(long userId, CreateStorageUnitRequest request, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
@@ -338,6 +397,14 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
         };
     }
 
+    /// <summary>
+    /// Cập nhật thông tin ô kho (mã số, tầng).
+    /// </summary>
+    /// <param name="userId">ID Quản lý thực hiện.</param>
+    /// <param name="id">Mã ô kho cần cập nhật.</param>
+    /// <param name="request">Thông tin cập nhật mới.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Thông tin ô kho sau khi cập nhật.</returns>
     public async Task<OpsUnitDto> UpdateUnitAsync(long userId, string id, UpdateStorageUnitRequest request, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
@@ -374,6 +441,13 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
         };
     }
 
+    /// <summary>
+    /// Khóa ngừng phục vụ ô kho (chuyển sang trạng thái OUT_OF_SERVICE) kèm lý do.
+    /// </summary>
+    /// <param name="userId">ID Quản lý thực hiện.</param>
+    /// <param name="id">Mã ô kho.</param>
+    /// <param name="request">Yêu cầu khóa kho chứa lý do.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task LockUnitAsync(long userId, string id, LockUnitRequest request, CancellationToken ct = default)
     {
         await staffService.UpdateUnitStatusAsync(userId, id, new UpdateUnitStatusRequest { Status = "OUT_OF_SERVICE", Reason = request.Reason }, ct);

@@ -5,8 +5,17 @@ using StorageProject.Core.Interfaces;
 
 namespace StorageProject.Api.Endpoints;
 
+/// <summary>
+/// Định nghĩa các Minimal API endpoints dành riêng cho Quản trị viên hệ thống (Admin Management).
+/// Bao gồm quản lý người dùng (UC24), phân quyền vai trò (UC25, UC26), phân công cơ sở (UC26) và tra cứu nhật ký kiểm toán (UC27).
+/// Tất cả endpoints đều yêu cầu quyền ADMIN.
+/// </summary>
 public static class AdminEndpoints
 {
+    /// <summary>
+    /// Đăng ký các route quản trị hệ thống vào pipeline định tuyến.
+    /// </summary>
+    /// <param name="routes">Đối tượng cấu hình route của ứng dụng.</param>
     public static void MapAdminEndpoints(this IEndpointRouteBuilder routes)
     {
         var group = routes.MapGroup("/api/admin")

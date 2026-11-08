@@ -15,6 +15,10 @@ namespace StorageProject.Api.Workers;
 /// </summary>
 public sealed class FacilityWorkflowWorker(IServiceScopeFactory scopes, ILogger<FacilityWorkflowWorker> logger) : BackgroundService
 {
+    /// <summary>
+    /// Vòng lặp thực thi các tác vụ vận hành tự động theo chu kỳ 5 phút.
+    /// </summary>
+    /// <param name="stoppingToken">Cờ huỷ khi ứng dụng dừng hoạt động.</param>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(5));
