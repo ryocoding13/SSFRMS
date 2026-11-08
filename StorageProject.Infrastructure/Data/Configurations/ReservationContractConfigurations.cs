@@ -4,8 +4,13 @@ using StorageProject.Core.Entities;
 
 namespace StorageProject.Infrastructure.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Đơn đặt chỗ (Reservation) sang bảng 'reservations'.
+/// Quản lý thời hạn giữ chỗ, kỳ hạn thuê (tháng), giá báo trước, tiền cọc yêu cầu và trạng thái đơn (F02/D02).
+/// </summary>
 public class ReservationConfiguration : IEntityTypeConfiguration<Reservation>
 {
+    /// <summary>Cấu hình bảng reservations, ràng buộc CHECK số tiền/tháng và các chỉ mục liên kết.</summary>
     public void Configure(EntityTypeBuilder<Reservation> b)
     {
         b.ToTable("reservations", t =>
@@ -47,8 +52,13 @@ public class ReservationConfiguration : IEntityTypeConfiguration<Reservation>
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Phân bổ ô kho (UnitAssignment) sang bảng 'unit_assignments'.
+/// Ghi nhận lịch sử gán ô kho vật lý cho đơn đặt chỗ (M05 / D41).
+/// </summary>
 public class UnitAssignmentConfiguration : IEntityTypeConfiguration<UnitAssignment>
 {
+    /// <summary>Cấu hình bảng unit_assignments, ràng buộc CHECK trạng thái và quan hệ khóa ngoại.</summary>
     public void Configure(EntityTypeBuilder<UnitAssignment> b)
     {
         b.ToTable("unit_assignments", t =>
@@ -71,8 +81,13 @@ public class UnitAssignmentConfiguration : IEntityTypeConfiguration<UnitAssignme
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Hợp đồng thuê kho (RentalContract) sang bảng 'rental_contracts'.
+/// Quản lý thông tin hợp đồng pháp lý, ngày bắt đầu/kết thúc, giá thuê thỏa thuận, tiền cọc và trạng thái hợp đồng.
+/// </summary>
 public class RentalContractConfiguration : IEntityTypeConfiguration<RentalContract>
 {
+    /// <summary>Cấu hình bảng rental_contracts, ràng buộc ngày tháng, giá thuê và quan hệ 1-1 với đơn đặt chỗ.</summary>
     public void Configure(EntityTypeBuilder<RentalContract> b)
     {
         b.ToTable("rental_contracts", t =>
@@ -85,7 +100,7 @@ public class RentalContractConfiguration : IEntityTypeConfiguration<RentalContra
         });
         b.HasKey(rc => rc.ContractId);
         b.Property(rc => rc.ContractId).UseIdentityColumn();
-        // BR04: One reservation → at most one contract
+        // BR04: Mỗi đơn đặt chỗ chỉ sinh tối đa một hợp đồng (UNIQUE)
         b.HasIndex(rc => rc.ReservationId).IsUnique();
         b.Property(rc => rc.StartDate).IsRequired();
         b.Property(rc => rc.EndDate).IsRequired();
@@ -104,8 +119,13 @@ public class RentalContractConfiguration : IEntityTypeConfiguration<RentalContra
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Gia hạn hợp đồng (ContractRenewal) sang bảng 'contract_renewals'.
+/// Quản lý yêu cầu gia hạn thêm kỳ hạn thuê, thời hạn thanh toán sau khi duyệt và chuyển đổi kỳ hạn (D32/M01).
+/// </summary>
 public class ContractRenewalConfiguration : IEntityTypeConfiguration<ContractRenewal>
 {
+    /// <summary>Cấu hình bảng contract_renewals, ràng buộc trạng thái và khóa duy nhất cho yêu cầu đang chờ.</summary>
     public void Configure(EntityTypeBuilder<ContractRenewal> b)
     {
         b.ToTable("contract_renewals", t =>
@@ -133,6 +153,7 @@ public class ContractRenewalConfiguration : IEntityTypeConfiguration<ContractRen
         b.Property(cr => cr.AcceptedAt);
         b.Property(cr => cr.CreatedAt).IsRequired();
 
+        // Mỗi hợp đồng chỉ được phép có tối đa 1 yêu cầu gia hạn ở trạng thái PENDING hoặc APPROVED
         b.HasIndex(cr => cr.ContractId).IsUnique().HasFilter("[Status] IN ('PENDING','APPROVED')");
 
         b.HasOne(cr => cr.Contract).WithMany(rc => rc.ContractRenewals)
@@ -142,8 +163,13 @@ public class ContractRenewalConfiguration : IEntityTypeConfiguration<ContractRen
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Giao dịch tài chính (Payment) sang bảng 'payments'.
+/// Quản lý các khoản thanh toán tiền thuê, tiền cọc, gia hạn, phụ phí, hoàn tiền (REFUND) và đối soát giao dịch (D09/D32/D42).
+/// </summary>
 public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
 {
+    /// <summary>Cấu hình bảng payments, ràng buộc CHECK loại thanh toán, số tiền và phương thức.</summary>
     public void Configure(EntityTypeBuilder<Payment> b)
     {
         b.ToTable("payments", t =>

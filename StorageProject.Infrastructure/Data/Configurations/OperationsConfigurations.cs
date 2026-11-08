@@ -4,8 +4,13 @@ using StorageProject.Core.Entities;
 
 namespace StorageProject.Infrastructure.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Biên bản bàn giao kho (HandoverRecord) sang bảng 'handover_records'.
+/// Ghi nhận tình trạng kho ban đầu, xác nhận hai phía khách hàng và nhân viên khi nhận chìa khóa (D26/D36).
+/// </summary>
 public class HandoverRecordConfiguration : IEntityTypeConfiguration<HandoverRecord>
 {
+    /// <summary>Cấu hình bảng handover_records, chỉ mục duy nhất theo hợp đồng và ràng buộc CHECK trạng thái.</summary>
     public void Configure(EntityTypeBuilder<HandoverRecord> b)
     {
         b.ToTable("handover_records", t =>
@@ -15,7 +20,7 @@ public class HandoverRecordConfiguration : IEntityTypeConfiguration<HandoverReco
         });
         b.HasKey(h => h.HandoverId);
         b.Property(h => h.HandoverId).UseIdentityColumn();
-        // One handover per contract (UNIQUE)
+        // Một biên bản bàn giao duy nhất cho mỗi hợp đồng (UNIQUE)
         b.HasIndex(h => h.ContractId).IsUnique();
         b.Property(h => h.InitialCondition).HasMaxLength(500);
         b.Property(h => h.CustomerConfirmed).IsRequired().HasDefaultValue(false);
@@ -30,8 +35,13 @@ public class HandoverRecordConfiguration : IEntityTypeConfiguration<HandoverReco
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Thông tin mở khóa ra vào (AccessCredential) sang bảng 'access_credentials'.
+/// Quản lý mã số PIN 6 số, mã QR, thẻ từ truy cập ô kho và trạng thái hiệu lực (D26/D33).
+/// </summary>
 public class AccessCredentialConfiguration : IEntityTypeConfiguration<AccessCredential>
 {
+    /// <summary>Cấu hình bảng access_credentials, ràng buộc CHECK loại credential và trạng thái hiệu lực.</summary>
     public void Configure(EntityTypeBuilder<AccessCredential> b)
     {
         b.ToTable("access_credentials", t =>
@@ -58,8 +68,13 @@ public class AccessCredentialConfiguration : IEntityTypeConfiguration<AccessCred
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Biên bản kiểm tra trả kho (ReturnInspection) sang bảng 'return_inspections'.
+/// Ghi nhận kết quả kiểm tra vệ sinh, hư hại, thiết bị, tính toán phí khấu trừ cọc và thông tin hoàn tiền (D32/D38/D39).
+/// </summary>
 public class ReturnInspectionConfiguration : IEntityTypeConfiguration<ReturnInspection>
 {
+    /// <summary>Cấu hình bảng return_inspections, ràng buộc CHECK trạng thái và các chi phí phát sinh.</summary>
     public void Configure(EntityTypeBuilder<ReturnInspection> b)
     {
         b.ToTable("return_inspections", t =>
@@ -91,8 +106,13 @@ public class ReturnInspectionConfiguration : IEntityTypeConfiguration<ReturnInsp
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Hồ sơ quá hạn hợp đồng (OverdueCase) sang bảng 'overdue_cases'.
+/// Theo dõi các hợp đồng quá hạn chưa trả kho, tính phí phạt quá hạn hàng ngày và quản lý hồ sơ di dời tài sản (D32).
+/// </summary>
 public class OverdueCaseConfiguration : IEntityTypeConfiguration<OverdueCase>
 {
+    /// <summary>Cấu hình bảng overdue_cases, ràng buộc CHECK trạng thái và khóa ngoại liên kết.</summary>
     public void Configure(EntityTypeBuilder<OverdueCase> b)
     {
         b.ToTable("overdue_cases", t =>
@@ -114,8 +134,13 @@ public class OverdueCaseConfiguration : IEntityTypeConfiguration<OverdueCase>
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Phiếu hỗ trợ khách hàng (SupportTicket) sang bảng 'support_tickets'.
+/// Tiếp nhận khiếu nại, yêu cầu hỗ trợ kỹ thuật, nhận chìa khóa cơ sở (KEY_PICKUP) và phân công xử lý (C12/D36).
+/// </summary>
 public class SupportTicketConfiguration : IEntityTypeConfiguration<SupportTicket>
 {
+    /// <summary>Cấu hình bảng support_tickets, ràng buộc loại sự cố, mức độ ưu tiên và trạng thái.</summary>
     public void Configure(EntityTypeBuilder<SupportTicket> b)
     {
         b.ToTable("support_tickets", t =>
@@ -147,8 +172,13 @@ public class SupportTicketConfiguration : IEntityTypeConfiguration<SupportTicket
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Yêu cầu bảo trì cơ sở vật chất (MaintenanceRequest) sang bảng 'maintenance_requests'.
+/// Quản lý các công tác sửa chữa, vệ sinh, kiểm tra định kỳ khóa và hệ thống cơ điện của ô kho.
+/// </summary>
 public class MaintenanceRequestConfiguration : IEntityTypeConfiguration<MaintenanceRequest>
 {
+    /// <summary>Cấu hình bảng maintenance_requests, loại bảo trì, chi phí và trạng thái xử lý.</summary>
     public void Configure(EntityTypeBuilder<MaintenanceRequest> b)
     {
         b.ToTable("maintenance_requests", t =>

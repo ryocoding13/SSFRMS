@@ -4,8 +4,14 @@ using StorageProject.Core.Entities;
 
 namespace StorageProject.Infrastructure.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Ảnh bằng chứng (EvidencePhoto) sang bảng 'evidence_photos'.
+/// Quản lý dữ liệu nhị phân của ảnh đính kèm (MOVE_OUT, RETURN_INSPECTION, INCIDENT, OVERDUE, SUPPORT_TICKET, RETURN_DEDUCTION),
+/// đảm bảo các ràng buộc kiểm tra loại ảnh (MIME), kích thước tối đa 5MB và loại đối tượng sở hữu hợp lệ.
+/// </summary>
 public class EvidencePhotoConfiguration : IEntityTypeConfiguration<EvidencePhoto>
 {
+    /// <summary>Cấu hình bảng evidence_photos, các ràng buộc CHECK tính toàn vẹn và chỉ mục truy vấn.</summary>
     public void Configure(EntityTypeBuilder<EvidencePhoto> b)
     {
         b.ToTable("evidence_photos", t =>

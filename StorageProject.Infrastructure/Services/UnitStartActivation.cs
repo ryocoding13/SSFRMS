@@ -11,6 +11,12 @@ namespace StorageProject.Infrastructure.Services;
 /// </summary>
 public static class UnitStartActivation
 {
+    /// <summary>
+    /// Quét các hợp đồng thuê có hiệu lực đã đến ngày bắt đầu để chuyển trạng thái ô sang OCCUPIED.
+    /// </summary>
+    /// <param name="db">EF Core database context.</param>
+    /// <param name="ct">Token hủy bất đồng bộ.</param>
+    /// <returns>Số lượng hợp đồng và ô kho được kích hoạt thành công.</returns>
     public static async Task<int> ActivateAsync(AppDbContext db, CancellationToken ct = default)
     {
         var today = OpsRules.TodayLocal;

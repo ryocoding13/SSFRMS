@@ -4,8 +4,13 @@ using StorageProject.Core.Entities;
 
 namespace StorageProject.Infrastructure.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Phiên thanh toán trực tuyến (PaymentCheckout) sang bảng 'payment_checkouts'.
+/// Quản lý mã đơn hàng PayOS/VietQR duy nhất (OrderCode), liên kết thanh toán, mã QR và thời gian hết hạn (D23/D33).
+/// </summary>
 public class PaymentCheckoutConfiguration : IEntityTypeConfiguration<PaymentCheckout>
 {
+    /// <summary>Cấu hình bảng payment_checkouts, ràng buộc CHECK số tiền và trạng thái phiên thanh toán.</summary>
     public void Configure(EntityTypeBuilder<PaymentCheckout> b)
     {
         b.ToTable("payment_checkouts", t =>

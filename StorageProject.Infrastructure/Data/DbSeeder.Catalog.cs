@@ -14,8 +14,17 @@ namespace StorageProject.Infrastructure.Data;
 /// </summary>
 public static partial class DbSeeder
 {
+    /// <summary>
+    /// Bản ghi chứa danh mục các thực thể cốt lõi sau khi seed danh mục thành công (Cơ sở chính và 4 loại kho).
+    /// </summary>
+    /// <param name="Home">Cơ sở chính (SafeSpace Nguyễn Lương Bằng).</param>
+    /// <param name="NormalM">Loại ô kho thường cỡ M (15 m²).</param>
+    /// <param name="NormalL">Loại ô kho thường cỡ L (30 m²).</param>
+    /// <param name="ColdM">Loại ô kho lạnh cỡ M (15 m²).</param>
+    /// <param name="ColdL">Loại ô kho lạnh cỡ L (30 m²).</param>
     public sealed record SeedCatalog(Facility Home, UnitType NormalM, UnitType NormalL, UnitType ColdM, UnitType ColdL);
 
+    /// <summary>Thông tin định nghĩa cơ sở kho mẫu để khởi tạo.</summary>
     private sealed record SeedFacility(string Name, string District, decimal BasePrice, string Street, string Phone, string? OldAddress = null);
 
     // Thứ tự và giá gốc giống src/data/seed.js. Cơ sở đầu tiên là nơi staff01 / manager01 phụ trách.
@@ -46,7 +55,7 @@ public static partial class DbSeeder
         new("SafeSpace Bình Tân", "Quận Bình Tân", 820000m, "Đường Kinh Dương Vương, An Lạc", "02837001023"),
     ];
 
-    // (mã ô, dãy, lạnh?, cỡ L?)
+    // Sơ đồ bố trí mặt bằng ô kho: (mã ô, dãy, kho lạnh?, cỡ lớn L?)
     private static readonly (string Code, string Row, bool Cold, bool Large)[] UnitLayout =
     [
         ("K01", "A", false, false), ("K02", "A", false, false), ("K03", "A", false, false), ("K04", "A", false, false),
@@ -60,9 +69,19 @@ public static partial class DbSeeder
 
     private static readonly string[] LegacyFacilityNames = ["SafeSpace Quận 7", "SSFRMS Chi nhánh Quận 7"];
 
+    /// <summary>
+    /// Tính giá thuê kho hàng tháng theo công thức chuẩn: Giá gốc × Hệ số cỡ × Hệ số loại, làm tròn đến 10.000 đ.
+    /// </summary>
+    /// <param name="basePrice">Giá gốc cơ bản của cơ sở.</param>
+    /// <param name="cold">Kho lạnh (hệ số 1,2) hoặc kho thường (hệ số 1,0).</param>
+    /// <param name="large">Cỡ lớn L 30 m² (hệ số 1,75) hoặc cỡ M 15 m² (hệ số 1,0).</param>
+    /// <returns>Mức giá thuê tháng chuẩn VND (làm tròn đến hàng chục nghìn đồng).</returns>
     public static decimal SeedRate(decimal basePrice, bool cold, bool large) =>
         Math.Round(basePrice * (large ? 1.75m : 1m) * (cold ? 1.2m : 1m) / 10000m, MidpointRounding.AwayFromZero) * 10000m;
 
+    /// <summary>
+    /// Đảm bảo danh mục 4 loại kho và 12 cơ sở vật lý (kèm 12 ô mỗi cơ sở và bảng giá niêm yết) được khởi tạo đầy đủ.
+    /// </summary>
     private static async Task<SeedCatalog> EnsureCatalogAsync(AppDbContext context, long adminId)
     {
         var now = DateTime.UtcNow;

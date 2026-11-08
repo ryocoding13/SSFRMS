@@ -4,8 +4,13 @@ using StorageProject.Core.Entities;
 
 namespace StorageProject.Infrastructure.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Loại ô kho (UnitType) sang bảng 'unit_types'.
+/// Quản lý thông số kỹ thuật (dài, rộng, cao, diện tích m²), đặc tính kiểm soát nhiệt độ (Kho lạnh) và trạng thái (D17).
+/// </summary>
 public class UnitTypeConfiguration : IEntityTypeConfiguration<UnitType>
 {
+    /// <summary>Cấu hình bảng unit_types, ràng buộc CHECK kích thước và trạng thái hiệu lực.</summary>
     public void Configure(EntityTypeBuilder<UnitType> b)
     {
         b.ToTable("unit_types", t =>
@@ -32,8 +37,13 @@ public class UnitTypeConfiguration : IEntityTypeConfiguration<UnitType>
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Ô kho vật lý (StorageUnit) sang bảng 'storage_units'.
+/// Quản lý mã số ô (K01-K12), tầng, khu vực, cơ sở và trạng thái vòng đời của ô (AVAILABLE, RESERVED, OCCUPIED... - D17/D41).
+/// </summary>
 public class StorageUnitConfiguration : IEntityTypeConfiguration<StorageUnit>
 {
+    /// <summary>Cấu hình bảng storage_units, ràng buộc CHECK trạng thái và chỉ mục duy nhất mã ô theo từng cơ sở.</summary>
     public void Configure(EntityTypeBuilder<StorageUnit> b)
     {
         b.ToTable("storage_units", t =>
@@ -59,8 +69,13 @@ public class StorageUnitConfiguration : IEntityTypeConfiguration<StorageUnit>
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Lịch sử trạng thái ô kho (UnitStatusHistory) sang bảng 'unit_status_history'.
+/// Ghi vết toàn bộ biến động trạng thái ô kho, người thực hiện và lý do thay đổi.
+/// </summary>
 public class UnitStatusHistoryConfiguration : IEntityTypeConfiguration<UnitStatusHistory>
 {
+    /// <summary>Cấu hình bảng unit_status_history, khóa chính và liên kết người thực hiện.</summary>
     public void Configure(EntityTypeBuilder<UnitStatusHistory> b)
     {
         b.ToTable("unit_status_history");
@@ -78,8 +93,13 @@ public class UnitStatusHistoryConfiguration : IEntityTypeConfiguration<UnitStatu
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Bảng giá thuê kho (RentalRate) sang bảng 'rental_rates'.
+/// Quản lý mức giá thuê hàng tháng (VND) theo loại ô và cơ sở, hiệu lực từ ngày áp dụng (D16).
+/// </summary>
 public class RentalRateConfiguration : IEntityTypeConfiguration<RentalRate>
 {
+    /// <summary>Cấu hình bảng rental_rates, ràng buộc giá dương và trạng thái hiệu lực.</summary>
     public void Configure(EntityTypeBuilder<RentalRate> b)
     {
         b.ToTable("rental_rates", t =>
@@ -103,8 +123,13 @@ public class RentalRateConfiguration : IEntityTypeConfiguration<RentalRate>
     }
 }
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Chính sách vận hành (Policy) sang bảng 'policies'.
+/// Quản lý các quy tắc tính toán: DEPOSIT (D09/D16), CANCELLATION (D40), RELET_BUFFER (D41), OVERDUE (D32)...
+/// </summary>
 public class PolicyConfiguration : IEntityTypeConfiguration<Policy>
 {
+    /// <summary>Cấu hình bảng policies, ràng buộc CHECK loại chính sách và công thức tính toán.</summary>
     public void Configure(EntityTypeBuilder<Policy> b)
     {
         b.ToTable("policies", t =>

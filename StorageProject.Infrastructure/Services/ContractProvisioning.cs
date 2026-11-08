@@ -4,29 +4,45 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
-// Runs inside the caller's reservation transaction, after receipts have been saved.
+/// <summary>
+/// Tiến trình tự động cấp hợp đồng (Contract Provisioning) sau khi đơn đặt chỗ thanh toán thành công (F03/D26/D41).
+/// Chạy trong phạm vi giao dịch đặt chỗ của caller, sau khi đã ghi nhận biên lai thanh toán (ReservationSettlement).
+/// Tự động tìm ô kho trống phù hợp, khởi tạo hợp đồng thuê, cấp mã số PIN/QR ra vào và liên kết thanh toán/chính sách.
+/// </summary>
 public static class ContractProvisioning
 {
+    /// <summary>
+    /// Đảm bảo hợp đồng thuê và thông tin mở khoá được cấp đầy đủ cho đơn đặt chỗ đã thanh toán.
+    /// </summary>
+    /// <param name="db">EF Core database context của hệ thống SSFRMS.</param>
+    /// <param name="reservation">Bản ghi đơn đặt chỗ cần cấp hợp đồng.</param>
+    /// <param name="actor">ID người dùng kích hoạt tiến trình (null nếu do hệ thống/webhook chạy tự động).</param>
+    /// <param name="ct">Token hủy bất đồng bộ.</param>
+    /// <returns>True nếu cấp hợp đồng thành công hoặc hợp đồng đã kích hoạt; False nếu kho hết ô cần can thiệp tay.</returns>
     public static async Task<bool> EnsureAsync(AppDbContext db, Reservation reservation, long? actor, CancellationToken ct)
     {
+        // Khóa tồn kho cơ sở để chống race condition cấp trùng ô khi nhiều khách thanh toán cùng lúc
         await CheckoutTransaction.LockAsync(db, $"inventory:{reservation.FacilityId}", ct);
         var contract = await db.RentalContracts.Include(c => c.Unit).Include(c => c.AccessCredentials)
             .SingleOrDefaultAsync(c => c.ReservationId == reservation.ReservationId, ct);
         if (contract != null && contract.Status != "DRAFT") return contract.Status is "ACTIVE" or "EXPIRING";
+        
+        // Yêu cầu đơn phải có đủ các khoản thu (tiền thuê + cọc 1 tháng theo D09/D27) trước khi kích hoạt
         await ReservationSettlement.RequirePaidAsync(db, reservation, ct);
         var now = DateTime.UtcNow;
-        // Automated changes use the customer's user FK, with explicit system attribution in the audit.
+        // Các thay đổi tự động từ hệ thống ghi nhận theo UserId của khách hàng để đảm bảo toàn vẹn dữ liệu
         var recordedBy = actor ?? reservation.CustomerId;
         if (contract == null)
         {
-            // D41: ưu tiên ô trống thật; hết ô trống mới dùng ô sắp hết hạn (trống từ ngày hết hạn + ngày đệm).
+            // D41: Ưu tiên chọn ô trống thật; nếu hết ô trống mới chọn ô sắp hết hạn (trống từ ngày hết hạn + ngày đệm RELET_BUFFER)
             var today = OpsRules.TodayLocal;
             var buffer = await UnitAvailability.BufferDaysAsync(db, reservation.FacilityId, reservation.UnitTypeId, today, ct);
             var slots = await UnitAvailability.SlotsAsync(db, reservation.FacilityId, reservation.UnitTypeId, ct);
             var unit = UnitAvailability.Pick(slots, reservation.StartDate, reservation.ExpectedEndDate, buffer, today)?.Unit;
             if (unit == null)
             {
-                // Payment is real even when inventory needs manual resolution. Never roll it back or fake a contract.
+                // Tiền thanh toán của khách là thật. Nếu hết ô, tuyệt đối không rollback tiền hay tạo hợp đồng ảo;
+                // ghi nhận log AUTO_ALLOCATION_PENDING để Quản lý cơ sở xử lý thủ công (M05).
                 if (!await db.ActivityLogs.AnyAsync(l => l.Action == "AUTO_ALLOCATION_PENDING" &&
                     l.EntityType == "RESERVATION" && l.EntityId == reservation.ReservationId, ct))
                     ReservationSettlement.Audit(db, actor, "AUTO_ALLOCATION_PENDING", reservation.ReservationId,
@@ -42,14 +58,17 @@ public static class ContractProvisioning
                 AssignedBy = recordedBy, AssignedAt = now, Status = "ACTIVE", Reason = "Hệ thống tự phân bổ sau thanh toán" });
         }
         if (contract.Status is not ("DRAFT" or "ACTIVE" or "EXPIRING")) return false;
-        // D36 (thay D26): không tự tạo lịch nhận chìa khóa. Lịch chỉ tạo khi khách gửi yêu cầu chủ đề "Nhận chìa khóa"
+        
+        // D36 (thay thế D26): Không tự động tạo lịch nhận chìa khóa. Lịch chỉ tạo khi khách gửi yêu cầu chủ đề "Nhận chìa khóa"
         // (SupportTicketService, IssueType KEY_PICKUP).
         var changed = contract.Status == "DRAFT";
         contract.Status = contract.Status == "EXPIRING" ? "EXPIRING" : "ACTIVE";
         contract.ActivatedAt ??= now;
+        
+        // Cấp mã mở khoá thông minh QR và PIN (D26/D33)
         foreach (var kind in new[] { "QR", "PIN" })
         {
-            // Replayed payments must not resurrect revoked credentials.
+            // Không cấp đè hoặc phục hồi các credential đã bị thu hồi trong quá khứ
             if (contract.AccessCredentials.Any(c => c.CredentialType == "ACCESS_CODE" &&
                 (c.CredentialReference ?? "").StartsWith(kind + "-"))) continue;
             if (!changed && contract.AccessCredentials.Any(c => c.CredentialType == "ACCESS_CODE" &&
@@ -58,8 +77,10 @@ public static class ContractProvisioning
                 CredentialType = "ACCESS_CODE", CredentialReference = $"{kind}-{reservation.ReservationId}",
                 IssuedAt = now, Status = "ACTIVE" });
         }
+        
+        // Cập nhật trạng thái ô kho: RESERVED nếu ngày thuê trong tương lai, OCCUPIED nếu bắt đầu ngay hôm nay
         var unitStatus = reservation.StartDate > DateOnly.FromDateTime(now.AddHours(7)) ? "RESERVED" : "OCCUPIED";
-        // D41: ô khách cũ còn giữ (đang thuê / chờ kiểm tra) thì giữ nguyên trạng thái; đến ngày bắt đầu UnitStartActivation đổi.
+        // D41: Ô khách cũ còn đang thuê/chờ kiểm tra thì giữ nguyên trạng thái; đến ngày bắt đầu UnitStartActivation sẽ đổi
         var heldByOther = await db.RentalContracts.AnyAsync(c => c.UnitId == contract.Unit.UnitId && c.ContractId != contract.ContractId
             && UnitAvailability.HoldingStatuses.Contains(c.Status) && c.StartDate < reservation.StartDate, ct);
         if (!heldByOther && contract.Unit.Status != unitStatus)

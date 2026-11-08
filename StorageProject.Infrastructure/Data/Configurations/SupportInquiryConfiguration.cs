@@ -4,8 +4,14 @@ using StorageProject.Core.Entities;
 
 namespace StorageProject.Infrastructure.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Yêu cầu tư vấn hỗ trợ chung (SupportInquiry) sang bảng 'support_inquiries'.
+/// Tiếp nhận câu hỏi, tư vấn của khách hàng khi chưa có hợp đồng thuê kho (C12-0 / T19).
+/// Áp dụng kiểm soát xung đột đồng thời (ConcurrencyToken) qua cột Version.
+/// </summary>
 public sealed class SupportInquiryConfiguration : IEntityTypeConfiguration<SupportInquiry>
 {
+    /// <summary>Cấu hình bảng support_inquiries, khóa chính, ràng buộc CHECK trạng thái và chỉ mục.</summary>
     public void Configure(EntityTypeBuilder<SupportInquiry> b)
     {
         b.ToTable("support_inquiries", t => {
@@ -24,8 +30,14 @@ public sealed class SupportInquiryConfiguration : IEntityTypeConfiguration<Suppo
         b.HasOne(x => x.Facility).WithMany().HasForeignKey(x => x.FacilityId).OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+/// <summary>
+/// Cấu hình ánh xạ thực thể Phản hồi yêu cầu tư vấn (SupportInquiryReply) sang bảng 'support_inquiry_replies'.
+/// Quản lý nội dung phản hồi giữa nhân viên cơ sở và khách hàng, kèm cơ chế idempotency qua ClientRequestId (T19).
+/// </summary>
 public sealed class SupportInquiryReplyConfiguration : IEntityTypeConfiguration<SupportInquiryReply>
 {
+    /// <summary>Cấu hình bảng support_inquiry_replies, khóa chính và quan hệ khóa ngoại xóa Cascade theo inquiry.</summary>
     public void Configure(EntityTypeBuilder<SupportInquiryReply> b)
     {
         b.ToTable("support_inquiry_replies");

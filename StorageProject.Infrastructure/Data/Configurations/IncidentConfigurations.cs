@@ -4,8 +4,15 @@ using StorageProject.Core.Entities;
 
 namespace StorageProject.Infrastructure.Data.Configurations;
 
+/// <summary>
+/// Cấu hình ánh xạ thực thể Sự cố cơ sở kho (FacilityIncident) sang bảng 'facility_incidents'.
+/// Quản lý hồ sơ sự cố bất khả kháng (cháy nổ, ngập nước, sự cố kỹ thuật - D34/T13),
+/// các phương án giải quyết (TRANSFER đổi sang ô khác hoặc TERMINATE chấm dứt hoàn tiền),
+/// lựa chọn bồi thường của khách hàng và khóa bảo vệ ngăn ngừa phân bổ trùng ô thay thế.
+/// </summary>
 public class FacilityIncidentConfiguration : IEntityTypeConfiguration<FacilityIncident>
 {
+    /// <summary>Cấu hình bảng facility_incidents, ràng buộc CHECK, chỉ mục lọc Unique và quan hệ khóa ngoại.</summary>
     public void Configure(EntityTypeBuilder<FacilityIncident> b)
     {
         b.ToTable("facility_incidents", t =>
