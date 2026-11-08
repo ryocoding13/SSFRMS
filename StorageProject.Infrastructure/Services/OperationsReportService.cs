@@ -35,7 +35,8 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
         long? ReservationId,
         string? ReservationStatus,
         string? RenewalStatus,
-        string? TransactionReference);
+        string? TransactionReference,
+        DateTime UpdatedAt);
 
     private sealed record UnitRow(long FacilityId, long UnitTypeId, string Status);
     private sealed record ContractRow(long ContractId, long FacilityId, long UnitTypeId, string Status);
@@ -98,7 +99,8 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
                 p.ReservationId,
                 p.ReservationId != null ? (p.Reservation != null ? p.Reservation.Status : null) : null,
                 p.Renewal != null ? p.Renewal.Status : null,
-                p.TransactionReference)).ToListAsync(ct),
+                p.TransactionReference,
+                p.UpdatedAt)).ToListAsync(ct),
             await units.Select(u => new UnitRow(u.FacilityId, u.UnitTypeId, u.Status)).ToListAsync(ct),
             await contracts.Select(c => new ContractRow(c.ContractId, c.Unit.FacilityId, c.Unit.UnitTypeId, c.Status)).ToListAsync(ct),
             await overdues.Select(o => new OverdueRow(o.ContractId, o.Contract.Unit.FacilityId, o.Contract.Unit.UnitTypeId)).ToListAsync(ct));
@@ -209,6 +211,12 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
 
         var pendingRefunds = pendingRefundRows.Sum(p => p.Amount);
 
+        // D44/D45: khoản hoàn tiền mặt quá 30 ngày khách không nhận (REFUND CANCELLED, mã FORFEITED:{id}) tính là doanh thu,
+        // ghi theo ngày hệ thống chốt mất khoản hoàn (UpdatedAt). Tách dòng riêng, không gộp vào doanh thu thuê và phí.
+        var forfeitedRefunds = s.Payments
+            .Where(p => p.Type == "REFUND" && p.Status == "CANCELLED" && IsForfeited(p.TransactionReference) && InPeriod(p.UpdatedAt))
+            .Sum(p => p.Amount);
+
         // BO10: Tính cọc còn giữ tại thời điểm báo cáo (as-of / snapshot):
         // Chỉ tính cọc của các hợp đồng hoặc đơn đặt chỗ đang mở / chưa tất toán.
         decimal depositHeld = 0;
@@ -295,8 +303,12 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
             depositRefunded,
             rentalRefunded,
             unclassifiedRefunded,
-            pendingRefunds);
+            pendingRefunds,
+            forfeitedRefunds);
     }
+
+    public static bool IsForfeited(string? transactionReference) =>
+        transactionReference != null && transactionReference.StartsWith("FORFEITED:", StringComparison.Ordinal);
 
     /// <summary>Tổng hệ thống = tổng các dòng trong cùng bộ lọc (điểm nghiệm thu UC22).</summary>
     private static ReportMetrics Sum(IReadOnlyCollection<ReportMetrics> rows)
@@ -324,7 +336,8 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
             rows.Sum(r => r.DepositRefunded),
             rows.Sum(r => r.RentalRefunded),
             rows.Sum(r => r.UnclassifiedRefunded),
-            rows.Sum(r => r.PendingRefunds));
+            rows.Sum(r => r.PendingRefunds),
+            rows.Sum(r => r.ForfeitedRefunds));
     }
 
     private static (DateTime FromUtc, DateTime ToUtcExclusive) Period(ReportFilter filter)
@@ -576,7 +589,7 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
     [
         "Tiền thu (VND)", "Tiền hoàn (VND)", "Thu ròng (VND)", "Doanh thu thuê và phí (VND)",
         "Cọc thu trong kỳ (VND)", "Cọc còn giữ (VND)", "Công nợ hiện tại (VND)",
-        "Hoàn cọc (VND)", "Hoàn tiền thuê (VND)", "Hoàn chưa phân loại (VND)",
+        "Hoàn cọc (VND)", "Hoàn tiền thuê (VND)", "Hoàn chưa phân loại (VND)", "Tiền mặt hoàn khách không nhận (VND)",
         "Tổng số kho", "Kho đang sử dụng", "Kho trống", "Kho đang giữ/phân bổ", "Kho bảo trì/kiểm tra",
         "Kho khai thác được", "Tỷ lệ sử dụng (%)", "Hợp đồng hiệu lực", "Case quá hạn", "Hợp đồng quá hạn"
     ];
@@ -585,7 +598,7 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
     [
         Num(m.Collected), Num(m.Refunded), Num(m.NetCollected), Num(m.RentalAndFeeRevenue),
         Num(m.DepositCollected), Num(m.DepositHeld), Num(m.Outstanding),
-        Num(m.DepositRefunded), Num(m.RentalRefunded), Num(m.UnclassifiedRefunded),
+        Num(m.DepositRefunded), Num(m.RentalRefunded), Num(m.UnclassifiedRefunded), Num(m.ForfeitedRefunds),
         Int(m.TotalUnits), Int(m.UnitsInUse), Int(m.UnitsAvailable), Int(m.UnitsReserved), Int(m.UnitsUnavailable),
         Int(m.OperableUnits), m.OccupancyRate.HasValue ? Num(m.OccupancyRate.Value) : "Không áp dụng",
         Int(m.ActiveContracts), Int(m.OverdueCases), Int(m.OverdueContracts)

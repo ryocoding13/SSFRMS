@@ -49,6 +49,10 @@ public sealed class SupportInquiryTests
         Assert.Equal(HttpStatusCode.Conflict,(await customer.PostAsJsonAsync(Base+"/actions",Create(key:key,title:"Khác"))).StatusCode);
         var rk=Guid.NewGuid();var first=await Save(staff,Reply(created,key:rk));var replay=await Save(staff,Reply(created,key:rk));
         Assert.Equal(first.Version,replay.Version);Assert.Single(replay.Responses);
+        var withoutVersion = new { action = "REPLY_INQUIRY", id = created.Id, note = "Nội dung phản hồi", clientRequestId = rk };
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await staff.PostAsJsonAsync(Base + "/actions", withoutVersion)).StatusCode);
+        Assert.Single((await Save(staff, Reply(created, close: true, key: rk))).Responses);
         Assert.Equal(HttpStatusCode.Conflict,(await staff.PostAsJsonAsync(Base+"/actions",Reply(first,"Khác",key:rk))).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict,(await staff.PostAsJsonAsync(Base+"/actions",Reply(created))).StatusCode);
         await f.WithDb(async db=>{Assert.Single(await db.SupportInquiries.ToListAsync());Assert.Single(await db.SupportInquiryReplies.ToListAsync());});
@@ -60,7 +64,9 @@ public sealed class SupportInquiryTests
         using var customer=f.Client(await f.Login("customer02","Customer@123"));using var staff=f.Client(await f.Login("staff01","Staff@123"));
         var created=await Save(customer,Create());
         Assert.Equal(HttpStatusCode.Forbidden,(await staff.PostAsJsonAsync(Base+"/actions",Create())).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden,(await customer.PostAsJsonAsync(Base+"/actions",Reply(created,close:true))).StatusCode);
+        var customerReply = await Save(customer, Reply(created, close: true));
+        Assert.Equal("OPEN", customerReply.Status);
+        Assert.Single(customerReply.Responses);
         await f.WithDb(async db=>{(await db.UserFacilities.SingleAsync(x=>x.User.Username=="staff01")).AssignedTo=DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)).AddDays(-1);await db.SaveChangesAsync();});
         Assert.Equal(HttpStatusCode.Forbidden,(await staff.GetAsync(Base)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden,(await staff.PostAsJsonAsync(Base+"/actions",Reply(created))).StatusCode);

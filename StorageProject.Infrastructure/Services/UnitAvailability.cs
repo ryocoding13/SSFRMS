@@ -73,12 +73,13 @@ public static class UnitAvailability
             .OrderBy(u => u.UnitNumber).ThenBy(u => u.UnitId)
             .ToListAsync(ct);
         var ids = units.Select(u => u.UnitId).ToList();
+        var unitChangeRenewals = RenewalUnitMove.UnitChangeRenewalIds(db); // D46: gia hạn sang ô khác không giữ ô cũ thêm kỳ mới
         var holds = await db.RentalContracts.AsNoTracking()
             .Where(c => ids.Contains(c.UnitId) && HoldingStatuses.Contains(c.Status) && c.ContractId != (excludeContractId ?? 0))
             .Select(c => new
             {
                 c.ContractId, c.UnitId, c.StartDate, c.EndDate, c.Status,
-                Pending = c.ContractRenewals.Where(r => r.Status == "PENDING" || r.Status == "APPROVED")
+                Pending = c.ContractRenewals.Where(r => (r.Status == "PENDING" || r.Status == "APPROVED") && !unitChangeRenewals.Contains(r.RenewalId))
                     .Select(r => (DateOnly?)r.NewEndDate).Max()
             })
             .ToListAsync(ct);

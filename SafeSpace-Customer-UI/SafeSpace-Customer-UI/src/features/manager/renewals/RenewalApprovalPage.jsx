@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Button, Field, LinkButton, Modal, Tag } from "../../../shared/components/UI.jsx";
 import { dateLabel } from "../../../shared/utils/format.js";
+import { unitMoveText } from "./renewalApprovalModel.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
 import { PageHeaderBlock } from "../components/PageHeaderBlock.jsx";
 
@@ -34,6 +35,7 @@ export function RenewalApprovalPage() {
               <strong>{r.customer} — Kho #{r.unit}</strong>
               <span>Gia hạn {r.months} tháng từ {dateLabel(r.from)} đến {dateLabel(r.to)}</span>
               <span>Gửi yêu cầu: {dateLabel(r.requested.slice(0, 10))} · {r.contract}</span>
+              {r.target_unit && <span><strong>{unitMoveText(r)}</strong></span>}
             </div>
             <div className="ops-actions ops-actions--tight">
               <Button onClick={() => approve(r)}>Duyệt</Button>
@@ -50,7 +52,7 @@ export function RenewalApprovalPage() {
               <li className="row ops-row" key={r.id}>
                 <div className="row__main">
                   <strong>{r.customer} — Kho #{r.unit}</strong>
-                  <span>{r.status === "APPROVED" ? `Gia hạn đến ${dateLabel(r.to)}` : `Lý do: ${r.reason}`}</span>
+                  <span>{r.status === "APPROVED" ? `Gia hạn đến ${dateLabel(r.to)}${r.target_unit ? ` · ${unitMoveText(r)}` : ""}` : `Lý do: ${r.reason}`}</span>
                 </div>
                 <Tag tone={r.status === "APPROVED" ? "green" : "red"}>{r.status === "APPROVED" ? "Đã duyệt" : "Đã từ chối"}</Tag>
               </li>

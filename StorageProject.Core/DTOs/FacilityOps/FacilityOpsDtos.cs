@@ -77,7 +77,9 @@ public record OpsRenewalDto(
     string Id, string Contract, string Customer, string Unit, DateOnly From, DateOnly To, int Months,
     string Requested, string Status, string? Reason, string? DecidedAt,
     // L8: khối chốt giá M03/D30-17 — giá/tháng, số tiền và hạn thanh toán của yêu cầu
-    decimal MonthlyRate = 0, decimal Amount = 0, string? PaymentDeadlineAt = null);
+    decimal MonthlyRate = 0, decimal Amount = 0, string? PaymentDeadlineAt = null,
+    // D46 · gia hạn sang ô khác: ô khách chọn và cọc chênh thu cùng khoản gia hạn (null / 0 khi gia hạn ô hiện tại)
+    string? TargetUnit = null, decimal DepositTopUp = 0);
 
 public record OpsReminderDto(string Text, string At);
 
@@ -91,7 +93,8 @@ public record OpsRevenueMonthDto(string Label, int Month, int Year, decimal Valu
 
 public record OpsRevenueTypeDto(string Label, decimal Value);
 
-public record OpsRevenueDto(IReadOnlyList<OpsRevenueMonthDto> Months, IReadOnlyList<OpsRevenueTypeDto> ByType, DateOnly AsOf);
+// ForfeitedRefunds (D44/D45): tiền mặt hoàn quá 30 ngày khách không nhận trong 6 tháng, triệu đồng, dòng riêng ngoài doanh thu thuê và phí.
+public record OpsRevenueDto(IReadOnlyList<OpsRevenueMonthDto> Months, IReadOnlyList<OpsRevenueTypeDto> ByType, DateOnly AsOf, decimal ForfeitedRefunds = 0);
 
 /// <summary>
 /// Dữ liệu vận hành của cơ sở được phân công. Nhân viên chỉ nhận phần S01–S09;
@@ -112,7 +115,15 @@ public record OpsBoardDto(
     IReadOnlyList<OpsContractDto>? Contracts,
     IReadOnlyList<OpsAssignmentDto>? Assignments,
     OpsRevenueDto? Revenue,
-    IReadOnlyList<OpsRefundDto>? Refunds = null);
+    IReadOnlyList<OpsRefundDto>? Refunds = null,
+    IReadOnlyList<StorageProject.Core.DTOs.Renewal.CounterRenewalDto>? CounterRenewals = null,
+    IReadOnlyList<CashRefundDto>? CashRefunds = null,
+    IReadOnlyList<DepositRefundDto>? DepositRefunds = null,
+    IReadOnlyList<UnitConflictDto>? UnitConflicts = null,
+    IReadOnlyList<OverdueCaseDto>? OverdueCases = null,
+    IReadOnlyList<OpsInquiryDto>? Inquiries = null);
+
+public record OpsInquiryDto(long Id, string Title, string Status);
 
 /// <summary>Kết quả M07: khoản hoàn cọc chờ chuyển (PENDING) hoặc không có khoản hoàn (NO_REFUND); chưa bao giờ PAID ở bước này.</summary>
 public record OpsSettlementResult(decimal Refund, string RefundStatus);
@@ -153,7 +164,7 @@ public record DepositRefundDto(
     string Method = "BANK_TRANSFER", string? CashRefundId = null); // D42
 
 public record DepositRefundActionRequest(string? Action, string? Id, int? ExpectedVersion, string? TransactionRef,
-    DateTime? TransferredAt, bool Confirmed);
+    DateTime? TransferredAt, bool Confirmed, string? Method = null);
 public record OpsTicketResponseRequest(string? Note, string? NextStatus);
 public record OpsRejectRequest(string? Reason);
 public record OpsAllocateRequest(string? UnitCode);

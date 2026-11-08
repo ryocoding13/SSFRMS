@@ -1,3 +1,476 @@
+## 2026-11-07 — Rà soát và xoá bỏ các cơ sở và loại kho inactive trong cơ sở dữ liệu
+
+- **Mục tiêu:**
+  - Rà soát toàn bộ cơ sở dữ liệu SSFRMS, dọn dẹp và loại bỏ các bản ghi cơ sở, loại kho và bảng giá cũ đang ở trạng thái `INACTIVE` từ các phiên seed đời đầu, đưa database về trạng thái sạch sẽ khớp đúng mô hình 12 cơ sở và 4 loại kho chuẩn theo quyết định D17.
+- **Hiện trạng xác minh qua truy vấn SQL Server:**
+  1. `facilities`: 12 cơ sở `ACTIVE`, 1 cơ sở `INACTIVE` (FacilityId 2: `SafeSpace Quận 7` / `SSFRMS Chi nhánh Quận 7`).
+  2. `unit_types`: 4 loại kho `ACTIVE` (UnitTypeIds 6..9: Kho thường M/L, Kho lạnh M/L), 5 loại kho `INACTIVE` (UnitTypeIds 1..5: Kho Mini S, Kho Tiêu Chuẩn M, Kho Lớn L, Kho Doanh Nghiệp XL, Tủ Locker Cá Nhân).
+  3. `rental_rates`: 48 mức giá `ACTIVE`, 3 mức giá `EXPIRED`, 44 mức giá `INACTIVE` gắn với cơ sở và loại kho inactive nêu trên.
+  4. Rà soát khoá ngoại: 0 hợp đồng thuê, 0 đơn đặt chỗ, 0 ô kho và 0 nhân viên phân công liên kết tới cơ sở 2 và các loại kho 1..5.
+- **Giải pháp triển khai:**
+  1. SQL Server:
+     - Thực thi transaction dọn dẹp dứt điểm: xoá 44 bảng giá inactive, xoá 1 cơ sở inactive (`SafeSpace Quận 7`), xoá 5 loại kho inactive (UnitTypeIds 1..5).
+     - Kết quả sau khi xoá: `facilities` còn đúng 12 cơ sở (100% `ACTIVE`), `unit_types` còn đúng 4 loại kho (100% `ACTIVE`), `rental_rates` sạch hoàn toàn các bản giá inactive thừa.
+  2. Backend `DbSeeder.Catalog.cs`:
+     - Cập nhật hàm `RetireLegacyCatalogAsync`: Tự động tìm và xoá dọn dẹp các cơ sở, loại kho legacy/inactive (và rental rates tương ứng) khi không có hợp đồng/ô kho tham chiếu, tránh để lại các bản ghi inactive rác trong database khi khởi động seeder.
+  3. Script reset DB `.agents/skills/resetdb/scripts/reset_db.sql`:
+     - Cập nhật bước 6 để khi thực hiện reset database, hệ thống xoá sạch thay vì chỉ `UPDATE Status = 'INACTIVE'`, giữ database luôn tinh gọn.
+- **Kiểm chứng:**
+  - SQL Server Query: 12 facilities (0 INACTIVE), 4 unit_types (0 INACTIVE), 0 inactive rental rates.
+  - Backend Build: `dotnet build StorageProject.slnx -c Release` PASS 0 Error, 2 Warning (sẵn có).
+  - Backend Unit Tests: `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` PASS 263/263 tests.
+  - Backend Integration Tests: `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release` PASS 11/11 tests.
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-07 — Sửa lỗi hiển thị tên cơ sở SafeSpace Nguyễn Lương Bằng thành SafeSpace Quận 7 trên danh sách kho khách hàng
+
+- **Mục tiêu:**
+  - Khắc phục lỗi trên giao diện tổng quan và danh sách kho của khách hàng (`CustomerDashboardPage.jsx`, `RentedUnitListPage.jsx`), các ô kho thuộc cơ sở "SafeSpace Nguyễn Lương Bằng" (ví dụ K01, K02, K07) bị hiển thị nhầm thành "SafeSpace Quận 7".
+- **Nguyên nhân xác minh:**
+  1. `useBrowserEvents.js`: Hàm `siteLabel(facility)` chứa logic cũ: `export const siteLabel = (facility) => /^SafeSpace\b/.test(facility?.name || "") && facility.district ? "SafeSpace " + facility.district : facility?.name || "SafeSpace";`. Logic này tự động ghi đè tên cơ sở chuẩn thành `SafeSpace [Quận]` bất cứ khi nào `facility.district` có giá trị ("Quận 7"), làm sai lệch tên cơ sở cụ thể đã chốt ở D11 ("SafeSpace Nguyễn Lương Bằng") và gây nhập nhằng do Quận 7 có tới 5 cơ sở khác nhau.
+  2. `ReservationDetailPage.jsx`: Dòng 45 cũng áp dụng logic ghép chuỗi tương tự `SafeSpace ${facility.district} — ${shortName(facility)}`.
+- **Giải pháp triển khai:**
+  1. `useBrowserEvents.js`: Sửa hàm `siteLabel(facility)` trả về trực tiếp `facility?.name || "SafeSpace"`, đảm bảo danh sách kho trên Dashboard và RentedUnitList luôn hiển thị đúng tên cơ sở "SafeSpace Nguyễn Lương Bằng".
+  2. `ReservationDetailPage.jsx`: Hiển thị "Cơ sở" trực tiếp bằng `facility?.name || (facility?.district ? "SafeSpace " + facility.district : "SafeSpace")`.
+  3. Unit Tests: Thêm test trong `units.test.js` kiểm chứng `siteLabel` trả về đúng tên cơ sở thực tế thay vì đổi thành tên quận (165/165 tests PASS).
+- **Kiểm chứng:**
+  - Frontend Test Suite: `npm test` PASS 165/165 tests.
+  - Frontend Business & Workflows: `npm run test:business` PASS 10/10, `npm run test:workflows` PASS 12/12, `npm run check:structure` PASS.
+  - Render & Build: `npm run test:render` PASS 181 routes, `npm run build` PASS.
+  - Backend Tests: `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` PASS 263/263.
+  - Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-07 — Cơ chế tự động làm mới / thử lại khi tạo mã QR PayOS lần đầu bị lỗi
+
+- **Mục tiêu:**
+  - Khắc phục hiện tượng khi khách hàng tạo mã QR PayOS (thanh toán đơn đặt chỗ hoặc gia hạn), cuộc gọi đầu tiên tới cổng PayOS đôi khi bị nghẽn mạng / lỗi kết nối ban đầu dẫn tới hiện banner lỗi "Không tạo được link PayOS...", nhưng khi bấm "Tạo lại mã QR" thì thành công ngay. Bổ sung cơ chế tự động thử lại (auto-refresh/retry) ngay lập tức trước khi báo lỗi cho khách.
+- **Nguyên nhân xác minh:**
+  1. `PayOSService.cs`: Cuộc gọi đầu tiên tới `gateway.CreateAsync` hoặc `gateway.CreateRenewalAsync` có thể gặp handshake / SSL timeout ban đầu từ cổng đối tác PayOS. Khi throw `InvalidOperationException`, request của client kết thúc ngay trong lần thử đầu.
+  2. `CheckoutPage.jsx` & `PayosModal.jsx`: Khi `services.startPayos` trả về kết quả lỗi (không phải do `unsupported` hoặc `POLICY_REQUIRED`), component chuyển thẳng sang `qrState = "error"` và hiển thị banner thông báo mà chưa có bước tự động làm mới lại.
+  3. `AppProvider.jsx`: Service `startPayos` chưa bọc cơ chế tự động retry một lần khi request API mạng bị gián đoạn thoáng qua.
+- **Giải pháp triển khai:**
+  1. Backend `PayOSService.cs`:
+     - Bổ sung helper `CreateLinkWithRetryAsync` và `CreateRenewalLinkWithRetryAsync`: Khi gọi `gateway.CreateAsync` / `CreateRenewalAsync` lần đầu bị exception, hệ thống tự động delay 500ms và thử lại lần thứ 2 trước khi kết luận lỗi.
+  2. Frontend `AppProvider.jsx`:
+     - Trong `startPayos`: Thêm block `try/catch` bọc cuộc gọi `api.reservationPayos` / `api.paymentPayos`. Nếu gặp lỗi kết nối lần đầu, tự động delay 600ms và retry gọi lại trước khi trả lỗi ra ngoài.
+  3. Frontend `CheckoutPage.jsx` & `PayosModal.jsx`:
+     - Trong hàm `load`: Nếu kết quả trả về `res.ok` là `false` (và không phải do không hỗ trợ QR), tự động delay 800ms và thực hiện gọi lại một lần nữa trước khi chuyển trạng thái sang `error`.
+     - Vẫn duy trì nút liên kết "Tạo lại mã QR" nếu sau quá trình tự động thử lại vẫn có sự cố cấu hình thực sự.
+- **Kiểm chứng:**
+  - Frontend Test Suite: `npm test` PASS 164/164 tests.
+  - Frontend Business & Workflows: `npm run test:business` PASS 10/10, `npm run test:workflows` PASS 12/12, `npm run check:structure` PASS.
+  - Render & Build: `npm run test:render` PASS 181 routes, `npm run build` PASS.
+  - Backend Tests: `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` PASS 263/263, `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release` PASS 11/11.
+  - Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-07 — Bổ sung badge thông báo đỏ (PendingBadge) số khoản cần thanh toán bên cạnh tab "Thanh toán & lịch hẹn"
+
+- **Mục tiêu:**
+  - Khắc phục tình trạng khách hàng có khoản cần thanh toán (khoản gia hạn đã duyệt `UNPAID` / đơn đặt chỗ chờ thanh toán) nhưng trên thanh điều hướng subnav không hiển thị badge đỏ thông báo số lượng, khiến khách hàng khó nhận biết mình có khoản cần thanh toán.
+- **Nguyên nhân xác minh:**
+  1. `Header.jsx`: Thanh điều hướng của khách hàng (`subnav__inner`) khi duyệt qua danh sách `CUSTOMER_LINKS` trước đó chỉ hiển thị nhãn văn bản thuần túy `{label}` mà không chèn component `<PendingBadge count={...} />`.
+  2. `appSelectors.js`: Hàm `unpaidCount` trước đó chỉ đếm `l.status === "UNPAID"` mà chưa lọc theo chuẩn `canPayLedger` (loại bỏ phí trả kho legacy theo D32), đồng thời chưa export hàm đếm `payableCount` dùng chung cho toàn bộ giao diện khách hàng.
+  3. `CustomerDashboardPage.jsx`: Thẻ "Hoá đơn chưa thanh toán" hiển thị nhãn xanh (`className="ok"`) kể cả khi có hoá đơn chờ thanh toán thay vì nhãn cảnh báo vàng/đỏ (`className="warn"`).
+- **Giải pháp triển khai:**
+  1. `appSelectors.js`:
+     - Bổ sung `export const payableCount = (data) => (data?.ledger || []).filter(canPayLedger).length;`.
+     - Cập nhật `unpaidCount` dùng chung logic chuẩn với `payableCount`.
+  2. `Header.jsx`:
+     - Tính `payable = customer ? payableCount(data) : 0` và `pendingReservationCount`.
+     - Tạo `customerCounts = { payments: payable, reservations: pendingReservationCount }`.
+     - Chèn `<PendingBadge count={customerCounts[to]} />` bên cạnh nhãn từng tab trong `CUSTOMER_LINKS`. Khi có khoản cần thanh toán, badge đỏ mang số lượng hiển thị ngay bên cạnh "Thanh toán & lịch hẹn".
+  3. `CustomerDashboardPage.jsx`:
+     - Cập nhật hiển thị `<strong className={unpaid ? "warn" : "ok"}>{unpaid}</strong>` để khi có khoản chưa thanh toán, số đếm được tô sáng cảnh báo.
+  4. Unit Tests:
+     - `SafeSpace-Customer-UI/SafeSpace-Customer-UI/tests/return-policy.test.js`: Thêm test kiểm chứng `payableCount` và badge khách hàng đếm chính xác khoản gia hạn chờ thanh toán và bỏ qua các khoản đã thanh toán hoặc phí legacy (164/164 tests PASS).
+- **Kiểm chứng:**
+  - Frontend Test Suite: `npm test` PASS 164/164 tests.
+  - Frontend Business & Workflows: `npm run test:business` PASS 10/10, `npm run test:workflows` PASS 12/12, `npm run check:structure` PASS.
+  - Render & Build: `npm run test:render` PASS 181 routes, `npm run build` PASS.
+  - Backend Tests: `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` PASS 263/263, `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release` PASS 11/11.
+  - Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-07 — Sửa lỗi cọc kho đã trả vẫn bị tính vào "Cọc đang giữ" ở màn Thanh toán & lịch hẹn
+
+- **Mục tiêu:**
+  - Khắc phục lỗi khi khách hàng đã trả kho (ví dụ khoản cọc 2.000 đ) và thuê kho mới (khoản cọc 1.000 đ), màn hình "Thanh toán & lịch hẹn" (`PaymentListPage.jsx`) ở khối sidebar Tóm tắt vẫn cộng dồn cả hai thành 3.000 đ vào chỉ số "Cọc đang giữ".
+- **Nguyên nhân xác minh:**
+  1. `apiMappers.js`: Khi ánh xạ thanh toán (`c.payments`) của từng hợp đồng sang sổ cái giao diện (`ledger`), bất kỳ khoản thanh toán cọc nào có `kind === "DEPOSIT"` và `p.status === "PAID"` đều bị gán cứng `status = "DEPOSIT_HELD"`, bất kể trạng thái hợp đồng đã kết thúc (`COMPLETED`, `TERMINATED`, `ENDED`, `CANCELLED`) hay đang trong quá trình trả kho (`RETURN_PENDING`).
+  2. `PaymentListPage.jsx`: Bộ tính tổng `["Cọc đang giữ", money(ledger.filter(l => l.status === "DEPOSIT_HELD").reduce(...))]` chỉ lọc theo `l.status === "DEPOSIT_HELD"` mà không kiểm tra hợp đồng tương ứng có còn đang thuê thực tế hay không.
+- **Giải pháp triển khai:**
+  1. `apiMappers.js`:
+     - Xác định `isContractActive = ["ACTIVE", "EXPIRING", "OVERDUE"].includes(c.status) && c.status !== "RETURN_PENDING"`.
+     - Với khoản thanh toán cọc (`kind === "DEPOSIT" && paid`):
+       - Nếu hợp đồng đang thuê (`isContractActive`): gán `status = "DEPOSIT_HELD"`.
+       - Nếu hợp đồng đang chờ trả kho (`c.status === "RETURN_PENDING"`) và chưa có bản ghi REFUND riêng: gán `status = "REFUND_PENDING"`.
+       - Nếu hợp đồng đã kết thúc (`COMPLETED`, `TERMINATED`, `CANCELLED`, `ENDED`): gán `status = "RECONCILED"`.
+  2. `PaymentListPage.jsx`:
+     - Bổ sung hàm kiểm tra `isHeldDeposit(l)`: đảm bảo chỉ tính cọc đang giữ của các hợp đồng đang thuê còn hiệu lực (`["ACTIVE", "EXPIRING", "OVERDUE"].includes(c.api_status || c.status) && c.status !== "RETURN_PENDING" && c.status !== "ENDED"`), đồng thời không có yêu cầu trả kho đang xử lý (`data.returns`).
+     - Đếm chính xác "Khoản chờ hoàn": bao gồm cả các dòng `REFUND_PENDING` và các khoản `REFUND` có trạng thái đang chờ thanh toán.
+  3. `RentedUnitDetailPage.jsx`:
+     - Hiển thị nhãn "Cọc ban đầu" khi hợp đồng đã kết thúc (`ended`) hoặc đang trả kho (`c.status === "RETURN_PENDING"`), thay vì hiển thị "Cọc đang giữ".
+  4. Unit Tests:
+     - `SafeSpace-Customer-UI/SafeSpace-Customer-UI/tests/api-mappers.test.js`: Thêm test kiểm chứng kịch bản có 2 hợp đồng (1 kho đã trả `COMPLETED` với cọc 2.000 đ và 1 kho mới `ACTIVE` với cọc 1.000 đ). Kiểm chứng dòng cọc cũ đổi sang `RECONCILED`, dòng cọc mới là `DEPOSIT_HELD`, và tổng "Cọc đang giữ" là 1.000 đ, không bị cộng 2.000 đ từ kho cũ.
+- **Kiểm chứng:**
+  - Frontend Test Suite: `npm test` PASS 163/163 tests.
+  - Frontend Business & Workflows: `npm run test:business` PASS 10/10, `npm run test:workflows` PASS 12/12, `npm run check:structure` PASS.
+  - Render & Build: `npm run test:render` PASS 181 routes, `npm run build` PASS.
+  - Backend Tests: `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` PASS 263/263, `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release` PASS 11/11.
+  - Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-07 — Bổ sung badge thông báo số lượng công việc chờ (PendingBadge) trên tất cả màn hình, tab và subtab khu vận hành
+
+- **Mục tiêu:**
+  - Khắc phục lỗi thiếu badge thông báo đỏ hiển thị số task đang chờ xử lý trên thanh subtab liên quan (`workflow-links`) và đồng bộ badge chính xác trên toàn bộ các màn hình / tab điều hướng chính cho cả vai trò Nhân viên (`STAFF`) và Quản lý (`MANAGER`).
+- **Nguyên nhân xác minh:**
+  1. `FacilityOperationsLayout.jsx`: Các nút liên kết công việc phụ (`LinkButton` trong khối `.workflow-links`) như "Thu gia hạn tại quầy", "Chi tiền hoàn tại quầy", "Kiểm tra lại trả kho", "Đồ quá hạn", "Tư vấn chưa thuê kho" (cho nhân viên) và "Xử lý quá hạn", "Hoàn tiền mặt", "Xung đột đặt kho", "Hoàn cọc trả kho", "Hoàn tiền đơn huỷ" (cho quản lý) trước đó hoàn toàn không chứa component `<PendingBadge />`.
+  2. `pendingTaskCounts.js`:
+     - Phía Nhân viên: `"staff/reconcile"` chỉ đếm đơn thanh toán và đơn gia hạn tại quầy, hoàn toàn bỏ quên khoản chi tiền hoàn mặt (`cash_refunds`), yêu cầu kiểm tra lại trả kho do khách phản hồi (`returns` với `deduction_status`), và tư vấn chưa thuê kho (`inquiries`). Đồng thời chưa tính và trả về số lượng cho từng subtab riêng biệt.
+     - Phía Quản lý: `"manager/contracts"` chỉ đếm hợp đồng quá hạn/trả kho và hoàn tiền đơn huỷ, chưa cộng các khoản tiền mặt chờ duyệt (`WAITING_APPROVAL`), xung đột đặt kho (`OPEN`), và hoàn cọc sau trả kho (`deposit_refunds`). Tab Tổng quan (`"manager"`) không có số tổng.
+  3. API Board `GET /api/ops/board`:
+     - `OpsBoardDto` trước đó thiếu `CashRefunds`, `DepositRefunds`, `UnitConflicts`, `OverdueCases`, `Inquiries`. Dù các endpoint riêng lẻ đã có, việc tải board không trả về dữ liệu này khiến bộ đếm badge không thể tính toán tức thời nếu người dùng chưa mở từng trang con.
+- **Giải pháp triển khai:**
+  1. Backend `OpsBoardDto` & `FacilityOpsService.Board.cs`:
+     - Bổ sung `CashRefunds`, `DepositRefunds`, `UnitConflicts`, `OverdueCases`, `Inquiries` vào `OpsBoardDto` (tất cả đều có default value `= null`).
+     - Định nghĩa `record OpsInquiryDto(long Id, string Title, string Status)`.
+     - Trong `GetBoardAsync`: Nạp các danh sách công việc tương ứng theo ca trực và quyền hạn (Staff chỉ nhận việc của mình hoặc chưa gán; Manager nhận đầy đủ).
+     - Trong `FacilityOpsEndpoints.cs`: Đưa các danh sách trên vào JSON trả về của `/api/ops/board`.
+  2. Frontend `pendingTaskCounts.js`:
+     - Nhân viên:
+       - Subtabs: `staff/renewal-payments`, `staff/cash-refunds`, `staff/recheck`, `staff/overdue`, `staff/inquiries`.
+       - Main tabs:
+         - `staff/reconcile`: Đơn thanh toán tại quầy + Thu gia hạn tại quầy + Chi tiền hoàn mặt tại quầy (được giao cho mình).
+         - `staff/verify`: Khách chờ xác minh + Bàn giao chìa đã xác minh.
+         - `staff/return`: Lịch kiểm tra trả kho + Kiểm tra lại khấu trừ.
+         - `staff/support`: Yêu cầu hỗ trợ (giao cho mình hoặc chưa gán) + Tư vấn khách chưa thuê kho.
+         - `staff` (Công việc ngày): Tổng hợp toàn bộ công việc trong ca không bị trùng lặp.
+     - Quản lý:
+       - Subtabs: `manager/overdue`, `manager/cash-refunds`, `manager/unit-conflicts`, `manager/deposit-refunds`, `manager/refunds`.
+       - Main tabs: `manager/allocate`, `manager/assign`, `manager/renewals`, `manager/contracts` (cộng đủ các nghiệp vụ hợp đồng & cọc), và `manager` (Tổng quan) với tổng số lượng công việc chờ.
+  3. Frontend `FacilityOperationsLayout.jsx` & `FacilityOperationsRoutes.jsx`:
+     - Truyền `<PendingBadge count={counts[to]} />` vào từng nút `<LinkButton>` trong hàng workflow links.
+     - Thêm trạng thái `is-active` cho subtab đang mở để giao diện rõ ràng, trực quan.
+  4. Frontend `StaffTasks.jsx`:
+     - Bổ sung hiển thị thẻ chi tiền hoàn mặt, kiểm tra lại trả kho, tư vấn khách chưa thuê kho và xử lý đồ quá hạn trên màn hình "Công việc ngày" để số thẻ hiển thị đồng bộ tuyệt đối với badge trên thanh menu.
+  5. `CashRefundCounterPage.jsx` & `CashRefundApprovalPage.jsx`:
+     - Gọi `reloadOps?.()` sau khi chi tiền hoặc duyệt chi để cập nhật ngay lập tức badge trên thanh điều hướng.
+  6. Unit & Integration Tests:
+     - `SafeSpace-Customer-UI/SafeSpace-Customer-UI/tests/return-policy.test.js`: Thêm test kiểm chứng đầy đủ toàn bộ badge của nhân viên và quản lý theo ca trực và phân công.
+- **Kiểm chứng:**
+  - Backend Unit Tests: `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` PASS 263/263 tests.
+  - Backend Integration Tests: `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release` PASS 11/11 tests.
+  - Frontend Suites: `npm test` PASS 162/162 tests, `npm run test:business` PASS 10/10, `npm run test:workflows` PASS 12/12, `npm run check:structure` PASS, `npm run test:render` PASS 181 routes, `npm run build` PASS.
+  - Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-07 — Sửa phân quyền & lọc danh sách việc chi tiền hoàn tại quầy theo nhân viên được giao
+
+- **Mục tiêu:**
+  - Khắc phục lỗi khi quản lý giao task chi tiền hoàn mặt tại quầy cho nhân viên A nhưng nhân viên B vẫn nhìn thấy task trên màn hình "Chi tiền hoàn tại quầy" (`CashRefundCounterPage.jsx`), dẫn tới khi nhân viên B bấm chi tiền thì bị báo lỗi "Việc chi tiền này được giao cho nhân viên khác".
+- **Nguyên nhân gốc rễ xác minh:**
+  1. API `GET /api/ops/cash-refunds` (`GetCashRefundsAsync` trong `FacilityOpsService.Workflows.cs`) trước đó trả về toàn bộ khoản hoàn tiền mặt của cả cơ sở cho mọi người dùng mà không lọc theo nhân viên đang đăng nhập khi người gọi là vai trò STAFF (`!actor.IsManager`).
+  2. `CashRefundDto` trước đó thiếu trường `StaffId` (mã nhân viên được giao, vd `NV-01`) và `StaffName` (họ tên nhân viên được giao), khiến giao diện phía nhân viên và quản lý không phân biệt được task đã phân công cho ai.
+  3. Màn hình `CashRefundCounterPage.jsx` phía frontend hiển thị toàn bộ danh sách mà không kiểm tra thông tin nhân viên đăng nhập (`useMe`), cho phép nhân viên B thao tác lên task của nhân viên A và chỉ gặp lỗi khi gửi POST lên server.
+  4. Endpoint `RecordCashRefundCallAsync` (`POST /api/ops/cash-refunds/{id}/calls`) trước đó chưa kiểm tra nhân viên được phân công như `PayCashRefundAsync`.
+- **Giải pháp triển khai:**
+  1. `StorageProject.Core/DTOs/FacilityOps/WorkflowDtos.cs`:
+     - Bổ sung `string? StaffId = null` và `string? StaffName = null` vào `CashRefundDto`.
+  2. `StorageProject.Infrastructure/Services/FacilityOpsService.Workflows.cs`:
+     - `ToCashDtosAsync`: Đọc `st.AssignedStaffId` từ log duyệt chi và nạp họ tên nhân viên được phân công vào `StaffId` và `StaffName`.
+     - `GetCashRefundsAsync`: Khi người gọi là nhân viên cơ sở (`!actor.IsManager`), lọc danh sách chỉ trả về các task được phân công cho chính nhân viên đó (`d.StaffId == StaffCode(actor.UserId)`) hoặc task chưa phân công (`d.StaffId == null`). Quản lý (`actor.IsManager == true`) vẫn nhận đầy đủ toàn bộ task của cơ sở.
+     - `RecordCashRefundCallAsync`: Chặn nhân viên khác cơ sở hoặc nhân viên không được phân công thực hiện gọi nhắc (`UnauthorizedAccessException`).
+  3. `CashRefundCounterPage.jsx`:
+     - Sử dụng hook `useMe()` để lấy danh tính nhân viên đang đăng nhập.
+     - Lọc danh sách `items`: chỉ hiển thị các khoản tiền mặt mà nhân viên hiện tại được phân công (`!r.staffId || r.staffId === me.staff_id`).
+     - Hiển thị thông báo rõ ràng khi không có khoản chờ chi: "Khoản tiền mặt quản lý đã duyệt và phân công cho bạn sẽ hiện ở đây."
+     - Thêm cơ chế phòng thủ: nếu một task hiển thị mà không thuộc nhân viên hiện tại, nhãn nút chuyển thành "Đã giao cho [Tên nhân viên]" và vô hiệu hóa nút bấm.
+  4. `CashRefundApprovalPage.jsx`:
+     - Hiển thị nhân viên được phân công ngay trên thẻ hồ sơ của quản lý (`r.staffName || r.staffId`).
+     - Khi quản lý bấm "Giao người khác", dropdown nhân viên tự động chọn nhân viên hiện tại đang phụ trách.
+  5. Unit Tests:
+     - `StorageProject.Tests/D32RefundEvidenceTests.Phien3.cs`: Thêm test `CashRefund_AssignedToStaffA_OnlyVisibleToStaffAAndManager_NotVisibleToStaffB` kiểm chứng Staff A thấy task, Staff B không thấy task, Staff B bị chặn khi cố tình gọi/chi tiền, và Manager thấy toàn bộ kèm thông tin nhân viên (263 tests PASS).
+- **Kiểm chứng:**
+  - Backend Unit Tests: `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` PASS 263/263 tests.
+  - Backend Integration Tests: `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release` PASS 11/11 tests.
+  - Frontend Tests: `npm test` PASS 161/161 tests, `test:business` PASS 10/10, `test:workflows` PASS 12/12, `check:structure` PASS, `test:render` PASS 181 routes, `npm run build` PASS.
+  - Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-07 — Bổ sung hiển thị ảnh kho trống do khách gửi khi nhân viên kiểm tra trả kho
+
+- **Mục tiêu:**
+  - Khắc phục tình trạng khách trả kho bắt buộc phải chụp ảnh kho trống nhưng nhân viên (Staff) khi kiểm tra tình trạng kho lúc trả (`ReturnInspectionPage.jsx`) không có chỗ để xem ảnh chứng minh này.
+- **Giải pháp triển khai:**
+  1. `ReturnInspectionPage.jsx`:
+     - Trích xuất danh sách ảnh kho trống từ `r.move_out_photos` hoặc `r.moveOutPhotos`.
+     - Bổ sung khối giao diện "Ảnh kho trống do khách gửi" đặt trong cột thông tin bên phải (`customer-detail__column`) ngay cạnh form kiểm kê biên bản:
+       - Hiển thị tiêu đề "Ảnh kho trống do khách gửi".
+       - Render các thumbnail ảnh bằng `DamagePhotos`, cho phép nhân viên xem trước và bấm vào để mở xem ảnh kích thước đầy đủ trong tab mới.
+       - Thông báo rõ ràng khi khách chưa đính kèm ảnh: "Khách hàng chưa đính kèm ảnh kho trống khi yêu cầu trả kho."
+       - Ghi chú giải thích: "Ảnh do khách chụp và gửi khi đăng ký trả kho để chứng minh kho đã dọn trống."
+  2. `DamageComponents.jsx`:
+     - Cập nhật hàm `safeImageUrl` để cho phép cả giao thức `http://` (phục vụ local development `EvidencePhotos:PublicBaseUrl`), `https://`, đường dẫn tuyệt đối (`/`), và `data:image/` (phục vụ base64/mô phỏng).
+     - Bổ sung prop `emptyText` cho `DamagePhotos` để tùy biến thông báo khi không có ảnh (mặc định giữ nguyên "Chưa có ảnh bằng chứng từ cơ sở.").
+     - Chuẩn hóa các định dạng ảnh đầu vào: hỗ trợ chuỗi URL, đối tượng `{ url, caption }`, đối tượng backend PascalCase `{ Url, Caption }`, và đối tượng base64 `{ dataBase64, contentType, fileName }`.
+     - Thêm thuộc tính `title` để hiển thị tooltip ghi chú / gợi ý khi rê chuột vào ảnh.
+  3. `facilityOperationsSeed.js`:
+     - Bổ sung dữ liệu ảnh mẫu `move_out_photos` cho hồ sơ trả kho `TK-0098` để phục vụ kiểm thử và chế độ demo/mock.
+  4. Unit Tests & Render Tests:
+     - `render.test.mjs`: Thêm test kiểm tra `safeImageUrl`, `DamagePhotos`, và xác nhận màn hình kiểm tra trả kho `staff/return?id=TK-0098` hiển thị đúng ảnh kho trống từ khách cũng như trường hợp không có ảnh.
+- **Kiểm chứng:**
+  - Frontend Tests: `npm test` PASS 161/161 tests.
+  - Frontend Suites: `npm run test:business` PASS 10/10, `npm run test:workflows` PASS 12/12, `npm run check:structure` PASS, `npm run test:render` PASS 181 routes, `npm run build` PASS.
+  - Backend Unit Tests: `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` PASS 262/262 tests.
+  - Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-07 — Tự động điền thông tin hoàn cọc & bổ sung hoàn tiền mặt tại quầy
+
+- **Mục tiêu:**
+  1. Tự động điền thông tin hoàn tiền: tự sinh mã tham chiếu / mã phiếu chi và tự động điền thời gian chuyển / chi tiền theo giờ Việt Nam hiện tại trên màn Quản lý hoàn cọc sau trả kho (`DepositRefundPage.jsx`), cho phép quản lý chỉnh sửa hoặc bấm tạo lại mã nhanh.
+  2. Hỗ trợ hoàn tiền mặt tại quầy: cho phép chuyển đổi linh hoạt giữa "Chuyển khoản ngân hàng" và "Tiền mặt tại quầy" (tự động chọn tiền mặt nếu hồ sơ không có thông tin ngân hàng hoặc khách đã chọn tiền mặt), không bắt buộc kiểm tra tài khoản ngân hàng khi chi tiền mặt, lưu đúng `PaymentMethod = CASH`, cập nhật DTO và ghi nhận thanh toán thành công.
+- **Giải pháp triển khai:**
+  1. `DepositRefundPage.jsx`:
+     - Bổ sung bộ chọn hình thức: `Chuyển khoản ngân hàng` và `Tiền mặt tại quầy`.
+     - Tự động điền thời gian chuyển / chi (`at` = `vnDateTimeInput()`).
+     - Tự động sinh mã tham chiếu: Chuyển khoản dạng `FT{contractId}{timestamp}`, Tiền mặt dạng `PC-{itemId}` kèm nút "Tạo lại mã".
+     - Trường hợp tiền mặt: hiển thị người nhận tiền, thông báo nhận tại quầy (không cần số tài khoản), checklist xác nhận đã chi đủ tiền và có ký nhận.
+     - Cập nhật các bước hiển thị tiến trình: phân biệt rõ `Chi tiền mặt & ghi nhận` vs `Chuyển khoản & ghi nhận`.
+  2. `settlementModel.js` (`transferProof`):
+     - Kiểm tra `isCash = payload.method === "CASH" || item.method === "CASH" || item.bankName === "CASH"`.
+     - Nếu `isCash`, bỏ qua kiểm tra `validateRefundBank` (ngân hàng / số tài khoản / chủ tài khoản), kiểm tra `confirmed` chi tiền mặt và trả về `method = "CASH"`.
+  3. `workflowModel.js`:
+     - Khi `CONFIRM_DEPOSIT_REFUND`, gán đúng `method: proof.method`.
+  4. Backend `StorageProject.Core/DTOs/FacilityOps/FacilityOpsDtos.cs` & `FacilityOpsService.Refunds.cs`:
+     - Bổ sung `string? Method = null` vào `DepositRefundActionRequest`.
+     - Trong `ConfirmDepositRefundAsync`: khi `request.Method == CashMethod`, bỏ qua kiểm tra tài khoản ngân hàng chính chủ, cập nhật `p.PaymentMethod = CashMethod`, ghi nhận `p.Status = "PAID"`, `TransactionReference` và ghi log `DEPOSIT_REFUND_CASH_PAID`. Nếu khách chọn CASH mà quản lý gửi chuyển khoản không kèm method, tiếp tục cảnh báo như quy định D42.
+  5. Unit Tests:
+     - Backend (`D32RefundEvidenceTests.cs`): Thêm test `ConfirmDepositRefundAsync_CashMethod_DoesNotRequireBankDetails` xác nhận quản lý có thể hoàn cọc bằng tiền mặt mà không cần thông tin ngân hàng (262 tests PASS).
+     - Frontend (`approved-workflows.test.js`): Thêm test xác nhận chi tiền mặt tại quầy cho khoản hoàn cọc không có tài khoản ngân hàng (12 tests PASS).
+- **Kiểm chứng:**
+  - Backend Build: `dotnet build StorageProject.slnx -c Release --no-restore -m:1` PASS 0 Error, 2 Warnings (sẵn có).
+  - Backend Unit Tests: `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` PASS 262/262 tests.
+  - Backend Integration Tests: `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release` PASS 11/11 tests.
+  - Frontend Tests: `npm test` PASS 161/161 tests, `test:business` PASS 10/10, `test:workflows` PASS 12/12, `check:structure` PASS, `test:render` PASS 181 routes, `npm run build` PASS.
+  - Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-07 — Sửa mã giao dịch và luồng thu tiền gia hạn tại quầy
+
+- **Mục tiêu:**
+  1. Phân biệt rõ mã khoản thu và mã giao dịch trên modal Chi tiết giao dịch: giao dịch tiền mặt hiển thị "Không áp dụng — thu tiền mặt", giữ `CASH:2:RENT` ở trường Mã khoản thu (không copy sang mã giao dịch); giao dịch PayOS đã thanh toán hiển thị mã tham chiếu từ API; khoản chờ thu hiển thị "Chưa có mã xác nhận".
+  2. Khắc phục luồng Staff không thấy việc thu tiền gia hạn tại quầy sau khi Customer chọn tại quầy cho `GH-0001`: đảm bảo lưu đúng lựa chọn, đồng bộ cả hai nguồn danh sách (`GET /api/ops/counter-renewals` và board vận hành `GET /api/ops/board`), xác nhận thu idempotent, cập nhật kỳ thuê và phản ánh ngược lại phía Customer.
+- **Nguyên nhân gốc rễ xác minh:**
+  - **Lỗi 1 (Mã giao dịch):**
+    - `apiMappers.js` chỉ gán `ref: p.transactionReference || ...`, hoàn toàn thiếu thuộc tính `method` và `transaction_ref` trong object `ledger`.
+    - Modal trong `PaymentListPage.jsx` và `PaymentHistoryPage.jsx` đọc `detail.transaction_ref || "Chưa có dữ liệu"`, khiến giao dịch tiền mặt báo "Chưa có dữ liệu" thay vì phân biệt tiền mặt không áp dụng mã ngân hàng.
+  - **Lỗi 2 (Thu tiền gia hạn tại quầy):**
+    - `SelectCounterPaymentAsync` trước đó có kiểm tra consent cứng nhắc trên `ContractRenewal` (`!hasConsent || !renewal.PolicyVersion.HasValue`) khiến các yêu cầu gia hạn seeded hoặc không có row consent riêng bị ném lỗi 400 và không cập nhật được `PaymentMethod = CASH`.
+    - Board vận hành `GET /api/ops/board`:
+      - Trong `FacilityOpsService.Board.cs`, đoạn query `counterRenewalsQuery` đặt sau khối `if (!actor.IsManager) return ...`, khiến nhân viên (Staff) hoàn toàn nhận `CounterRenewals = null`.
+      - Trong `FacilityOpsEndpoints.cs`, hàm `ToJson(OpsBoardDto b)` serialize JSON cho `GET /api/ops/board` trước đó thiếu khóa `counterRenewals`, làm mất trường này khi trả về cho client.
+    - Tại frontend:
+      - `pendingTaskCounts.js` chỉ đếm `ops.payments` (đơn đặt chỗ), chưa cộng `ops.counter_renewals`, dẫn tới badge trên tab Thu tiền (`staff/reconcile`) và tổng số việc của Staff không phản ánh task thu gia hạn tại quầy.
+      - `STAFF_PARTS` trong `mock-api.mjs` và seed dữ liệu `facilityOperationsSeed.js` thiếu `counter_renewals`.
+    - `RenewalService.cs`:
+      - `GetCounterRenewalsAsync` và `CollectCounterRenewalAsync` cần có fallback tìm theo `Status == "ACTIVE"` khi lọc `UserFacilities` nếu khoảng ngày gán không khớp do timezone/lịch sử cũ.
+- **Giải pháp triển khai:**
+  1. `apiMappers.js`: Map `method` (`p.paymentMethod` hoặc CASH) và `transaction_ref` (PayOS trả mã tham chiếu, CASH trả null).
+  2. `PaymentListPage.jsx` & `PaymentHistoryPage.jsx`: Modal hiển thị:
+     - Tiền mặt: "Không áp dụng — thu tiền mặt".
+     - PayOS/ngân hàng đã thanh toán: mã tham chiếu từ API.
+     - Khoản đang chờ thanh toán: "Chưa có mã xác nhận".
+     - Giữ nguyên `ref` ở "Mã khoản thu", không sao chép lấp chỗ trống.
+  3. `RenewalService.cs`:
+     - `SelectCounterPaymentAsync`: kiểm tra đúng 4 điều kiện nghiệp vụ (chủ hợp đồng, trạng thái APPROVED, còn hạn, chưa thanh toán), fallback kiểm tra consent ở cấp hợp đồng, huỷ PayOS checkout đang mở và đặt `PaymentMethod = CASH`.
+     - `GetCounterRenewalsAsync`: định dạng `ContractCode` theo quy ước chung `FacilityOpsService.ContractCode`, lọc đúng nhân viên phụ trách cơ sở kèm fallback active assignment.
+     - `CollectCounterRenewalAsync`: đảm bảo tính idempotent (nếu đã PAID thì commit và return ngay, không lỗi 500/400); chặn nhân viên khác cơ sở (`UnauthorizedAccessException`).
+  4. `FacilityOpsDtos.cs`, `FacilityOpsService.Board.cs` & `FacilityOpsEndpoints.cs`:
+     - Bổ sung `counterRenewals` vào `OpsBoardDto`.
+     - Nạp `counterRenewalDtos` trước khối rẽ nhánh vai trò để cả Staff và Manager đều nhận được danh sách thu gia hạn tại quầy.
+     - `ToJson` trong `FacilityOpsEndpoints.cs` serialize đầy đủ `counterRenewals` vào response JSON.
+  5. Frontend:
+     - `facilityOperationsApi.js` & `StaffTasks.jsx`: Bổ sung `counter_renewals` vào `loadBoard` và danh sách việc cần xử lý (`reconcile`/`all`) của nhân viên với nút "Thu tiền" dẫn tới `staff/renewal-payments`.
+     - `pendingTaskCounts.js`: Badge `staff/reconcile` đếm tổng cả đơn đặt chỗ và yêu cầu thu gia hạn tại quầy đang ở trạng thái `PENDING`.
+     - Đồng bộ `counter_renewals` vào `facilityOperationsSeed.js` và `mock-api.mjs`.
+  6. `DbSeeder.FacilityOps.cs`: Seed đầy đủ `PolicyVersion` và `PolicyConsent` cho `k02Renewal` để reset database luôn có dữ liệu chuẩn.
+  7. Unit Tests:
+     - Backend (`RenewalPolicyD32Tests.cs`): Thêm test `GetBoardAsync_StaffReceivesCounterRenewals` kiểm chứng Staff nhận `CounterRenewals` từ `GetBoardAsync`, cùng các test idempotent và chặn khác cơ sở (261 tests PASS).
+     - Frontend (`api-mappers.test.js` & `return-policy.test.js`): Bổ sung test kiểm chứng map `method`, `ref`, `transaction_ref` và test badge `pendingTaskCounts` (161 tests PASS).
+- **Kiểm chứng:**
+  - Backend: `dotnet build StorageProject.slnx -c Release` PASS 0 Error, 1 Warning (sẵn có).
+  - Backend Unit Tests: `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` PASS 261/261 tests.
+  - Backend Integration Tests: `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release` PASS 11/11 tests.
+  - Frontend Tests: `npm test` PASS 161/161 tests, `test:business` PASS 10/10, `test:workflows` PASS 11/11, `check:structure` PASS, `test:render` PASS 181 routes, `npm run build` PASS.
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-07 — Phiên tài liệu: D48 và đồng bộ map / coverage
+
+- `DECISIONS.md`: thêm **D48** (đợt sửa lỗi 07/11 không đổi database; demo một cơ sở; bỏ Batch06; đồ khách bỏ ở ô cũ, không phí quá hạn ô cũ; chỉ chuông cho đề xuất đổi kho; tiền mặt khách không nhận là dòng doanh thu riêng; huỷ gia hạn chờ duyệt; gỡ route thừa; quyền chỉ xem; B04a, C11h).
+- `FRONTEND-MAP.md`: Batch06 ghi đã gỡ, thêm B04a, C11h có lọc thời gian. `OPS-FLOW-COVERAGE.md`: bỏ dòng hư hỏng, S04-ô cũ theo D48. `BUSINESS-FLOW-COVERAGE.md`: thêm B04a. `ADMIN-FLOW-COVERAGE.md`: role-change, A03 chỉ xem. `APPROVED-FE-API-GAPS.md`: bỏ `discrepancies`, ghi trạng thái. `BACKEND-TODO.md`: Batch06 ghi huỷ.
+- Không đổi code. Không sửa lịch sử các mục D/IMPL cũ. `feature_list.json` chưa đổi (cần người phụ trách xác nhận trạng thái).
+
+## 2026-11-07 — Phiên 5 (sau rà soát): báo cáo chi tiết cơ sở (3.5) và lịch sử thanh toán (3.6), chỉ FE
+
+- **3.5 · Figma B04 + B04a (Thắng duyệt 07/11):** bảng "Chi tiết theo cơ sở" thêm cột "Báo cáo" · "Xem chi tiết →"; màn mới `FacilityReportDetailPage.jsx` (`#/business/facility-report?id=…&status=&unitType=`) gọi `GET /api/operations/reports/facilities/{id}/contracts` có sẵn: 4 thẻ tổng (hợp đồng hiệu lực, quá hạn, khoản chờ thu, hồ sơ quá hạn mở — FE cộng từ danh sách), lọc trạng thái / loại kho, mỗi hợp đồng một thẻ, trạng thái rỗng / lỗi. Trường `outstanding` hiển thị là "Khoản chờ thu" (D32: không có công nợ ngoài cọc). Hàm thuần `facilityReportModel.js`; máy chủ giả thêm route tương ứng.
+- **3.6 · Figma C11h + LS02 (đã có sẵn):** `apiMappers` đọc thêm `paidAt`, `paymentMethod`, mã giao dịch (ẩn mã nội bộ `DEPOSIT:`, `WAIVED:`, `CASH:`, `FORFEITED:`, `TRU-COC-`), cờ trừ cọc; `PaymentHistoryPage` hiện thời gian · loại khoản, số tiền · phương thức · mã, lọc thêm theo tháng (giờ Việt Nam), xếp mới nhất trước; popup chi tiết đủ 6 dòng như LS02. Không dùng `GET /api/contracts/{id}/payments` (chi tiết hợp đồng đã có payments; nhóm chốt giữ route này ở BE).
+- **Test:** `npm test` 160/160 (thêm test lịch sử thanh toán), `test:business` 12/12 (thêm 2 test B04a), `test:workflows` 11/11, `test:render` 178 route (thêm 2 route B04a), `check:structure` PASS, `build` OK. Chưa xem trình duyệt với dữ liệu thật. Không đổi BE, không đổi database.
+
+## 2026-11-07 — Phiên 3 (sau rà soát): FE nối các sửa lỗi Phiên 2, không đổi database
+
+- **2.1 (D48):** gỡ màn hồ sơ hư hỏng cũ Batch06 — `DamageResponsePage` (`#/units/:id/damage`), `DamageReviewPage` (`#/manager/damage-responses`), `DamageInspectionPage` (`#/manager/damage-inspections`), `damageApi.js`, `useDamageCases.js`, `DamageManagerView.jsx` và 3 nút dẫn tới (Tiến độ trả kho, Hợp đồng & quá hạn của quản lý). `damageModel.js` / `DamageComponents.jsx` chỉ còn hàm dùng chung (giờ Việt Nam, kiểm ảnh, ảnh bằng chứng). Khấu trừ trả kho đi theo D39 (`#/units/:id/deduction`).
+- **1.3:** gỡ `cancelTicket`, `CANCEL_TICKET` (reducer + provider) và route giả `/api/tickets/{id}/cancel`.
+- **3.2 (Figma C07b-L5c):** chi tiết hợp đồng có yêu cầu gia hạn chờ duyệt → "Xem yêu cầu" + "Huỷ yêu cầu" (popup xác nhận / thành công / thất bại), `POST /api/renewals/{id}/cancel`; `CANCEL_RENEWAL` cho cả chế độ API và mô phỏng; gia hạn `CANCELLED` hiện "Bạn đã huỷ yêu cầu" (trước đây map nhầm thành "Đã từ chối"). Dòng Trả kho ghi lý do khoá.
+- **3.1 (D48):** `OldUnitInspectionPage` — "Ghi nhận đồ khách bỏ" (popup có ô "Đồ còn lại") gửi `goodsRemaining: true`; danh sách hiện "Đồ khách bỏ · đang dọn"; bỏ dòng phí quá hạn ô cũ ở tạm tính (`oldUnitInspectionModel.js`). Chữ khách (`UnitMoveCard`, gia hạn sang ô khác) đổi theo D48: hết kỳ cũ khoá mã ô cũ, đồ còn lại coi là đồ bạn bỏ.
+- **3.7 (D45 mục 11, chỉ chuông):** `customerNotifications` thêm đề xuất đổi kho (OPEN) và "Hệ thống đã tự đổi kho" từ `GET /api/unit-conflicts`; C-D41a ghi "Đã gửi thông báo vào chuông trong ứng dụng".
+- **1.2:** hiện `forfeitedRefunds` — báo cáo cơ sở (dòng riêng + CSV), báo cáo Vận hành KD theo cơ sở (ghi chú dưới bảng), tổng quan Vận hành KD (dòng nhỏ dưới doanh thu tháng).
+- **3.3:** bỏ `assignPermission` / `revokePermission` khỏi `adminApi` (BE trả 410).
+- **Test:** `npm test` 159/159 (thêm test huỷ gia hạn, chuông đề xuất đổi kho; rút `damage-workflow.test.js` còn 2 test hàm dùng chung), `test:business` 10/10, `test:workflows` 11/11, `test:render` 176 route PASS (bỏ 8 route hư hỏng, thêm kiểm nút huỷ gia hạn và không còn nút hư hỏng), `check:structure` PASS, `build` OK. Chưa chạy với BE thật; Playwright `batch10` chỉ kiểm cú pháp.
+
+## 2026-11-07 — Phiên 2 (sau rà soát): sửa lỗi BE không đổi database
+
+- **2.2 · T24:** `AdminService.ChangeRoleAsync` + `POST /api/admin/users/{id}/role-change`: đổi một vai trò trong một giao dịch (khoá `user-roles:{id}`), so bộ vai trò FE gửi (`expectedRoleIds`, sai → 409), giữ vai trò khác, không gỡ ADMIN của admin hoạt động cuối, log `ROLE_CHANGE`. Test mới `AdminRoleChangeTests` (4 test).
+- **3.3 · T25:** `POST`/`DELETE /api/admin/roles/{id}/permissions` trả 410; bỏ `AssignPermissionToRoleAsync`, `RevokePermissionFromRoleAsync`, `AssignPermissionRequest`.
+- **1.3:** gỡ `POST /api/tickets/{id}/cancel` và `CancelTicketAsync` (D43/D45).
+- **3.4:** gỡ `POST /api/contracts/{id}/request-key` (`/key-request`), `ContractService.RequestKeyAsync`, `KeyRequestInput` và 4 test C06 tương ứng; nhận chìa khóa chỉ qua hỗ trợ chủ đề "Nhận chìa khóa" (D40, đã có test trong `CheckoutTests`).
+- **3.1 (Thắng chốt 07/11):** kiểm tra ô cũ còn đồ → ghi nhận đồ khách bỏ (`RENEWAL_OLD_UNIT_GOODS_ABANDONED`), không trừ phí, `UnitMoveDto.GoodsAbandoned/GoodsNote`. Hệ thống tự chuyển ô không còn tính phí quá hạn ô cũ (thay ý D46b). Test `D48_NotMovedByEndOfOldTerm_AutoMoves_GoodsLeftAreAbandoned_NoOverdueFee` thay test quá hạn cũ.
+- **1.2 · D45:** `ReportMetrics.ForfeitedRefunds` (báo cáo hệ thống, cơ sở, loại kho, CSV) và `revenue.forfeitedRefunds` ở `/api/ops/board`, `/api/manager/board`. Test bổ sung trong `D32RefundEvidenceTests.Phien3`.
+- **Lỗi có sẵn từ PR #82:** khấu trừ ô cũ lưu `PENDING`, thiếu `CreatedAt` (chú thích nuốt phần gán) → sửa thành `PAID`; test `D46_LargeDamage…` kiểm thêm trạng thái.
+- **Kiểm tra:** FE không đổi ở phiên này. **Chưa chạy `dotnet build/test`** (môi trường không tải được .NET SDK/NuGet) — cần CI hoặc máy có SQL Server chạy `dotnet test`. Không migration.
+
+## 2026-11-07 — M03: màn duyệt gia hạn hiện ô mới và cọc chênh (D46)
+
+- **BE:** `OpsRenewalDto` (cả bản `DTOs/Ops` dùng cho `/api/manager/board` và bản `DTOs/FacilityOps` dùng cho `/api/ops/board`) thêm `TargetUnit`, `DepositTopUp`; `ManagerService.GetManagerBoardAsync` và `FacilityOpsService.Board` đọc kế hoạch chuyển ô từ `activity_logs` (`RENEWAL_UNIT_CHANGE` / `RENEWAL_UNIT_HELD`).
+- **FE:** `RenewalApprovalPage.jsx` hiện "Sang ô X · cọc chênh Y (thu cùng tiền gia hạn) · khách tự chuyển đồ trong 3 ngày cuối kỳ" ở yêu cầu chờ duyệt và đã duyệt; hàm `renewalApprovalModel.js`.
+- **Test:** BE `D46_ManagerBoard_ShowsTargetUnitAndDepositTopUp` (cả 2 board, trước và sau duyệt); FE thêm 1 test trong `renewal-unit-move.test.js`.
+- **Kiểm tra:** `npm test` 167/167, `test:business` 10/10, `test:render` 184 route, `check:structure`, `build` đạt; BE biên dịch Roslyn với stub không lỗi; `dotnet test` chờ CI.
+
+## 2026-11-07 — Sửa CI đỏ sau Phiên 8: trùng mã giao dịch khi tách cọc chênh / khấu trừ ô cũ
+
+- **Lỗi (CI `main` 867c0d5, job Backend):** 2 test D46 đỏ vì `payments.TransactionReference` là duy nhất mà `RenewalUnitMove` tạo 2 khoản cùng mã: khoản `DEPOSIT` cọc chênh dùng lại mã của khoản `RENEWAL`; các khoản khấu trừ ô cũ (vệ sinh, hư hỏng, quá hạn) dùng chung `TRU-COC-GH-xxxx`. Lỗi này cũng xảy ra khi chạy thật.
+- **Sửa:** cọc chênh dùng mã khoản gia hạn kèm hậu tố `-COC` (cắt về tối đa 150 ký tự); mỗi khoản khấu trừ có mã riêng `TRU-COC-GH-xxxx-<loại phí>`. Test bổ sung kiểm mã không trùng.
+- **Kiểm tra:** biên dịch Roslyn với stub không lỗi; chưa chạy `dotnet test` cục bộ (NuGet bị chặn) — CI là kiểm chứng thật.
+
+## 2026-11-06 — Phiên 9: FE gia hạn sang ô khác (D46, D46b)
+
+- **Figma (vẽ trước, viền đỏ chờ duyệt):** C07b-D46 + 3 popup; S04-ô cũ, S04-ô cũ-chi tiết + 4 popup.
+- **FE khách:** `RenewalUnitChangePage.jsx` (`#/units/:id/renew-other`, C08-D41a/b): chọn ô trống cụ thể / giữ ô lớn sau nâng cấp, số tháng, đồng ý chính sách, tạm tính tiền gia hạn + cọc chênh, popup xác nhận / thành công / "Ô vừa có người đặt" (tải lại danh sách). `UnitMoveCard.jsx` trong chi tiết hợp đồng: trạng thái chuyển ô, "Đã chuyển đồ" có ô tick, thành công / thất bại. Chi tiết hợp đồng: ô đã có khách đặt → nút "Gia hạn sang ô khác".
+- **FE nhân viên:** `OldUnitInspectionPage.jsx` (`#/staff/unit-moves`): danh sách ô cũ, biên bản 3 mục, vệ sinh 10% cọc, hư hỏng, đối chiếu khấu trừ (tạm tính, tối đa bằng cọc), "Báo ô còn đồ", popup xác nhận / thành công / cảnh báo / thất bại. Link nhanh "Kiểm tra ô cũ".
+- **BE nhỏ:** `UnitMoveDto.DepositHeld`; `MovedAt` giờ Việt Nam.
+- Hàm thuần `renewalUnitModel.js`, `oldUnitInspectionModel.js` + test `tests/renewal-unit-move.test.js` (7 test).
+- **Kiểm tra:** `npm test` 163/163, `test:business` 10/10, `test:render` 184 route PASS (thêm `units/:id/renew-other`, `staff/unit-moves`), `test:workflows` 11/11, `check:structure` PASS, `build` OK; BE biên dịch Roslyn với stub không lỗi. Chưa chạy `dotnet test`, chưa chạy với máy chủ thật (màn mới cần API Phiên 8; chế độ mô phỏng chỉ báo chưa có dữ liệu). Chưa xem trình duyệt với dữ liệu thật.
+- Patch xếp sau Phiên 7 và Phiên 8.
+
+## 2026-11-06 — Phiên 8: BE gia hạn sang ô khác (D46, D46b)
+
+- **BE** `RenewalUnitMove.cs` (mới): ô chọn được (cùng loại; thêm loại đã đặt ban đầu khi đã được nâng cấp miễn phí), ghi kế hoạch chuyển ô, giữ ô khi duyệt, trả ô khi hết hạn thanh toán, tách cọc chênh khi thu đủ, "Đã chuyển đồ" trong 3 ngày cuối kỳ cũ, tự chuyển khi hết kỳ cũ, kiểm tra ô cũ có trừ cọc (không vượt cọc). Trạng thái lưu `activity_logs`, không đổi schema.
+- Sửa `RenewalService` (gửi gia hạn có `targetUnitId`, hết hạn thanh toán trả ô, 5 hàm mới), `RenewalApproval` (không khoá D41 khi chuyển ô, giữ ô, khoản gia hạn gộp cọc chênh), `RenewalSettlement` (trả ô khi tiền về quá hạn, tách cọc chênh), `UnitAvailability.SlotsAsync` (gia hạn chuyển ô không giữ ô cũ thêm kỳ mới), `AccessService.ScanAsync` (mã hiện tại mở ô mới trong thời gian chuyển), `FacilityWorkflowWorker` (tự chuyển khi hết kỳ cũ). DTO `CreateRenewalRequest.TargetUnitId` + 4 DTO mới; 6 route trong `RenewalEndpoints`.
+- Test mới `RenewalPolicyD32Tests.D46.cs` (5 test): luồng đủ (giữ ô, cọc chênh 300.000 tách đúng, chưa tới 3 ngày cuối không chuyển / không mở ô mới, chuyển xong đổi ô + cấp mã mới + ô cũ chờ kiểm tra, bấm lại bị chặn, kiểm tra đạt trả ô); ô cũ có khách đặt: gia hạn thường bị chặn, sang ô khác được; ô bị lấy trước khi duyệt; hết hạn thanh toán trả ô; tự chuyển khi hết kỳ + phí quá hạn trừ cọc; hư hỏng lớn chỉ trừ tối đa bằng cọc.
+- **Kiểm tra:** biên dịch Roslyn với stub (Core, Infrastructure, Api, Tests) không lỗi. **Chưa chạy `dotnet test`** (NuGet bị chặn trong môi trường) — CI là kiểm chứng thật; chưa chạy SQL Server / PayOS thật. FE chưa làm (Phiên 9).
+- Patch xếp sau Phiên 7 (áp Phiên 7 trước). Không đổi `feature_list.json`.
+
+## 2026-11-06 — Phiên 7: tự huỷ đơn chờ thanh toán quá hạn, sửa 3 script kiểm tra giao diện, CI, tài liệu
+
+- **BE** `UnpaidReservationExpiry.cs` (mới): đơn `PENDING_PAYMENT` quá hạn giữ chỗ chưa trả tiền → `EXPIRED` (lý do + log `RESERVATION_PAYMENT_EXPIRED`), chạy cùng tiến trình 1 phút của `ExpiredCashHoldWorker`. Trước đây đơn chỉ hết hạn khi khách bấm "Đã chuyển khoản". Không đụng `PENDING_VERIFICATION`; tiền PayOS về muộn vẫn vào `PAYMENT_REVIEW_REQUIRED`. Không đổi schema. `ReservationService.ConfirmTransferAsync`: đơn đã bị tiến trình nền chuyển `EXPIRED` vẫn trả mã lỗi `EXPIRED` như trước. Test mới `CheckoutTests.Phien7.cs` (3 test); `CheckoutTests` đổi thành `partial`.
+- **FE script kiểm tra (không chạy trong CI):** `test:approved-ui`, `test:workflow-actions`, `test:api-pending` đỏ vì còn màn báo sai lệch đã gỡ (D42) và chưa theo các bước bằng chứng chuyển tiền (Batch08). Bỏ route / bước sai lệch, thêm 5 route Phiên 6; bước hoàn tiền nhập thêm thời gian chuyển + tick chính chủ, đóng popup thành công; `test:api-pending` kiểm `staff/overdue` và `staff/cash-refunds` báo "chưa cung cấp dữ liệu", không rơi về dữ liệu mô phỏng. Không nới assertion nghiệp vụ.
+- **Máy chủ giả** `mock/mock-api.mjs`: board trả `inspectionEvidenceSupported` / `refundEvidenceSupported` như BE thật; route hoàn tiền đơn huỷ chuyển tiếp `transferredAt`, `confirmed` mà FE gửi.
+- **CI / GitHub:** bước chặn chữ "sạch / bẩn / sai lệch" trong `.jsx`; `.github/dependabot.yml` (mới); `.github/pull_request_template.md` (mới).
+- **Tài liệu:** D46 (gia hạn sang ô khác, 4 điểm Thắng chốt 19:28), D47 (không dùng số phiếu chi, quản lý không đổi cách nhận hoàn), IMPL-2026-11-06-P7; `OPS-FLOW-COVERAGE.md`, `CUSTOMER-FLOW-COVERAGE.md` thêm màn Phiên 5–6, bỏ màn sai lệch.
+- **Kiểm tra:** `npm test` 156/156, `test:business` 10/10, `test:render` 181 route PASS, `test:workflows` 11/11, `check:structure` PASS, `build` OK; `test:approved-ui` 27 route không lỗi / không tràn ngang, `test:workflow-actions` 8 bước PASS, `test:api-pending` PASS, `test:password-reset` PASS (Chromium cục bộ). BE biên dịch Roslyn với stub (Core, Infrastructure, Api, Tests) không lỗi; **chưa chạy `dotnet test`** (NuGet bị chặn trong môi trường) — CI là kiểm chứng thật. Chưa chạy với SQL Server / PayOS thật.
+- **Không đổi** trạng thái `feature_list.json` (6 mục `active` cần người phụ trách xác nhận).
+
+## 2026-11-07 — Sửa lỗi thiếu bằng chứng đồng ý chính sách trên hợp đồng mới
+
+- **Mục tiêu:** Đảm bảo khách hàng sau khi tạo đơn và đồng ý chính sách cho thuê, hoàn tất thanh toán (online hoặc tại quầy), mở lại mục "Chính sách → Theo hợp đồng của tôi → Khi đặt chỗ / ký hợp đồng ban đầu" luôn hiển thị đầy đủ bằng chứng (Phiên bản, Thời điểm, Kênh và Nội dung phiên bản chính sách đã đồng ý), kể cả khi đăng xuất, đổi trình duyệt hoặc khi chính sách hiện hành được cập nhật.
+- **Nguyên nhân gốc rễ xác minh:**
+  1. Frontend có gửi request consent (`POST /api/reservations/{id}/policy-consent`) và Backend đã lưu vào bảng `policy_consents`.
+  2. Khi hợp đồng được cấp (`ContractProvisioning.EnsureAsync`), bản ghi `PolicyConsent` đã được liên kết `c.Contract = contract;`.
+  3. Tuy nhiên, API `GET /api/contracts/{id}` (`ContractDetailDto`) và `GET /api/reservations/{id}` (`ReservationDetailDto`) chỉ trả 2 trường số/chuỗi phẳng (`PolicyVersion` và `PolicyAcceptedAt`), nhưng THIẾU đối tượng `PolicyConsentDto` (gồm `ConsentId`, `CustomerId`, `PolicyVersion`, `DisplayVersion`, `AcceptedAt`, `Channel`).
+  4. Hàm `normalizePolicyConsent` ở frontend bắt buộc phải có trường `channel` thuộc `["WEB", "WEB_CUSTOMER"]`. Khi `c.policyConsent` là `undefined`, hàm trả về `null`, khiến UI hiển thị "Chưa có bằng chứng đồng ý" và các trường đều trống.
+  5. Đồng thời, `ContractService.cs` khi tìm consent trước đây chỉ `OrderByDescending(AcceptedAt)` mà không lọc `RenewalId == null`, dẫn tới rủi ro lấy nhầm bằng chứng của lần gia hạn thay vì của đơn gốc.
+- **Giải pháp triển khai:**
+  1. `ContractDtos.cs` & `ReservationDtos.cs`: Bổ sung `PolicyConsentDto? PolicyConsent = null` vào `ContractDetailDto` và `ReservationDetailDto`.
+  2. `ContractService.cs` & `ReservationService.cs`:
+     - Lọc chính xác bản ghi consent của đơn gốc (`RenewalId == null`).
+     - Map đầy đủ `PolicyConsentDto` và truyền vào DTO phản hồi.
+  3. `apiMappers.js`: Map `policy_consent` từ `c.policyConsent` (hoặc fallback `c.policyVersion` / `c.policyAcceptedAt`).
+  4. `RentalPolicyPage.jsx`: Cập nhật thông báo khi hồ sơ không có bản ghi lưu: "Hồ sơ này không có bản ghi đồng ý được lưu."
+  5. Backend Tests (`PolicyConsentW4Tests.cs`): Thêm 3 unit test:
+     - `GetContractDetailAsync_ReturnsPolicyConsent_WhenReservationHadConsent`: Kiểm tra trả đầy đủ consent khi đơn gốc có consent.
+     - `GetContractDetailAsync_InitialConsentExcludesRenewalConsent`: Kiểm tra mục ký ban đầu luôn lấy consent của đơn gốc, không lấy consent của lần gia hạn.
+     - `GetContractDetailAsync_WithoutConsent_ReturnsNullPolicyConsent`: Kiểm tra hợp đồng cũ không có consent thì trả `null`, không tạo giả.
+  6. Frontend Tests (`api-mappers.test.js`): Bổ sung test kiểm chứng `composeData` map đúng `policy_consent` từ `PolicyConsentDto` của backend.
+- **Kiểm chứng:**
+  - Backend: `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` PASS 260/260 tests.
+  - Frontend: `npm test` PASS 159/159 tests, `test:business` PASS 10/10, `test:workflows` PASS 11/11, `check:structure` PASS, `test:render` PASS 181 routes, `npm run build` PASS.
+
+## 2026-11-06 — Sửa lỗi tính tỷ trọng doanh thu 0/0 (NaN%) ở Báo cáo Facility Manager
+
+- **Vấn đề:** Trong `FacilityReportPage.jsx`, khi doanh thu các loại kho đều bằng 0 (`typeTotal = 0`), phép tính `(t.value / typeTotal) * 100` ra `NaN`, dẫn đến nhãn hiển thị `NaN%` và thanh hiển thị `style="width: NaN%"`.
+- **Khắc phục:** Tính tỷ trọng một lần `const share = typeTotal > 0 ? (t.value / typeTotal) * 100 : 0;` và dùng chung cho nhãn `Math.round(share)%` và chiều rộng thanh `style={{ width: `${share}%` }}`.
+- **Kiểm chứng:**
+  - Bổ sung kiểm tra trong `render.test.mjs` cho 2 trường hợp:
+    1. Doanh thu 0 và 0: hiển thị `0,0 triệu đ · 0%`, thanh `style="width:0%"`, không có `NaN`. Tỷ lệ lấp đầy kho vẫn tính riêng.
+    2. Doanh thu 3 và 1 triệu: hiển thị `3,0 triệu đ · 75%` và `1,0 triệu đ · 25%`, thanh tương ứng `75%` và `25%`.
+  - `npm run test:render`: PASS 181 routes.
+  - `npm test`: PASS 158/158 tests, `test:business` PASS 10/10, `test:workflows` PASS 11/11, `check:structure` PASS, `build` OK.
+
+## 2026-11-06 — Khôi phục khóa QR khi trả kho ở chế độ demo
+
+- Sau bản sửa cache, hợp đồng demo vẫn ở `ACTIVE` và lưu yêu cầu riêng trong `returns`, nên bộ kiểm tra render thấy nút QR không còn bị khóa. `pendingReturn` giữ kiểm tra trạng thái server cho hợp đồng API và đọc yêu cầu cục bộ cho hợp đồng demo. Không đổi test hay đưa cache cũ trở lại chế độ API.
+- Tái hiện lỗi ở `render.test.mjs:86`. Sau sửa: `test:render` PASS 181 route, `npm test`, `check:structure`, `test:business`, `test:workflows` và `build` đều PASS.
+
+## 2026-11-06 — Sửa lỗi gán nhầm yêu cầu trả kho cũ từ cache (overlay.returns) sau khi reset DB
+
+- **Mục tiêu:** Khắc phục lỗi hợp đồng mới tạo sau reset DB bị cache `overlay.returns` cũ trong localStorage làm hiển thị cảnh báo trả kho cũ, khóa QR/PIN và vô hiệu hóa nút gia hạn/trả kho.
+- **Nguyên nhân gốc rễ:**
+  - Ở chế độ API (`VITE_USE_API=true`), `composeData` trước đây ghép toàn bộ `overlay.returns` từ localStorage vào `base.returns`.
+  - Hàm `pendingReturn(data, contractId)` lấy `data.returns.find(r => r.contract_id === contractId && r.status === "PENDING")` mà không kiểm tra trạng thái thực tế của hợp đồng trên server (`contract.status`).
+  - Sau khi reset DB, ID người dùng và mã hợp đồng (`HĐ-2026-0001`) được tái sử dụng trong khi localStorage vẫn lưu yêu cầu trả kho của chu kỳ trước đó.
+- **Giải pháp triển khai:**
+  1. `appSelectors.js` (`pendingReturn`): Kiểm tra trạng thái thực tế của hợp đồng. Nếu `contract.status !== "RETURN_PENDING"` (ví dụ `ACTIVE`), lập tức trả về `undefined`, không phụ thuộc vào `returns` cache.
+  2. `apiMappers.js` (`composeData`): Ở chế độ API (`remote` có mặt), không lấy `returns` từ `overlay.returns` của localStorage. `returns` chỉ được tổng hợp từ danh sách hợp đồng thực tế từ backend có trạng thái `RETURN_PENDING`.
+  3. `useAccessQr.js` & `AppProvider.jsx`: Kiểm tra trực tiếp `contract.status === "RETURN_PENDING"` thay vì kiểm tra mảng `data.returns` từ cache. Hợp đồng `ACTIVE` gọi thẳng API lấy QR nếu backend cấp hợp lệ.
+  4. `ReturnProgressPage.jsx` & `ReturnRequestPage.jsx`: Sử dụng `pendingReturn(data, id)` để kiểm tra. Với trường hợp `RETURN_PENDING` từ server mà không có ngày hẹn trong cache/hồ sơ, hiển thị thông báo chung "Yêu cầu trả kho · Đã ghi nhận · chờ cơ sở xác nhận" và ẩn dòng ngày hẹn.
+  5. `AppProvider.jsx` (`REQUEST_RETURN`): Sau khi gọi API trả kho thành công, đồng bộ lại dữ liệu. Nếu reload thất bại, thông báo rõ yêu cầu đã gửi thành công và hướng dẫn tải lại trang thay vì báo lỗi gửi thất bại. Nếu API trả kho thất bại, không tự cập nhật trạng thái chờ giả.
+  6. Thêm regression tests trong `tests/api-mappers.test.js`:
+     - Chế độ API: hợp đồng `ACTIVE` không nhận `overlay.returns` cũ.
+     - Chế độ API: hợp đồng `RETURN_PENDING` thật từ máy chủ có trạng thái chờ, không cần overlay.
+- **Kiểm chứng:**
+  - Frontend: `npm test` PASS 158/158 tests, `test:business` PASS 10/10 tests, `test:workflows` PASS 11/11 tests, `check:structure` PASS, `npm run build` PASS.
+  - Backend: `dotnet build StorageProject.slnx -c Release --no-restore -m:1` PASS (0 errors, 2 warnings sẵn có), `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release --no-build` PASS 257/257 tests.
+  - Whitespace check: `git diff --check` PASS (0 whitespace errors).
+
+## 2026-11-06 — Hoàn thành Gói KH-01, KH-04, KH-08: Chuẩn hoá Đăng ký, Nhận chìa khóa D36, QR/PIN và Hỗ trợ kèm ảnh D35
+
+- **Mục tiêu:** Thực hiện các gói công việc theo kế hoạch `SSFRMS-Customer-Flow-Implementation-Plan.md` (C01, C06, C07, C16, C17):
+  1. **KH-01 (C01 — Đăng ký & Validation Username):**
+     - Sửa validation `request.Username` trong `AuthService.RegisterAsync`: kiểm tra trước khi trim, bắt buộc không rỗng, độ dài ≤ 50 ký tự theo cột `User.Username`, không chứa ký tự khoảng trắng hoặc `@` theo D33.
+     - `AuthEndpoints`: bắt `ArgumentException` và `InvalidOperationException` trả về HTTP 400 Bad Request kèm thông điệp lỗi rõ ràng.
+     - Kiểm chứng bằng 14 unit tests trong `RegisterValidationTests.cs` (kiểm thử username có `@`, khoảng trắng đầu/cuối/giữa, rỗng, quá 50 ký tự, đúng 50 ký tự, trùng lặp và đăng nhập được bằng cả username lẫn email).
+  2. **KH-04 (C06 & C07 — Nhận chìa khóa theo yêu cầu D36 & QR/PIN trước ngày thuê):**
+     - **C07 (QR/PIN theo kỳ thuê):** `AccessService.GetQrAsync` kiểm tra ngày hiện tại theo giờ Việt Nam (`todayVn < contract.StartDate`); ném `InvalidOperationException` từ chối trả mã trước ngày bắt đầu thuê (khớp D36 / L13).
+     - **C06 (Bỏ auto-create HandoverRecord & API yêu cầu nhận chìa khóa):**
+       + `ContractProvisioning.EnsureAsync` và `ReservationAllocation.AllocateAsync`: bỏ việc tự động tạo `HandoverRecord` khi kích hoạt/phân bổ hợp đồng theo D36.
+       + Bổ sung endpoint `POST /api/contracts/{id}/request-key` (và alias `/key-request`) trong `ContractEndpoints.cs` và `IContractService.RequestKeyAsync`: khách chủ động gửi yêu cầu nhận chìa khóa tại quầy. Tạo `HandoverRecord` với status `SCHEDULED`, ghi `ActivityLog` (`KEY_REQUESTED`). Hỗ trợ idempotent retry an toàn, từ chối khi hợp đồng đã kết thúc hoặc chìa khóa đã nhận trước đó.
+       + Khi khách yêu cầu, nhân viên đúng cơ sở nhìn thấy hồ sơ nhận chìa khóa trên board vận hành (`task.Status == WAITING`) để tiến hành xác minh và bàn giao.
+  3. **KH-08 (C16 & C17 — Hỗ trợ gắn kho kiểm kỳ thuê & Ảnh đính kèm HMAC D35):**
+     - **C16 (Kiểm kỳ thuê gắn kho):** `SupportTicketService.CreateTicketAsync` kiểm tra kỳ thuê của hợp đồng theo D36 / L14: chỉ cho phép tạo ticket gắn kho khi hợp đồng đã bắt đầu và chưa kết thúc (`todayVn >= contract.StartDate` và `todayVn <= contract.EndDate` hoặc trạng thái `RETURN_PENDING`/`OVERDUE`). Trước hoặc sau kỳ thuê, từ chối và hướng dẫn sang kênh hỗ trợ chung (`/api/support/inquiries`).
+     - **C17 (Ảnh bằng chứng thực):**
+       + `CreateTicketRequest`: nhận danh sách ảnh base64 (`Photos`). Giải mã và kiểm tra định dạng JPG/PNG, dung lượng ≤ 5MB bằng `EvidencePhotos.Decode`.
+       + Lưu ảnh vào bảng `evidence_photos` với `OwnerType = "SUPPORT_TICKET"`.
+       + Thêm migration mới `20261105174242_AddSupportTicketEvidencePhoto` bổ sung `'SUPPORT_TICKET'` vào check constraint `CK_evidence_photos_owner_type`.
+       + `SupportTicketDetailDto` và `OpsTicketDto`: trả danh sách ảnh kèm URL có chữ ký HMAC hết hạn sau 1 giờ (`EvidencePhotos.Url`), cho phép cả khách hàng và nhân viên cơ sở xem trực tiếp ảnh bằng chứng theo D35.
+       + `SupportTicketEndpoints`: bổ sung thuộc tính `RequestSizeLimit` (40 MiB) hỗ trợ tải ảnh đính kèm.
+- **Kiểm chứng Toàn diện:**
+  - **Backend Build:** `dotnet build StorageProject.slnx -c Release --no-restore -m:1` → PASS, 0 Error, 2 Warnings sẵn có.
+  - **Backend Unit Tests:** `dotnet test StorageProject.Tests/StorageProject.Tests.csproj -c Release` → PASS 219/219 tests (bao gồm 14 tests `RegisterValidationTests` và 11 tests `CustomerFlowKH04KH08Tests`).
+  - **Backend Integration Tests:** `dotnet test StorageProject.IntegrationTests/StorageProject.IntegrationTests.csproj -c Release` → PASS 11/11 tests trên SQL Server thật (`.\SQLEXPRESS`), áp dụng toàn bộ 11 migrations thành công, 0 model drift.
+  - **EF Core Pending Model Changes:** `dotnet ef migrations has-pending-model-changes` → PASS, 0 pending model changes.
+  - **Frontend Tests:**
+    + `npm test`: PASS 155/155 tests.
+    + `npm run test:business`: PASS 9/9 tests.
+    + `npm run test:workflows`: PASS 12/12 tests.
+    + `npm run check:structure`: PASS.
+    + `npm run build`: PASS, bundle Vite production thành công.
+  - **Git Diff:** `git diff --check` → PASS, 0 whitespace errors.
+- **Tuân thủ AGENTS.md:** AI không thực hiện commit, push, PR hay merge. Người dùng tự kiểm tra diff và commit.
 ## 2026-11-06 — Phiên 6: M01, M04, M06, S02, S03, S07, FE nhân viên / quản lý, B02, câu 1, 2, 4, 7, D30-15b
 
 - **BE** `RenewalApproval.cs` (mới, M01): một đường duyệt gia hạn cho 3 route, khoá rồi mới kiểm lại (kỳ thuê, yêu cầu khác đang chờ, hạn, ô đã có khách đặt, giá ACTIVE). `ManagerService.AddContractReminderAsync` (M04) dùng khoá `move-out`, không tạo trùng hồ sơ quá hạn. `RenewalService.CollectCounterRenewalAsync` (S02) kiểm consent đúng phiên bản. Route kiểm kê cũ `/api/staff/returns/{id}/inspection` trả 410 (S03). Câu 7: `ReturnDeductionDecisionRequest.Photos`, `ReturnDeductionDto.CustomerPhotos`, `OpsReturnDto.DeductionPhotos`; migration viết tay `20261106120000_Phien6DeductionPhotos` (chỉ đổi CHECK `evidence_photos.OwnerType`).

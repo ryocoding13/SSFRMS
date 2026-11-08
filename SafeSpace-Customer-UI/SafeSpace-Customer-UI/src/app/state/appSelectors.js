@@ -1,4 +1,5 @@
 import { daysBetween, localDate } from "../../shared/utils/format.js";
+import { canPayLedger } from "../../shared/utils/returnPolicy.js";
 
 // Luôn trả về một cơ sở (dự phòng khi dữ liệu máy chủ chỉ có tên cơ sở)
 export const facilityOf = (data, id, name) =>
@@ -28,14 +29,25 @@ export const activeContracts = (data, now) =>
 export const expiringContracts = (data, now) =>
   data.contracts.filter((c) => ["EXPIRING", "OVERDUE"].includes(contractStatus(c, now)));
 
-export const unpaidCount = (data) => data.ledger.filter((l) => l.status === "UNPAID").length;
+export const payableCount = (data) => (data?.ledger || []).filter(canPayLedger).length;
+export const unpaidCount = (data) => payableCount(data);
 
 export const pendingRenewal = (data, contractId) =>
   data.renewals.find((r) => r.contract_id === contractId && (r.status === "PENDING" || (r.status === "APPROVED" && !data.ledger.some(l => l.kind === "RENEWAL" && l.contract_id === contractId && l.period?.to === r.new_end && l.status === "RECONCILED"))));
 
-export const pendingReturn = (data, contractId) =>
-  data.returns.find((r) => r.contract_id === contractId && ["PENDING", "SCHEDULED"].includes(r.status)) ||
-  (data.contracts.some(c => c.contract_id === contractId && c.status === "RETURN_PENDING") ? { contract_id: contractId, status: "PENDING" } : undefined);
+export const pendingReturn = (data, contractId) => {
+  if (!data || contractId == null) return undefined;
+  const contract = data.contracts?.find((c) => c.contract_id === contractId || c.api_id === contractId);
+  // Hợp đồng từ API dùng trạng thái server; demo lưu yêu cầu riêng trong returns.
+  if (contract?.api_id != null && contract.status !== "RETURN_PENDING") return undefined;
+  const match = data.returns?.find((r) =>
+    (r.contract_id === (contract?.contract_id ?? contractId)
+      || r.api_id === (contract?.api_id ?? contractId))
+    && ["PENDING", "SCHEDULED"].includes(r.status));
+  return match || (contract?.status === "RETURN_PENDING"
+    ? { contract_id: contract.contract_id, status: "PENDING" }
+    : undefined);
+};
 
 export const latestReservation = (data) =>
   [...data.reservations].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];

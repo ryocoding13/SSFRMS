@@ -17,6 +17,10 @@ export function parseUtc(value) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 const isoOf = (value) => parseUtc(value)?.toISOString() ?? null;
+// Mã hệ thống tự sinh (trừ cọc, miễn phí, chi tiền mặt, mất khoản hoàn) không phải mã giao dịch ngân hàng/PayOS.
+const INTERNAL_REF = /^(DEPOSIT:|WAIVED:|CASH:|FORFEITED:|TRU-COC-)/;
+export const publicTransactionRef = (ref) => (typeof ref === "string" && ref.trim() && !INTERNAL_REF.test(ref) ? ref : null);
+export const isDepositDeduction = (ref) => typeof ref === "string" && /^(DEPOSIT:|TRU-COC-)/.test(ref);
 const pad = (n, w = 4) => String(n).padStart(w, "0");
 const dateOnly = (v) => (v ? String(v).slice(0, 10) : null);
 
@@ -119,7 +123,7 @@ const TICKET_NOTE = {
   RESOLVED: "Yêu cầu đã được xử lý.",
   CANCELLED: "Bạn đã huỷ yêu cầu này.",
 };
-const RENEWAL = { PENDING: "PENDING", PENDING_PAYMENT: "PENDING", PENDING_APPROVAL: "PENDING", PAID: "PAID", APPROVED: "APPROVED", COMPLETED: "PAID", REJECTED: "REJECTED", CANCELLED: "REJECTED", EXPIRED: "EXPIRED" };
+const RENEWAL = { PENDING: "PENDING", PENDING_PAYMENT: "PENDING", PENDING_APPROVAL: "PENDING", PAID: "PAID", APPROVED: "APPROVED", COMPLETED: "PAID", REJECTED: "REJECTED", CANCELLED: "CANCELLED", EXPIRED: "EXPIRED" };
 
 function offerOfType(unitTypes, id, name) {
   const t = unitTypes.find((x) => x.unitTypeId === id) || unitTypes.find((x) => x.typeName === name);
@@ -177,7 +181,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
     ledger: [],
     appointments: [...overlay.appointments],
     renewals: [],
-    returns: [...overlay.returns],
+    returns: remote ? [] : [...overlay.returns],
     tickets: [],
     notifications: [...overlay.notifications],
     activities: [...overlay.activities],
@@ -212,10 +216,19 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
     const atFacility = r.paymentMethod === "AT_FACILITY" || r.status === "PENDING_AT_FACILITY" || Boolean(overlay.atFacility?.[id]);
     const rent = Number(r.estimatedAmount);
     const deposit = Number(r.requiredDeposit);
+    const resDetail = remote.reservationDetails?.[id];
+    const resConsent = resDetail?.policyConsent || (resDetail?.policyVersion != null && resDetail?.policyAcceptedAt ? {
+      version: resDetail.policyVersion,
+      acceptedAt: resDetail.policyAcceptedAt,
+      channel: resDetail.channel || "WEB_CUSTOMER",
+      customerId: resDetail.customerId,
+      consentId: resDetail.consentId,
+      displayVersion: resDetail.displayVersion,
+    } : null);
     return {
       reservation_id: code,
       api_id: id,
-      policy_consent: normalizePolicyConsent(remote.reservationDetails?.[id]?.policyConsent || overlay.policyConsents?.[id]),
+      policy_consent: normalizePolicyConsent(resConsent || overlay.policyConsents?.[id]),
       facility_id: r.facilityId,
       facility_name: r.facilityName,
       type: offer.type,
@@ -257,11 +270,19 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
     const start = dateOnly(c.startDate);
     const end = dateOnly(c.endDate);
     const handover = c.handover || null;
+    const contractConsent = c.policyConsent || (c.policyVersion != null && c.policyAcceptedAt ? {
+      version: c.policyVersion,
+      acceptedAt: c.policyAcceptedAt,
+      channel: c.channel || "WEB_CUSTOMER",
+      customerId: c.customerId,
+      consentId: c.consentId,
+      displayVersion: c.displayVersion,
+    } : null);
     contracts.push({
       contract_id: code,
       api_id: c.contractId,
       customer_name: c.customerName || null,
-      policy_consent: normalizePolicyConsent(c.policyConsent),
+      policy_consent: normalizePolicyConsent(contractConsent),
       reservation_id: codeByReservation.get(c.reservationId) || null,
       facility_id: facility?.facility_id ?? null,
       facility_name: c.facilityName,
@@ -287,6 +308,8 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
     });
     const paidRenewals = new Set();
     const renewalById = new Map((c.renewals || []).map((r) => [r.renewalId, r]));
+    const isContractActive = ["ACTIVE", "EXPIRING", "OVERDUE"].includes(c.status) && c.status !== "RETURN_PENDING";
+    const hasRefundRow = (c.payments || []).some((x) => x.paymentType === "REFUND");
     for (const p of c.payments || []) {
       if (p.renewalId) paidRenewals.add(p.renewalId);
       const kind = p.paymentType || "OTHER";
@@ -308,11 +331,19 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       const deadline = parseUtc(p.paymentDeadlineAt || ren?.paymentDeadlineAt);
       const expiredRenewal = kind === "RENEWAL" && !paid && (ren?.status === "EXPIRED" || p.status === "FAILED" || (deadline && deadline <= now));
       const open = !paid && !["CANCELLED", "REFUNDED", "FAILED"].includes(p.status);
-      const status = expiredRenewal ? "EXPIRED" : kind === "REFUND" ? (paid ? "REFUNDED" : p.status === "PENDING" ? "REFUND_PENDING" : p.status) : paid
-        ? kind === "DEPOSIT" ? "DEPOSIT_HELD" : "RECONCILED"
-        : p.status === "REFUNDED" || kind === "REFUND"
-          ? "REFUNDED"
-          : fee && open && overlay.feesAtCounter?.[p.paymentId] ? "AT_COUNTER" : "UNPAID";
+      const status = expiredRenewal
+        ? "EXPIRED"
+        : kind === "REFUND"
+          ? (paid ? "REFUNDED" : p.status === "PENDING" ? "REFUND_PENDING" : p.status)
+          : paid
+            ? kind === "DEPOSIT"
+              ? (isContractActive ? "DEPOSIT_HELD" : (c.status === "RETURN_PENDING" && !hasRefundRow ? "REFUND_PENDING" : "RECONCILED"))
+              : "RECONCILED"
+            : p.status === "REFUNDED" || kind === "REFUND"
+              ? "REFUNDED"
+              : fee && open && overlay.feesAtCounter?.[p.paymentId] ? "AT_COUNTER" : "UNPAID";
+      const isCash = p.paymentMethod === "CASH" || (p.transactionReference && p.transactionReference.startsWith("CASH"));
+      const transactionRef = isCash ? null : (paid ? publicTransactionRef(p.transactionReference) : null);
       ledger.push({
         ref: p.transactionReference || `TT-${pad(p.paymentId)}`,
         api_id: p.paymentId,
@@ -322,11 +353,17 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
         unit_number: c.unitNumber,
         amount: Number(p.amount),
         status,
+        method: p.paymentMethod || (isCash ? "CASH" : "BANK_TRANSFER"),
+        transaction_ref: transactionRef,
         // C11: khoản gia hạn đã duyệt nhưng chưa trả → nút "Thanh toán" (QR PayOS)
         // D32: khoản phí trả kho không được mở thanh toán ngoài cọc.
         payable: p.status === "PENDING" && kind === "RENEWAL" && !expiredRenewal,
         fee,
         period: ren ? { from: dateOnly(ren.oldEndDate), to: dateOnly(ren.newEndDate), months: ren.renewalPeriodMonths } : null,
+        // 3.6 · Figma C11h / LS02: thời gian, phương thức và mã giao dịch thật (mã nội bộ của hệ thống không hiện cho khách)
+        code: `TT-${pad(p.paymentId)}`,
+        paid_at: isoOf(p.paidAt),
+        deducted: fee && paid && isDepositDeduction(p.transactionReference),
       });
     }
     for (const r of c.renewals || []) {
@@ -414,12 +451,26 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
     };
   });
 
+  // Chế độ API: trạng thái trả kho lấy từ hợp đồng máy chủ, không lấy từ overlay.returns cũ
+  const returns = [];
+  for (const c of contracts) {
+    if (c.status === "RETURN_PENDING") {
+      returns.push({
+        return_id: `TK-${c.api_id}`,
+        contract_id: c.contract_id,
+        api_id: c.api_id,
+        status: "PENDING",
+      });
+    }
+  }
+
   return {
     ...base,
     reservations,
     contracts,
     ledger,
     renewals,
+    returns,
     tickets,
     appointments: [...appointments, ...base.appointments],
   };

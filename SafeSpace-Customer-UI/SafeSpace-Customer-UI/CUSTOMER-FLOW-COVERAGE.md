@@ -34,6 +34,11 @@ Nguồn: file Figma "SafeSpace - Modern UI" (section Khách hàng + Trang chủ 
 | C12b Tiến trình hỗ trợ | `#/support/:id` | `src/features/customer/support/SupportTicketDetailPage.jsx` | Nội dung, nhân viên, lịch sử responses, mốc thời gian từ API, báo lỗi và tải lại; không dựng dữ liệu còn thiếu |
 | C13, C13a–d, toast | `#/profile` | `src/features/customer/profile/CustomerProfilePage.jsx` | Sửa tên hiển thị và **số điện thoại** (`PUT /api/auth/profile` gửi `fullName`, `phone`; kiểm định dạng 0xxxxxxxxx / +84), nút "Lưu thông tin" theo Figma; tên đăng nhập và email chỉ đọc; hộp thoại "Đã hiểu" (cập nhật 02/11/2026, L4) |
 | C14 / C14a / C14b Đơn đặt chỗ | `#/reservations`, `#/reservations/:id` | `src/features/customer/reservations/ReservationListPage.jsx`, `src/features/customer/payments/CheckoutPage.jsx` | Nút "Huỷ đơn" (đơn chưa nhận kho) → hộp thoại C14a: đã trả, phí huỷ, số tiền hoàn (`cancel-preview`); huỷ xong "Đã huỷ · Đang hoàn tiền" |
+| D30-13 Xác nhận khấu trừ trả kho | `#/units/:id/deduction` | `src/features/customer/contracts/ReturnDeductionPage.jsx` | Đồng ý / tự dọn / tự thay / khiếu nại trong 48 giờ; tự thay và khiếu nại đính kèm tối đa 5 ảnh (D39, D40, D45) |
+| C-D41a Đề xuất đổi kho trước ngày nhận | `#/units/:id/unit-change` | `src/features/customer/contracts/UnitChangePage.jsx` | Đổi ngang / nâng cấp miễn phí / dời ngày / huỷ hoàn 100% (D41) |
+| C08-D41a / C08-D41b Gia hạn sang ô khác / sau nâng cấp | `#/units/:id/renew-other` | `src/features/customer/contracts/RenewalUnitChangePage.jsx` | Chọn ô trống cụ thể; giữ ô khi duyệt; tạm tính tiền gia hạn + cọc chênh; popup xác nhận / thành công / "Ô vừa có người đặt" (D46, D46b) |
+| C07b-D46 Đang chuyển sang ô mới | `#/units/:id` | `src/features/customer/contracts/components/UnitMoveCard.jsx` | "Đã chuyển đồ" chỉ trong 3 ngày cuối kỳ cũ; popup xác nhận có ô tick / thành công / thất bại (D46) |
+| D30-15b Nhận tiền hoàn tại quầy | `#/refunds/cash` | `src/features/customer/payments/CashRefundPage.jsx` | Danh sách và chi tiết khoản tiền mặt; đổi sang chuyển khoản trong 30 ngày (D44) |
 | Popup thông báo (public / customer, đã đọc) | (header) | `src/shared/components/Header.jsx` | |
 
 ## Chỗ Figma tự mâu thuẫn, code chọn như sau
@@ -41,5 +46,5 @@ Nguồn: file Figma "SafeSpace - Modern UI" (section Khách hàng + Trang chủ 
 - C03c ghi "x trên 4" → thư viện hiện **5 ảnh** (ảnh cơ sở + 4 ảnh bên trong).
 - C03b-sđ: ô 5 m² / 10 m² dùng giá của nhóm diện tích "2 – 5 m²" / "10 – 20 m²" để khớp với giá đặt chỗ.
 - C01 nói đã gửi gia hạn B-015 nhưng vẫn có nút "Gửi yêu cầu gia hạn" → **đã sửa trong Figma 26/09/2026**: B-015 chưa gửi gia hạn (xem `docs/figma-review-2026-09-26.md` ở thư mục gốc repo).
-- Figma không có màn cho: chi tiết đơn, huỷ yêu cầu hỗ trợ, trạng thái rỗng → dựng theo cùng phong cách.
+- Figma không có màn cho: chi tiết đơn, trạng thái rỗng → dựng theo cùng phong cách. Nút huỷ yêu cầu hỗ trợ đã bỏ theo D45.
 - Figma có 12 cơ sở nhưng chỉ vẽ 9 thẻ; 3 cơ sở trang 2 (Gò Vấp, Tân Bình, Bình Tân) dùng lại ảnh Bình Thạnh, Tân Thuận, Bình Chánh.

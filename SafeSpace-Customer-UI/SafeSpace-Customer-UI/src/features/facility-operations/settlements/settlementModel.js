@@ -7,12 +7,15 @@ export function actualVnTime(value,now=new Date()) {
 export function transferProof(item,payload,now=new Date()) {
  if(!item||item.status!=="PENDING"||!knownMoney(item.amount)||item.amount<=0)throw new Error("Khoản hoàn chưa có số tiền hợp lệ hoặc không còn chờ xử lý.");
  if(!item.customer)throw new Error("Thiếu tên khách trên hợp đồng.");
- const error=validateRefundBank({bankName:item.bankName,accountNumber:item.accountNumber,accountHolder:item.accountHolder},item.customer);if(error)throw new Error(error);
- const ref=String(payload.transactionRef||payload.transaction_ref||"").trim();if(!ref||ref.length>100)throw new Error("Nhập mã giao dịch không quá 100 ký tự.");
- if(payload.confirmed!==true)throw new Error("Cần xác nhận đã chuyển đúng số tiền vào đúng tài khoản.");
+ const isCash = payload.method === "CASH" || item.method === "CASH" || item.bankName === "CASH";
+ if (!isCash) {
+  const error=validateRefundBank({bankName:item.bankName,accountNumber:item.accountNumber,accountHolder:item.accountHolder},item.customer);if(error)throw new Error(error);
+ }
+ const ref=String(payload.transactionRef||payload.transaction_ref||"").trim();if(!ref||ref.length>100)throw new Error(isCash ? "Nhập mã phiếu chi không quá 100 ký tự." : "Nhập mã giao dịch không quá 100 ký tự.");
+ if(payload.confirmed!==true)throw new Error(isCash ? "Cần xác nhận đã chi tiền mặt cho khách hàng." : "Cần xác nhận đã chuyển đúng số tiền vào đúng tài khoản.");
  const paidAt=actualVnTime(payload.transferredAt,now);
- if(item.inspectedAt&&Number.isFinite(Date.parse(item.inspectedAt))&&Date.parse(paidAt)<Math.floor(Date.parse(item.inspectedAt)/60000)*60000)throw new Error("Thời gian chuyển không được trước khi chốt đối soát.");
- return {transactionRef:ref,transferredAt:paidAt,confirmed:true};
+ if(item.inspectedAt&&Number.isFinite(Date.parse(item.inspectedAt))&&Date.parse(paidAt)<Math.floor(Date.parse(item.inspectedAt)/60000)*60000)throw new Error(isCash ? "Thời gian chi tiền không được trước khi chốt đối soát." : "Thời gian chuyển không được trước khi chốt đối soát.");
+ return {transactionRef:ref,transferredAt:paidAt,confirmed:true,method:isCash?"CASH":"BANK_TRANSFER"};
 }
 export function validateKeyReceipt(ops,payload) {
  const h=ops.handovers.find(h=>h.id===payload.id);if(!h||h.status!=="WAITING")throw new Error("Lịch nhận chìa khóa không còn chờ xử lý.");

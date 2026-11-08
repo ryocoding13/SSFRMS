@@ -378,20 +378,29 @@ public partial class FacilityOpsService
     {
         var logs = await LogsAsync(PaymentEntity, rows.Select(p => p.PaymentId).ToList(), ct);
         var today = VnToday;
-        var staffIds = logs.Where(l => l.Action == FlowAction.CashPaid && l.UserId != null).Select(l => l.UserId!.Value).Distinct().ToList();
+        var states = rows.ToDictionary(p => p.PaymentId, p => CashStateOf(p, logs, today));
+        var staffIds = logs
+            .Where(l => l.Action == FlowAction.CashPaid && l.UserId != null)
+            .Select(l => l.UserId!.Value)
+            .Concat(states.Values.Where(s => s.AssignedStaffId != null).Select(s => s.AssignedStaffId!.Value))
+            .Distinct()
+            .ToList();
         var names = await dbContext.Users.AsNoTracking().Where(u => staffIds.Contains(u.UserId))
             .ToDictionaryAsync(u => u.UserId, u => u.FullName, ct);
         var incidents = await IncidentCodesAsync(rows.Select(p => p.PaymentId), ct);
         return rows.Select(p =>
             {
-                var st = CashStateOf(p, logs, today);
+                var st = states[p.PaymentId];
                 var (source, reference, customer) = CashOwner(p, incidents);
                 var call = st.LastCall == null ? null
                     : $"{Read(st.LastCall, "result")} · {Local(st.LastCall.LoggedAt)}{(Read(st.LastCall, "note") is { Length: > 0 } n ? " · " + n : "")}";
                 string? paidBy = st.Paid?.UserId is long uid && names.TryGetValue(uid, out var nm) ? nm : null;
+                string? assignedStaffCode = st.AssignedStaffId.HasValue ? StaffCode(st.AssignedStaffId.Value) : null;
+                string? assignedStaffName = st.AssignedStaffId.HasValue && names.TryGetValue(st.AssignedStaffId.Value, out var anm) ? anm : null;
                 return new CashRefundDto(CashRefundCode(p.PaymentId), source, reference, customer.FullName, customer.Phone,
                     p.Amount, st.Status, Local(st.ApprovedAt), st.Deadline?.ToString("yyyy-MM-dd"), Math.Max(0, st.Days),
-                    st.ReminderDay, st.Appointment?.ToString("yyyy-MM-dd"), call, Local(p.PaidAt), paidBy);
+                    st.ReminderDay, st.Appointment?.ToString("yyyy-MM-dd"), call, Local(p.PaidAt), paidBy,
+                    assignedStaffCode, assignedStaffName);
             })
             .OrderBy(d => d.Status == "PAID" ? 1 : 0)
             .ThenBy(d => d.ApprovedAt ?? "")
@@ -407,7 +416,13 @@ public partial class FacilityOpsService
             .Where(p => p.Status == "PENDING" || p.UpdatedAt >= since)
             .OrderBy(p => p.CreatedAt)
             .ToListAsync(ct);
-        return await ToCashDtosAsync(rows, ct);
+        var dtos = await ToCashDtosAsync(rows, ct);
+        if (!actor.IsManager)
+        {
+            var myCode = StaffCode(actor.UserId);
+            dtos = dtos.Where(d => d.StaffId == null || d.StaffId == myCode).ToList();
+        }
+        return dtos;
     }
 
     /// <summary>Lấy thông tin một khoản hoàn tiền mặt cụ thể.</summary>
@@ -463,6 +478,10 @@ public partial class FacilityOpsService
         var logs = await LogsAsync(PaymentEntity, [p.PaymentId], ct);
         var state = CashStateOf(p, logs, today);
         if (state.Status is "PAID" or "WAITING_APPROVAL" or "FORFEITED") throw new InvalidOperationException("Khoản hoàn không ở bước chờ khách nhận.");
+        if (!actor.IsManager && state.AssignedStaffId.HasValue && state.AssignedStaffId != actor.UserId)
+        {
+            throw new UnauthorizedAccessException("Việc gọi nhắc này được giao cho nhân viên khác.");
+        }
         if (result == "APPOINTMENT" && state.Deadline.HasValue && request.AppointmentDate > state.Deadline)
         {
             throw new ArgumentException($"Ngày hẹn phải trong hạn nhận tiền ({state.Deadline.Value:dd/MM/yyyy}).");

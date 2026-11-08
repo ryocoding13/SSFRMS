@@ -1,3 +1,5 @@
+using StorageProject.Core.DTOs.Policy;
+
 namespace StorageProject.Core.DTOs.Reservation;
 
 public record CreateReservationRequest(
@@ -58,5 +60,6 @@ public record ReservationDetailDto(
     DateTime CreatedAt,
     string PaymentMethod = "PAYOS",
     int? PolicyVersion = null,
-    DateTime? PolicyAcceptedAt = null
+    DateTime? PolicyAcceptedAt = null,
+    PolicyConsentDto? PolicyConsent = null
 );

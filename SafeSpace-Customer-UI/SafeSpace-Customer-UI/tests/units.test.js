@@ -86,3 +86,10 @@ test("dữ liệu StorageUnit thực tế từ backend (GET /api/facilities/{id}
   assert.equal(units.find((u) => u.code === "K09").status, "FREE");
 });
 
+test("siteLabel hiển thị đúng tên cơ sở thực tế (ví dụ SafeSpace Nguyễn Lương Bằng), không đổi thành tên quận", async () => {
+  const { siteLabel } = await import("../src/shared/hooks/useBrowserEvents.js");
+  assert.equal(siteLabel({ name: "SafeSpace Nguyễn Lương Bằng", district: "Quận 7" }), "SafeSpace Nguyễn Lương Bằng");
+  assert.equal(siteLabel({ name: "SafeSpace Him Lam", district: "Quận 7" }), "SafeSpace Him Lam");
+  assert.equal(siteLabel(null), "SafeSpace");
+});
+

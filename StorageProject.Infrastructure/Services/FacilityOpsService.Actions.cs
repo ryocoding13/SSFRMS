@@ -214,12 +214,14 @@ public partial class FacilityOpsService
         }
 
         // D32 / T05: phí hư hỏng do nhân viên nhập (số nguyên VNĐ, không âm); vệ sinh = 10% cọc cố định do server tính.
-        var damageFee = request.DamageFee ?? 0m;
+        if (!request.DamageFee.HasValue || !request.CleaningRequired.HasValue)
+            throw new ArgumentException("Biên bản cần gửi đầy đủ phí hư hỏng và lựa chọn vệ sinh. Vui lòng cập nhật biểu mẫu.");
+        var damageFee = request.DamageFee.Value;
         if (damageFee < 0 || damageFee != decimal.Truncate(damageFee) || damageFee > 1_000_000_000m)
         {
             throw new ArgumentException("Khấu trừ hư hỏng phải là số tiền nguyên không âm.");
         }
-        var cleaningRequired = request.CleaningRequired == true;
+        var cleaningRequired = request.CleaningRequired.Value;
         var damageItem = (request.DamageItem ?? string.Empty).Trim();
         var feeReason = (request.FeeReason ?? string.Empty).Trim();
         if (damageItem.Length > 200) throw new ArgumentException("Hạng mục hư hỏng tối đa 200 ký tự.");
@@ -496,15 +498,17 @@ public partial class FacilityOpsService
             overdueFee = RefundPolicy.OverdueFeeFor(policy?.CalculationType, policy?.Value, contract.DepositAmount, overdueDays, maxCap: contract.DepositAmount);
         }
         var rentPaid = contract.Payments.Where(p => p.PaymentType == "RENT" && p.Status == "PAID").Sum(p => p.Amount);
+        // Biên bản cũ có thể chỉ lưu tình trạng hoặc phí vệ sinh.
+        var cleaningRequired = inspection.CleaningRequired || inspection.CleaningFee > 0 || inspection.ConditionStatus == "DIRTY";
         var result = RefundPolicy.Calculate(new RefundInput(scenario, contract.DepositAmount, rentPaid,
             contract.StartDate, contract.EndDate, returnDate,
-            HygieneViolation: inspection.CleaningRequired || inspection.CleaningFee > 0 || inspection.ConditionStatus == "DIRTY",
+            HygieneViolation: cleaningRequired,
             Overdue: overdueDays > 0, DamageFee: inspection.DamageFee, OverdueFee: overdueFee));
 
         // D32: chỉ phần bù từ cọc là PAID; phần còn lại được miễn, không giữ công nợ.
         SettleFromDeposit(contract, "DAMAGE_FEE", result.DamageDeduction, now, actorId);
         SettleFromDeposit(contract, "OVERDUE_FEE", result.OverdueDeduction, now, actorId);
-        var cleaningBudget = inspection.CleaningRequired || inspection.CleaningFee > 0 || inspection.ConditionStatus == "DIRTY"
+        var cleaningBudget = cleaningRequired
             ? Math.Min(result.FixedDeduction, CleaningFeeFor(contract.DepositAmount)) : 0m;
         SettleFromDeposit(contract, "CLEANING_FEE", cleaningBudget, now, actorId);
 
@@ -528,7 +532,8 @@ public partial class FacilityOpsService
             oc.Status = "RESOLVED";
             oc.ResolvedAt = now;
         }
-        var needsWork = inspection.CleaningRequired || inspection.MaintenanceRequired || inspection.DamageFee > 0;
+        var needsWork = cleaningRequired || inspection.MaintenanceRequired || inspection.DamageFee > 0
+            || inspection.ConditionStatus is "DAMAGED" or "MAINTENANCE_REQUIRED";
         // D41: ô đã có khách mới đặt trước thì về RESERVED (đến ngày bắt đầu UnitStartActivation đổi sang OCCUPIED).
         var nextBooked = !needsWork && await UnitAvailability.NextBookingAsync(dbContext, contract, ct) != null;
         SetUnitStatus(contract.Unit, needsWork ? "MAINTENANCE" : nextBooked ? "RESERVED" : "AVAILABLE", actorId ?? contract.CustomerId,

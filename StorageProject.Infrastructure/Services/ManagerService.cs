@@ -96,6 +96,22 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
             .OrderByDescending(cr => cr.CreatedAt)
             .ToListAsync(ct);
 
+        // D46: kế hoạch chuyển ô (RenewalUnitMove) — ô mới khách chọn và cọc chênh (đã chốt khi duyệt nếu có)
+        var renewalIds = renewals.Select(r => r.RenewalId).ToList();
+        var moveLogs = await dbContext.ActivityLogs.AsNoTracking()
+            .Where(l => l.EntityType == "RENEWAL" && l.EntityId != null && renewalIds.Contains(l.EntityId.Value)
+                        && (l.Action == RenewalUnitMove.Requested || l.Action == RenewalUnitMove.Held))
+            .OrderBy(l => l.LoggedAt).ThenBy(l => l.LogId).ToListAsync(ct);
+        string? MoveField(long id, string field, params string[] actions)
+        {
+            var log = moveLogs.LastOrDefault(l => l.EntityId == id && actions.Contains(l.Action));
+            if (log?.NewValue is not { Length: > 0 } json) return null;
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            return doc.RootElement.TryGetProperty(field, out var v) ? (v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : v.ToString()) : null;
+        }
+        decimal TopUp(long id) => decimal.TryParse(MoveField(id, "topUp", RenewalUnitMove.Held, RenewalUnitMove.Requested),
+            System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 0m;
+
         board.Renewals = renewals.Select(cr => new OpsRenewalDto
         {
             Id = $"GH-{cr.RenewalId:D4}",
@@ -107,7 +123,9 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
             Months = cr.RenewalPeriodMonths,
             Requested = cr.RequestedAt.ToString("yyyy-MM-ddTHH:mm:ss"),
             Status = cr.Status,
-            RejectionReason = null
+            RejectionReason = null,
+            TargetUnit = MoveField(cr.RenewalId, "targetUnit", RenewalUnitMove.Requested),
+            DepositTopUp = TopUp(cr.RenewalId)
         }).ToList();
 
         // 4. Assignments
@@ -161,8 +179,15 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
             });
         }
 
+        var forfeitedRefs = (await dbContext.Payments.AsNoTracking()
+            .Where(p => (p.ContractId != null ? p.Contract.Unit.FacilityId : p.Reservation.FacilityId) == fac.FacilityId
+                        && p.PaymentType == "REFUND" && p.Status == "CANCELLED" && p.TransactionReference != null
+                        && p.TransactionReference.StartsWith("FORFEITED:"))
+            .Select(p => p.Amount).ToListAsync(ct)).Sum(); // cộng trong bộ nhớ: SQLite không SUM được decimal
+
         board.Revenue = new OpsRevenueDto
         {
+            ForfeitedRefunds = Math.Round(forfeitedRefs / 1_000_000m, 1),
             Months = revenueMonths,
             ByType = new List<OpsRevenueByTypeDto>
             {

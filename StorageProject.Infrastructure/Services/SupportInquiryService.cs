@@ -102,14 +102,15 @@ public sealed class SupportInquiryService(AppDbContext db) : ISupportInquiryServ
         }
         if (request.Action != "REPLY_INQUIRY") throw new ArgumentException("Thao tác hỗ trợ không hợp lệ.");
         var id = Number(request.Id); var note = Text(request.Note, 1000, "phản hồi");
-        if (actor.Customer && request.Close) throw new UnauthorizedAccessException("Chỉ cơ sở được đóng yêu cầu khi phản hồi.");
+        if (request.ExpectedVersion is null or < 1)
+            throw new ArgumentException("Yêu cầu thiếu phiên bản. Tải lại trước khi gửi tiếp.");
         await using var replyTx = await CheckoutTransaction.BeginAsync(db, $"inquiry:{id}", ct);
         var inquiry = await Query(userId, actor).SingleOrDefaultAsync(x => x.InquiryId == id, ct)
             ?? throw new KeyNotFoundException("Không tìm thấy yêu cầu hỗ trợ thuộc phạm vi của bạn.");
         var previous = inquiry.Replies.SingleOrDefault(x => x.AuthorId == userId && x.ClientRequestId == requestId);
         if (previous != null)
         {
-            if (previous.Note != note || previous.CloseRequested != request.Close)
+            if (previous.Note != note)
                 throw new OpsConflictException("Mã gửi đã dùng cho phản hồi khác. Tải lại trước khi gửi.");
             return ToDto(inquiry);
         }
@@ -118,7 +119,7 @@ public sealed class SupportInquiryService(AppDbContext db) : ISupportInquiryServ
         // D43: hỗ trợ là cuộc trò chuyện, không có thao tác đóng. Dữ liệu CLOSED cũ vẫn trả lời tiếp được.
         var at = DateTime.UtcNow;
         inquiry.Replies.Add(new SupportInquiryReply { AuthorId = userId, Note = note, ClientRequestId = requestId,
-            CloseRequested = request.Close, CreatedAt = at });
+            CreatedAt = at });
         inquiry.Status = actor.Customer ? "OPEN" : "WAITING_CUSTOMER"; // cờ close (giao diện cũ) bỏ qua — D43
         inquiry.Version++; inquiry.UpdatedAt = at;
         try { await db.SaveChangesAsync(ct); }

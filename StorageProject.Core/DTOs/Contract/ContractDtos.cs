@@ -1,4 +1,5 @@
 using StorageProject.Core.DTOs.Payment;
+using StorageProject.Core.DTOs.Policy;
 using StorageProject.Core.DTOs.Renewal;
 
 namespace StorageProject.Core.DTOs.Contract;
@@ -41,7 +42,8 @@ public record ContractDetailDto(
     int? PolicyVersion = null,
     DateTime? PolicyAcceptedAt = null,
     // D41: ô đã có khách mới đặt từ ngày này → nút gia hạn mờ "Ô đã có khách đặt từ dd/mm"
-    DateOnly? NextBookingFrom = null
+    DateOnly? NextBookingFrom = null,
+    PolicyConsentDto? PolicyConsent = null
 );
 
 public record HandoverSummaryDto(
@@ -76,3 +78,4 @@ public record MoveOutResponseDto(
     DateTime? ScheduledAt,
     string Message
 );
+

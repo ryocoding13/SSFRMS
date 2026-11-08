@@ -210,12 +210,29 @@ public static partial class DbSeeder
         // K02 · sắp hết hạn, khách xin gia hạn 3 tháng
         var k02Start = today.AddDays(10).AddMonths(-3);
         var k02 = await RentAsync(cust03, "K02", catalog.NormalM, k02Start, 3, "ACTIVE", "OCCUPIED", staff01, true);
-        context.ContractRenewals.Add(new ContractRenewal
+        var policyVer1 = await context.RentalPolicyVersions.FirstOrDefaultAsync(v => v.Version == 1);
+        var k02Renewal = new ContractRenewal
         {
             ContractId = k02.ContractId, OldEndDate = k02.EndDate, NewEndDate = k02.EndDate.AddMonths(3), RenewalPeriodMonths = 3,
             OldMonthlyRate = k02.AgreedMonthlyRate, NewMonthlyRate = k02.AgreedMonthlyRate, RenewalAmount = k02.AgreedMonthlyRate * 3,
-            Status = "PENDING", RequestedAt = Utc(today.AddDays(-1), 10, 5), CreatedAt = Utc(today.AddDays(-1), 10, 5)
-        });
+            Status = "PENDING", RequestedAt = Utc(today.AddDays(-1), 10, 5), CreatedAt = Utc(today.AddDays(-1), 10, 5),
+            PolicyVersion = 1, AcceptedAt = Utc(today.AddDays(-1), 10, 5)
+        };
+        context.ContractRenewals.Add(k02Renewal);
+        await context.SaveChangesAsync();
+
+        if (policyVer1 != null)
+        {
+            context.PolicyConsents.Add(new PolicyConsent
+            {
+                CustomerId = cust03.UserId,
+                PolicyVersionId = policyVer1.PolicyVersionId,
+                ContractId = k02.ContractId,
+                RenewalId = k02Renewal.RenewalId,
+                AcceptedAt = Utc(today.AddDays(-1), 10, 5),
+                Channel = "WEB_CUSTOMER"
+            });
+        }
 
         // K03 · quá hạn 3 ngày, chưa thanh toán kỳ mới
         var k03Start = today.AddDays(-3).AddMonths(-1);

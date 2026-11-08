@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { composeData, mapCatalog, parseUtc, reservationCode, reservationsToExpire, usernameFromEmail } from "../src/shared/api/apiMappers.js";
+import { pendingReturn } from "../src/app/state/appSelectors.js";
 
 const NOW = new Date("2026-09-22T05:00:00Z");
 const catalogDto = {
@@ -109,12 +110,36 @@ test("hợp đồng, thanh toán, gia hạn, lịch nhận kho, hỗ trợ", () 
   assert.equal(d.tickets[0].title, "Kiểm tra nhiệt độ phòng kho");
 });
 
-test("phần lưu cục bộ: tên hiển thị, lịch trả kho, thông báo được ghép vào", () => {
-  const d = compose({ name: "An Nguyễn", phone: "0912345678", returns: [{ return_id: "TK-0001", contract_id: "HĐ-2026-0001", status: "PENDING" }], notifications: [{ id: "N-1", read: false }] });
+test("phần lưu cục bộ: tên hiển thị, lịch trả kho, thông báo được ghép vào ở chế độ demo/offline", () => {
+  const d = composeData({ catalog, remote: null, overlay: { name: "An Nguyễn", phone: "0912345678", returns: [{ return_id: "TK-0001", contract_id: "HĐ-2026-0001", status: "PENDING" }], notifications: [{ id: "N-1", read: false }] }, session });
   assert.equal(d.user.full_name, "An Nguyễn");
   assert.equal(d.user.phone, "0912345678");
   assert.equal(d.returns.length, 1);
   assert.equal(d.notifications.length, 1);
+});
+
+test("chế độ API: hợp đồng ACTIVE không nhận overlay.returns cũ trùng mã hợp đồng sau khi reset DB", () => {
+  const overlay = {
+    returns: [{ return_id: "TK-0001", contract_id: "HĐ-2026-0001", date: "2026-10-29", slot: "Sáng", status: "PENDING" }],
+  };
+  const d = compose(overlay);
+  assert.equal(d.contracts[0].status, "ACTIVE");
+  assert.equal(d.returns.length, 0);
+  assert.equal(pendingReturn(d, "HĐ-2026-0001"), undefined);
+});
+
+test("chế độ API: hợp đồng RETURN_PENDING thật từ máy chủ có trạng thái chờ, không cần overlay", () => {
+  const remoteWithReturnPending = {
+    ...remote,
+    contracts: [{ ...remote.contracts[0], status: "RETURN_PENDING" }],
+  };
+  const d = composeData({ catalog, remote: remoteWithReturnPending, overlay: {}, session, timeoutSeconds: 60, now: NOW });
+  assert.equal(d.contracts[0].status, "RETURN_PENDING");
+  assert.equal(d.returns.length, 1);
+  const ret = pendingReturn(d, "HĐ-2026-0001");
+  assert.ok(ret);
+  assert.equal(ret.status, "PENDING");
+  assert.equal(ret.date, undefined);
 });
 
 test("toạ độ cơ sở: lấy latitude / longitude từ backend, thiếu thì để null", () => {
@@ -164,4 +189,161 @@ test("D32 renewal: PAID giữ PAID; duyệt chưa trả vẫn bị chặn khi qu
     assert.equal(out.ledger.find(l=>l.api_id===30).status,status==="PAID"?"RECONCILED":"EXPIRED");
     assert.equal(out.ledger.find(l=>l.api_id===30).payable,false);
   }
+});
+
+test("chế độ API: hợp đồng nhận policy_consent từ PolicyConsentDto của backend", () => {
+  const remoteWithConsent = {
+    ...remote,
+    contracts: [
+      {
+        ...remote.contracts[0],
+        policyConsent: {
+          consentId: 42,
+          customerId: 3,
+          policyVersion: 1,
+          displayVersion: "11/2026",
+          acceptedAt: "2026-09-06T05:00:00Z",
+          channel: "WEB",
+        },
+      },
+    ],
+  };
+  const d = composeData({ catalog, remote: remoteWithConsent, overlay: {}, session, timeoutSeconds: 60, now: NOW });
+  const c = d.contracts[0];
+  assert.ok(c.policy_consent);
+  assert.equal(c.policy_consent.version, 1);
+  assert.equal(c.policy_consent.displayVersion, "11/2026");
+  assert.equal(c.policy_consent.channel, "WEB");
+  assert.equal(c.policy_consent.customer_id, 3);
+  assert.equal(c.policy_consent.consent_id, 42);
+});
+
+test("ledger: phân biệt mã khoản thu và mã giao dịch cho tiền mặt và PayOS", () => {
+  const remoteWithPayments = {
+    ...remote,
+    contracts: [
+      {
+        ...remote.contracts[0],
+        payments: [
+          {
+            paymentId: 101,
+            paymentType: "RENT",
+            amount: 3000,
+            status: "PAID",
+            paymentMethod: "CASH",
+            transactionReference: "CASH:2:RENT",
+          },
+          {
+            paymentId: 102,
+            paymentType: "RENEWAL",
+            amount: 1500000,
+            status: "PAID",
+            paymentMethod: "PAYMENT_GATEWAY",
+            transactionReference: "PAYOS:987654",
+          },
+          {
+            paymentId: 103,
+            paymentType: "RENEWAL",
+            amount: 1500000,
+            status: "PENDING",
+            paymentMethod: "BANK_TRANSFER",
+            transactionReference: "TT-0103",
+          },
+        ],
+      },
+    ],
+  };
+  const d = composeData({ catalog, remote: remoteWithPayments, overlay: {}, session, timeoutSeconds: 60, now: NOW });
+  const cashLedger = d.ledger.find((l) => l.api_id === 101);
+  assert.ok(cashLedger);
+  assert.equal(cashLedger.ref, "CASH:2:RENT");
+  assert.equal(cashLedger.method, "CASH");
+  assert.equal(cashLedger.transaction_ref, null);
+
+  const payosLedger = d.ledger.find((l) => l.api_id === 102);
+  assert.ok(payosLedger);
+  assert.equal(payosLedger.ref, "PAYOS:987654");
+  assert.equal(payosLedger.method, "PAYMENT_GATEWAY");
+  assert.equal(payosLedger.transaction_ref, "PAYOS:987654");
+
+  const pendingLedger = d.ledger.find((l) => l.api_id === 103);
+  assert.ok(pendingLedger);
+  assert.equal(pendingLedger.ref, "TT-0103");
+  assert.equal(pendingLedger.transaction_ref, null);
+});
+
+test("cọc đang giữ: chỉ tính cọc của hợp đồng đang thuê; kho đã trả hoặc đã kết thúc không còn là DEPOSIT_HELD", () => {
+  const remoteWithReturnedContract = {
+    reservations: [],
+    reservationDetails: {},
+    tickets: [],
+    contracts: [
+      {
+        contractId: 1,
+        unitId: 1,
+        unitNumber: "TB-M-101",
+        facilityName: "SSFRMS Chi nhánh Tân Bình",
+        unitTypeName: "Kho Tiêu Chuẩn M (2m x 2m)",
+        startDate: "2026-06-01",
+        endDate: "2026-09-01",
+        agreedMonthlyRate: 2000,
+        depositAmount: 2000,
+        status: "COMPLETED",
+        payments: [
+          { paymentId: 201, contractId: 1, paymentType: "DEPOSIT", amount: 2000, status: "PAID" },
+          { paymentId: 202, contractId: 1, paymentType: "REFUND", amount: 2000, status: "PAID" },
+        ],
+      },
+      {
+        contractId: 2,
+        unitId: 2,
+        unitNumber: "TB-M-102",
+        facilityName: "SSFRMS Chi nhánh Tân Bình",
+        unitTypeName: "Kho Tiêu Chuẩn M (2m x 2m)",
+        startDate: "2026-09-01",
+        endDate: "2026-12-01",
+        agreedMonthlyRate: 1000,
+        depositAmount: 1000,
+        status: "ACTIVE",
+        payments: [
+          { paymentId: 203, contractId: 2, paymentType: "DEPOSIT", amount: 1000, status: "PAID" },
+          { paymentId: 204, contractId: 2, paymentType: "RENT", amount: 1000, status: "PAID" },
+        ],
+      },
+    ],
+  };
+  const d = composeData({ catalog, remote: remoteWithReturnedContract, overlay: {}, session, timeoutSeconds: 60, now: NOW });
+  const oldDeposit = d.ledger.find((l) => l.api_id === 201);
+  const newDeposit = d.ledger.find((l) => l.api_id === 203);
+  assert.equal(oldDeposit.status, "RECONCILED", "Kho đã trả / kết thúc thì dòng cọc chuyển sang RECONCILED");
+  assert.equal(newDeposit.status, "DEPOSIT_HELD", "Kho đang thuê thì dòng cọc là DEPOSIT_HELD");
+
+  const activeContractIds = new Set(
+    d.contracts
+      .filter((c) => ["ACTIVE", "EXPIRING", "OVERDUE"].includes(c.api_status || c.status) && c.status !== "RETURN_PENDING" && c.status !== "ENDED")
+      .map((c) => c.contract_id),
+  );
+  const heldTotal = d.ledger
+    .filter((l) => l.status === "DEPOSIT_HELD" && (!l.contract_id || activeContractIds.has(l.contract_id)))
+    .reduce((sum, l) => sum + Number(l.amount || 0), 0);
+  assert.equal(heldTotal, 1000, "Tổng cọc đang giữ chỉ là 1.000 đ từ kho mới, không bị cộng 2.000 đ từ kho cũ");
+});
+
+test("3.6 · lịch sử thanh toán: thời gian, phương thức, mã giao dịch thật; ẩn mã nội bộ; trừ cọc", async () => {
+  const { publicTransactionRef, isDepositDeduction } = await import("../src/shared/api/apiMappers.js");
+  const { historyRows, historyMonths, methodLabel, vnMonthOf } = await import("../src/features/customer/history/paymentHistoryModel.js");
+  assert.equal(publicTransactionRef("FT26298 4471"), "FT26298 4471");
+  for (const ref of ["DEPOSIT:12:34", "WAIVED:1:2", "CASH:9:202611011200:5", "FORFEITED:7", "TRU-COC-GH-0012-CLEANING_FEE", "", null]) assert.equal(publicTransactionRef(ref), null, String(ref));
+  assert.equal(isDepositDeduction("DEPOSIT:12:34"), true); assert.equal(isDepositDeduction("PAY-1"), false);
+  const ledger = [
+    { api_id: 1, status: "RECONCILED", kind: "RENT", contract_id: "HĐ-2026-0098", paid_at: "2026-07-20T02:12:00Z", method: "PAYMENT_GATEWAY", amount: 4600000 },
+    { api_id: 2, status: "RECONCILED", kind: "CLEANING_FEE", contract_id: "HĐ-2026-0098", paid_at: "2026-10-25T03:45:00Z", method: "CASH", deducted: true, amount: 115000 },
+    { api_id: 3, status: "REFUNDED", kind: "REFUND", contract_id: "HĐ-2026-0098", paid_at: "2026-10-31T17:30:00Z", method: "BANK_TRANSFER", amount: 540000 },
+    { api_id: 4, status: "UNPAID", kind: "RENEWAL", contract_id: "HĐ-2026-0098", amount: 1 },
+  ];
+  assert.deepEqual(historyRows(ledger).map((r) => r.api_id), [3, 2, 1]); // mới nhất trước, bỏ khoản chưa ghi nhận
+  assert.equal(vnMonthOf("2026-10-31T17:30:00Z"), "2026-11"); // theo giờ Việt Nam
+  assert.deepEqual(historyMonths(ledger), ["2026-11", "2026-10", "2026-07"]);
+  assert.deepEqual(historyRows(ledger, { month: "2026-10" }).map((r) => r.api_id), [2]);
+  assert.equal(methodLabel(ledger[1]), "trừ vào cọc"); assert.equal(methodLabel(ledger[0]), "PayOS"); assert.equal(methodLabel({}), "Chưa có dữ liệu");
 });

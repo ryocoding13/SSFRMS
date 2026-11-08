@@ -139,6 +139,7 @@ public class OpsTicketDto
     public string Status { get; set; } = "OPEN";
     public string? Assignee { get; set; }
     public List<OpsTicketNoteDto> Notes { get; set; } = [];
+    public List<StorageProject.Core.DTOs.Evidence.EvidencePhotoDto> Photos { get; set; } = [];
 }
 
 public class OpsTicketNoteDto
@@ -164,6 +165,9 @@ public class OpsRenewalDto
     public string Requested { get; set; } = null!;
     public string Status { get; set; } = "PENDING";
     public string? RejectionReason { get; set; }
+    // D46 · gia hạn sang ô khác: ô khách chọn và cọc chênh thu cùng khoản gia hạn (null / 0 khi gia hạn ô hiện tại)
+    public string? TargetUnit { get; set; }
+    public decimal DepositTopUp { get; set; }
 }
 
 public class OpsContractDto
@@ -199,6 +203,8 @@ public class OpsRevenueDto
     public List<OpsRevenueMonthDto> Months { get; set; } = [];
     public List<OpsRevenueByTypeDto> ByType { get; set; } = [];
     public string AsOf { get; set; } = null!;
+    /// <summary>D44/D45: tiền mặt hoàn quá 30 ngày khách không nhận, tính vào doanh thu cơ sở (triệu đồng, dòng riêng).</summary>
+    public decimal ForfeitedRefunds { get; set; }
 }
 
 public class OpsRevenueMonthDto

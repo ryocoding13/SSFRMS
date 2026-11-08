@@ -72,6 +72,8 @@ public static class ContractEndpoints
         })
         .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(StorageProject.Infrastructure.Services.EvidencePhotos.RequestBodyLimit));
 
+        // D40: khách yêu cầu nhận chìa khóa qua hỗ trợ chủ đề "Nhận chìa khóa" (SupportTicketService), không còn route riêng.
+
         return group;
     }
 }

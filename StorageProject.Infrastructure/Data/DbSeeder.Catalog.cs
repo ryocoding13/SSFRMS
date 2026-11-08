@@ -179,38 +179,45 @@ public static partial class DbSeeder
         return new SeedCatalog(home!, normalM, normalL, coldM, coldL);
     }
 
-    /// <summary>Ngừng dùng loại kho cỡ S/M/L/XL và cơ sở "Quận 7" của bản seed cũ — giữ lại để không mất lịch sử.</summary>
+    /// <summary>Dọn dẹp loại kho cỡ S/M/L/XL và cơ sở "Quận 7" của bản seed cũ — xoá bỏ các mục inactive không còn hợp đồng/ô kho.</summary>
     private static async Task RetireLegacyCatalogAsync(AppDbContext context)
     {
-        var now = DateTime.UtcNow;
-        var legacyTypes = await context.UnitTypes.Where(t => LegacyUnitTypeNames.Contains(t.TypeName)).ToListAsync();
+        var legacyTypes = await context.UnitTypes
+            .Where(t => t.Status == "INACTIVE" || LegacyUnitTypeNames.Contains(t.TypeName))
+            .ToListAsync();
         if (legacyTypes.Count > 0)
         {
             var ids = legacyTypes.Select(t => t.UnitTypeId).ToList();
-            foreach (var t in legacyTypes.Where(t => t.Status == "ACTIVE"))
+            var busy = await context.StorageUnits.AnyAsync(u => ids.Contains(u.UnitTypeId))
+                || await context.Reservations.AnyAsync(r => ids.Contains(r.UnitTypeId));
+            if (!busy)
             {
-                t.Status = "INACTIVE";
-                t.UpdatedAt = now;
-            }
-            var rates = await context.RentalRates.Where(r => ids.Contains(r.UnitTypeId) && r.Status == "ACTIVE").ToListAsync();
-            foreach (var r in rates) r.Status = "INACTIVE";
-            // Ô trống của loại cũ không nhận khách mới; ô đang có khách giữ nguyên tới khi trả kho
-            var units = await context.StorageUnits.Where(u => ids.Contains(u.UnitTypeId) && u.Status == "AVAILABLE").ToListAsync();
-            foreach (var u in units)
-            {
-                u.Status = "OUT_OF_SERVICE";
-                u.UpdatedAt = now;
+                var rates = await context.RentalRates.Where(r => ids.Contains(r.UnitTypeId)).ToListAsync();
+                context.RentalRates.RemoveRange(rates);
+                context.UnitTypes.RemoveRange(legacyTypes);
+                await context.SaveChangesAsync();
             }
         }
 
-        var legacyFacilities = await context.Facilities.Where(f => LegacyFacilityNames.Contains(f.Name) && f.Status == "ACTIVE").ToListAsync();
-        foreach (var f in legacyFacilities)
+        var legacyFacilities = await context.Facilities
+            .Where(f => f.Status == "INACTIVE" || LegacyFacilityNames.Contains(f.Name))
+            .ToListAsync();
+        if (legacyFacilities.Count > 0)
         {
-            var busy = await context.RentalContracts.AnyAsync(c => c.Unit.FacilityId == f.FacilityId && (c.Status == "ACTIVE" || c.Status == "EXPIRING" || c.Status == "OVERDUE" || c.Status == "RETURN_PENDING" || c.Status == "DRAFT"))
-                       || await context.Reservations.AnyAsync(r => r.FacilityId == f.FacilityId && (r.Status == "PENDING_PAYMENT" || r.Status == "PENDING_VERIFICATION" || r.Status == "CONFIRMED" || r.Status == "UNIT_ASSIGNED"));
-            f.Status = busy ? "TEMPORARILY_CLOSED" : "INACTIVE";
-            f.UpdatedAt = now;
+            foreach (var f in legacyFacilities)
+            {
+                var busy = await context.RentalContracts.AnyAsync(c => c.Unit.FacilityId == f.FacilityId)
+                    || await context.Reservations.AnyAsync(r => r.FacilityId == f.FacilityId)
+                    || await context.StorageUnits.AnyAsync(u => u.FacilityId == f.FacilityId)
+                    || await context.UserFacilities.AnyAsync(uf => uf.FacilityId == f.FacilityId);
+                if (!busy)
+                {
+                    var rates = await context.RentalRates.Where(r => r.FacilityId == f.FacilityId).ToListAsync();
+                    context.RentalRates.RemoveRange(rates);
+                    context.Facilities.Remove(f);
+                }
+            }
+            await context.SaveChangesAsync();
         }
-        await context.SaveChangesAsync();
     }
 }

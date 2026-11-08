@@ -246,6 +246,12 @@ public static class FacilityOpsEndpoints
         if (b.Assignments != null) json["assignments"] = b.Assignments;
         if (b.Revenue != null) json["revenue"] = b.Revenue;
         if (b.Refunds != null) json["refunds"] = b.Refunds;
+        if (b.CounterRenewals != null) json["counterRenewals"] = b.CounterRenewals;
+        if (b.CashRefunds != null) json["cashRefunds"] = b.CashRefunds;
+        if (b.DepositRefunds != null) json["depositRefunds"] = b.DepositRefunds;
+        if (b.UnitConflicts != null) json["unitConflicts"] = b.UnitConflicts;
+        if (b.OverdueCases != null) json["overdueCases"] = b.OverdueCases;
+        if (b.Inquiries != null) json["inquiries"] = b.Inquiries;
 
         // Khả năng server đã triển khai thật (BACKEND-TODO Batch08). Giao diện chỉ mở thao tác khi cờ = true.
         json["verificationChecklistSupported"] = true; // S02: lưu checklist 4 mục, không cần số giấy tờ

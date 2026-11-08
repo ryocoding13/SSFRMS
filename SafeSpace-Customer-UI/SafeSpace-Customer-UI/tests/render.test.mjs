@@ -20,8 +20,24 @@ try {
   const { OPS_ACCOUNTS } = await vite.ssrLoadModule("/src/features/facility-operations/data/facilityOperationsSeed.js");
   const seed = (authed, opsUser = null) => memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed, data: createSeedData(), opsUser }));
 
+  const { DamagePhotos, safeImageUrl } = await vite.ssrLoadModule("/src/features/facility-operations/damage/DamageComponents.jsx");
+  assert.equal(safeImageUrl("http://localhost:5151/photo.jpg"), true);
+  assert.equal(safeImageUrl("https://safespace.vn/photo.jpg"), true);
+  assert.equal(safeImageUrl("/images/inside/ben-trong-1.jpg"), true);
+  assert.equal(safeImageUrl("data:image/png;base64,abc"), true);
+  assert.equal(safeImageUrl("javascript:alert(1)"), false);
+  assert.equal(safeImageUrl("//evil.com/pic.jpg"), false);
+  assert.equal(safeImageUrl(null), false);
+
+  const emptyDamagePhotos = renderToStaticMarkup(React.createElement(DamagePhotos, { photos: [], emptyText: "Không có ảnh kho trống." }));
+  assert.ok(emptyDamagePhotos.includes("Không có ảnh kho trống."));
+
+  const populatedDamagePhotos = renderToStaticMarkup(React.createElement(DamagePhotos, { photos: [{ url: "http://localhost:5151/photo1.jpg", caption: "Kho trống K04" }] }));
+  assert.ok(populatedDamagePhotos.includes("http://localhost:5151/photo1.jpg"));
+  assert.ok(populatedDamagePhotos.includes("Kho trống K04"));
+
   const publicRoutes = ["reset-password","home", "login", "register", "pricing", "guide", "find", "find?type=climate&band=M", "find/map", "find/map?type=climate", "find/map?area=Kh%C3%B4ng%20c%C3%B3", "find/1", "find/1?view=map&unit=K02", "find/8?type=climate&view=map", "find/999", "nope", "door", "door?unit=B-015"];
-  const privateRoutes = ["units/HĐ-2026-0086/incident", "units/HĐ-2026-0086/incident?incident=missing", "units/unknown/incident","units/HĐ-2026-0086/damage", "units/HĐ-2026-0086/damage?case=missing", "units/unknown/damage","reservations/SS-20260914-0142/cancel", "reservations/missing/cancel","refunds","refunds/cash","units/HĐ-2026-0086/deduction","units/unknown/deduction","units/HĐ-2026-0142/unit-change","sent?type=return&contract=HĐ-2026-0086","support?topic=KEY_PICKUP","policies", "payments/check/SS-0086-REN", "payments/check/missing", "payments/history", "inquiries", "inquiries/HT-0091", "units/HĐ-2026-0142/deposit", "units/HĐ-2026-0086/progress", "units/HĐ-2026-0086/renewal-status",
+  const privateRoutes = ["units/HĐ-2026-0086/renew-other", "units/unknown/renew-other", "units/HĐ-2026-0086/incident", "units/HĐ-2026-0086/incident?incident=missing", "units/unknown/incident","units/HĐ-2026-0086/damage", "units/HĐ-2026-0086/damage?case=missing", "units/unknown/damage","reservations/SS-20260914-0142/cancel", "reservations/missing/cancel","refunds","refunds/cash","units/HĐ-2026-0086/deduction","units/unknown/deduction","units/HĐ-2026-0142/unit-change","sent?type=return&contract=HĐ-2026-0086","support?topic=KEY_PICKUP","policies", "payments/check/SS-0086-REN", "payments/check/missing", "payments/history", "inquiries", "inquiries/HT-0091", "units/HĐ-2026-0142/deposit", "units/HĐ-2026-0086/progress", "units/HĐ-2026-0086/renewal-status",
     "overview", "units", "units/HĐ-2026-0142", "units/HĐ-2026-0086", "units/HĐ-2026-0086/renew", "units/HĐ-2026-0142/return", "units/unknown",
     "sent?type=renew&contract=HĐ-2026-0086", "reservations", "reservations/SS-20260914-0142", "reservations/none",
     "confirmation/SS-20260914-0142", "checkout/SS-20260914-0142", "checkout/SS-20260914-0142/confirm", "policies?tab=contract", "policies?tab=contract&contract=unknown", "payments", "support", "support/HT-0082", "support/unknown", "support?contract=HĐ-2026-0142&topic=SCHEDULE", "profile",
@@ -125,6 +141,12 @@ try {
   const expiredRenewalHtml = renderToStaticMarkup(React.createElement(App));
   assert.ok(expiredRenewalHtml.includes("Đã hết hạn thanh toán"));
   assert.ok(!expiredRenewalHtml.includes("Thanh toán PayOS") && !expiredRenewalHtml.includes("Chọn thanh toán tại quầy"));
+  // 3.2 · C07b-L5c: yêu cầu gia hạn chờ duyệt → nút Xem yêu cầu + Huỷ yêu cầu; trả kho ghi lý do khoá.
+  lifecycleData.renewals = [{renewal_id:"GH-0043",contract_id:"HĐ-2026-0086",months:3,status:"PENDING",old_end:"2026-09-25",new_end:"2026-12-25",amount:1500000}];
+  memory.set(STORAGE_KEY, JSON.stringify({version:5,authed:true,data:lifecycleData}));
+  window.location.hash = "#/units/HĐ-2026-0086";
+  const pendingRenewalHtml = renderToStaticMarkup(React.createElement(App));
+  for (const text of ["Xem yêu cầu", "Huỷ yêu cầu", "GH-0043 chờ quản lý duyệt · huỷ được trước khi duyệt"]) assert.ok(pendingRenewalHtml.includes(text), text);
   window.location.hash = "#/profile";
   assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Tên đăng nhập"));
   window.location.hash = "#/register";
@@ -164,12 +186,12 @@ try {
   assert.equal((await context.dispatch("PAY_AT_FACILITY",{reservation_id:reviewReservation.reservation_id})).ok,true);
   // Khu vận hành: nhân viên (S01–S09) và quản lý cơ sở (M01–M08)
   const opsRoutes = {
-    STAFF: ["staff/incidents","staff/renewal-payments", "staff/cash-refunds", "staff/recheck", "staff/overdue", "staff/inquiries",
+    STAFF: ["staff/incidents","staff/renewal-payments", "staff/cash-refunds", "staff/recheck", "staff/unit-moves", "staff/overdue", "staff/inquiries",
       "staff", "staff?page=2", "staff/reconcile", "staff/fees", "staff/fees?id=PHI-0086", "staff/verify", "staff/handover", "staff/return", "staff/support",
       "staff/reconcile?id=SS-20260914-0142", "staff/verify?id=XM-0142", "staff/handover?id=BG-0115", "staff/return?id=TK-0098",
       "staff/support?id=HT-0082", "staff/done?kind=payment", "staff/nope",
     ],
-    MANAGER: ["manager/incidents", "manager/incidents?id=SC-local-0086", "manager/incidents?id=missing","manager/damage-responses", "manager/damage-responses?id=HH-local-0086", "manager/damage-responses?id=missing", "manager/damage-inspections", "manager/damage-inspections?id=HH-inspect-0086","manager/overdue", "manager/cash-refunds", "manager/unit-conflicts", "manager/daily-report", "manager/deposit-refunds","manager", "manager/units", "manager/units?tab=OVERDUE", "manager/units?tab=MAINTENANCE", "manager/allocate", "manager/assign", "manager/renewals", "manager/contracts", "manager/refunds", "manager/report", "manager/done", "staff"],
+    MANAGER: ["manager/incidents", "manager/incidents?id=SC-local-0086", "manager/incidents?id=missing","manager/overdue", "manager/cash-refunds", "manager/unit-conflicts", "manager/daily-report", "manager/deposit-refunds","manager", "manager/units", "manager/units?tab=OVERDUE", "manager/units?tab=MAINTENANCE", "manager/allocate", "manager/assign", "manager/renewals", "manager/contracts", "manager/refunds", "manager/report", "manager/done", "staff"],
   };
   for (const acc of OPS_ACCOUNTS) {
     seed(true, acc);
@@ -199,6 +221,45 @@ try {
     assert.ok(renderToStaticMarkup(React.createElement(App)).includes(text), `${r}: thiếu "${text}"`);
     count++;
   }
+  // Báo cáo doanh thu Manager: kiểm tra trường hợp doanh thu 0/0 và 3/1
+  seed(true, OPS_ACCOUNTS[1]);
+  const zeroReportOps = {
+    ...createOpsData(),
+    revenue: {
+      months: [{ month: 9, year: 2026, value: 0, label: "Tháng 9" }],
+      by_type: [
+        { label: "Kho thường", value: 0 },
+        { label: "Kho lạnh", value: 0 },
+      ],
+    },
+  };
+  memory.set(OPS_KEY, JSON.stringify(zeroReportOps));
+  window.location.hash = "#/manager/report";
+  const zeroHtml = renderToStaticMarkup(React.createElement(App));
+  assert.ok(!zeroHtml.includes("NaN"), "Báo cáo doanh thu 0/0 không được có NaN");
+  assert.ok(zeroHtml.includes("Kho thường") && zeroHtml.includes("0,0 triệu đ · 0%"));
+  assert.ok(zeroHtml.includes("Kho lạnh") && zeroHtml.includes("0,0 triệu đ · 0%"));
+  assert.ok(zeroHtml.includes('style="width:0%"'), "Thanh doanh thu 0% có chiều rộng 0%");
+  assert.ok(zeroHtml.includes("Tỷ lệ lấp đầy kho"), "Tỷ lệ lấp đầy kho là chỉ số riêng");
+
+  const shareReportOps = {
+    ...createOpsData(),
+    revenue: {
+      months: [{ month: 9, year: 2026, value: 4, label: "Tháng 9" }],
+      by_type: [
+        { label: "Kho thường", value: 3 },
+        { label: "Kho lạnh", value: 1 },
+      ],
+    },
+  };
+  memory.set(OPS_KEY, JSON.stringify(shareReportOps));
+  window.location.hash = "#/manager/report";
+  const shareHtml = renderToStaticMarkup(React.createElement(App));
+  assert.ok(shareHtml.includes("3,0 triệu đ · 75%"));
+  assert.ok(shareHtml.includes("1,0 triệu đ · 25%"));
+  assert.ok(shareHtml.includes('style="width:75%"'));
+  assert.ok(shareHtml.includes('style="width:25%"'));
+
   memory.delete(OPS_KEY);
   // Khách hàng chưa có kho → một dòng thông báo (C01/C06/C14-trống)
   const { createEmptyData } = await vite.ssrLoadModule("/src/app/data/appSeed.js");
@@ -244,35 +305,17 @@ try {
   assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Đổi trạng thái"), "M02: thiếu nút Đổi trạng thái");
   count++;
 
-  // Damage fixtures are isolated from the settlement store; verify scope and stage UI.
-  const { createDamageSeed } = await vite.ssrLoadModule("/src/features/facility-operations/damage/damageModel.js");
-  const { DAMAGE_DEMO_KEY } = await vite.ssrLoadModule("/src/features/facility-operations/damage/useDamageCases.js");
-  const damageCases = createDamageSeed();
-  const saveDamage = () => memory.set(DAMAGE_DEMO_KEY, JSON.stringify({version:1,cases:damageCases}));
-  saveDamage(); seed(true);
-  window.location.hash = "#/units/HĐ-2026-0086/damage?case=HH-local-0086";
-  let damageHtml = renderToStaticMarkup(React.createElement(App));
-  for (const text of ["Chọn phương án phản hồi", "Đính kèm ảnh / ảnh hoá đơn", "Gửi phản hồi cho cơ sở"]) assert.ok(damageHtml.includes(text),text);
-  assert.ok(!/type="radio"[^>]*checked/.test(damageHtml),"Không tự chọn phản hồi");
-  window.location.hash = "#/units/HĐ-2026-0086/damage?case=HH-api-0001";
-  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Không tìm thấy hồ sơ"),"Không lộ hồ sơ khách khác");
-  damageCases[0].status="RESPONSE_SUBMITTED";
-  damageCases[0].response={choice:"REMEDIATE",note:"Xin khắc phục",files:[]}; saveDamage();
-  window.location.hash = "#/units/HĐ-2026-0086/damage?case=HH-local-0086";
-  damageHtml=renderToStaticMarkup(React.createElement(App));
-  assert.ok(damageHtml.includes("Đã gửi phản hồi") && !damageHtml.includes("Gửi phản hồi cho cơ sở"));
-  seed(true,manager);
-  window.location.hash = "#/manager/damage-responses?id=HH-local-0086";
-  damageHtml=renderToStaticMarkup(React.createElement(App));
-  for(const text of ["Xin khắc phục","datetime-local","Lý do (bắt buộc khi từ chối)"]) assert.ok(damageHtml.includes(text),text);
-  window.location.hash = "#/manager/damage-inspections?id=HH-inspect-0086";
-  damageHtml=renderToStaticMarkup(React.createElement(App));
-  for(const text of ["Ghi chú kiểm tra","Ghi nhận kết quả","Đạt · bỏ khấu trừ hư hỏng"]) assert.ok(damageHtml.includes(text),text);
-  damageCases.forEach(c=>c.facilityId=999999); saveDamage();
-  window.location.hash = "#/manager/damage-responses?id=HH-local-0086";
-  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Không tìm thấy hồ sơ"),"Không lộ hồ sơ cơ sở khác");
-  memory.delete(DAMAGE_DEMO_KEY);
-  count+=6;
+  // D48: màn hồ sơ hư hỏng cũ (Batch06) đã gỡ; route cũ không còn mở màn phản hồi/khắc phục.
+  seed(true);
+  window.location.hash = "#/units/HĐ-2026-0086/damage";
+  assert.ok(!renderToStaticMarkup(React.createElement(App)).includes("Gửi phản hồi cho cơ sở"), "Route hư hỏng cũ vẫn mở màn phản hồi");
+  window.location.hash = "#/units/HĐ-2026-0086/progress";
+  assert.ok(!renderToStaticMarkup(React.createElement(App)).includes("Đối chiếu hư hỏng / khắc phục"), "Còn nút hư hỏng cũ");
+  seed(true, manager);
+  window.location.hash = "#/manager/contracts";
+  const contractsHtml = renderToStaticMarkup(React.createElement(App));
+  assert.ok(!contractsHtml.includes("Phản hồi hư hỏng") && !contractsHtml.includes("Kiểm tra khắc phục"), "Còn nút hư hỏng cũ ở quản lý");
+  count+=3;
 
   const { createIncidentSeed, applyIncidentAction } = await vite.ssrLoadModule("/src/features/facility-operations/incidents/incidentModel.js");
   const { INCIDENT_DEMO_KEY } = await vite.ssrLoadModule("/src/features/facility-operations/incidents/useIncidents.js");
@@ -315,7 +358,8 @@ try {
   assert.ok(b8html.includes("Thiếu hồ sơ xác minh hợp lệ"));assert.match(b8html,/<button[^>]*disabled[^>]*>Ghi nhận đã giao chìa khóa<\/button>/);
   b8ops.verifications=[{id:keyTask.verification_id,status:"DONE",doc_last4:"1234",doc_type:"CCCD"}];memory.set(OPS_KEY,JSON.stringify(b8ops));
   b8html=renderToStaticMarkup(React.createElement(App));assert.equal((b8html.match(/type="checkbox"/g)||[]).length,3);assert.ok(!/type="checkbox"[^>]*checked/.test(b8html));assert.ok(b8html.includes("Chưa có bằng chứng chính sách"));
-  window.location.hash="#/staff/return?id=TK-0098";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Tải ảnh hiện trạng / hư hỏng")&&b8html.includes("Lưu nháp"));assert.ok(!b8html.includes("Đã chuyển hết đồ khỏi kho"),"Không điền sẵn kết luận kiểm kê");
+  window.location.hash="#/staff/return?id=TK-0098";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Tải ảnh hiện trạng / hư hỏng")&&b8html.includes("Lưu nháp"));assert.ok(b8html.includes("Ảnh kho trống do khách gửi")&&b8html.includes("Ảnh kho trống K04 do khách chụp"));assert.ok(!b8html.includes("Đã chuyển hết đồ khỏi kho"),"Không điền sẵn kết luận kiểm kê");
+  b8ops.returns[0].move_out_photos=[];memory.set(OPS_KEY,JSON.stringify(b8ops));b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Khách hàng chưa đính kèm ảnh kho trống khi yêu cầu trả kho."));
   seed(true,manager);window.location.hash="#/manager/contracts?id=missing";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Không tìm thấy hợp đồng"));assert.ok(!b8html.includes("Bước tiếp theo"));assert.ok(!b8html.includes('table--hover'));
   window.location.hash="#/manager/deposit-refunds?id=HC-0098";b8html=renderToStaticMarkup(React.createElement(App));for(const text of ["Mã giao dịch","Thời gian chuyển","đúng tài khoản nhận"])assert.ok(b8html.includes(text),text);assert.match(b8html,/<button[^>]*disabled[^>]*>Ghi nhận đã chuyển tiền<\/button>/);
   delete b8ops.deposit_refunds[0].amount;memory.set(OPS_KEY,JSON.stringify(b8ops));b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Chưa có dữ liệu"));assert.ok(!b8html.includes("Không còn khoản hoàn;"));
@@ -334,7 +378,7 @@ try {
   b9html=renderToStaticMarkup(React.createElement(SelectionPanel,{title:"Đổi vai trò",items:[{id:1,label:"Quản trị",disabled:true},{id:2,label:"Nhân viên"}],onClose(){},onSelect(){}}));
   assert.match(b9html,/<button[^>]*disabled[^>]*>Dùng lựa chọn này<\/button>/);
   b9html=renderToStaticMarkup(React.createElement(SelectionPanel,{title:"Cấp lại vai trò",items:[],onClose(){},onSelect(){}}));assert.ok(b9html.includes("Chưa có lựa chọn phù hợp"));count+=4;
-  for(const [role,routes] of [["ADMIN",["admin","admin/new","admin/users/3","admin/permissions","admin/logs"]],["OPERATIONS",["business","business/facilities","business/policy-status","business/policy-content","business/reports","business/export"]]]) {
+  for(const [role,routes] of [["ADMIN",["admin","admin/new","admin/users/3","admin/permissions","admin/logs"]],["OPERATIONS",["business","business/facilities","business/policy-status","business/policy-content","business/reports","business/export","business/facility-report?id=1","business/facility-report"]]]) {
    seed(true,{user_id:991,username:"qa",full_name:"QA vận hành",role});
    for(const route of routes){window.location.hash=`#/${route}`;const html=renderToStaticMarkup(React.createElement(App));assert.ok(html.includes("QA vận hành"),route);assert.ok(!html.includes("NaN")&&!html.includes("undefined"),route);count++;}
   }

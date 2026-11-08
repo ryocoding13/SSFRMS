@@ -10,7 +10,7 @@ using Xunit;
 
 namespace StorageProject.Tests;
 
-public sealed class CheckoutTests
+public sealed partial class CheckoutTests
 {
     private sealed class TestDb(DbContextOptions<AppDbContext> options) : AppDbContext(options)
     {

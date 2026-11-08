@@ -74,7 +74,7 @@ function UserMenu({ roleLabel, tone, facilityName }) {
 }
 
 // Khung chung khu vận hành (Figma S01 / M01): logo, tên + vai trò, chuông, thanh điều hướng theo vai trò
-export default function FacilityOperationsLayout({ role, active, children }) {
+export default function FacilityOperationsLayout({ role, active, subActive, children }) {
   const { mode, user } = useApp();
   const { source, ops } = useOps();
   const counts = pendingTaskCounts(ops, role, ops.me || ops.staff.find(s => s.full_name === user?.full_name) || ops.staff[0]);
@@ -113,7 +113,49 @@ export default function FacilityOperationsLayout({ role, active, children }) {
         </p>
       )}
       <div className="container workflow-links" aria-label="Luồng liên quan">
-        {staff ? <><LinkButton to="staff/renewal-payments" variant="outline">Thu gia hạn tại quầy</LinkButton><LinkButton to="staff/cash-refunds" variant="outline">Chi tiền hoàn tại quầy</LinkButton><LinkButton to="staff/recheck" variant="outline">Kiểm tra lại trả kho</LinkButton><LinkButton to="staff/overdue" variant="outline">Đồ quá hạn</LinkButton><LinkButton to="staff/inquiries" variant="outline">Tư vấn chưa thuê kho</LinkButton></> : <><LinkButton to="manager/overdue" variant="outline">Xử lý quá hạn</LinkButton><LinkButton to="manager/cash-refunds" variant="outline">Hoàn tiền mặt</LinkButton><LinkButton to="manager/unit-conflicts" variant="outline">Xung đột đặt kho</LinkButton><LinkButton to="manager/daily-report" variant="outline">Báo cáo cuối ngày</LinkButton><LinkButton to="manager/deposit-refunds" variant="outline">Hoàn cọc trả kho</LinkButton><LinkButton to="manager/refunds" variant="outline">Hoàn tiền đơn huỷ</LinkButton></>}
+        {staff ? (
+          <>
+            <LinkButton to="staff/renewal-payments" variant="outline" className={subActive === "renewal-payments" ? "is-active" : ""}>
+              Thu gia hạn tại quầy<PendingBadge count={counts["staff/renewal-payments"]} />
+            </LinkButton>
+            <LinkButton to="staff/cash-refunds" variant="outline" className={subActive === "cash-refunds" ? "is-active" : ""}>
+              Chi tiền hoàn tại quầy<PendingBadge count={counts["staff/cash-refunds"]} />
+            </LinkButton>
+            <LinkButton to="staff/recheck" variant="outline" className={subActive === "recheck" ? "is-active" : ""}>
+              Kiểm tra lại trả kho<PendingBadge count={counts["staff/recheck"]} />
+            </LinkButton>
+            <LinkButton to="staff/unit-moves" variant="outline" className={subActive === "unit-moves" ? "is-active" : ""}>
+              Kiểm tra ô cũ<PendingBadge count={counts["staff/unit-moves"]} />
+            </LinkButton>
+            <LinkButton to="staff/overdue" variant="outline" className={subActive === "overdue" ? "is-active" : ""}>
+              Đồ quá hạn<PendingBadge count={counts["staff/overdue"]} />
+            </LinkButton>
+            <LinkButton to="staff/inquiries" variant="outline" className={subActive === "inquiries" ? "is-active" : ""}>
+              Tư vấn chưa thuê kho<PendingBadge count={counts["staff/inquiries"]} />
+            </LinkButton>
+          </>
+        ) : (
+          <>
+            <LinkButton to="manager/overdue" variant="outline" className={subActive === "overdue" ? "is-active" : ""}>
+              Xử lý quá hạn<PendingBadge count={counts["manager/overdue"]} />
+            </LinkButton>
+            <LinkButton to="manager/cash-refunds" variant="outline" className={subActive === "cash-refunds" ? "is-active" : ""}>
+              Hoàn tiền mặt<PendingBadge count={counts["manager/cash-refunds"]} />
+            </LinkButton>
+            <LinkButton to="manager/unit-conflicts" variant="outline" className={subActive === "unit-conflicts" ? "is-active" : ""}>
+              Xung đột đặt kho<PendingBadge count={counts["manager/unit-conflicts"]} />
+            </LinkButton>
+            <LinkButton to="manager/daily-report" variant="outline" className={subActive === "daily-report" ? "is-active" : ""}>
+              Báo cáo cuối ngày
+            </LinkButton>
+            <LinkButton to="manager/deposit-refunds" variant="outline" className={subActive === "deposit-refunds" ? "is-active" : ""}>
+              Hoàn cọc trả kho<PendingBadge count={counts["manager/deposit-refunds"]} />
+            </LinkButton>
+            <LinkButton to="manager/refunds" variant="outline" className={subActive === "refunds" ? "is-active" : ""}>
+              Hoàn tiền đơn huỷ<PendingBadge count={counts["manager/refunds"]} />
+            </LinkButton>
+          </>
+        )}
       </div>
       {children}
     </>

@@ -103,6 +103,7 @@ export function ReturnInspectionPage({ query }) {
   const [form, setForm] = useState(DEFAULT_FORM), [files, setFiles] = useState([]), [reading, setReading] = useState(false), [error, setError] = useState("");
   if (!r) return <main className="container page"><Empty title="Không tìm thấy lịch trả kho" text="Chọn đúng hồ sơ trong danh sách."><LinkButton to="staff/return">Danh sách trả kho</LinkButton></Empty></main>;
   const submitted = r.status === "SUBMITTED";
+  const moveOutPhotos = r.move_out_photos || r.moveOutPhotos || [];
   const flags = inspectionFlags(form);
   // D27/D32: khách gửi trả trước ngày hết hạn → giữ 30% cọc thay cho phí vệ sinh cố định (RefundPolicy BE)
   const contract = ops.contracts.find((c) => c.id === r.contract);
@@ -173,7 +174,14 @@ export function ReturnInspectionPage({ query }) {
           <Button type="submit" disabled={blocked || !supported}>Gửi biên bản cho quản lý</Button>
         </div>}
       </form>
-      <SettlementSummary deposit={r.deposit} damage={report.damage_fee} cleaning={early ? 0 : submitted ? report.cleaning_fee : cleaningFee(r.deposit, form.cleaning_required)} overdue={r.overdue_fee} keep={early ? keep : undefined} />
+      <div className="customer-detail__column">
+        <section className="panel customer-detail__card customer-detail__sidebar" aria-label="Ảnh kho trống do khách gửi">
+          <h2>Ảnh kho trống do khách gửi</h2>
+          <DamagePhotos photos={moveOutPhotos} emptyText="Khách hàng chưa đính kèm ảnh kho trống khi yêu cầu trả kho." />
+          <p className="hint">Ảnh do khách chụp và gửi khi đăng ký trả kho để chứng minh kho đã dọn trống.</p>
+        </section>
+        <SettlementSummary deposit={r.deposit} damage={report.damage_fee} cleaning={early ? 0 : submitted ? report.cleaning_fee : cleaningFee(r.deposit, form.cleaning_required)} overdue={r.overdue_fee} keep={early ? keep : undefined} />
+      </div>
     </div>
     <div className="workflow-links"><LinkButton to="staff/return" variant="outline">Danh sách trả kho</LinkButton></div>
   </main>;

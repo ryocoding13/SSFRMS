@@ -64,7 +64,7 @@ export function applyWorkflowAction(state, action, payload, actor, now = new Dat
     }
     case "CONFIRM_DEPOSIT_REFUND": {
       allow("MANAGER"); const item = find("depositRefunds"); if (item.status !== "PENDING" || item.amount <= 0) throw new Error("Khoản hoàn không còn chờ xử lý.");
-      const proof=transferProof(item,payload,now);Object.assign(item,{status:"PAID",transactionRef:proof.transactionRef,paidAt:proof.transferredAt});break;
+      const proof=transferProof(item,payload,now);Object.assign(item,{status:"PAID",transactionRef:proof.transactionRef,paidAt:proof.transferredAt,method:proof.method});break;
     }
     case "COLLECT_RENEWAL": {
       allow("STAFF", "MANAGER"); const item = find("counterRenewals"); if (item.status !== "PENDING") throw new Error("Khoản gia hạn đã được thu. Không thu lần nữa.");

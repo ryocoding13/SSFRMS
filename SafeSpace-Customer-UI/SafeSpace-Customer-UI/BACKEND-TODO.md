@@ -1,5 +1,40 @@
 # BACKEND-TODO — việc backend (StorageProject.Api) còn thiếu cho giao diện SafeSpace
 
+## Phiên 2 (07/11/2026): sửa lỗi sau rà soát, không đổi database (BE đã viết, chờ CI; FE làm ở Phiên 3)
+
+| Mục | Endpoint | Thay đổi |
+|---|---|---|
+| 2.2 · T24 | `POST /api/admin/users/{id}/role-change` (mới) | Body `{previousRoleId, roleId, expectedRoleIds}`. Thay đúng một vai trò trong một giao dịch, giữ vai trò khác. Bộ vai trò khác `expectedRoleIds` → 409 `{message, details:{currentRoleIds}}`; vai trò mới đã có / vai trò cũ không có → 400; gỡ ADMIN của admin hoạt động cuối → 400. Ghi `activity_logs` `ROLE_CHANGE`. |
+| 3.3 · T25 | `POST /api/admin/roles/{id}/permissions`, `DELETE /api/admin/roles/{id}/permissions/{permissionId}` | Trả **410** `{code: "ROLE_PERMISSIONS_READ_ONLY"}` (D32: ma trận quyền chỉ xem). `GET /permissions`, `GET /roles` giữ nguyên. |
+| 1.3 | `POST /api/tickets/{id}/cancel` | **Đã gỡ** (D43/D45: hỗ trợ là cuộc trò chuyện, khách không huỷ). FE gỡ `cancelTicket` ở Phiên 3. |
+| 3.4 | `POST /api/contracts/{id}/request-key`, `/key-request` | **Đã gỡ**. Nhận chìa khóa chỉ qua hỗ trợ chủ đề "Nhận chìa khóa" (D40). |
+| 3.1 | `POST /api/ops/unit-moves/{renewalId}/inspection` | `goodsRemaining: true` không còn trả 400: ghi nhận **đồ khách bỏ** (`activity_logs` `RENEWAL_OLD_UNIT_GOODS_ABANDONED`, kèm `note`), không trừ phí, trả `UnitMoveDto` (status vẫn `MOVED`, thêm `goodsAbandoned: true`, `goodsNote`). Gửi lại không ghi trùng. Dọn xong gửi `goodsRemaining: false` để hoàn tất như cũ. |
+| 3.1 · D46b | (cùng route) | **Bỏ phí quá hạn ô cũ** khi hệ thống tự chuyển ô (đồ còn lại coi là đồ khách bỏ). Chỉ còn khấu trừ vệ sinh 10% cọc và hư hỏng, tối đa bằng cọc đang giữ. |
+| 1.2 · D45 | `GET /api/operations/reports/*`, `GET /api/ops/board`, `GET /api/manager/board` | Thêm `forfeitedRefunds`: tiền mặt hoàn quá 30 ngày khách không nhận (REFUND `CANCELLED`, mã `FORFEITED:{id}`), dòng riêng, không gộp vào `rentalAndFeeRevenue`. Báo cáo Vận hành KD tính theo ngày chốt (VND, có cột trong CSV "Tiền mặt hoàn khách không nhận (VND)"); board cơ sở tính 6 tháng gần nhất (triệu đồng, `revenue.forfeitedRefunds`). |
+
+- **Sửa lỗi có sẵn (PR #82):** các khoản khấu trừ khi kiểm tra ô cũ (vệ sinh, hư hỏng) bị lưu `Status = PENDING`, `CreatedAt` rỗng vì một chú thích nuốt mất phần gán. Nay lưu `PAID` (doanh thu) kèm thời điểm tạo; test D46 kiểm thêm.
+- Không migration, không đổi schema. Chưa chạy `dotnet test` trong môi trường của Claude (không tải được .NET/NuGet): CI là kiểm chứng thật.
+
+## Phiên 8 — 06/11/2026: gia hạn sang ô khác D46 / D46b (BE đã viết, chờ CI; FE làm ở Phiên 9)
+
+| Ai | Endpoint | Body / trả về |
+|---|---|---|
+| Khách | `GET /api/contracts/{id}/renewal-units` | `{contractId, currentUnit, endDate, bookedFrom, upgraded, depositHeld, options:[{unitId, unitNumber, unitTypeId, unitTypeName, kind: "SWAP"\|"ORIGINAL_TYPE", monthlyRate, depositRequired, depositTopUp}]}` |
+| Khách | `POST /api/contracts/{id}/renewals` | thêm `targetUnitId` (không bắt buộc). Ô không còn trống → 400 "Ô vừa có người đặt hoặc không còn trống. Vui lòng chọn ô khác." |
+| Khách | `GET /api/contracts/{id}/unit-move` | `UnitMoveDto` hoặc 204: `{renewalId, contractId, customerName, fromUnit, toUnit, oldEndDate, moveFrom, depositTopUp, status: REQUESTED\|HELD\|PAID\|MOVED\|INSPECTED, movedAt, autoMoved, deduction}` |
+| Khách | `POST /api/contracts/{id}/unit-move/done` | "Đã chuyển đồ" — chỉ từ `moveFrom` (3 ngày cuối kỳ cũ); trả `UnitMoveDto` |
+| Nhân viên / quản lý | `GET /api/ops/unit-moves` | việc kiểm tra ô cũ chờ làm tại cơ sở (`UnitMoveDto[]`, status `MOVED`) |
+| Nhân viên / quản lý | `POST /api/ops/unit-moves/{renewalId}/inspection` | `{goodsRemaining, cleaningRequired, damageFee, note}`; còn đồ → 400; trả `UnitMoveDto` có `deduction` |
+
+- Duyệt gia hạn có chuyển ô: dùng route duyệt cũ; khoản `RENEWAL` = tiền gia hạn + cọc chênh. Ô mới hết trống lúc duyệt → 400 "Ô vừa có người đặt…" (quản lý từ chối để khách chọn ô khác).
+- Quét QR / PIN tại ô mới trong 3 ngày cuối kỳ cũ: mở được bằng mã hiện tại.
+- Phiên 9: `UnitMoveDto` thêm `depositHeld` (cọc đang giữ); `movedAt` trả giờ Việt Nam không kèm múi giờ. **Đã bổ sung (07/11):** board quản lý (`/api/manager/board` và `/api/ops/board`) trả `renewals[].targetUnit` (ô khách chọn, null khi gia hạn ô hiện tại) và `renewals[].depositTopUp` (cọc chênh, 0 nếu không có).
+
+## Phiên 7 — 06/11/2026: tự huỷ đơn chờ thanh toán quá hạn (BE đã viết, chờ CI)
+
+- Không thêm / đổi API. Tiến trình nền 1 phút chuyển đơn `PENDING_PAYMENT` quá `expiresAt` chưa trả tiền sang `EXPIRED` (`cancellationReason` = "Quá thời gian giữ chỗ chưa thanh toán"). FE đọc trạng thái này như đơn hết hạn hiện có.
+- **Còn chờ (D46):** gia hạn sang ô khác / sau nâng cấp — API mới sẽ ghi ở phiên làm BE.
+
 ## Phiên 6 — 06/11/2026: M01, M04, S02, S03, câu 7 (BE đã viết, chờ CI)
 
 - **Duyệt gia hạn (M01)** — 3 route `/api/ops/renewals/{GH-id}/approve`, `/api/manager/renewals/{id}/approve`, `RenewalService` dùng chung `RenewalApproval`. Lỗi 400 mới: kỳ thuê đã đổi, có yêu cầu khác chờ thanh toán, đã quá hạn duyệt. `/api/manager` trả 404 khi không thấy.
@@ -551,6 +586,8 @@ Không đánh dấu T20 toàn hệ thống đã đạt chỉ từ kiểm FE ho�
 
 
 ## Batch06 — hư hỏng/khắc phục: contract API ĐỀ XUẤT, chưa có trên main c1a9b05
+
+> **Huỷ 07/11/2026 (D48):** không làm BE `damage-cases` (T23); FE đã gỡ 3 màn. Khấu trừ trả kho theo D39 (`/api/contracts/{id}/return-deduction`). Giữ phần dưới làm lịch sử.
 
 FE đã dựng ba màn D30-13/18/18b; không sửa BE/schema và không chứng minh tích hợp thật. Cần BE owner thống nhất contract trước khi nối/triển khai, không dùng capability hoặc dữ liệu demo để báo đã xử lý.
 

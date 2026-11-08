@@ -82,10 +82,11 @@ public class PayOSService(
             var returnUrl = !string.IsNullOrWhiteSpace(request.ReturnUrl) ? request.ReturnUrl : defaultReturnUrl;
             var cancelUrl = !string.IsNullOrWhiteSpace(request.CancelUrl) ? request.CancelUrl : defaultReturnUrl;
 
-            link = await gateway.CreateAsync(r.OrderCode.Value, (int)amount, r.ReservationId,
+            link = await CreateLinkWithRetryAsync(gateway, r.OrderCode.Value, (int)amount, r.ReservationId,
                 new DateTimeOffset(DateTime.SpecifyKind(expiry, DateTimeKind.Utc)).ToUnixTimeSeconds(),
                 returnUrl,
-                cancelUrl);
+                cancelUrl,
+                ct);
         } catch (Exception ex) {
             throw new InvalidOperationException("Không tạo được link PayOS. Kiểm tra cấu hình hoặc chọn thanh toán tại cửa hàng.", ex);
         }
@@ -233,13 +234,15 @@ public class PayOSService(
                 ?? "http://localhost:5173";
             var defaultReturnUrl = $"{frontendBaseUrl}/#/payments";
 
-            link = await gateway.CreateRenewalAsync(
+            link = await CreateRenewalLinkWithRetryAsync(
+                gateway,
                 orderCode,
                 (int)payment.Amount,
                 renewal.RenewalId,
                 new DateTimeOffset(DateTime.SpecifyKind(expiry, DateTimeKind.Utc)).ToUnixTimeSeconds(),
                 defaultReturnUrl,
-                defaultReturnUrl
+                defaultReturnUrl,
+                ct
             );
         }
         catch (Exception ex)
@@ -381,5 +384,31 @@ public class PayOSService(
     {
         var r = await dbContext.Reservations.AsNoTracking().SingleOrDefaultAsync(r => r.ReservationId == reservationId, ct);
         return r == null ? null : new ReservationPaymentStatusDto(r.ReservationId, r.Status, r.PaidAt != null, r.PaidAt);
+    }
+
+    private static async Task<CheckoutLink> CreateLinkWithRetryAsync(IPayOSGateway gateway, long orderCode, int amount, long reservationId, long expiresAt, string returnUrl, string cancelUrl, CancellationToken ct)
+    {
+        try
+        {
+            return await gateway.CreateAsync(orderCode, amount, reservationId, expiresAt, returnUrl, cancelUrl);
+        }
+        catch
+        {
+            await Task.Delay(500, ct);
+            return await gateway.CreateAsync(orderCode, amount, reservationId, expiresAt, returnUrl, cancelUrl);
+        }
+    }
+
+    private static async Task<CheckoutLink> CreateRenewalLinkWithRetryAsync(IPayOSGateway gateway, long orderCode, int amount, long renewalId, long expiresAt, string returnUrl, string cancelUrl, CancellationToken ct)
+    {
+        try
+        {
+            return await gateway.CreateRenewalAsync(orderCode, amount, renewalId, expiresAt, returnUrl, cancelUrl);
+        }
+        catch
+        {
+            await Task.Delay(500, ct);
+            return await gateway.CreateRenewalAsync(orderCode, amount, renewalId, expiresAt, returnUrl, cancelUrl);
+        }
     }
 }

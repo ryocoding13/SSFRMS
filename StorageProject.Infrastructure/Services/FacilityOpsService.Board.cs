@@ -89,6 +89,9 @@ public partial class FacilityOpsService
         var returnLogs = await LogsAsync(LogEntity.Return, contracts.SelectMany(c => c.ReturnInspections).Select(i => i.InspectionId).ToList(), ct);
         var ticketLogs = await LogsAsync(LogEntity.Ticket, tickets.Select(t => t.TicketId).ToList(), ct);
         var renewalLogs = await LogsAsync(LogEntity.Renewal, contracts.SelectMany(c => c.ContractRenewals).Select(r => r.RenewalId).ToList(), ct);
+        // D46: kế hoạch chuyển ô ghi bằng EntityType "RENEWAL" (RenewalUnitMove), khác LogEntity.Renewal
+        var unitMoveLogs = (await LogsAsync("RENEWAL", contracts.SelectMany(c => c.ContractRenewals).Select(r => r.RenewalId).ToList(), ct))
+            .Where(l => l.Action == RenewalUnitMove.Requested || l.Action == RenewalUnitMove.Held).ToList();
         var contractLogs = await LogsAsync(LogEntity.Contract, contracts.Select(c => c.ContractId).ToList(), ct);
 
         ActivityLog? Last(List<ActivityLog> logs, long id, params string[] actions) =>
@@ -235,10 +238,58 @@ public partial class FacilityOpsService
                 ticketPhotos.TryGetValue(t.TicketId, out var tp) ? tp : []);
         }).ToList();
 
+        // ---- S09g · Thu tiền gia hạn tại quầy (T04 / D32)
+        var counterRenewalsQuery = await dbContext.ContractRenewals
+            .AsNoTracking()
+            .Include(r => r.Contract).ThenInclude(c => c.Customer)
+            .Include(r => r.Contract).ThenInclude(c => c.Unit)
+            .Include(r => r.Payments)
+            .Where(r => r.Contract.Unit.FacilityId == fid
+                     && (r.Status == "APPROVED" || (r.Status == "PAID" && r.AppliedAt >= recent))
+                     && r.Payments.Any(p => p.PaymentType == "RENEWAL" && p.PaymentMethod == "CASH"))
+            .OrderByDescending(r => r.RequestedAt)
+            .ToListAsync(ct);
+
+        var counterRenewalDtos = new List<StorageProject.Core.DTOs.Renewal.CounterRenewalDto>();
+        foreach (var r in counterRenewalsQuery)
+        {
+            var p = r.Payments.FirstOrDefault(x => x.PaymentType == "RENEWAL" && x.PaymentMethod == "CASH")
+                ?? r.Payments.FirstOrDefault(x => x.PaymentType == "RENEWAL");
+            if (p == null) continue;
+            if (r.Status == "APPROVED" && r.PaymentDeadlineAt.HasValue && r.PaymentDeadlineAt.Value <= now)
+                continue;
+
+            var code = ContractCode(r.Contract);
+            counterRenewalDtos.Add(new StorageProject.Core.DTOs.Renewal.CounterRenewalDto(
+                Id: $"GHQ-{r.RenewalId:D4}",
+                RenewalId: r.RenewalId,
+                PaymentId: p.PaymentId,
+                ContractId: code,
+                ContractCode: code,
+                FacilityId: fid,
+                Unit: r.Contract.Unit?.UnitNumber ?? "—",
+                Customer: r.Contract.Customer?.FullName ?? "—",
+                Amount: r.RenewalAmount,
+                Months: r.RenewalPeriodMonths,
+                PaymentDeadlineAt: r.PaymentDeadlineAt,
+                Status: r.Status == "PAID" ? "PAID" : "PENDING"
+            ));
+        }
+
+        var cashRefundDtos = await GetCashRefundsAsync(actor, ct);
+        var depositRefundDtos = await GetDepositRefundsAsync(actor, ct);
+        var overdueCaseDtos = await GetOverdueCasesAsync(actor, ct);
+        var inquiryDtos = await dbContext.SupportInquiries
+            .AsNoTracking()
+            .Where(x => x.FacilityId == fid && x.Status != "CLOSED")
+            .Select(x => new OpsInquiryDto(x.InquiryId, x.Title, x.Status))
+            .ToListAsync(ct);
+
         if (!actor.IsManager)
         {
             return new OpsBoardDto(new OpsFacilityInfoDto(fid, facility.Name, facility.Address), me, staff, unitDtos,
-                payments, verifications, handovers, returns, ticketDtos, null, null, null, null, null);
+                payments, verifications, handovers, returns, ticketDtos, null, null, null, null, null, null, counterRenewalDtos,
+                cashRefundDtos, depositRefundDtos, null, overdueCaseDtos, inquiryDtos);
         }
 
         // ---- M05 · Đơn chờ phân bổ ô
@@ -270,10 +321,14 @@ public partial class FacilityOpsService
                 var (c, r) = x;
                 var rejected = Last(renewalLogs, r.RenewalId, LogAction.RenewalRejected);
                 var status = r.Status switch { "PAID" => "APPROVED", "CANCELLED" => "REJECTED", _ => r.Status };
+                var moveReq = Last(unitMoveLogs, r.RenewalId, RenewalUnitMove.Requested);
+                var moveTopUp = Last(unitMoveLogs, r.RenewalId, RenewalUnitMove.Held, RenewalUnitMove.Requested) is { } ml
+                                && decimal.TryParse(Read(ml, "topUp"), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : 0m;
                 return new OpsRenewalDto(RenewalCode(r.RenewalId), ContractCode(c), c.Customer.FullName, c.Unit.UnitNumber,
                     r.OldEndDate, r.NewEndDate, r.RenewalPeriodMonths, Local(r.RequestedAt)!, status,
                     status == "REJECTED" && rejected != null ? Read(rejected, "reason") : null, Local(r.ApprovedAt),
-                    r.NewMonthlyRate, r.RenewalAmount, Local(r.PaymentDeadlineAt));
+                    r.NewMonthlyRate, r.RenewalAmount, Local(r.PaymentDeadlineAt),
+                    moveReq != null ? Read(moveReq, "targetUnit") : null, moveTopUp);
             })
             .ToList();
 
@@ -366,9 +421,11 @@ public partial class FacilityOpsService
 
         var revenue = await RevenueAsync(fid, ct);
         var refunds = await ReservationRefundsAsync(fid, recent, ct);
+        var unitConflictDtos = await GetUnitConflictsAsync(actor, ct);
 
         return new OpsBoardDto(new OpsFacilityInfoDto(fid, facility.Name, facility.Address), me, staff, unitDtos,
-            payments, verifications, handovers, returns, ticketDtos, allocations, renewals, contractDtos, assignments, revenue, refunds);
+            payments, verifications, handovers, returns, ticketDtos, allocations, renewals, contractDtos, assignments, revenue, refunds, counterRenewalDtos,
+            cashRefundDtos, depositRefundDtos, unitConflictDtos, overdueCaseDtos, inquiryDtos);
     }
 
     /// <summary>
@@ -489,6 +546,12 @@ public partial class FacilityOpsService
             new("Kho lạnh", Million(current.Where(r => r.Cold).Sum(r => r.Amount))),
         };
 
-        return new OpsRevenueDto(months, byType, today);
+        var forfeited = (await dbContext.Payments.AsNoTracking()
+            .Where(p => (p.ContractId != null ? p.Contract.Unit.FacilityId : p.Reservation.FacilityId) == facilityId
+                        && p.PaymentType == "REFUND" && p.Status == "CANCELLED" && p.UpdatedAt >= fromUtc
+                        && p.TransactionReference != null && p.TransactionReference.StartsWith("FORFEITED:"))
+            .Select(p => p.Amount).ToListAsync(ct)).Sum(); // cộng trong bộ nhớ: SQLite không SUM được decimal
+
+        return new OpsRevenueDto(months, byType, today, Million(forfeited));
     }
 }

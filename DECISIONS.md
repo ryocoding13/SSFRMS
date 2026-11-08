@@ -481,3 +481,82 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - **S02/C11:** thu gia hạn tại quầy kiểm consent đúng phiên bản chính sách khách đã đồng ý.
 - **Câu 7:** ảnh lưu loại mới `RETURN_DEDUCTION` (migration `20261106120000_Phien6DeductionPhotos`, chỉ đổi CHECK), tối đa 5 ảnh.
 - **Chưa làm, cần nhóm chốt trước khi code:** gia hạn sang ô khác và gia hạn sau nâng cấp (ngày chuyển ô hợp đồng — ngay khi thanh toán hay từ ngày đầu kỳ mới; cọc khi ô mới khác giá; mã ô cũ hết hiệu lực lúc nào; khách tự chuyển đồ hay hẹn nhân viên); chuông + email đề xuất đổi kho (chưa có bảng thông báo / dịch vụ email); tính tiền mặt quá 30 ngày vào doanh thu (cần chốt ghi vào khoản nào của báo cáo).
+
+## D46 — 06/11/2026: Gia hạn sang ô khác và gia hạn sau nâng cấp miễn phí — Đã chốt, chưa triển khai
+
+> Thắng chốt lúc 06/11/2026 19:28, trả lời 4 điểm còn treo ở IMPL-2026-11-06-P6. Bổ sung D41 / D45 (ý "gia hạn sang ô khác", "gia hạn sau nâng cấp"); giữ nguyên lịch sử ở trên. Triển khai ở phiên sau (BE trước, FE sau).
+
+- **Lúc chuyển ô:** ô mới được giữ cho khách từ lúc khách trả đủ tiền gia hạn; khách chuyển đồ trong **3 ngày cuối kỳ cũ**; kỳ mới tính từ ngày sau ngày hết hạn cũ.
+- **Cọc và hợp đồng:** giữ **cùng hợp đồng**, chỉ đổi ô; cọc cũ chuyển sang ô mới. Ô mới có mức cọc cao hơn thì thu thêm phần chênh, thấp hơn thì hoàn phần chênh khi kết thúc hợp đồng.
+- **QR/PIN:** mã ô mới có từ lúc trả tiền; mã ô cũ khoá ngay khi khách bấm "Đã chuyển đồ", chậm nhất hết hiệu lực lúc hết kỳ cũ.
+- **Chuyển đồ:** khách tự chuyển. Nhân viên kiểm tra ô cũ như kiểm tra trả kho (D38) nhưng không hoàn cọc vì cọc đã chuyển; hư hỏng trừ vào cọc. Chưa chuyển kịp thì ô cũ tính quá hạn theo D32.
+- **Chưa chốt rõ, sẽ làm theo cách sau nếu nhóm không nói khác:** phần cọc chênh thu thêm gộp vào khoản thanh toán gia hạn (cùng hạn 24 giờ). Gia hạn sau nâng cấp miễn phí: khách chọn về loại cũ thì đi luồng gia hạn sang ô khác; khách giữ ô lớn thì chỉ đổi sang giá ô lớn, không chuyển đồ.
+
+## D47 — 06/11/2026: Chi tiền mặt tại quầy không dùng số phiếu chi — Đã chốt
+
+> Thắng chốt lúc 06/11/2026 19:14 khi xem Figma Phiên 8. Bổ sung D42 / D44; giữ nguyên lịch sử ở trên.
+
+- **Không có ô "Số phiếu chi".** Nhân viên tick đủ 4 mục khi chi tiền (đúng CCCD, đúng mã đơn và SĐT, đã đếm đủ tiền, khách đã nhận và ký sổ chi) là đủ ghi nhận.
+- **Quản lý không đổi được cách nhận hoàn khách đã chọn** (chuyển khoản / tiền mặt); quản lý chỉ duyệt và giao nhân viên chi.
+- Figma: popup duyệt chi mới `M08-tiền mặt · Popup · Duyệt chi tiền mặt` theo đúng ý trên; popup cũ `M08a2-tiền mặt` (có số phiếu chi, cho chọn lại cách hoàn) lỗi thời, chờ Thắng đồng ý xoá.
+
+## IMPL-2026-11-06-P7 — Cách triển khai Phiên 7 — Chờ nhóm xác nhận
+
+> Claude đề xuất khi viết code ngày 06/11/2026; chưa phải quyết định nghiệp vụ.
+
+- **Đơn chờ thanh toán trực tuyến quá hạn:** `UnpaidReservationExpiry` (chạy cùng tiến trình 1 phút của `ExpiredCashHoldWorker`) chuyển đơn `PENDING_PAYMENT` quá `ExpiresAt` mà chưa trả tiền sang `EXPIRED`, ghi lý do và log `RESERVATION_PAYMENT_EXPIRED`. Không đụng `PENDING_VERIFICATION` (khách đã báo chuyển khoản, nhân viên đối chiếu). Tiền PayOS về muộn vẫn đi nhánh `PAYMENT_REVIEW_REQUIRED` như cũ; khách bấm "Đã chuyển khoản" sau khi đơn bị chuyển `EXPIRED` vẫn nhận mã lỗi `EXPIRED`. Không đổi schema.
+- **CI:** thêm bước chặn chữ "sạch / bẩn / sai lệch" trong file `.jsx`; nhãn trạng thái `MISMATCH` cũ trong reducer giữ lại để đọc dữ liệu lịch sử.
+- **Dependabot** mỗi thứ Hai 08:00 giờ Việt Nam, gộp bản vá nhỏ; PR của Dependabot vẫn qua CI và review như mọi PR.
+
+## D46b — 06/11/2026: Bổ sung D46 (giữ ô, chọn ô, không báo chuyển đồ, bù cọc) — Đã chốt
+
+> Thắng chốt lúc 06/11/2026 20:29–20:35. Bổ sung D46; giữ nguyên lịch sử ở trên.
+
+- **Giữ ô mới từ lúc quản lý duyệt** (thay ý "giữ từ lúc trả tiền" của D46): giữ trong 24 giờ chờ thanh toán, quá hạn thì trả ô. Ô bị người khác lấy trước khi duyệt → báo "Ô vừa có người đặt", khách chọn ô khác.
+- **Khách chọn ô cụ thể** trong danh sách ô trống cùng loại (Figma C08-D41a).
+- **Hết kỳ cũ mà khách chưa bấm "Đã chuyển đồ":** mã ô cũ hết hiệu lực, hệ thống tự tạo việc "Kiểm tra ô cũ"; nhân viên thấy còn đồ thì ô cũ tính quá hạn theo D32.
+- **Hư hỏng làm cọc còn ít hơn mức cọc ô mới: không bắt bù** (không tạo nợ, D31).
+- **Giữ 2 ý mặc định của D46:** cọc chênh gộp vào khoản gia hạn (cùng hạn 24 giờ); gia hạn sau nâng cấp — giữ ô lớn thì chỉ đổi sang giá ô lớn, về loại cũ thì đi luồng gia hạn sang ô khác.
+
+## IMPL-2026-11-06-P8 — Cách triển khai BE D46 / D46b — Chờ nhóm xác nhận
+
+> Claude đề xuất khi viết code ngày 06/11/2026; chưa phải quyết định nghiệp vụ.
+
+- **Không đổi schema.** Trạng thái chuyển ô lưu trong `activity_logs` (EntityType `RENEWAL`): `RENEWAL_UNIT_CHANGE` (khách chọn ô) → `RENEWAL_UNIT_HELD` (duyệt, ô mới `RESERVED`) → renewal `PAID` → `RENEWAL_UNIT_MOVED` → `RENEWAL_OLD_UNIT_INSPECTED`. Code ở `RenewalUnitMove.cs`.
+- **Ô chọn được:** ô trống thật (không hợp đồng giữ, `AVAILABLE`) cùng loại đang thuê; nếu hợp đồng đã được nâng cấp miễn phí (loại ô ≠ loại đã đặt) thì thêm ô loại đã đặt ban đầu. Gia hạn sang ô khác không bị khoá D41 ở ô cũ. Giá theo bảng giá ACTIVE của loại ô mới; cọc cần theo chính sách DEPOSIT của loại ô mới.
+- **Tiền:** khoản `RENEWAL` chờ thu = tiền gia hạn + cọc chênh (một lần trả PayOS / tại quầy). Thu đủ thì tách cọc chênh thành khoản `DEPOSIT` `PAID` (báo cáo doanh thu không tính cọc) và tăng cọc đang giữ. Cọc ô mới thấp hơn: giữ nguyên cọc, phần chênh tự hoàn khi kết thúc hợp đồng.
+- **Ra vào:** thu đủ xong hợp đồng vẫn ở ô cũ; trong 3 ngày cuối kỳ cũ mã QR/PIN hiện tại mở được cả ô mới. Khách bấm "Đã chuyển đồ" (chỉ trong 3 ngày cuối kỳ cũ) hoặc hết kỳ cũ → hợp đồng sang ô mới, cấp QR/PIN mới, mã cũ `REPLACED`, ô cũ `INSPECTION`; có chìa khóa vật lý thì nhân viên ghi nhận giao chìa ô mới (như chuyển ô do sự cố).
+- **Kiểm tra ô cũ:** nhân viên báo còn đồ → chưa ghi được, nhắc khách; đạt → trừ vào cọc đang giữ theo thứ tự quá hạn (chỉ khi hệ thống tự chuyển, tính từ ngày sau hết kỳ cũ tới ngày kiểm tra, mức D32), vệ sinh 10% cọc, hư hỏng; tối đa bằng cọc đang giữ. Khoản trừ ghi thành khoản phí `PAID` (doanh thu). Ô cũ: cần vệ sinh / sửa → bảo trì; có khách đặt tiếp → giữ; còn lại trống (D38).
+
+## IMPL-2026-11-06-P9 — Cách triển khai FE D46 / D46b — Chờ nhóm xác nhận
+
+> Claude đề xuất khi viết code ngày 06/11/2026; chưa phải quyết định nghiệp vụ. Figma C07b-D46, S04-ô cũ, S04-ô cũ-chi tiết vẽ trước theo yêu cầu Thắng (21:44).
+
+- Khách: `#/units/:id/renew-other` (C08-D41a/b) — một màn cho cả gia hạn sang ô khác và sau nâng cấp (có lựa chọn "Giữ ô lớn" đi đường gia hạn thường). Nút Gia hạn ở chi tiết hợp đồng tự đổi thành "Gia hạn sang ô khác" khi ô đã có khách đặt (D41). Khối "Chuyển sang ô mới" trong chi tiết hợp đồng; nút "Đã chuyển đồ" chỉ bật trong 3 ngày cuối kỳ cũ.
+- Nhân viên: `#/staff/unit-moves` — biên bản 3 mục chọn sẵn như D38, ghi vào `note`; "Báo ô còn đồ" chỉ hiện cảnh báo, không gọi máy chủ. Số khấu trừ trên màn là tạm tính, máy chủ chốt số chính thức.
+- Chưa làm: hiện ô mới / cọc chênh trong màn duyệt gia hạn của quản lý (BE board chưa trả dữ liệu này).
+
+## PROCESS-2026-11-07-DEPENDABOT — Bỏ Dependabot — Đã chốt
+
+> Thắng chốt lúc 07/11/2026 02:32. Thay ý "Dependabot" trong IMPL-2026-11-06-P7; giữ nguyên lịch sử ở trên.
+
+- Xoá `.github/dependabot.yml`: lần quét đầu tiên đã mở 5 PR nâng thư viện (#77–#81, có 2 bản nâng lớn) ngay sát hạn nộp; nhóm đã đóng cả 5, không merge.
+- Nâng thư viện khi cần sẽ làm tay trên nhánh riêng, qua PR và CI như mọi thay đổi khác.
+- Giữ nguyên các phần khác của Phiên 7 (mẫu PR, bước CI chặn chữ đã bỏ).
+
+## D48 — 07/11/2026: Đợt sửa lỗi sau rà soát — không đổi database — Đã chốt
+
+> Thắng chốt ngày 07/11/2026 (17:53–18:56) khi rà soát `main` 462092a. Bổ sung / thay các ý tương ứng của D39, D41, D43, D45, D46b; giữ nguyên lịch sử ở trên. Triển khai ở Phiên 2 (BE), Phiên 3 và Phiên 5 (FE) ngày 07/11.
+
+- **Không đổi database trong đợt này:** không thêm bảng, cột hay migration. Trạng thái mới lưu trong `activity_logs` như các phiên trước.
+- **Demo một cơ sở:** seed chỉ có nhân viên và quản lý ở cơ sở đầu tiên; demo luồng đủ vai trò tại cơ sở đó, thêm tài khoản cho 11 cơ sở còn lại khi cần (thay hạn "Thắng làm sau" của D44, chưa bắt buộc cho demo).
+- **Bỏ luồng hồ sơ hư hỏng cũ (Batch06, T23):** không làm BE `damage-cases`; FE gỡ 3 màn phản hồi / xử lý / kiểm tra khắc phục và các nút dẫn tới. Khấu trừ trả kho đi theo D39 (khách xác nhận trong 48 giờ, nhân viên kiểm tra lại). Figma đã xoá 6 khung D30-18 / D30-18b.
+- **Ô cũ còn đồ khi gia hạn sang ô khác (thay D46b):** khách đã tick "đã chuyển hết đồ" khi bấm "Đã chuyển đồ", hoặc đã được báo trước là hết kỳ cũ sẽ khoá mã ô cũ, nên đồ còn lại **coi là đồ khách bỏ**: nhân viên ghi nhận (kèm ghi chú), dọn rồi ghi kết quả kiểm tra; **không trừ phí** cho đồ còn lại, **không báo chuông** cho khách, không có bước nhân viên mở hộ ô cũ.
+- **Không tính phí quá hạn ô cũ khi hệ thống tự chuyển ô** (thay ý "ô cũ tính quá hạn theo D32" của D46b). Kiểm tra ô cũ chỉ còn khấu trừ vệ sinh 10% cọc và hư hỏng, tối đa bằng cọc đang giữ.
+- **Đề xuất đổi kho (D41, thay D45 mục 11):** chỉ thông báo qua **chuông** trong ứng dụng, không gửi email. FE tạo thông báo từ `GET /api/unit-conflicts`; không thêm bảng thông báo. Khách chỉ thấy khi mở ứng dụng.
+- **Tiền mặt quá 30 ngày khách không nhận (D45 mục 14):** tính vào doanh thu ở **dòng riêng** `forfeitedRefunds` (báo cáo Vận hành KD, CSV, báo cáo cơ sở), không gộp vào doanh thu thuê và phí.
+- **Huỷ yêu cầu gia hạn:** khách huỷ được khi yêu cầu **còn chờ duyệt** (nút ở chi tiết hợp đồng, Figma C07b-L5c); đã duyệt thì thanh toán trước hạn hoặc để tự hết hiệu lực sau 24 giờ (giữ D40: một thao tác mỗi ô).
+- **Gỡ route thừa:** `POST /api/tickets/{id}/cancel` (D43: hỗ trợ là cuộc trò chuyện) và `POST /api/contracts/{id}/request-key` / `key-request` (D40: nhận chìa khóa qua hỗ trợ chủ đề "Nhận chìa khóa"). **Giữ** `GET /api/contracts/{id}/payments` dù FE không dùng.
+- **Quyền:** `POST/DELETE /api/admin/roles/{id}/permissions` trả 410 (D32: ma trận quyền chỉ xem, T25); đổi vai trò dùng `POST /api/admin/users/{id}/role-change` trong một giao dịch (T24).
+- **Báo cáo chi tiết cơ sở (Figma B04a)** và **lịch sử thanh toán đủ thời gian / phương thức / mã giao dịch (Figma C11h, LS02)** làm trong đợt này, chỉ FE, dùng API có sẵn. Trường `outstanding` hiển thị là "Khoản chờ thu" (D32: không có công nợ ngoài cọc).
+- **Lỗi phát hiện khi rà soát (sửa ở Phiên 2):** khấu trừ khi kiểm tra ô cũ bị lưu `PENDING`, thiếu thời điểm tạo (PR #82) → lưu `PAID`.

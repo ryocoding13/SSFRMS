@@ -113,6 +113,7 @@ public static class RenewalSettlement
                 reason = "Tiền về sau khi yêu cầu gia hạn đã hết hạn thanh toán (24 giờ / hết hạn hợp đồng); cần đối soát hoàn tiền thủ công."
             });
 
+            await RenewalUnitMove.ReleaseAsync(db, renewalId, staffUserId, $"Hết hạn thanh toán gia hạn GH-{renewalId:0000} · trả ô giữ", ct);
             db.ActivityLogs.Add(new ActivityLog
             {
                 UserId = staffUserId,
@@ -140,6 +141,8 @@ public static class RenewalSettlement
 
         renewal.Status = "PAID";
         renewal.AppliedAt = now;
+        // D46: tách cọc chênh (nếu có) thành khoản DEPOSIT, tăng cọc đang giữ. Hợp đồng vẫn ở ô cũ tới khi chuyển đồ xong.
+        await RenewalUnitMove.SettleAsync(db, renewal, payment, ct);
 
         // Apply new end date exactly once
         contract.EndDate = renewal.NewEndDate;

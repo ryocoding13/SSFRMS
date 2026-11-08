@@ -11,8 +11,8 @@ const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_EXECU
 const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage();
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 const roles=[
- ['manager01','Manager@123',['manager/refunds','manager/discrepancies','manager/discrepancy-detail?id=SL-0001','manager/overdue','manager/deposit-refunds']],
- ['staff01','Staff@123',['staff/mismatch','staff/renewal-payments','staff/overdue','staff/inquiries']],
+ ['manager01','Manager@123',['manager/refunds','manager/overdue','manager/deposit-refunds','manager/cash-refunds','manager/daily-report','manager/unit-conflicts']],
+ ['staff01','Staff@123',['staff/renewal-payments','staff/overdue','staff/inquiries','staff/cash-refunds','staff/recheck']],
  ['customer01','Customer@123',['refunds','policies','payments/history','inquiries','inquiries/HT-0091','units/HĐ-2026-0001/deposit','units/HĐ-2026-0001/progress','units/HĐ-2026-0001/renewal-status']],
  ['ops01','Ops@123',['business/policy-content','business/policy-status','business/rates','business/export']],
  ['admin','Admin@123',['admin','admin/new','admin/permissions','admin/logs']],

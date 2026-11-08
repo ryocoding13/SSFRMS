@@ -7,7 +7,7 @@ namespace StorageProject.Api.Endpoints;
 
 /// <summary>
 /// Định nghĩa các Minimal API Endpoints quản lý yêu cầu hỗ trợ và sự cố kỹ thuật trong kỳ thuê của khách hàng (C12 / UC07).
-/// Cho phép xem danh sách ticket, xem chi tiết, tạo yêu cầu hỗ trợ mới (kèm ảnh và chủ đề KEY_PICKUP theo D35/D36) và hủy ticket.
+/// Cho phép xem danh sách ticket, xem chi tiết, tạo yêu cầu hỗ trợ mới (kèm ảnh và chủ đề KEY_PICKUP theo D35/D36). D43/D45: hỗ trợ là cuộc trò chuyện liên tục, không có thao tác hủy ticket.
 /// </summary>
 public static class SupportTicketEndpoints
 {
@@ -53,20 +53,7 @@ public static class SupportTicketEndpoints
             }
         }).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(StorageProject.Infrastructure.Services.EvidencePhotos.RequestBodyLimit));
 
-        // POST /api/tickets/{id}/cancel: Khách hàng hủy yêu cầu hỗ trợ
-        group.MapPost("/{id:long}/cancel", async (long id, ClaimsPrincipal user, ISupportTicketService ticketService, CancellationToken ct) =>
-        {
-            try
-            {
-                var customerId = user.GetUserId();
-                await ticketService.CancelTicketAsync(customerId, id, ct);
-                return Results.Ok(new { message = "Đã hủy yêu cầu hỗ trợ thành công." });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Results.BadRequest(new { error = ex.Message });
-            }
-        });
+        // D43/D45: hỗ trợ là cuộc trò chuyện, khách không huỷ/đóng yêu cầu nên không có route /cancel.
 
         return group;
     }

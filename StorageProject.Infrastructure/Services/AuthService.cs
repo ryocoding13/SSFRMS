@@ -25,8 +25,29 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
     /// <returns>Thông tin người dùng vừa được tạo.</returns>
     public async Task<AuthUserDto> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
     {
+        if (string.IsNullOrWhiteSpace(request.Username))
+        {
+            throw new ArgumentException("Tên đăng nhập không được để trống.");
+        }
+        if (request.Username.Any(char.IsWhiteSpace) || request.Username.Contains('@'))
+        {
+            throw new ArgumentException("Tên đăng nhập không được chứa khoảng trắng hoặc ký tự @.");
+        }
+        var username = request.Username;
+        if (username.Length > 50)
+        {
+            throw new ArgumentException("Tên đăng nhập tối đa 50 ký tự.");
+        }
+
+        var email = request.Email?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
+        {
+            throw new ArgumentException("Email không hợp lệ.");
+        }
+
+        var normalizedEmail = email.ToUpperInvariant();
         var existingUser = await dbContext.Users
-            .AnyAsync(u => u.Username == request.Username || u.Email == request.Email, ct);
+            .AnyAsync(u => u.Username == username || u.Email.ToUpper() == normalizedEmail, ct);
 
         if (existingUser)
         {
@@ -37,11 +58,11 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
 
         var user = new User
         {
-            Username = request.Username,
-            Email = request.Email,
+            Username = username,
+            Email = email,
             PasswordHash = passwordHash,
-            FullName = request.FullName,
-            Phone = request.Phone,
+            FullName = request.FullName?.Trim() ?? "",
+            Phone = request.Phone?.Trim(),
             Status = "ACTIVE",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -291,15 +312,17 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
         {
             throw new ArgumentException("Vui lòng nhập mật khẩu hiện tại.");
         }
-        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8 ||
+            Encoding.UTF8.GetByteCount(request.NewPassword) > 72)
         {
-            throw new ArgumentException("Mật khẩu mới phải có ít nhất 8 ký tự.");
+            throw new ArgumentException("Mật khẩu mới cần ít nhất 8 ký tự và tối đa 72 byte UTF-8.");
         }
         if (request.NewPassword == request.CurrentPassword)
         {
             throw new ArgumentException("Mật khẩu mới phải khác mật khẩu hiện tại.");
         }
 
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"password-reset:{userId}", ct);
         var user = await dbContext.Users.FirstOrDefaultAsync(u => u.UserId == userId, ct);
         if (user == null)
         {
@@ -314,5 +337,6 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
         user.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 }
