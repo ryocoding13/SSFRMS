@@ -35,7 +35,16 @@ public partial class FacilityOpsService
         var resolvedCaseIds = cases.Where(c => c.Status == "RESOLVED" || (c.Notes != null && c.Notes.Contains("\"Staff\""))).Select(c => c.OverdueCaseId).ToList();
         var allPhotos = await OverduePhotosAsync(resolvedCaseIds, ct);
 
-        return cases.Select(c => MapToOverdueCaseDto(c, allPhotos)).ToList();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow + VnOffset);
+        var dtos = new List<OverdueCaseDto>();
+        foreach (var c in cases)
+        {
+            var isSettled = c.Status == "RESOLVED";
+            var calc = await OpsRules.CalculateContractOverdueAsync(dbContext, c.Contract, today, isSettled, ct);
+            dtos.Add(MapToOverdueCaseDto(c, allPhotos, calc));
+        }
+
+        return dtos;
     }
 
     public async Task<OverdueCaseDto> HandleOverdueCaseActionAsync(OpsActor actor, OverdueCaseActionRequest request, CancellationToken ct = default)
@@ -268,7 +277,8 @@ public partial class FacilityOpsService
 
     private static OverdueCaseDto MapToOverdueCaseDto(
         OverdueCase c,
-        Dictionary<long, List<EvidencePhotoDto>> allPhotos)
+        Dictionary<long, List<EvidencePhotoDto>> allPhotos,
+        OpsRules.ContractOverdueCalculation? calc = null)
     {
         OverdueRemovalRecordDto? recordDto = null;
         var notesList = new List<string>();
@@ -336,9 +346,15 @@ public partial class FacilityOpsService
             dtoStatus,
             c.AssignedStaff?.FullName,
             c.AssignedStaffId,
-            20,
+            calc?.DisposalDay ?? 20,
             notesList,
-            recordDto
+            recordDto,
+            calc?.OverdueDays,
+            calc?.OverdueFee,
+            calc?.RemainingDeposit,
+            calc?.RatePerDay,
+            calc?.DepletionDay,
+            calc?.PolicyScope
         );
     }
 

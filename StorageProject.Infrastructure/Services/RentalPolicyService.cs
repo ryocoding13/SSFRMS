@@ -76,6 +76,22 @@ public class RentalPolicyService(AppDbContext dbContext) : IRentalPolicyService
         );
     }
 
+    public async Task<IReadOnlyList<RentalPolicyVersionSummaryDto>> GetPolicyVersionsAsync(CancellationToken ct = default)
+    {
+        return await dbContext.RentalPolicyVersions
+            .AsNoTracking()
+            .OrderByDescending(v => v.Version)
+            .Select(v => new RentalPolicyVersionSummaryDto(
+                v.Version,
+                v.DisplayVersion,
+                v.Rate,
+                v.PublishedAt,
+                v.PublishedBy,
+                v.IsCurrent
+            ))
+            .ToListAsync(ct);
+    }
+
     public async Task<RentalPolicyDto> SaveRentalPolicyAsync(long userId, SaveRentalPolicyRequest request, CancellationToken ct = default)
     {
         if (request.Action != "SAVE_RENTAL_POLICY")
@@ -144,31 +160,9 @@ public class RentalPolicyService(AppDbContext dbContext) : IRentalPolicyService
 
         dbContext.RentalPolicyVersions.Add(newPolicyVersion);
 
-        // Keep OVERDUE policy table in sync with the new rate (BO02/BO03)
-        var overduePolicy = await dbContext.Policies
-            .FirstOrDefaultAsync(p => p.PolicyType == "OVERDUE" && p.Status == "ACTIVE", ct);
-
-        if (overduePolicy != null)
-        {
-            overduePolicy.Value = rate;
-            overduePolicy.UpdatedAt = now;
-        }
-        else
-        {
-            dbContext.Policies.Add(new Policy
-            {
-                PolicyName = "Phí phạt quá hạn thanh toán",
-                PolicyType = "OVERDUE",
-                CalculationType = "DEPOSIT_PERCENT_PER_DAY",
-                Value = rate,
-                RuleDescription = "Phí quá hạn: trừ % cọc ban đầu mỗi ngày theo D32",
-                EffectiveFrom = DateOnly.FromDateTime(now),
-                Status = "ACTIVE",
-                CreatedBy = userId,
-                CreatedAt = now,
-                UpdatedAt = now
-            });
-        }
+        // P1: Tắt đường công bố nội dung tự cập nhật bảng Policies.OVERDUE.
+        // Nguồn vận hành OVERDUE được quản lý độc lập tại cấu hình chính sách (B02) kèm scope/audit.
+        // Bảng RentalPolicyVersions lưu Rate như snapshot hiển thị lịch sử của phiên bản khách đọc.
 
         // Audit log
         dbContext.ActivityLogs.Add(new ActivityLog

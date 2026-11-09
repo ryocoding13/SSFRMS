@@ -20,6 +20,13 @@ public static class RentalPolicyEndpoints
             return Results.Ok(policy);
         }).AllowAnonymous();
 
+        // Public GET /api/rental-policy/versions - Danh sách lịch sử các phiên bản
+        group.MapGet("/rental-policy/versions", async (IRentalPolicyService policyService, CancellationToken ct) =>
+        {
+            var versions = await policyService.GetPolicyVersionsAsync(ct);
+            return Results.Ok(versions);
+        }).AllowAnonymous();
+
         // Public GET /api/rental-policy/versions/{version:int}
         group.MapGet("/rental-policy/versions/{version:int}", async (int version, IRentalPolicyService policyService, CancellationToken ct) =>
         {

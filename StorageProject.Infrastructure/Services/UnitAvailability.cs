@@ -13,7 +13,7 @@ namespace StorageProject.Infrastructure.Services;
 public static class UnitAvailability
 {
     public const string BufferPolicyType = "RELET_BUFFER";
-    public const int DefaultBufferDays = 3;
+    public const int DefaultBufferDays = OpsRules.DefaultReletBufferDays;
 
     /// <summary>Hợp đồng còn giữ ô (khách cũ chưa trả xong hoặc khách mới đã đặt).</summary>
     public static readonly string[] HoldingStatuses = ["DRAFT", "ACTIVE", "EXPIRING", "OVERDUE", "RETURN_PENDING"];

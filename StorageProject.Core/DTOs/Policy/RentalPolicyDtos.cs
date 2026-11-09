@@ -34,3 +34,12 @@ public record PolicyConsentDto(
     DateTime AcceptedAt,
     string Channel
 );
+
+public record RentalPolicyVersionSummaryDto(
+    int Version,
+    string DisplayVersion,
+    decimal Rate,
+    DateTime PublishedAt,
+    long PublishedBy,
+    bool IsCurrent
+);

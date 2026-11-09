@@ -1,3 +1,126 @@
+## 2026-11-10 — Triển khai Gói P3: Hoàn thiện quản lý nháp và lịch sử phiên bản chính sách
+
+- **Mục tiêu:**
+  - Triển khai gói P3 theo kế hoạch `SSFRMS-Business-Policies-Audit-and-Refactor-Plan.md`:
+    1. Hoàn thiện quản lý trạng thái chính sách vận hành (`PolicyStatusPage.jsx`): bổ sung bộ lọc trạng thái (DRAFT/ACTIVE/INACTIVE/EXPIRED) và phạm vi áp dụng (Toàn hệ thống/Cơ sở/Loại kho); hỗ trợ sửa bản nháp (`updatePolicy`), kích hoạt bản nháp (`activatePolicy`) kèm xử lý xung đột 409 thay thế; bảo đảm chỉ xoá bản DRAFT, giữ lại các bản ACTIVE/INACTIVE/EXPIRED để bảo toàn lịch sử kiểm toán.
+    2. Bổ sung quản lý lịch sử phiên bản chính sách cho thuê:
+       - API backend: Thêm `RentalPolicyVersionSummaryDto`, phương thức `GetPolicyVersionsAsync` trong `RentalPolicyService` và endpoint `GET /api/rental-policy/versions`.
+       - Editor frontend (`RentalPolicyEditorPage.jsx`): Tích hợp danh sách lịch sử các phiên bản công bố và modal xem lại nội dung bản công bố cũ (`rentalPolicyVersion(v)`).
+    3. Ngăn chặn ghi đè khi thao tác đồng thời (Concurrency Control): Kiểm tra phiên bản đang chỉnh sửa (`expectedVersion`), trả lỗi `OperationConflictException` (409) rõ ràng khi có người khác vừa công bố, đồng thời bảo lưu an toàn nội dung đang soạn thảo trên giao diện mà không xoá mất dữ liệu của người dùng.
+- **Giải pháp triển khai:**
+  1. `StorageProject.Core/DTOs & Interfaces`:
+     - `RentalPolicyDtos.cs`: Thêm record `RentalPolicyVersionSummaryDto` (Version, DisplayVersion, Rate, PublishedAt, PublishedBy, IsCurrent).
+     - `IServices.cs`: Bổ sung `GetPolicyVersionsAsync` vào `IRentalPolicyService`.
+  2. `StorageProject.Infrastructure & Api`:
+     - `RentalPolicyService.cs`: Cài đặt `GetPolicyVersionsAsync` đọc danh sách phiên bản theo thứ tự giảm dần thời gian công bố.
+     - `RentalPolicyEndpoints.cs`: Thêm route `GET /api/rental-policy/versions` công khai để lấy danh sách lịch sử các phiên bản.
+  3. `SafeSpace-Customer-UI`:
+     - `businessApi.js`: Thêm `rentalPolicyVersions()` và `rentalPolicyVersion(version)`.
+     - `PolicyStatusPage.jsx`: Bổ sung 2 bộ lọc (Trạng thái & Phạm vi); thêm luồng "Kích hoạt" (xử lý xung đột 409 hỏi thay thế), "Sửa nháp" (modal chỉnh sửa tên, giá trị, mô tả quy tắc), "Xoá nháp" (chỉ DRAFT); bảo vệ các bản ACTIVE/INACTIVE không bị xoá.
+     - `RentalPolicyEditorPage.jsx`: Hiển thị danh sách lịch sử phiên bản đã công bố, xem chi tiết bản cũ qua modal; giữ nguyên nội dung `draft` khi xảy ra xung đột phiên bản máy chủ.
+  4. Unit Tests:
+     - Tạo mới `StorageProject.Tests/PolicyDraftAndHistoryP3Tests.cs` (3/3 tests PASS):
+       - Kiểm tra `GetPolicyVersionsAsync` trả về danh sách phiên bản giảm dần với `IsCurrent` chuẩn xác.
+       - Kiểm tra `SaveRentalPolicyAsync` bắt lỗi xung đột phiên bản `OperationConflictException` khi có phiên bản mới hơn.
+       - Kiểm tra vòng đời nháp trong `OperationsService`: tạo nháp -> sửa nháp -> kích hoạt -> chặn sửa bản ACTIVE -> chặn xoá bản ACTIVE -> ngừng áp dụng.
+- **Kiểm chứng:**
+  - Backend P3 Test: `dotnet test StorageProject.Tests --filter "FullyQualifiedName~PolicyDraftAndHistoryP3Tests"` PASS (3/3 tests).
+  - Toàn bộ Backend Unit Tests: `dotnet test StorageProject.Tests` PASS (295/295 tests).
+  - Toàn bộ Backend Integration Tests: `dotnet test StorageProject.IntegrationTests` PASS (11/11 tests).
+  - Frontend Test Suite: `npm test` PASS 166/166 tests.
+  - Frontend Business Tests: `npm run test:business` PASS 13/13 tests.
+  - Frontend Workflows & Structure: `npm run test:workflows` PASS 12/12, `npm run check:structure` PASS.
+  - Frontend Render & Build: `npm run test:render` PASS 178 routes, `npm run build` PASS.
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-10 — Triển khai Gói P2: Chuẩn hoá các tham số vận hành và thời hạn hệ thống
+
+- **Mục tiêu:**
+  - Triển khai gói P2 theo kế hoạch `SSFRMS-Business-Policies-Audit-and-Refactor-Plan.md`:
+    1. Tách rõ và chuẩn hóa các mốc thời gian: giữ chỗ trực tuyến (phút), hạn thu tại quầy (cuối ngày hẹn theo giờ VN), mốc EXPIRING (ngày), hạn thanh toán gia hạn sau khi duyệt (giờ), ngày đệm cho thuê lại (ngày) và tiền cọc (tháng hoặc quy tắc cố định).
+    2. Đưa toàn bộ các hằng số và công thức tính toán thời hạn về `OpsRules.cs` làm nguồn tập trung cho backend.
+    3. Bảo đảm tính bất biến (immutability) của thời hạn: khi đơn hoặc yêu cầu gia hạn đã phát sinh, `ExpiresAt` và `PaymentDeadlineAt` được gán tại thời điểm tạo/duyệt và lưu vĩnh viễn trong DB; các thay đổi cấu hình sau đó không hồi tố hay làm thay đổi deadline của hồ sơ đang mở.
+    4. Giữ nguyên tính độc lập của các trường hướng dẫn văn bản (SLA kiểm tra, hoàn cọc, số lần gia hạn) không bị phân tích chuỗi thành con số tự động.
+- **Giải pháp triển khai:**
+  1. `StorageProject.Infrastructure/Services/OpsRules.cs`:
+     - Khai báo các hằng số chuẩn hóa:
+       - `DefaultOnlineReservationHoldMinutes = 15` (D02)
+       - `DefaultExpiringThresholdDays = 30` (D11 · OverdueProcessor)
+       - `DefaultRenewalPaymentDeadlineHours = 24` (D11/D32 · RenewalApproval)
+       - `DefaultReletBufferDays = 3` (D41 · UnitAvailability)
+       - `DefaultDepositMonths = 1.0m` (D09/D16/D32)
+       - `DefaultCleaningFeeRate = 10.0m` (D32)
+       - `DefaultCancellationFeeRate = 5.0m` (D40)
+     - Cung cấp các phương thức tính toán tập trung:
+       - `CalculateOnlineHoldDeadlineUtc(DateTime? fromUtc = null)`: tạo hạn 15 phút.
+       - `CalculateCounterHoldDeadlineUtc(DateOnly checkInDay)`: 23:59:59 của ngày check-in theo giờ VN (17:00 UTC).
+       - `CalculateRenewalPaymentDeadlineUtc(DateTime approvedAtUtc, DateOnly oldEndDate)`: `min(now + 24h, 00:00 ngày hết hạn hợp đồng giờ VN)`.
+  2. Refactor các backend consumers:
+     - `ReservationService.cs`: Áp dụng `OpsRules.CalculateOnlineHoldDeadlineUtc(DateTime.UtcNow)` khi tạo đơn `PENDING_PAYMENT`.
+     - `PayOSService.cs`: Áp dụng `OpsRules.CalculateCounterHoldDeadlineUtc(checkInDay)` khi khách chọn thanh toán tại quầy (`PENDING_AT_FACILITY`).
+     - `OverdueProcessor.cs`: Áp dụng `OpsRules.DefaultExpiringThresholdDays` (30 ngày) khi quét trạng thái EXPIRING.
+     - `RenewalApproval.cs`: Áp dụng `OpsRules.CalculateRenewalPaymentDeadlineUtc(now, renewal.OldEndDate)` khi duyệt gia hạn.
+     - `UnitAvailability.cs`: Liên kết `DefaultBufferDays = OpsRules.DefaultReletBufferDays`.
+  3. Frontend:
+     - `policyFields.js` duy trì phân định rõ:
+       - `ENGINE_SECTIONS`: 3 tham số có engine thực thi (`DEPOSIT`, `OVERDUE`, `RELET_BUFFER`).
+       - `SYSTEM_ENFORCED_POLICIES`: 7 quy định cố định chỉ đọc (EXPIRING 30 ngày, giữ chỗ online 15 phút, quầy cuối ngày, gia hạn 24 giờ, trần cọc 100%, phí vệ sinh 10%, mốc xử lý đồ ngày 20).
+       - `GUIDELINE_SECTIONS`: Hướng dẫn văn bản kèm cảnh báo rõ "Chỉ hiển thị, không thay đổi xử lý tự động".
+  4. Unit Tests:
+     - Viết mới bộ test `StorageProject.Tests/StandardizedOperationalParametersP2Tests.cs` (6/6 tests PASS):
+       - Kiểm tra hạn giữ chỗ online đúng 15 phút.
+       - Kiểm tra hạn thanh toán tại quầy đúng đến 23:59:59 ngày hẹn nhận kho theo giờ VN (kể cả sát nửa đêm).
+       - Kiểm tra hạn gia hạn: đúng 24h khi hợp đồng còn xa; co lại đúng thời điểm hết hạn nếu hợp đồng còn dưới 24h.
+       - Kiểm tra mốc EXPIRING 30 ngày và ngày đệm RELET_BUFFER mặc định 3 ngày.
+- **Kiểm chứng:**
+  - Backend P2 Test: `dotnet test StorageProject.Tests --filter "FullyQualifiedName~StandardizedOperationalParametersP2Tests"` PASS (6/6 tests).
+  - Toàn bộ Backend Unit Tests: `dotnet test StorageProject.Tests` PASS (292/292 tests).
+  - Toàn bộ Backend Integration Tests: `dotnet test StorageProject.IntegrationTests` PASS (11/11 tests).
+  - Frontend Test Suite: `npm test` PASS 166/166 tests.
+  - Frontend Business Tests: `npm run test:business` PASS 13/13 tests.
+  - Frontend Workflows & Structure: `npm run test:workflows` PASS 12/12, `npm run check:structure` PASS.
+  - Frontend Render & Build: `npm run test:render` PASS 178 routes, `npm run build` PASS.
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-10 — Triển khai Gói P1: Thống nhất tính quá hạn từ backend (Single Source of Truth)
+
+- **Mục tiêu:**
+  - Triển khai gói P1 theo kế hoạch `SSFRMS-Business-Policies-Audit-and-Refactor-Plan.md`:
+    1. Dùng bảng vận hành `Policies.OVERDUE` làm nguồn vận hành duy nhất cho toàn hệ thống. Dùng chung bộ chọn policy và công thức tính phí quá hạn giữa background worker (`OverdueProcessor`), dự tính trả kho (`FacilityOpsService.Board.cs`), quyết toán (`SettleReturnAsync`) và API quản lý quá hạn (`FacilityOpsService.Overdue.cs`).
+    2. API backend (`ContractDetailDto`, `ContractSummaryDto`, `OverdueCaseDto`) trả đầy đủ: tỷ lệ (`OverdueRate`), ngày tính (`AsOfDate`), số ngày trễ (`OverdueDays`), tiền khấu trừ (`OverdueFee`), cọc còn lại (`RemainingDeposit`), ngày cạn cọc (`DepletionDay`), mốc xử lý đồ (`DisposalDay` = 20 cố định theo D32) và trạng thái dự tính/đã chốt (`IsSettled`).
+    3. Giao diện người dùng (Khách hàng: `DepositLedgerPage.jsx`, Quản lý: `OverdueCasePage.jsx`) chuyển sang sử dụng số liệu server tính sẵn; tách bạch độc lập giữa ngày cạn cọc (`DepletionDay`, ví dụ 6% cạn cọc ngày 17) và mốc xử lý đồ (`DisposalDay` = 20 cố định theo D32/D45).
+    4. Tắt đường công bố nội dung (`RentalPolicyService.cs`) tự động can thiệp / ghi đè bảng `Policies.OVERDUE`.
+- **Giải pháp triển khai:**
+  1. `StorageProject.Core/DTOs`:
+     - `ContractDtos.cs`: Thêm record `ContractOverdueDto` và trường tùy chọn `ContractOverdueDto? Overdue = null` vào `ContractSummaryDto` và `ContractDetailDto`.
+     - `OverdueCaseDtos.cs`: Bổ sung các trường `OverdueDays`, `OverdueFee`, `RemainingDeposit`, `OverdueRate`, `DepletionDay`, `CalculationScope` vào `OverdueCaseDto`.
+  2. `StorageProject.Infrastructure/Services`:
+     - `OpsRules.cs`: Xây dựng hàm dùng chung `CalculateContractOverdueAsync(dbContext, contract, asOfDate, isSettled, ct)` tra cứu chính sách OVERDUE theo thứ tự ưu tiên scope (UnitType + Facility -> Facility -> UnitType -> System-wide -> fallback 5%), giới hạn trần 100% cọc, tính riêng `DepletionDay = Math.Ceiling(100 / rate)` và `DisposalDay = 20`.
+     - `OverdueProcessor.cs`: Refactor tiến trình chạy định kỳ dùng `OpsRules.CalculateContractOverdueAsync`, cập nhật `OutstandingAmount = calc.OverdueFee`.
+     - `FacilityOpsService.Actions.cs`: `SettleReturnAsync` dùng `OpsRules.CalculateContractOverdueAsync` để khấu trừ quá hạn thống nhất.
+     - `FacilityOpsService.Board.cs`: `OverdueFeeAtAsync` gọi `OpsRules.CalculateContractOverdueAsync`.
+     - `FacilityOpsService.Overdue.cs`: Bổ sung thông tin tính toán chi tiết vào `OverdueCaseDto`.
+     - `ContractService.cs`: Đính kèm thông tin `Overdue` vào `GetMyContractsAsync` và `GetContractDetailAsync`.
+     - `RentalPolicyService.cs`: Tắt việc đồng bộ/ghi đè bảng `Policies` vận hành khi lưu phiên bản chính sách cho thuê.
+  3. `SafeSpace-Customer-UI`:
+     - `apiMappers.js`: Mapped trường `c.overdue` từ backend API sang object contract trên FE (`rate_per_day`, `overdue_days`, `overdue_fee`, `remaining_deposit`, `depletion_day`, `disposal_day`, `is_settled`).
+     - `workflowModel.js`: Cập nhật hàm `depositSchedule` trả về độc lập `depletionDay` và `disposalDay: 20`.
+     - `DepositLedgerPage.jsx`: Ưu tiên sử dụng `c.overdue` từ backend, phân biệt ngày cạn cọc và mốc xử lý đồ.
+     - `OverdueCasePage.jsx`: Sử dụng trực tiếp các chỉ số `item.overdueDays`, `item.overdueFee`, `item.remainingDeposit`, `item.overdueRate`, `item.depletionDay`, `item.removalDay` từ server; phân công xử lý đồ `canAssign` kiểm tra chặt chẽ `overdueDays >= disposalDay` (ngày 20).
+  4. Unit Tests:
+     - Tạo bài test mới `StorageProject.Tests/OverdueP1UnifiedPolicyTests.cs`: kiểm chứng rate 6%, cọc 1.000.000 đ, trễ 2 ngày -> phí 120.000 đ đồng nhất giữa OpsRules, OverdueProcessor worker và ContractService API; kiểm tra ngày cạn cọc = 17 và mốc xử lý đồ giữ nguyên ngày 20.
+     - Cập nhật `StorageProject.Tests/RentalPolicyW3Tests.cs`: kiểm chứng việc lưu chính sách cho thuê không làm thay đổi bảng `Policies` vận hành.
+- **Kiểm chứng:**
+  - Backend P1 Test: `dotnet test StorageProject.Tests --filter "FullyQualifiedName~OverdueP1UnifiedPolicyTests"` PASS (1/1 test).
+  - Backend RentalPolicy Tests: `dotnet test StorageProject.Tests --filter "FullyQualifiedName~RentalPolicyW3Tests"` PASS (10/10 tests).
+  - Backend Unit Tests: `dotnet test StorageProject.Tests` PASS (286/286 tests).
+  - Backend Integration Tests: `dotnet test StorageProject.IntegrationTests` PASS (11/11 tests).
+  - Frontend Test Suite: `npm test` PASS 166/166 tests.
+  - Frontend Business Tests: `npm run test:business` PASS 13/13 tests.
+  - Frontend Workflows & Structure: `npm run test:workflows` PASS 12/12, `npm run check:structure` PASS.
+  - Frontend Render & Build: `npm run test:render` PASS 178 routes, `npm run build` PASS.
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
 ## 2026-11-09 — Triển khai Gói P0: Kiểm kê và sửa giao diện chính sách kinh doanh gây hiểu nhầm (B02)
 
 - **Mục tiêu:**

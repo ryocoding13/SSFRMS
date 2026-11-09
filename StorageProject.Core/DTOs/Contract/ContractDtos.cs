@@ -4,6 +4,20 @@ using StorageProject.Core.DTOs.Renewal;
 
 namespace StorageProject.Core.DTOs.Contract;
 
+public record ContractOverdueDto(
+    long? PolicyId,
+    string PolicyScope,
+    decimal RatePerDay,
+    string CalculationType,
+    DateOnly AsOfDate,
+    int OverdueDays,
+    decimal OverdueFee,
+    decimal RemainingDeposit,
+    int DepletionDay,
+    int DisposalDay,
+    bool IsSettled
+);
+
 public record ContractSummaryDto(
     long ContractId,
     long ReservationId,
@@ -16,7 +30,8 @@ public record ContractSummaryDto(
     decimal AgreedMonthlyRate,
     decimal DepositAmount,
     string Status,
-    DateTime? ActivatedAt
+    DateTime? ActivatedAt,
+    ContractOverdueDto? Overdue = null
 );
 
 public record ContractDetailDto(
@@ -43,7 +58,8 @@ public record ContractDetailDto(
     DateTime? PolicyAcceptedAt = null,
     // D41: ô đã có khách mới đặt từ ngày này → nút gia hạn mờ "Ô đã có khách đặt từ dd/mm"
     DateOnly? NextBookingFrom = null,
-    PolicyConsentDto? PolicyConsent = null
+    PolicyConsentDto? PolicyConsent = null,
+    ContractOverdueDto? Overdue = null
 );
 
 public record HandoverSummaryDto(

@@ -59,6 +59,37 @@ public static class OpsRules
     public const int DefaultOverdueReminderEndDay = 14;
     public const int DefaultOverdueDisposalDay = 20;
 
+    // Mốc thời gian và tham số vận hành chuẩn hóa theo P2 (SSFRMS-Business-Policies-Audit-and-Refactor-Plan.md)
+    public const int DefaultOnlineReservationHoldMinutes = 15; // Giữ chỗ trực tuyến 15 phút (D02)
+    public const int DefaultExpiringThresholdDays = 30; // Mốc sắp hết hạn EXPIRING 30 ngày (D11)
+    public const int DefaultRenewalPaymentDeadlineHours = 24; // Hạn thanh toán sau khi duyệt gia hạn 24 giờ (D11/D32)
+    public const int DefaultReletBufferDays = 3; // Ngày đệm cho thuê lại 3 ngày (D41)
+    public const decimal DefaultDepositMonths = 1.0m; // Mức cọc mặc định 1 tháng tiền thuê (D09/D16/D32)
+    public const decimal DefaultCleaningFeeRate = 10.0m; // Phí vệ sinh cơ bản 10% cọc (D32)
+    public const decimal DefaultCancellationFeeRate = 5.0m; // Phí hủy trước StartDate 5% cọc (D40)
+
+    /// <summary>
+    /// Hạn giữ chỗ khi đặt phòng trực tuyến: 15 phút kể từ thời điểm tạo (UTC).
+    /// </summary>
+    public static DateTime CalculateOnlineHoldDeadlineUtc(DateTime? fromUtc = null) =>
+        (fromUtc ?? DateTime.UtcNow).AddMinutes(DefaultOnlineReservationHoldMinutes);
+
+    /// <summary>
+    /// Hạn giữ chỗ khi thanh toán tại quầy: hết ngày hẹn nhận kho theo giờ Việt Nam (UTC+7).
+    /// </summary>
+    public static DateTime CalculateCounterHoldDeadlineUtc(DateOnly checkInDay) =>
+        checkInDay.AddDays(1).ToDateTime(TimeOnly.MinValue) - ReportOffset;
+
+    /// <summary>
+    /// Hạn thanh toán gia hạn sau khi duyệt: min(now + 24 giờ, 00:00 ngày hết hạn hợp đồng theo giờ Việt Nam).
+    /// </summary>
+    public static DateTime CalculateRenewalPaymentDeadlineUtc(DateTime approvedAtUtc, DateOnly oldEndDate)
+    {
+        var expiryUtc = oldEndDate.ToDateTime(TimeOnly.MinValue) - ReportOffset;
+        var maxDeadlineUtc = approvedAtUtc.AddHours(DefaultRenewalPaymentDeadlineHours);
+        return maxDeadlineUtc < expiryUtc ? maxDeadlineUtc : expiryUtc;
+    }
+
     /// <summary>
     /// Kiểm tra thứ tự logic các mốc quá hạn và tỷ lệ khấu trừ (D32: 5% / 10-14 ngày nhắc / 20 ngày xử lý đồ).
     /// </summary>
@@ -102,6 +133,63 @@ public static class OpsRules
             .ThenByDescending(p => p.UnitTypeId != null)
             .ThenByDescending(p => p.EffectiveFrom)
             .FirstOrDefaultAsync(ct);
+    }
+
+    public record ContractOverdueCalculation(
+        long? PolicyId,
+        string PolicyScope,
+        decimal RatePerDay,
+        string CalculationType,
+        DateOnly AsOfDate,
+        int OverdueDays,
+        decimal OverdueFee,
+        decimal RemainingDeposit,
+        int DepletionDay,
+        int DisposalDay,
+        bool IsSettled
+    );
+
+    /// <summary>
+    /// P1: Dùng chung bộ chọn policy OVERDUE và tính phí giữa worker, dự tính trả kho, quyết toán và API báo cáo.
+    /// Tra cứu OVERDUE theo thứ tự ưu tiên cơ sở/loại kho, rơi về mặc định 5%/ngày (D32).
+    /// Ngày cạn cọc (depletionDay) và ngày xử lý đồ (disposalDay = 20) là hai giá trị riêng biệt.
+    /// </summary>
+    public static async Task<ContractOverdueCalculation> CalculateContractOverdueAsync(
+        AppDbContext dbContext,
+        RentalContract contract,
+        DateOnly asOfDate,
+        bool isSettled = false,
+        CancellationToken ct = default)
+    {
+        var overdueDays = Math.Max(0, asOfDate.DayNumber - contract.EndDate.DayNumber);
+        var facilityId = contract.Unit?.FacilityId;
+        var unitTypeId = contract.Unit?.UnitTypeId;
+
+        var policy = await FindApplicablePolicyAsync(dbContext, "OVERDUE", facilityId, unitTypeId, asOfDate, ct);
+        var rate = policy?.Value ?? DefaultOverdueRatePerDay;
+        var calcType = policy?.CalculationType ?? "DEPOSIT_PERCENT_PER_DAY";
+        var scope = policy == null ? "DEFAULT"
+            : (policy.FacilityId != null ? (policy.UnitTypeId != null ? "FACILITY_UNIT_TYPE" : "FACILITY")
+            : (policy.UnitTypeId != null ? "UNIT_TYPE" : "GLOBAL"));
+
+        var overdueFee = StorageProject.Core.Policies.RefundPolicy.OverdueFeeFor(calcType, rate, contract.DepositAmount, overdueDays, maxCap: contract.DepositAmount);
+        var remainingDeposit = Math.Max(0, contract.DepositAmount - overdueFee);
+        var depletionDay = rate > 0 ? (int)Math.Ceiling(100m / rate) : 20;
+        var disposalDay = DefaultOverdueDisposalDay; // Mốc ngày 20 cố định theo D32
+
+        return new ContractOverdueCalculation(
+            policy?.PolicyId,
+            scope,
+            rate,
+            calcType,
+            asOfDate,
+            overdueDays,
+            overdueFee,
+            remainingDeposit,
+            depletionDay,
+            disposalDay,
+            isSettled
+        );
     }
 
     /// <summary>

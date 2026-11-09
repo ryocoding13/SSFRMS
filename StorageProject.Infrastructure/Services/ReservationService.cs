@@ -188,7 +188,7 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             EstimatedAmount = estimatedAmount,
             RequiredDeposit = requiredDeposit,
             Status = "PENDING_PAYMENT",
-            ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+            ExpiresAt = OpsRules.CalculateOnlineHoldDeadlineUtc(DateTime.UtcNow),
             CreatedAt = DateTime.UtcNow
         };
 
