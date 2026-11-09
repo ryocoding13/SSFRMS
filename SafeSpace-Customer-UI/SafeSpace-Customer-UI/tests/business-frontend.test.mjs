@@ -3,7 +3,17 @@ import assert from 'node:assert/strict';
 import { setToken } from "../src/shared/api/httpClient.js";
 import { businessApi } from "../src/features/business/api/businessApi.js";
 import { homeFor, isBusinessRoles, isOpsRoles } from "../src/shared/utils/roles.js";
-import { policyFields, fieldValue, fieldPolicy, policyJobs } from "../src/features/business/policies/policyFields.js";
+import {
+  policyFields,
+  fieldValue,
+  fieldPolicy,
+  policyJobs,
+  isLegacyRenewal,
+  legacyPolicies,
+  ENGINE_SECTIONS,
+  SYSTEM_ENFORCED_POLICIES,
+  GUIDELINE_SECTIONS,
+} from "../src/features/business/policies/policyFields.js";
 import { activateWithConfirm, replacePolicy } from "../src/features/business/policies/policyActions.js";
 import { parseCsv, workbookBytes } from "../src/features/business/reports/reportExport.js";
 import { facilityToForm, formToRequest, splitCoordinates } from "../src/features/business/facilities/facilityForm.js";
@@ -139,4 +149,34 @@ test('3.5 · facilityContracts gọi đúng route BE kèm bộ lọc; máy chủ
   assert.equal(seen.at(-1),'/api/operations/reports/facilities/1/contracts?status=ACTIVE');
   await assert.rejects(()=>businessApi.facilityContracts(999999,{}));
  } finally { globalThis.fetch=realFetch; setToken(null); await new Promise(r=>server.close(r)); }
+});
+
+
+test('P0 · chính sách: phân nhóm rõ ràng, bỏ ánh xạ RENEWAL=24 sang 24 ngày thông báo, nhận diện legacy', () => {
+ const legacySeed = p({
+  policyId: 2,
+  policyName: 'Thời gian giữ chỗ đặt trước',
+  policyType: 'RENEWAL',
+  calculationType: 'FIXED',
+  value: 24,
+  ruleDescription: 'Đơn đặt chỗ chưa thanh toán sẽ tự động hết hạn sau 24 giờ kể từ lúc tạo',
+ });
+ assert.ok(isLegacyRenewal(legacySeed));
+ assert.equal(legacyPolicies([legacySeed]).length, 1);
+ // Không ánh xạ RENEWAL=24 vào field reminder
+ assert.equal(fieldPolicy([legacySeed], field('reminder'), day), undefined);
+ assert.equal(fieldValue(legacySeed, field('reminder')), '');
+
+ // Renewal thực tế khác 24 giờ vẫn đọc được
+ const activeRenewal = p({ policyId: 99, policyType: 'RENEWAL', calculationType: 'FIXED', value: 7, ruleDescription: '' });
+ assert.equal(isLegacyRenewal(activeRenewal), false);
+ assert.equal(fieldPolicy([activeRenewal], field('reminder'), day), activeRenewal);
+ assert.equal(fieldValue(activeRenewal, field('reminder')), '7 ngày');
+
+ // Kiểm tra cấu trúc 3 nhóm phân định
+ assert.ok(ENGINE_SECTIONS[0].fields.some(f => f.key === 'deposit'));
+ assert.ok(ENGINE_SECTIONS[0].fields.some(f => f.key === 'overdue'));
+ assert.ok(ENGINE_SECTIONS[0].fields.some(f => f.key === 'relet'));
+ assert.ok(SYSTEM_ENFORCED_POLICIES.some(f => f.key === 'expiring' && f.value.includes('30 ngày')));
+ assert.ok(GUIDELINE_SECTIONS[0].fields.some(f => f.key === 'refund'));
 });

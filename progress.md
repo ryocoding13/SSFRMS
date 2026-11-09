@@ -1,3 +1,36 @@
+## 2026-11-09 — Triển khai Gói P0: Kiểm kê và sửa giao diện chính sách kinh doanh gây hiểu nhầm (B02)
+
+- **Mục tiêu:**
+  - Triển khai gói P0 theo kế hoạch `SSFRMS-Business-Policies-Audit-and-Refactor-Plan.md`:
+    1. Kiểm kê các ô cấu hình trên form chính sách của Quản lý vận hành KD (`PolicySettingsPage.jsx` / `policyFields.js`).
+    2. Bỏ việc ánh xạ `RENEWAL=24` (bản ghi seed giữ chỗ 24h ban đầu trước D02) sang ô "Thông báo trước khi hết hạn" (tránh gây hiểu nhầm thành 24 ngày thông báo).
+    3. Phân biệt rõ các trường:
+       - **Quy tắc vận hành tự động (Active Engine Rules)** có consumer backend thực thi trực tiếp: `DEPOSIT` (1 tháng tiền thuê), `OVERDUE` (5% cọc/ngày), `RELET_BUFFER` (0–60 ngày đệm kho trống).
+       - **Quy định cố định theo hệ thống (System Enforced Policies — Chỉ đọc)**: thông báo sắp hết hạn 30 ngày (OverdueProcessor), hạn giữ chỗ trực tuyến 15 phút, hạn giữ chỗ quầy hết ngày hẹn, hạn thanh toán gia hạn 24 giờ sau duyệt, trần khấu trừ 100% cọc, phí vệ sinh 10%, mốc xử lý đồ ngày 20 (D32/D45).
+       - **Nội dung hướng dẫn nghiệp vụ (Guidance Only)**: hoàn cọc, kiểm tra kho, số lần gia hạn, phí hủy, mốc nhắc nhở kèm ghi chú rõ ràng: *"Chỉ hiển thị, không thay đổi xử lý tự động"*.
+       - **Bản ghi legacy / Chưa áp dụng**: hiển thị nhận diện bản ghi `RENEWAL=24` kèm nhãn `[LEGACY / CHƯA ÁP DỤNG]` và giải thích lịch sử kiểm toán mà không can thiệp logic hệ thống.
+- **Giải pháp triển khai:**
+  1. `policyFields.js`:
+     - Tách cấu trúc metadata: `ENGINE_SECTIONS`, `SYSTEM_ENFORCED_POLICIES`, `GUIDELINE_SECTIONS`, `LEGACY_FIELDS`.
+     - Thêm `isLegacyRenewal(p)` và `legacyPolicies(policies)`: phát hiện bản ghi RENEWAL=24 (hoặc mô tả 24 giờ giữ chỗ).
+     - Cập nhật `fieldPolicy`: bỏ việc ánh xạ `RENEWAL=24` vào trường `reminder`.
+     - Cập nhật `fieldValue`: trả về rỗng thay vì `"24 ngày"` khi gặp bản ghi legacy renewal.
+     - Bảo toàn `policyJobs` tương thích hoàn toàn cho việc submit và kiểm thử.
+  2. `PolicySettingsPage.jsx`:
+     - Bố cục lại giao diện thành 4 khối chức năng trực quan:
+       - Khối 1: Quy tắc vận hành tự động (badge xanh "Tự động áp dụng").
+       - Khối 2: Quy định cố định theo hệ thống (badge xanh dương "Quy định cố định · Chỉ đọc", lưới thẻ chi tiết từng mốc quy định và căn cứ quyết định).
+       - Khối 3: Nội dung hướng dẫn nghiệp vụ (badge vàng "Chỉ hiển thị, không thay đổi xử lý tự động", kèm Notice cảnh báo rõ ràng).
+       - Khối 4: Bản ghi dữ liệu cũ (Legacy) nhận diện và giải thích bản ghi RENEWAL=24 nếu tồn tại trong cơ sở dữ liệu.
+  3. Unit Tests:
+     - Bổ sung test kiểm chứng P0 trong `tests/business-frontend.test.mjs`: kiểm tra phân nhóm, bỏ ánh xạ `RENEWAL=24` thành "24 ngày", và nhận diện legacy policies (13/13 tests PASS).
+- **Kiểm chứng:**
+  - Frontend Test Suite: `npm test` PASS 166/166 tests.
+  - Frontend Business Tests: `npm run test:business` PASS 13/13 tests.
+  - Frontend Workflows & Structure: `npm run test:workflows` PASS 12/12, `npm run check:structure` PASS.
+  - Frontend Render & Build: `npm run test:render` PASS 178 routes, `npm run build` PASS.
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
 ## 2026-11-07 — Rà soát và xoá bỏ các cơ sở và loại kho inactive trong cơ sở dữ liệu
 
 - **Mục tiêu:**
