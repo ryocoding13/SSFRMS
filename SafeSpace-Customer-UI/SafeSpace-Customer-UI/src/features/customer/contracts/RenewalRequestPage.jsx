@@ -1,3 +1,11 @@
+/**
+ * RENEWAL REQUEST PAGE - GỬI YÊU CẦU GIA HẠN HỢP ĐỒNG THUÊ KHO (C07 / UC06)
+ *
+ * Quy tắc nghiệp vụ (D11 / D32 / D41):
+ * - Hạn gửi yêu cầu: Chậm nhất 7 ngày trước khi hợp đồng kết thúc.
+ * - Khách chọn kỳ hạn mới: 1, 3, hoặc 6 tháng.
+ * - Kiểm tra ràng buộc D41: Nếu ô kho đã có người đặt trước, gợi ý khách đổi sang ô khác (D46).
+ */
 import React, { useState } from "react";
 import { Button, DetailList, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import { RENTAL_PLANS } from "../../../shared/utils/catalog.js";
@@ -9,6 +17,10 @@ import { useWorkflowData } from "../../facility-operations/workflows/useWorkflow
 import { NotFound } from "./components/ContractNotFound.jsx";
 import "../../../shared/styles/customer-detail.css";
 
+/**
+ * Màn hình biểu mẫu đăng ký gia hạn thời gian thuê kho.
+ * @param {{ contract: Object }} props
+ */
 export function RenewalRequestPage({ id }) {
   const { data, dispatch } = useApp();
   const policy = useWorkflowData("policy");

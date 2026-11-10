@@ -1,3 +1,10 @@
+/**
+ * VIETQR GENERATOR - TẠO MÃ THANH TOÁN QR VIETQR CHUẨN NAPAS
+ *
+ * Sinh chuỗi payload QR theo chuẩn EMVCo / NAPAS 247:
+ * - Mã ngân hàng thụ hưởng, số tài khoản nhận tiền và tên chủ tài khoản (PROCESS-2026-10-28-PAYOS).
+ * - Số tiền thanh toán và nội dung chuyển khoản tự động theo mã đơn/hợp đồng.
+ */
 // Tạo chuỗi VietQR (chuẩn EMVCo / NAPAS 247) để ứng dụng ngân hàng quét và điền sẵn
 // số tài khoản, số tiền, nội dung chuyển khoản.
 

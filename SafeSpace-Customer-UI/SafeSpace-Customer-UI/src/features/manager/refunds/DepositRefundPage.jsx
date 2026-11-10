@@ -1,3 +1,11 @@
+/**
+ * DEPOSIT REFUND PAGE - QUYẾT TOÁN VÀ HOÀN TRẢ TIỀN CỌC KHI KẾT THÚC THUÊ (M07 / D32 / D39)
+ *
+ * Nghiệp vụ D32 / D39:
+ * - Sau khi nhân viên lập biên bản kiểm kê trả kho (S03), khách hàng có 48 giờ để xác nhận khấu trừ.
+ * - Quản lý kiểm tra các khoản khấu trừ hợp lệ (vệ sinh tối đa 10% cọc, hư hỏng có ảnh bằng chứng).
+ * - Tuyệt đối không tạo nợ âm vượt quá tiền cọc đang giữ; tạo lệnh thanh toán REFUND cho số tiền còn lại.
+ */
 import React,{useState} from "react";
 import { Button, DetailList, Empty, Field, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import { useWorkflowData } from "../../facility-operations/workflows/useWorkflowData.js";
@@ -190,6 +198,9 @@ function TransferForm({item,load,ask}) {
     </form>
   );
 }
+/**
+ * Màn hình quyết toán tiền đặt cọc và phê duyệt lệnh hoàn tiền cho khách hàng trả kho.
+ */
 export function DepositRefundPage({query=new URLSearchParams()}) {
  const base=useWorkflowData("depositRefunds"),{ops,source,run,saving,needsRefresh}=useOps(),[selected,setSelected]=useState(query.get("id")||"");
  const load=source==="local"?{...base,data:ops.deposit_refunds||[],loading:false,error:"",busy:saving,needsRefresh,demo:true,run:(action,payload)=>run(action,payload)}:base;

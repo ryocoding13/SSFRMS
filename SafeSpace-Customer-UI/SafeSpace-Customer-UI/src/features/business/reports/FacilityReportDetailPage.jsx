@@ -1,3 +1,11 @@
+/**
+ * FACILITY REPORT DETAIL PAGE - BÁO CÁO KINH DOANH CHI TIẾT TỪNG CƠ SỞ (B04a)
+ *
+ * Trực quan hóa dữ liệu kinh doanh của một chi nhánh cụ thể:
+ * - Doanh thu thuê theo từng nhóm kho.
+ * - Tỷ lệ lấp đầy thực tế qua các tháng.
+ * - Cơ cấu hợp đồng mới, hợp đồng gia hạn và hợp đồng trả kho.
+ */
 import React from "react";
 import { businessApi } from "../api/businessApi.js";
 import { Button, Empty, Field, LinkButton, Tag } from "../../../shared/components/UI.jsx";
@@ -13,6 +21,10 @@ import "../../../shared/styles/customer-detail.css";
 // Dữ liệu: GET /api/operations/reports/facilities/{id}/contracts?status=&unitTypeId= (OPERATIONS/ADMIN).
 const STATUS_OPTIONS = ["", "ACTIVE", "EXPIRING", "OVERDUE", "RETURN_PENDING", "COMPLETED", "TERMINATED", "CANCELLED"];
 
+/**
+ * Màn hình xem báo cáo chuyên sâu cho từng cơ sở cụ thể.
+ * @param {{ query: URLSearchParams }} props
+ */
 export function FacilityReportDetailPage({ query }) {
   const { onApiError } = useApp();
   const id = Number(query?.get("id"));

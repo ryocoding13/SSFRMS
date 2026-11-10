@@ -1,3 +1,11 @@
+/**
+ * UNIT MANAGEMENT PAGE - QUẢN LÝ SƠ ĐỒ VÀ TRẠNG THÁI Ô KHO CƠ SỞ (M02 / D17)
+ *
+ * Mô hình D17:
+ * - 12 ô kho chuẩn: Dãy A cỡ M (K01–K04 thường, K05–K06 lạnh), Dãy B cỡ L (K07–K10 thường, K11–K12 lạnh).
+ * - Quản lý trạng thái: Trống (AVAILABLE), Đang thuê (OCCUPIED), Bảo trì (MAINTENANCE), v.v.
+ * - Chuyển trạng thái bảo trì ô kho theo quy định D21 / SRS 8.1.
+ */
 import React, { useMemo, useState } from "react";
 import { Pagination, Select } from "../../../shared/components/Pickers.jsx";
 import { Button, Field, Icon, Modal, Tag } from "../../../shared/components/UI.jsx";
@@ -128,6 +136,9 @@ function UnitFormDialog({ unit, onClose }) {
 
 export const PER_PAGE = 12;
 
+/**
+ * Màn hình trực quan hóa sơ đồ mặt bằng ô kho và quản lý tình trạng kỹ thuật từng ô.
+ */
 export function UnitManagementPage({ query }) {
   const { ops } = useOps();
   const tab = query.get("tab") || "";

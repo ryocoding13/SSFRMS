@@ -1,3 +1,11 @@
+/**
+ * FACILITY FORM HELPERS - CHUYỂN ĐỔI VÀ KIỂM TRA DỮ LIỆU CƠ SỞ (B05a / D20)
+ *
+ * Nghiệp vụ D20:
+ * - Lưu tọa độ (vĩ độ, kinh độ) trực tiếp trong database để hiển thị bản đồ Leaflet.
+ * - Tách cặp tọa độ sao chép từ Google Maps ("10.6935, 106.7222") thành vĩ độ/kinh độ riêng biệt.
+ * - Kiểm tra tính hợp lệ về định dạng giờ mở/đóng cửa và phạm vi tọa độ địa lý Việt Nam.
+ */
 // B05a · Sửa thông tin cơ sở — chuyển giữa dữ liệu API và form, kiểm tra trước khi gửi
 // (backend kiểm tra lại y hệt trong OperationsService.ValidateFacility).
 
@@ -6,6 +14,11 @@ const VN = { latMin: 8, latMax: 24, lngMin: 102, lngMax: 110 };
 const text = (v) => (v == null ? "" : String(v));
 const num = (v) => Number(String(v).trim().replace(",", "."));
 
+/**
+ * Chuyển dữ liệu cơ sở từ API thành dữ liệu hiển thị trong form.
+ * @param {Object} f - Đối tượng cơ sở từ backend
+ * @returns {Object} Dữ liệu form chuẩn hóa
+ */
 export function facilityToForm(f) {
   return {
     name: text(f?.name),
@@ -19,12 +32,22 @@ export function facilityToForm(f) {
 }
 
 // Dán "10.6935, 106.7222" (copy từ Google Maps) → tách thành vĩ độ / kinh độ. Không phải cặp số thì trả null.
+/**
+ * Tách chuỗi tọa độ (dán từ Google Maps dạng "lat, lng") thành cặp vĩ độ/kinh độ.
+ * @param {string} value - Chuỗi tọa độ cần tách
+ * @returns {{ latitude: string, longitude: string } | null}
+ */
 export function splitCoordinates(value) {
   const m = String(value || "").trim().match(/^(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)$/);
   return m ? { latitude: m[1], longitude: m[2] } : null;
 }
 
 // Trả { errors } nếu sai, hoặc { body } đúng hợp đồng PUT /api/operations/facilities/{id}
+/**
+ * Kiểm tra tính hợp lệ của form và chuyển thành body request gửi lên API cập nhật cơ sở.
+ * @param {Object} form - Dữ liệu nhập từ form
+ * @returns {{ errors: Object } | { body: Object }}
+ */
 export function formToRequest(form) {
   const errors = {};
   const name = form.name.trim();

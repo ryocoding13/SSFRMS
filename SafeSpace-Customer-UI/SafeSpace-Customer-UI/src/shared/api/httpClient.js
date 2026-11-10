@@ -1,3 +1,11 @@
+/**
+ * HTTP CLIENT - FETCH CLIENT KẾT NỐI BACKEND API SAFESPACE
+ *
+ * Tính năng chính:
+ * - Tự động đính kèm JWT Bearer Token từ localStorage vào Header Authorization.
+ * - Xử lý chuyển đổi JSON request/response tự động.
+ * - Chuẩn hóa lớp lỗi ApiError (bắt mã HTTP status, thông điệp lỗi và chi tiết từ server).
+ */
 import { API_URL } from "../../app/config/api.js";
 
 export class ApiError extends Error {
@@ -36,6 +44,12 @@ function messageOf(data, status) {
   return DEFAULT_MESSAGES[status] || (status >= 500 ? DEFAULT_MESSAGES[500] : `Yêu cầu không thành công (mã ${status}).`);
 }
 
+/**
+ * Gửi yêu cầu HTTP đến máy chủ backend với cấu hình xác thực tự động.
+ * @param {string} path - Đường dẫn endpoint API (ví dụ '/api/contracts')
+ * @param {RequestInit & { auth?: boolean, body?: any }} [options] - Cấu hình request
+ * @returns {Promise<any>} Dữ liệu JSON phản hồi
+ */
 export async function request(path, { method = "GET", body, auth = true, fetchImpl = globalThis.fetch } = {}) {
   let res;
   try {

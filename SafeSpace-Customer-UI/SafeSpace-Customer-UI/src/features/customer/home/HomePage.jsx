@@ -1,3 +1,12 @@
+/**
+ * HOME PAGE - TRANG CHỦ CÔNG KHAI HỆ THỐNG SAFESPACE (FIGMA MODERN UI / D17)
+ *
+ * Bố cục giao diện hiện đại:
+ * - Hero banner tìm kiếm cơ sở nhanh theo khu vực / quận huyện (D17).
+ * - Giới thiệu 4 gói dịch vụ kho chuẩn (Kho thường M/L, Kho lạnh M/L).
+ * - Quy trình 3 bước thuê kho tự phục vụ đơn giản.
+ * - Danh sách các chi nhánh tiêu biểu và bản đồ mạng lưới cơ sở.
+ */
 import React, { useState } from "react";
 import { Photo } from "../../../shared/components/Photo.jsx";
 import { Select } from "../../../shared/components/Pickers.jsx";

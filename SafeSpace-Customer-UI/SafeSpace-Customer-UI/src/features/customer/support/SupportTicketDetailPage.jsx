@@ -1,3 +1,11 @@
+/**
+ * SUPPORT TICKET DETAIL PAGE - CHI TIẾT PHIẾU YÊU CẦU HỖ TRỢ KỸ THUẬT (C12a / D43)
+ *
+ * Giao diện hội thoại tương tác:
+ * - Dòng thời gian trao đổi giữa khách hàng và nhân viên chi nhánh.
+ * - Xem hình ảnh bằng chứng đính kèm.
+ * - Khách hàng gửi câu hỏi phản hồi tiếp nối cuộc trò chuyện.
+ */
 import React from "react";
 import { Button, Empty, Icon, LinkButton, Notice, StatusTag } from "../../../shared/components/UI.jsx";
 import { useApp } from "../../../app/state/AppProvider.jsx";

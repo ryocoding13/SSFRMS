@@ -1,3 +1,10 @@
+/**
+ * ACCESS QR HOOK - LẤY THÔNG TIN MÃ TRUY CẬP RA VÀO KHO (D22)
+ *
+ * Kết nối backend:
+ * - Khi VITE_USE_API=true: Gọi GET /api/contracts/{id}/access-qr để nhận mã QR và PIN từ server.
+ * - Khi offline / mock: Sinh mã cục bộ theo thuật toán tương thích để kiểm thử giao diện.
+ */
 import { useCallback } from "react";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { USE_API } from "../../../app/config/api.js";
@@ -5,6 +12,11 @@ import { api } from "../../../shared/api/customerApi.js";
 import { today } from "../../../shared/utils/format.js";
 import { accessError, validateAccess } from "../../../shared/utils/access.js";
 
+/**
+ * Hook quản lý trạng thái tải và dữ liệu mã QR mở cửa kho.
+ * @param {Object} contract - Hợp đồng thuê kho
+ * @returns {{ qr: Object|null, loading: boolean, error: string|null, refresh: Function }}
+ */
 export function useAccessQr(id) {
   const { data } = useApp();
   const getCredential = useCallback(async () => {

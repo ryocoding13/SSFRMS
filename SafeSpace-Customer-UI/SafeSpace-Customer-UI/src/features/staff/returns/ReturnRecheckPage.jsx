@@ -1,3 +1,11 @@
+/**
+ * RETURN RECHECK PAGE - KIỂM TRA LẠI SAU KHI KHÁCH TỰ DỌN / TỰ SỬA (D39 / D40)
+ *
+ * Nghiệp vụ D39:
+ * - Khi có khoản khấu trừ, khách hàng có quyền chọn tự quay lại dọn dẹp (SELF_CLEAN)
+ *   hoặc tự khắc phục/thay thế tài sản (SELF_REPLACE) trong vòng 48 giờ.
+ * - Nhân viên kiểm tra lại thực tế: Nếu đạt yêu cầu -> Hủy bỏ khoản khấu trừ tương ứng.
+ */
 import React, { useState } from "react";
 import { Button, Field, Modal, Notice, PageHeader } from "../../../shared/components/UI.jsx";
 import { money } from "../../../shared/utils/format.js";
@@ -10,6 +18,9 @@ import "../../../shared/styles/customer-detail.css";
 const CHOICE = { SELF_CLEAN: "Khách tự dọn dẹp kho thay cho phí vệ sinh", SELF_REPLACE: "Khách tự thay vật dụng tương đương thay cho phí hư hỏng", DISPUTE: "Khách khiếu nại nội dung biên bản" };
 
 // D39/D40 · Cơ sở kiểm tra lại phương án khách chọn; đạt thì không trừ khoản tương ứng. Không được từ chối tự dọn.
+/**
+ * Màn hình nhân viên nghiệm thu lại ô kho sau khi khách hàng tự khắc phục tồn đọng.
+ */
 export function ReturnRecheckPage() {
   const { ops, reload, source } = useOps();
   const api = useOpsEndpoint(null);

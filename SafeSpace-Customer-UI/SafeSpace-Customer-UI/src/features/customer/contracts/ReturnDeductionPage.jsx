@@ -1,3 +1,13 @@
+/**
+ * RETURN DEDUCTION PAGE - PHẢN HỒI BIÊN BẢN KHẤU TRỪ TIỀN CỌC (D30-13 / D39 / D40)
+ *
+ * Nghiệp vụ D39:
+ * - Khách hàng có 48 giờ để phản hồi biên bản kiểm kê trả kho của cơ sở:
+ *   1. Đồng ý khấu trừ (AGREE) -> Quản lý chốt và hoàn số tiền cọc còn lại.
+ *   2. Tự dọn dẹp (SELF_CLEAN) -> Quay lại dọn trong 48h để không mất phí vệ sinh 10%.
+ *   3. Tự khắc phục/thay thế (SELF_REPLACE) -> Tải ảnh hóa đơn/vật tư thay thế.
+ *   4. Khiếu nại (DISPUTE) -> Nêu rõ lý do và cung cấp ảnh phản hồi.
+ */
 import React, { useRef, useState } from "react";
 import { Button, DetailList, Empty, Field, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
@@ -25,6 +35,10 @@ const DECISIONS = {
 const NOTE_LABEL = { AGREE: "Ghi chú cho cơ sở (không bắt buộc)", SELF_CLEAN: "Phương án và thời gian thực hiện", SELF_REPLACE: "Phương án và thời gian thực hiện", DISPUTE: "Nội dung khiếu nại *" };
 const safeUrl = url => typeof url === "string" && (/^https:\/\//.test(url) || /^\/[^/]/.test(url));
 
+/**
+ * Màn hình cho phép khách hàng xem xét và phản hồi phương án khấu trừ cọc.
+ * @param {{ contract: Object }} props
+ */
 export function ReturnDeductionPage({ id }) {
   const { data } = useApp();
   const c = contractOf(data, id);

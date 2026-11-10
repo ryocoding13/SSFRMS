@@ -1,3 +1,11 @@
+/**
+ * DEPOSIT LEDGER PAGE - SỔ THEO DÕI BIẾN ĐỘNG TIỀN CỌC (UC05 / D09)
+ *
+ * Minh bạch tài chính:
+ * - Ghi nhận số tiền cọc ban đầu (1 tháng tiền thuê - D09).
+ * - Các khoản cọc chênh nộp thêm khi nâng cấp kho hoặc gia hạn sang ô lớn hơn (D46).
+ * - Lịch sử hoàn trả hoặc khấu trừ cọc khi kết thúc hợp đồng.
+ */
 import React from "react";
 import { LinkButton, Notice, PageHeader } from "../../../shared/components/UI.jsx";
 import { useApp } from "../../../app/state/AppProvider.jsx";
@@ -7,6 +15,10 @@ import { useWorkflowData } from "../../facility-operations/workflows/useWorkflow
 import { InfoTiles } from "../../facility-operations/workflows/WorkflowComponents.jsx";
 import { NotFound } from "./components/ContractNotFound.jsx";
 
+/**
+ * Màn hình tra cứu sổ cái lịch sử tiền đặt cọc của hợp đồng thuê.
+ * @param {{ contract: Object }} props
+ */
 export function DepositLedgerPage({ id }) {
   const { data } = useApp(), c = data.contracts.find(x => x.contract_id === id), policy = useWorkflowData("policy");
   if (!c) return <NotFound />;

@@ -1,3 +1,12 @@
+/**
+ * APP PROVIDER - CONTEXT QUẢN LÝ PHIÊN ĐĂNG NHẬP VÀ KẾT NỐI API BACKEND (D04 / D19)
+ *
+ * Cơ chế hoạt động 2 chế độ:
+ * - API Mode (VITE_USE_API=true / D19): Kết nối trực tiếp ASP.NET Core Web API (:5151)
+ *   và lưu trữ dữ liệu vĩnh viễn trên SQL Server.
+ * - Browser Mode (VITE_USE_API=false / D04): Lưu trữ dữ liệu trong localStorage theo từng tài khoản
+ *   phục vụ demo / kiểm thử giao diện khi không có backend.
+ */
 import { requireRentalPolicy, hasReservationConsent, POLICY_REQUIRED } from "../../shared/utils/rentalPolicy.js";
 import { recordReservationConsent } from "../../shared/api/reservationConsentApi.js";
 import { defaultRentalPolicy } from "../../features/facility-operations/workflows/workflowModel.js";
@@ -66,6 +75,10 @@ function useToast() {
   return { toast, notify, dismissToast };
 }
 
+/**
+ * Context Provider cung cấp thông tin phiên đăng nhập, vai trò và các service API cho toàn app.
+ * @param {{ children: React.ReactNode }} props
+ */
 export function AppProvider({ children }) {
   return USE_API ? <ApiProvider>{children}</ApiProvider> : <LocalProvider>{children}</LocalProvider>;
 }

@@ -1,3 +1,11 @@
+/**
+ * FACILITY DETAIL PAGE - CHI TIẾT CƠ SỞ VÀ SƠ ĐỒ MẶT BẰNG Ô KHO (C03 / D13 / D17)
+ *
+ * Nghiệp vụ D13 / D17:
+ * - Hiển thị thư viện ảnh thực tế, địa chỉ, số hotline và giờ hoạt động của chi nhánh.
+ * - Sơ đồ trực quan 12 ô kho: Dãy A cỡ M (15m²), Dãy B cỡ L (30m²).
+ * - Khách hàng bấm chọn ô kho trống trực tiếp trên sơ đồ để xem giá và đặt trước.
+ */
 import React, { useEffect, useMemo, useState } from "react";
 import { Lightbox, Photo } from "../../../shared/components/Photo.jsx";
 import { GALLERY } from "../../../app/config/media.js";

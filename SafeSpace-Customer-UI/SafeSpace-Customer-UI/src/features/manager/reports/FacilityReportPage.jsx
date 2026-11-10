@@ -1,3 +1,10 @@
+/**
+ * FACILITY REPORT PAGE - BÁO CÁO TỔNG KẾT HOẠT ĐỘNG CƠ SỞ (M08)
+ *
+ * Báo cáo tài chính và công suất chi nhánh:
+ * - Doanh thu theo tháng, doanh số tiền mặt và chuyển khoản.
+ * - Biến động tỷ lệ lấp đầy ô kho theo thời gian.
+ */
 import React from "react";
 import { Button, LinkButton } from "../../../shared/components/UI.jsx";
 import { dateLabel, today } from "../../../shared/utils/format.js";
@@ -9,6 +16,9 @@ import { growth } from "../dashboard/ManagerDashboardPage.jsx";
 import { pct } from "../dashboard/ManagerDashboardPage.jsx";
 import { PageHeaderBlock } from "../components/PageHeaderBlock.jsx";
 
+/**
+ * Màn hình xem báo cáo tổng hợp tình hình kinh doanh và khai thác của cơ sở.
+ */
 export function FacilityReportPage() {
   const { ops } = useOps();
   const months = ops.revenue.months;

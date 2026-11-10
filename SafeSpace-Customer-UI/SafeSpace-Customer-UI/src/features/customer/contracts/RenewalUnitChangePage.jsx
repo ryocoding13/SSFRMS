@@ -1,3 +1,11 @@
+/**
+ * RENEWAL UNIT CHANGE PAGE - CHỌN Ô KHO MỚI KHI GIA HẠN (D46 / D46b)
+ *
+ * Áp dụng khi:
+ * - Ô kho hiện tại đã có khách khác đặt trước từ ngày hết hạn (D41).
+ * - Khách hàng chủ động muốn đổi sang ô kho khác hoặc nâng cấp cỡ kho khi tiếp tục thuê.
+ * - Tự động tính khoản tiền cọc chênh lệch (depositTopUp) cần thanh toán thêm.
+ */
 import React, { useRef, useState } from "react";
 import { Button, DetailList, Empty, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
@@ -21,6 +29,10 @@ function choiceText(x, c) {
   return `Ô ${x.unitNumber}${x.typeName ? ` · ${x.typeName}` : ""}${type} · ${money(x.monthlyRate)}/tháng · ${deposit}`;
 }
 
+/**
+ * Màn hình lựa chọn ô kho mới thay thế khi gia hạn hợp đồng thuê.
+ * @param {{ contract: Object }} props
+ */
 export function RenewalUnitChangePage({ id }) {
   const { data, retry } = useApp();
   const c = contractOf(data, id);

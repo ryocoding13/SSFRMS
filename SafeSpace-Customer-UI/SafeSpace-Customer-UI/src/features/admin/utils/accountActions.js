@@ -1,12 +1,48 @@
+/**
+ * ACCOUNT ACTIONS UTILS - CÁC HÀM XỬ LÝ NGHIỆP VỤ TÀI KHOẢN VÀ PHÂN CÔNG (ADMIN)
+ *
+ * Cung cấp các thao tác kiểm toán an toàn:
+ * - Kiểm tra danh sách vai trò hiện tại (roleIds).
+ * - Lọc cơ sở đang hoạt động (activeFacility).
+ * - Phân công cơ sở có kiểm tra ngày hợp lệ và xác thực lại (assignFacilityChecked).
+ * - Thao tác vai trò với kiểm tra xung đột và giao dịch nguyên tử T24 (roleActionChecked).
+ * - Tạo tài khoản mới kèm phân công cơ sở ban đầu (createAccountChecked).
+ */
+/**
+ * Lấy danh sách ID các vai trò của người dùng được sắp xếp tăng dần.
+ * @param {Object} user - Đối tượng người dùng
+ * @returns {number[]} Mảng ID vai trò
+ */
 export const roleIds=user=>(user.roles||[]).map(r=>Number(r.roleId)).sort((a,b)=>a-b);
+/**
+ * Tìm và kiểm tra cơ sở đang hoạt động (ACTIVE) theo ID.
+ * @param {Array} facilities - Danh sách cơ sở
+ * @param {string|number} id - ID cơ sở cần tìm
+ * @returns {Object} Cơ sở hợp lệ
+ */
 export function activeFacility(facilities,id) {const item=facilities.find(f=>String(f.facilityId)===String(id)&&f.status==="ACTIVE");if(!item)throw new Error("Chọn cơ sở đang hoạt động từ danh sách.");return item;}
 const uncertain=message=>Object.assign(new Error(message),{uncertain:true});
+/**
+ * Thực hiện phân công cơ sở phụ trách cho nhân viên/quản lý có xác thực lại kết quả.
+ * @param {Object} api - adminApi client
+ * @param {{ userId: number, facilityId: number, assignedFrom: string, assignedTo: string|null }} body
+ * @returns {Promise<Array>} Danh sách phân công sau khi xác thực thành công
+ */
 export async function assignFacilityChecked(api,body) {
  if(!/^\d{4}-\d{2}-\d{2}$/.test(body.assignedFrom||"")||!Number.isFinite(Date.parse(`${body.assignedFrom}T00:00:00Z`))||new Date(`${body.assignedFrom}T00:00:00Z`).toISOString().slice(0,10)!==body.assignedFrom)throw new Error("Chọn ngày phân công hợp lệ.");
  await api.assignFacility(body);
  try {const rows=await api.userFacilities(body.userId);if(!Array.isArray(rows)||rows.filter(r=>r.status==="ACTIVE"&&(!r.assignedTo||String(r.assignedTo).slice(0,10)>=body.assignedFrom)).length!==1||!rows.some(r=>r.status==="ACTIVE"&&(r.userId==null||r.userId===body.userId)&&r.facilityId===body.facilityId&&String(r.assignedFrom).slice(0,10)===body.assignedFrom))throw new Error();return rows;}
  catch {throw uncertain("Chưa xác minh được phân công cơ sở. Tải lại tài khoản trước khi gửi tiếp.");}
 }
+/**
+ * Thực hiện thao tác vai trò (đổi, cấp lại, gỡ) với kiểm tra tính toàn vẹn (T24).
+ * @param {Object} api - adminApi client
+ * @param {Object} user - Người dùng cần thao tác
+ * @param {'change'|'grant'|'revoke'} kind - Loại thao tác
+ * @param {number|string} targetRoleId - ID vai trò đích
+ * @param {number|string} [previousRoleId] - ID vai trò cần thay thế (khi kind === 'change')
+ * @returns {Promise<Object>} Thông tin người dùng sau cập nhật
+ */
 export async function roleActionChecked(api,user,kind,targetRoleId,previousRoleId) {
  const before=roleIds(user),target=Number(targetRoleId),previous=Number(previousRoleId);
  if(!Number.isSafeInteger(target)||target<=0)throw new Error("Chọn vai trò hợp lệ.");
@@ -20,6 +56,14 @@ export async function roleActionChecked(api,user,kind,targetRoleId,previousRoleI
  try {const result=await api.user(user.userId);if(result?.userId!==user.userId||JSON.stringify(roleIds(result))!==JSON.stringify(expected))throw new Error();return result;}
  catch {throw uncertain("Chưa xác minh được vai trò sau thao tác. Tải lại tài khoản; không gửi lặp.");}
 }
+/**
+ * Tạo tài khoản người dùng mới và phân công cơ sở ban đầu (nếu có).
+ * @param {Object} api - adminApi client
+ * @param {Object} body - Dữ liệu tài khoản cần tạo
+ * @param {{ id: number, from: string }} [facilityId] - Cơ sở phân công ban đầu
+ * @param {Function} [shouldContinue] - Hàm kiểm tra phiên làm việc còn hợp lệ
+ * @returns {Promise<{ user: Object, facilityError: string|null }>}
+ */
 export async function createAccountChecked(api,body,facilityId,shouldContinue=()=>true) {
  if(!shouldContinue())throw new Error("Phiên làm việc đã thay đổi.");
  const created=await api.createUser(body);

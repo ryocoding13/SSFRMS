@@ -1,3 +1,12 @@
+/**
+ * OLD UNIT INSPECTION PAGE - KIỂM TRA Ô CŨ KHI GIA HẠN CHUYỂN Ô (D46 / D46b)
+ *
+ * Quy trình chuyển ô khi gia hạn:
+ * - Khách chuyển đồ sang ô mới trong 3 ngày cuối kỳ cũ.
+ * - Nhân viên kiểm tra hiện trạng ô kho cũ: Khấu trừ vệ sinh 10% cọc và hư hỏng (nếu có).
+ * - Nếu khách còn để lại đồ không lấy: Ghi nhận đồ khách bỏ (RENEWAL_OLD_UNIT_GOODS_ABANDONED),
+ *   không phạt phí quá hạn (D46b).
+ */
 import React, { useState } from "react";
 import { Button, DetailList, Field, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
@@ -21,6 +30,9 @@ function Select({ label, value, options, onChange, disabled }) {
   return <Field label={label}><select value={value} disabled={disabled} onChange={e => onChange(e.target.value)}>{Object.entries(options).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>;
 }
 
+/**
+ * Màn hình nhân viên nghiệm thu ô kho cũ sau khi khách hoàn tất chuyển sang ô mới.
+ */
 export function OldUnitInspectionPage() {
   const load = useOpsEndpoint("/api/ops/unit-moves");
   const items = Array.isArray(load.data) ? load.data : [];

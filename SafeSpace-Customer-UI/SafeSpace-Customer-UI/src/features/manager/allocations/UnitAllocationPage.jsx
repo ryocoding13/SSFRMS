@@ -1,3 +1,11 @@
+/**
+ * UNIT ALLOCATION PAGE - PHÂN BỔ Ô KHO CHO ĐƠN ĐÃ THANH TOÁN (M05 / UC02)
+ *
+ * Nghiệp vụ D02 / D18:
+ * - Đơn sau khi thanh toán và đối soát thành công sẽ chuyển vào hàng chờ phân bổ (UNIT_ASSIGNED).
+ * - Quản lý cơ sở lựa chọn ô kho thực tế còn trống (AVAILABLE) đúng loại kho khách đã chọn.
+ * - Sau khi phân bổ, hợp đồng DRAFT và các khoản thanh toán cọc + tiền thuê được tạo chính thức.
+ */
 import React, { useState } from "react";
 import { Button, LinkButton, Notice, Tag } from "../../../shared/components/UI.jsx";
 import { dateTimeLabel, rangeLabel } from "../../../shared/utils/format.js";
@@ -6,6 +14,9 @@ import { useOps } from "../../facility-operations/state/FacilityOperationsProvid
 import { QueuePicker } from "../../facility-operations/components/FacilityOperationsComponents.jsx";
 import { PageHeaderBlock } from "../components/PageHeaderBlock.jsx";
 
+/**
+ * Màn hình phân bổ ô kho cho các đơn đặt chỗ đã hoàn tất thanh toán.
+ */
 export function UnitAllocationPage({ query }) {
   const { ops, run } = useOps();
   const pending = ops.allocations.filter((a) => a.status === "PENDING");

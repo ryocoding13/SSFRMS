@@ -1,3 +1,11 @@
+/**
+ * APP SELECTORS - TRÍCH XUẤT VÀ TÍNH TOÁN DỮ LIỆU TỪ STATE ỨNG DỤNG
+ *
+ * Cung cấp:
+ * - selectActiveContracts: Hợp đồng đang hiệu lực của khách hàng.
+ * - selectPendingPayments: Các khoản thanh toán cần thanh toán gấp.
+ * - selectContractById: Tìm kiếm hợp đồng theo mã hiển thị hoặc số ID.
+ */
 import { daysBetween, localDate } from "../../shared/utils/format.js";
 import { canPayLedger } from "../../shared/utils/returnPolicy.js";
 

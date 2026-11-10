@@ -1,3 +1,11 @@
+/**
+ * DOOR SCANNER PAGE - MÔ PHỎNG THIẾT BỊ MÁY QUÉT CỬA KHO TẠI CƠ SỞ (C07q / C07r / D21)
+ *
+ * Mô phỏng thiết bị IoT ở cửa cơ sở:
+ * - Cho phép nhập hoặc quét mã QR / mã PIN dự phòng 8 chữ số (hỗ trợ có hoặc không có dấu cách).
+ * - Gọi POST /api/access/scan (công khai không cần đăng nhập).
+ * - Hiển thị trạng thái cửa mở (OPEN - đèn xanh) hoặc từ chối (DENIED - đèn đỏ) kèm lý do.
+ */
 import React, { useEffect, useState } from "react";
 import { Button, Field, Icon, Notice } from "../../../shared/components/UI.jsx";
 import { dateTimeLabel } from "../../../shared/utils/format.js";

@@ -1,3 +1,11 @@
+/**
+ * CUSTOMER DASHBOARD PAGE - TRANG TỔNG QUAN CÁ NHÂN KHÁCH HÀNG (C01)
+ *
+ * Giao diện chính sau khi đăng nhập:
+ * - Thẻ kho đang thuê gần nhất kèm nút mở cửa nhanh bằng mã QR.
+ * - Danh sách thông báo nhắc hạn thanh toán, lịch nhận kho, kết quả phản hồi hỗ trợ.
+ * - Lối tắt nhanh đến các tính năng: Thuê kho mới, Lịch sử giao dịch, Trung tâm trợ giúp.
+ */
 import React from "react";
 import { EmptyInline } from "../../../shared/components/Inline.jsx";
 import { LinkButton } from "../../../shared/components/UI.jsx";

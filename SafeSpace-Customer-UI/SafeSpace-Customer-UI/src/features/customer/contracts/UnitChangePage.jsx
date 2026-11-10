@@ -1,3 +1,12 @@
+/**
+ * UNIT CHANGE PAGE - XỬ LÝ ĐỀ XUẤT ĐỔI Ô KHO DO XUNG ĐỘT (C-D41a / D41)
+ *
+ * Nghiệp vụ D41:
+ * - Khi đơn đặt trước bị ảnh hưởng bởi khách cũ chưa trả kho, hệ thống gửi đề xuất cho khách:
+ *   1. Chấp nhận đổi ô tương đương / nâng cấp ô lớn miễn phí (ACCEPT).
+ *   2. Dời ngày bắt đầu thuê sang thời điểm ô kho trống (RESCHEDULE).
+ *   3. Hủy đơn và nhận hoàn tiền 100% không mất bất kỳ khoản phí nào (CANCEL).
+ */
 import React, { useRef, useState } from "react";
 import { DatePicker } from "../../../shared/components/Pickers.jsx";
 import { Button, DetailList, Empty, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
@@ -23,6 +32,10 @@ function timeLeft(expiresAt, now = Date.now()) {
   return `Còn ${Math.floor(mins / 60)} giờ ${mins % 60} phút để chọn`;
 }
 
+/**
+ * Màn hình khách hàng xem xét phương án giải quyết khi ô kho đã đặt bị xung đột lịch.
+ * @param {{ contract: Object }} props
+ */
 export function UnitChangePage({ id }) {
   const { data, retry } = useApp();
   const c = contractOf(data, id);

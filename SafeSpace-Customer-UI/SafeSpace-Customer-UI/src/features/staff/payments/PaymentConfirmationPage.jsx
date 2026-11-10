@@ -1,3 +1,9 @@
+/**
+ * PAYMENT CONFIRMATION PAGE - ĐỐI SOÁT VÀ XÁC NHẬN THANH TOÁN (S09 / D21)
+ *
+ * Kiểm tra xác minh giao dịch thanh toán thành công, ghi nhận mã giao dịch
+ * và thời điểm thu tiền thực tế vào sổ quỹ hệ thống.
+ */
 import React, { useState } from "react";
 import { Button, Empty, LinkButton, Notice } from "../../../shared/components/UI.jsx";
 import { dateTimeLabel, money } from "../../../shared/utils/format.js";
@@ -19,6 +25,9 @@ export function paymentParts(p) {
 
 export const HOLD_HOURS = 24;
 
+/**
+ * Màn hình xác nhận đã thu tiền thành công cho đơn đặt chỗ hoặc gia hạn.
+ */
 export function PaymentConfirmationPage({ query }) {
   const { ops, run } = useOps();
   const pending = ops.payments.filter((p) => p.status === "PENDING");

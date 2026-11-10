@@ -1,3 +1,11 @@
+/**
+ * RENEWAL APPROVAL PAGE - PHÊ DUYỆT YÊU CẦU GIA HẠN HỢP ĐỒNG (M01 / D32 / D41 / D46)
+ *
+ * Nghiệp vụ:
+ * - Quản lý duyệt gia hạn trong vòng 24 giờ kể từ khi khách gửi yêu cầu.
+ * - Kiểm tra ràng buộc D41: Không cho gia hạn ô hiện tại nếu đã có khách khác đặt trước.
+ * - Trường hợp gia hạn chuyển sang ô khác (D46 / D46b): Kiểm tra và giữ ô mới, tính cọc chênh.
+ */
 import React, { useState } from "react";
 import { Button, Field, LinkButton, Modal, Tag } from "../../../shared/components/UI.jsx";
 import { dateLabel } from "../../../shared/utils/format.js";
@@ -5,6 +13,9 @@ import { unitMoveText } from "./renewalApprovalModel.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
 import { PageHeaderBlock } from "../components/PageHeaderBlock.jsx";
 
+/**
+ * Màn hình xem xét và phê duyệt các yêu cầu gia hạn hợp đồng thuê kho.
+ */
 export function RenewalApprovalPage() {
   const { ops, run } = useOps();
   const pending = ops.renewals.filter((r) => r.status === "PENDING");

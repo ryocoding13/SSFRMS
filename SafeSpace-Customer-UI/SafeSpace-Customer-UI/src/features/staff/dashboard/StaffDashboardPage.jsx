@@ -1,9 +1,22 @@
+/**
+ * STAFF DASHBOARD PAGE - BẢNG CÔNG VIỆC HÔM NAY CỦA NHÂN VIÊN CƠ SỞ (UC09)
+ *
+ * Bố cục lưới công việc 3x3 theo D14:
+ * - Hàng đợi thu tiền tại kho (S09 / S10).
+ * - Hàng đợi xác minh khách và bàn giao kho (S02).
+ * - Hàng đợi kiểm tra trả kho và nhận chìa khóa (S03).
+ * - Hàng đợi hỗ trợ kỹ thuật và sự cố (S04).
+ */
 import React from "react";
 import { dateLabel, today } from "../../../shared/utils/format.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
 import { LIST_TEXT, TaskEmpty, TaskGrid, staffTasks } from "../../facility-operations/components/StaffTasks.jsx";
 import { useMe } from "../hooks/useStaffIdentity.js";
 
+/**
+ * Màn hình trung tâm công việc hàng ngày của nhân viên trực tại cơ sở.
+ * @param {{ query: URLSearchParams }} props
+ */
 export function StaffDashboardPage({ query }) {
   const { ops } = useOps();
   const me = useMe();

@@ -1,3 +1,11 @@
+/**
+ * STAFF ASSIGNMENT PAGE - PHÂN CÔNG CÔNG VIỆC CHO NHÂN VIÊN CƠ SỞ (M06)
+ *
+ * Nghiệp vụ:
+ * - Quản lý cơ sở phân công các đầu việc (bàn giao kho, kiểm kê trả kho, xử lý sự cố)
+ *   cho nhân viên thuộc cơ sở phụ trách (A06).
+ * - Hiển thị tình trạng công việc: Chưa giao (OPEN), Đã giao (ASSIGNED), Hoàn tất (COMPLETED).
+ */
 import React, { useState } from "react";
 import { Select } from "../../../shared/components/Pickers.jsx";
 import { Button, Field, Notice, Tag } from "../../../shared/components/UI.jsx";
@@ -6,6 +14,9 @@ import { useOps } from "../../facility-operations/state/FacilityOperationsProvid
 import { slotLabel } from "../../facility-operations/components/FacilityOperationsComponents.jsx";
 import { PageHeaderBlock } from "../components/PageHeaderBlock.jsx";
 
+/**
+ * Màn hình quản lý phân bổ công việc hàng ngày cho đội ngũ nhân viên cơ sở.
+ */
 export function StaffAssignmentPage() {
   const { ops, run } = useOps();
   const open = ops.assignments.filter((a) => a.status !== "DONE");

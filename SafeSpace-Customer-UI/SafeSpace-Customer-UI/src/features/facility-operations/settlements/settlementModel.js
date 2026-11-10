@@ -1,3 +1,10 @@
+/**
+ * SETTLEMENT MODEL - QUYẾT TOÁN CỌC VÀ KHẤU TRỪ CHI PHÍ KHI TRẢ KHO (D32)
+ *
+ * Công thức tính toán D32:
+ * - Tiền hoàn lại = Tiền cọc đang giữ - Phí vệ sinh (tối đa 10% cọc) - Phí hư hỏng tài sản.
+ * - Tổng khấu trừ không bao giờ vượt quá số tiền cọc; không tạo nợ âm đối với khách hàng.
+ */
 import { parseVnDeadline, validateDamageFiles } from "../damage/damageModel.js";
 import { validateRefundBank } from "../../../shared/utils/refundRequest.js";
 export const knownMoney=value=>typeof value==="number"&&Number.isFinite(value)&&value>=0;

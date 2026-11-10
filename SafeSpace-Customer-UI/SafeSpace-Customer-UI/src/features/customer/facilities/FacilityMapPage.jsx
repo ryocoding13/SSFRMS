@@ -1,3 +1,11 @@
+/**
+ * FACILITY MAP PAGE - TÌM KHO TRÊN BẢN ĐỒ TƯƠNG TÁC (C02m / D12 / D20)
+ *
+ * Nghiệp vụ D12 / D20:
+ * - Bản đồ tương tác Leaflet + OpenStreetMap toàn màn hình.
+ * - Đọc tọa độ vĩ độ/kinh độ chính xác lưu từ database backend.
+ * - Bấm vào điểm ghim (marker) cơ sở -> Hiển thị popup tóm tắt và nút xem chi tiết.
+ */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Photo } from "../../../shared/components/Photo.jsx";
 import SearchBar from "../../../shared/components/SearchBar.jsx";

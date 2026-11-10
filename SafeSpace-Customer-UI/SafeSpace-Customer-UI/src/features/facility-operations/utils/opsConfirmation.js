@@ -1,3 +1,11 @@
+/**
+ * OPS CONFIRMATION UTILS - KIỂM TRA ĐIỀU KIỆN TRƯỚC KHI THỰC HIỆN THAO TÁC TÁC NGHIỆP
+ *
+ * Đảm bảo an toàn nghiệp vụ:
+ * - Kiểm tra thông tin CCCD và chữ ký trước khi bàn giao kho (S02).
+ * - Kiểm tra đủ ảnh bằng chứng khi phát hiện hư hại kho (S03 / D38).
+ * - Xác thực mã giao dịch thực tế khi đối soát thu tiền tại kho (S09).
+ */
 import { returnDeductions } from "../../../shared/utils/returnPolicy.js";
 import { dateLabel, money } from "../../../shared/utils/format.js";
 

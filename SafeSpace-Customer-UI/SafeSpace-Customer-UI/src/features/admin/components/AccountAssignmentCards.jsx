@@ -1,3 +1,12 @@
+/**
+ * ACCOUNT ASSIGNMENT CARDS - THẺ QUẢN LÝ VAI TRÒ & PHÂN CÔNG CƠ SỞ (ADMIN)
+ *
+ * Chức năng:
+ * - RolesCard: Hiển thị danh sách vai trò hiện tại của tài khoản, đổi vai trò trong một giao dịch nguyên tử (T24 / D32),
+ *   cấp lại hoặc gỡ vai trò với xác nhận kiểm toán. Bảo vệ tài khoản Admin hoạt động cuối cùng.
+ * - FacilityCard: Quản lý cơ sở phụ trách của nhân viên và quản lý (quy tắc A06: 1 cơ sở tại một thời điểm).
+ *   Hỗ trợ phân công mới, tạm ngưng, kích hoạt lại và kết thúc phân công.
+ */
 import React,{useEffect,useRef,useState} from "react";
 import {adminApi} from "../api/adminApi.js";
 import {activeFacility,assignFacilityChecked,roleActionChecked} from "../utils/accountActions.js";
@@ -8,6 +17,10 @@ import {useApp} from "../../../app/state/AppProvider.jsx";
 import {roleLabel,ROLE_SCOPE,needsFacility} from "../../../shared/utils/roles.js";
 import {today} from "../../../shared/utils/format.js";
 import {dateOnlyLabel} from "../utils/adminUtils.js";
+/**
+ * Thẻ quản lý vai trò và phân quyền tài khoản (T24).
+ * @param {{ user: Object, allRoles: Array, onSaved: Function }} props
+ */
 export function RolesCard({user,allRoles,onSaved}) {
  const {onApiError}=useApp(),[panel,setPanel]=useState(null),[from,setFrom]=useState(user.roles.length===1?String(user.roles[0].roleId):""),[busy,setBusy]=useState(false),[refresh,setRefresh]=useState(false),guard=useRef(false),[flow,change]=useChangeFlow();
  const run=async(kind,roleId)=>{if(guard.current||refresh)return;guard.current=true;setBusy(true);const role=allRoles.find(r=>String(r.roleId)===String(roleId));const out=await change({action:kind==="change"?"Đổi vai trò":kind==="revoke"?"Gỡ vai trò":"Cấp lại vai trò",scope:user.fullName,content:roleLabel(role?.roleName),danger:kind==="revoke",perform:()=>roleActionChecked(adminApi,user,kind,roleId,from)});setBusy(false);guard.current=false;if(out.error){onApiError(out.error);if(out.uncertain)setRefresh(true);}if(out.ok){setPanel(null);onSaved();}};
@@ -15,6 +28,10 @@ export function RolesCard({user,allRoles,onSaved}) {
  const owned=new Set(user.roles.map(r=>String(r.roleId)));
  return <section className="panel form-card"><h2>Vai trò &amp; quyền</h2><div className="role-list">{user.roles.map(r=><span className="role-pill" key={r.roleId}>{roleLabel(r.roleName)}<Button variant="outline" disabled={busy||refresh} onClick={()=>run("revoke",r.roleId)}>Gỡ vai trò</Button></span>)}{!user.roles.length&&<p>Chưa có vai trò.</p>}</div><p className="hint">Quyền của vai trò được định nghĩa sẵn; không chỉnh sửa tại đây. Máy chủ kiểm tra quản trị viên hoạt động cuối cùng và phạm vi cơ sở.</p>{user.roles.length>1&&<Field label="Vai trò cần thay"><select value={from} disabled={busy} onChange={e=>setFrom(e.target.value)}><option value="">Chọn vai trò hiện tại</option>{user.roles.map(r=><option key={r.roleId} value={r.roleId}>{roleLabel(r.roleName)}</option>)}</select></Field>}<div className="ops-actions"><Button disabled={busy||refresh||!from} onClick={()=>setPanel("change")}>Đổi vai trò</Button><Button variant="outline" disabled={busy||refresh} onClick={()=>setPanel("grant")}>Cấp lại vai trò</Button><LinkButton to="admin/permissions" variant="outline">Xem quyền theo vai trò</LinkButton></div>{refresh&&<Notice tone="error">Tải lại tài khoản trước khi gửi tiếp.<Button onClick={()=>window.location.reload()}>Tải lại tài khoản</Button></Notice>}{panel&&<SelectionPanel key={panel} title={panel==="change"?"Đổi vai trò":"Cấp lại vai trò"} description="Chọn vai trò có sẵn. Quyền đi kèm được cố định và không chỉnh sửa tại đây. Vai trò theo cơ sở cần phân công hợp lệ để tác nghiệp." items={allRoles.map(r=>({id:r.roleId,label:roleLabel(r.roleName),description:ROLE_SCOPE[r.roleName],disabled:owned.has(String(r.roleId))}))} onClose={()=>setPanel(null)} onSelect={id=>run(panel,id)} confirmLabel={panel==="change"?"Kiểm tra & đổi vai trò":"Kiểm tra & cấp lại"} disabled={busy||refresh}/>} {flow}</section>;
 }
+/**
+ * Thẻ quản lý phân công cơ sở phụ trách (A06).
+ * @param {{ user: Object, facilities: Array, rows: Array, onSaved: Function }} props
+ */
 export function FacilityCard({user,facilities,rows,onSaved}) {
  const {onApiError}=useApp(),[selected,setSelected]=useState(""),[open,setOpen]=useState(false),[from,setFrom]=useState(today()),[busy,setBusy]=useState(false),[error,setError]=useState(""),[refresh,setRefresh]=useState(false),guard=useRef(false),[flow,change]=useChangeFlow();
  const permitted=needsFacility(user.roles.map(r=>r.roleName)),options=facilities.filter(f=>f.status==="ACTIVE"),current=rows.find(r=>r.status==="ACTIVE");

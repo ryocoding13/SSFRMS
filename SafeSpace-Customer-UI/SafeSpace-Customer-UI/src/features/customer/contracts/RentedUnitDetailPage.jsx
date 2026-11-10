@@ -1,3 +1,11 @@
+/**
+ * RENTED UNIT DETAIL PAGE - CHI TIẾT Ô KHO ĐANG THUÊ (C07 / UC05)
+ *
+ * Thông tin tổng hợp:
+ * - Tên cơ sở, mã số ô kho, gói kho, diện tích và thời hạn hợp đồng.
+ * - Mã truy cập QR Code / PIN mở cửa kho (D22).
+ * - Nút chức năng: Gia hạn hợp đồng, Đăng ký trả kho, Báo cáo sự cố / Yêu cầu hỗ trợ.
+ */
 import React, { useState } from "react";
 import { Button, DetailList, LinkButton, Notice, PageHeader, StatusTag, Tag } from "../../../shared/components/UI.jsx";
 import { typeLabel } from "../../../shared/utils/catalog.js";
@@ -13,6 +21,10 @@ import { CancelRenewalButton } from "./components/CancelRenewalButton.jsx";
 
 import "../../../shared/styles/customer-detail.css";
 
+/**
+ * Màn hình trung tâm quản lý chi tiết hợp đồng thuê kho của khách hàng.
+ * @param {{ id: string|number }} props
+ */
 export function RentedUnitDetailPage({ id }) {
   const { data, retry } = useApp();
   const [qrOpen, setQrOpen] = useState(false);

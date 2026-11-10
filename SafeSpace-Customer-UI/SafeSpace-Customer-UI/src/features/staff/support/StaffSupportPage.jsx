@@ -1,3 +1,11 @@
+/**
+ * STAFF SUPPORT PAGE - XỬ LÝ PHIẾU YÊU CẦU HỖ TRỢ KỸ THUẬT (S04 / D35 / D43)
+ *
+ * Nghiệp vụ D43:
+ * - Hỗ trợ là cuộc hội thoại hai chiều liên tục, không có nút đóng hoặc hủy yêu cầu.
+ * - Nhân viên phản hồi giải đáp thắc mắc, xử lý sự cố kẹt cửa/quên mã truy cập.
+ * - Xem ảnh đính kèm do khách hàng gửi (tối đa 3 ảnh theo D35).
+ */
 import React, { useRef, useState } from "react";
 import { Select } from "../../../shared/components/Pickers.jsx";
 import { Button, Empty, Field, LinkButton, Notice, Tag } from "../../../shared/components/UI.jsx";
@@ -13,6 +21,9 @@ export const NEXT_STATES = [
   ["DONE", "Đã xử lý xong · Đóng yêu cầu"],
 ];
 
+/**
+ * Màn hình nhân viên tiếp nhận và phản hồi các yêu cầu hỗ trợ từ khách hàng đang thuê kho.
+ */
 export function StaffSupportPage({ query }) {
   const { ops, run } = useOps();
   const me = useMe();

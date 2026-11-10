@@ -1,3 +1,11 @@
+/**
+ * CHECKOUT PAGE - THANH TOÁN ĐƠN ĐẶT CHỖ THUÊ KHO (C04 / D02 / D21)
+ *
+ * Luồng thanh toán D21:
+ * - Phương thức 1: Quét mã QR VietQR PayOS (thời gian giữ chỗ 10 phút, webhook tự xác nhận).
+ * - Phương thức 2: Thanh toán tiền mặt tại quầy (PENDING_VERIFICATION, giữ chỗ 24 giờ).
+ * - Cơ chế tự động thử lại khi tạo link PayOS bị gián đoạn mạng.
+ */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Photo } from "../../../shared/components/Photo.jsx";
 import { Button, LinkButton, Notice } from "../../../shared/components/UI.jsx";
@@ -17,6 +25,10 @@ export const PAY_METHODS = [
 
 export const POLL_MS = 3000;
 
+/**
+ * Màn hình thanh toán đơn đặt chỗ thuê kho với cổng PayOS và thu tại quầy.
+ * @param {{ id: string|number }} props
+ */
 export function CheckoutPage({ id }) {
   const { data, dispatch, timeoutSeconds, services } = useApp();
   const r = data.reservations.find((x) => x.reservation_id === id);

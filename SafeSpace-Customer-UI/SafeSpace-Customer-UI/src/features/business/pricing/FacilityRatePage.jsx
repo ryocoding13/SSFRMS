@@ -1,3 +1,11 @@
+/**
+ * FACILITY RATE PAGE - CẤU HÌNH BIỂU PHÍ THUÊ CHI TIẾT THEO CƠ SỞ (B03a)
+ *
+ * Nghiệp vụ định giá:
+ * - Cấu hình đơn giá thuê theo tháng cho 4 gói kho tại cơ sở (Kho thường M/L, Kho lạnh M/L - D17).
+ * - Thiết lập ngày hiệu lực áp dụng giá mới mà không làm thay đổi giá của các hợp đồng đang thuê.
+ * - Tra cứu lịch sử thay đổi biểu phí qua các kỳ.
+ */
 import React, { useEffect, useRef, useState } from "react";
 import { businessApi } from "../api/businessApi.js";
 import { useLoad } from "../../admin/utils/adminUtils.js";
@@ -11,6 +19,10 @@ import { currentRate, RATE_SLOTS, rateTypeFor } from "./facilityRates.js";
 import "./pricing.css";
 
 // B03a · Bốn loại kho của cơ sở đã chọn. Form giữ lại khi huỷ/lỗi.
+/**
+ * Màn hình xem và cập nhật biểu phí thuê kho của một cơ sở cụ thể.
+ * @param {{ query: URLSearchParams }} props
+ */
 export function FacilityRatePage({ query }) {
   const facilityId = query?.get("facility") || "";
   const { onApiError } = useApp();
