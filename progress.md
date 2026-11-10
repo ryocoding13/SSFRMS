@@ -1,3 +1,25 @@
+## 2026-11-10 — Sửa từ ngữ trong chú thích code tránh vi phạm CI check forbidden UI wording
+
+- **Mục tiêu:**
+  - Khắc phục lỗi CI trên GitHub Actions (`CI / Frontend (Build & Test)` và `CI / ci-gate`), do bước `Check forbidden UI wording` quét regex `"sạch|bẩn|[Ss]ai lệch"` trên các file `*.jsx` và bắt trúng từ "sạch" trong phần chú thích JSDoc mới thêm ở 2 file trang trả kho.
+- **Nguyên nhân xác minh:**
+  1. `.github/workflows/ci.yml` bước `Check forbidden UI wording` chạy lệnh:
+     `grep -rnE "sạch|bẩn|[Ss]ai lệch" src --include=*.jsx`
+  2. Hai file có chứa từ "sạch" trong comment JSDoc:
+     - `ReturnRequestPage.jsx`: dòng 7 chứa `"dọn sạch đồ đạc"`.
+     - `ReturnInspectionPage.jsx`: dòng 5 chứa `"Dọn dẹp vệ sinh sạch sẽ"`.
+- **Giải pháp triển khai:**
+  1. `ReturnRequestPage.jsx`: Đổi `"dọn sạch đồ đạc"` thành `"dọn hết đồ đạc"`.
+  2. `ReturnInspectionPage.jsx`: Đổi `"Dọn dẹp vệ sinh sạch sẽ"` thành `"Đạt tiêu chuẩn vệ sinh"`.
+- **Kiểm chứng:**
+  - Check forbidden UI wording: `git grep -nE "sạch|bẩn|[Ss]ai lệch" -- "*.jsx"` PASS (exit code 1, không còn kết quả nào).
+  - Frontend Structure: `npm run check:structure` PASS.
+  - Frontend Test Suite: `npm test` PASS 166/166 tests.
+  - Business Operations Tests: `npm run test:business` PASS 12/12 tests.
+  - SSR Render: `npm run test:render` PASS 178 routes.
+  - Frontend Build: `npm run build` PASS.
+  - Whitespace: `git diff --check` PASS 0 whitespace errors.
+
 ## 2026-11-07 — Rà soát và xoá bỏ các cơ sở và loại kho inactive trong cơ sở dữ liệu
 
 - **Mục tiêu:**

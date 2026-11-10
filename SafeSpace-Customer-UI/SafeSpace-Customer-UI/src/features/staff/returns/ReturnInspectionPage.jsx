@@ -2,7 +2,7 @@
  * RETURN INSPECTION PAGE - KIỂM KÊ VÀ LẬP BIÊN BẢN TRẢ KHO (S03 / D38 / UC06)
  *
  * Tiêu chuẩn kiểm kê 3 mục theo D38:
- * 1. Dọn dẹp vệ sinh sạch sẽ (nếu chưa đạt -> phí dọn dẹp tiêu chuẩn 10% cọc).
+ * 1. Đạt tiêu chuẩn vệ sinh (nếu chưa đạt -> phí dọn dẹp tiêu chuẩn 10% cọc).
  * 2. Tường, sàn, cửa không hư hại (nếu hư hỏng -> ghi nhận hạng mục, lý do, tải ảnh bằng chứng).
  * 3. Trả lại đầy đủ chìa khóa / thẻ từ ra vào.
  * Đạt tối thiểu 2/3 mục mới chuyển ô kho về trạng thái AVAILABLE (Sẵn sàng cho thuê lại).

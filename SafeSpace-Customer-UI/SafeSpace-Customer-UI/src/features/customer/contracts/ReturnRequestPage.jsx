@@ -4,7 +4,7 @@
  * Thủ tục trả kho (Move-out):
  * - Chọn ngày hẹn trả kho thực tế và giờ kiểm kê dự kiến.
  * - Lựa chọn hình thức nhận hoàn tiền cọc (Chuyển khoản ngân hàng hoặc Tiền mặt tại quầy - D42).
- * - Lưu ý hướng dẫn dọn sạch đồ đạc và bàn giao lại chìa khóa/thẻ từ.
+ * - Lưu ý hướng dẫn dọn hết đồ đạc và bàn giao lại chìa khóa/thẻ từ.
  */
 import React, { useRef, useState } from "react";
 import { DatePicker, Select } from "../../../shared/components/Pickers.jsx";
