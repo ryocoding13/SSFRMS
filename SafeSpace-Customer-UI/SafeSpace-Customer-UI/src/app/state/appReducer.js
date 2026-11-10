@@ -1,3 +1,12 @@
+/**
+ * APP REDUCER - QUẢN LÝ TRẠNG THÁI NGHIỆP VỤ PHÍA FRONTEND (PURE FUNCTIONS)
+ *
+ * Xử lý các action dữ liệu:
+ * - Đặt chỗ: RESERVE_UNIT, CANCEL_RESERVATION, CONFIRM_TRANSFER
+ * - Hợp đồng: RENEW_CONTRACT, MOVE_OUT_CONTRACT, DEDUCTION_DECISION
+ * - Thanh toán: PAY_ORDER, ADD_PAYMENT, REFUND_SETTLEMENT
+ * - Hỗ trợ: CREATE_TICKET, REPLY_TICKET
+ */
 import { requireRentalPolicy } from "../../shared/utils/rentalPolicy.js";
 import { storedRefundChoice, validateRefundChoice, validateReturnPhotos, RETURN_SLOTS } from "../../shared/utils/refundRequest.js";
 import { isReturnFee, NO_RETURN_COLLECTION } from "../../shared/utils/returnPolicy.js";

@@ -1,3 +1,15 @@
+/**
+ * BUSINESS LAYOUT - KHUNG GIAO DIỆN CHUNG KHU VỰC VẬN HÀNH KINH DOANH (OPERATIONS)
+ *
+ * Vai trò: Quản lý vận hành kinh doanh (D16, B01–B05).
+ * Các phân hệ chính trên thanh điều hướng Subnav:
+ * - B01: Tổng quan kinh doanh (#/business)
+ * - B02: Cấu hình chính sách thuê (#/business/policies)
+ * - B03: Bảng giá thuê các cơ sở (#/business/pricing)
+ * - B04: Báo cáo & phân tích doanh thu (#/business/reports)
+ * - B05: Quản lý danh mục cơ sở (#/business/facilities)
+ * - Xuất báo cáo CSV (#/business/export)
+ */
 import StickyHeader from "../../shared/components/StickyHeader.jsx";
 import "./business.css";
 import React, { useEffect, useRef, useState } from "react";
@@ -63,6 +75,10 @@ export const BUSINESS_TABS = [
   ["business/reports", "Báo cáo"],
 ];
 
+/**
+ * Layout khung giao diện chính cho phân hệ Vận hành Kinh doanh.
+ * @param {{ active?: string, children: React.ReactNode }} props
+ */
 export default function BusinessLayout({ active, children }) {
   return (
     <div className="business-app">

@@ -1,3 +1,11 @@
+/**
+ * BUSINESS DASHBOARD PAGE - TỔNG QUAN VẬN HÀNH KINH DOANH TOÀN HỆ THỐNG (B01)
+ *
+ * Chức năng:
+ * - Tổng hợp số liệu KPI toàn hệ thống: Tỷ lệ lấp đầy, doanh thu thuê, số hợp đồng hiệu lực.
+ * - Danh sách việc cần chú ý và các cơ sở có tỷ lệ lấp đầy thấp/cao.
+ * - Biểu đồ doanh thu và công suất thuê toàn hệ thống.
+ */
 import React from "react";
 import { businessApi } from "../api/businessApi.js";
 import { LinkButton } from "../../../shared/components/UI.jsx";
@@ -7,6 +15,9 @@ import { areaOf, growthLabel, rateLabel, shortMoney } from "../utils/businessFor
 import { LoadState } from "../components/BusinessComponents.jsx";
 
 // B01 · Tổng quan toàn hệ thống — số liệu tháng này từ /reports/facilities + /reports/revenue-trend
+/**
+ * Trang bảng điều khiển trung tâm dành cho Quản lý Vận hành Kinh doanh.
+ */
 export default function BusinessDashboardPage() {
   const { onApiError } = useApp();
   const load = useLoad(

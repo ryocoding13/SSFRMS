@@ -1,3 +1,11 @@
+/**
+ * INCIDENT API - GỌI API QUẢN LÝ SỰ CỐ CƠ SỞ VẬT CHẤT (T13 / D34)
+ *
+ * Kết nối các endpoint xử lý sự cố tại chi nhánh:
+ * - GET /api/ops/incidents: Danh sách sự cố
+ * - POST /api/ops/incidents: Khai báo sự cố mới
+ * - POST /api/ops/incidents/{id}/resolve: Giải quyết và quyết toán bồi thường
+ */
 import { request, ApiError } from "../../../shared/api/httpClient.js";
 import { readPhotoData, verifyPhotoFile } from "../../../shared/utils/refundRequest.js";
 import { validateDamageFiles } from "../damage/damageModel.js";

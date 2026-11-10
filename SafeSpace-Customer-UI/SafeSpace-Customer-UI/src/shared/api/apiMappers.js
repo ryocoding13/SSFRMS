@@ -1,3 +1,13 @@
+/**
+ * API MAPPERS - CHUYỂN ĐỔI DỮ LIỆU BACKEND (PASCALCASE) SANG FRONTEND (CAMELCASE)
+ *
+ * Ánh xạ các DTO giữa .NET Core và React UI:
+ * - mapFacility: Cơ sở và tọa độ bản đồ (D20)
+ * - mapReservation: Đơn đặt chỗ và thời gian đếm ngược (D21)
+ * - mapContract: Hợp đồng thuê, mã QR mở cửa và hạn thanh toán gia hạn (D32)
+ * - mapPayment: Các khoản thu và phương thức thanh toán (D21/D42)
+ * - mapSupportTicket: Phiếu yêu cầu hỗ trợ và ảnh đính kèm (D35/D43)
+ */
 import { normalizePolicyConsent } from "../utils/rentalPolicy.js";
 // Chuyển dữ liệu backend (DTO camelCase, id số, trạng thái BE) sang dạng dữ liệu các trang đang dùng,
 // rồi ghép với phần lưu trong trình duyệt ("overlay") cho những luồng backend chưa có API.

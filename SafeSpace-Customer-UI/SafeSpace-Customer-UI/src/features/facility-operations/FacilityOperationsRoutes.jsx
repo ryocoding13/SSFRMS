@@ -1,3 +1,12 @@
+/**
+ * FACILITY OPERATIONS ROUTES - ĐỊNH TUYẾN PHÂN HỆ TÁC NGHIỆP CƠ SỞ (STAFF / MANAGER)
+ *
+ * Điều hướng theo URL:
+ * - /staff: Bảng việc hôm nay, xác minh khách (S02), kiểm kê trả kho (S03), hỗ trợ (S04),
+ *   thu phí tại quầy (S09), chi tiền mặt (S10), nghiệm thu ô cũ (D46).
+ * - /manager: Bảng điều khiển, phân bổ kho (M05), phân công việc (M06), duyệt gia hạn (M01),
+ *   hoàn cọc (M07/M08), xử lý nợ quá hạn (M04), quản lý ô kho (M02).
+ */
 import React from "react";
 import { RenewalCollectionPage } from "../staff/payments/RenewalCollectionPage.jsx";
 import { CashRefundCounterPage } from "../staff/payments/CashRefundCounterPage.jsx";
@@ -75,6 +84,10 @@ const MANAGER = {
   done: [ManagerResultPage, "manager"],
 };
 
+/**
+ * Bộ định tuyến các chức năng tác nghiệp của nhân viên và quản lý chi nhánh.
+ * @param {{ parts: string[], query: URLSearchParams }} props
+ */
 export default function FacilityOperationsRoutes({ role, parts, query }) {
   const staff = role === "STAFF";
   const table = staff ? STAFF : MANAGER;

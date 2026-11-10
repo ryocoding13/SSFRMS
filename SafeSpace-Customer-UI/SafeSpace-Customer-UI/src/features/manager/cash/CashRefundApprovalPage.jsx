@@ -1,3 +1,11 @@
+/**
+ * CASH REFUND APPROVAL PAGE - PHÊ DUYỆT HOÀN TIỀN MẶT TẠI QUẦY (M08 / D42 / D44)
+ *
+ * Nghiệp vụ D42 / D44:
+ * - Khách hàng chọn nhận tiền hoàn bằng tiền mặt (CASH) khi hủy đơn hoặc trả kho.
+ * - Quản lý cơ sở xem xét hồ sơ, duyệt và giao việc cho nhân viên chi tiền tại quầy.
+ * - Hạn nhận tiền mặt là 30 ngày; quá hạn hệ thống tự động tịch thu (FORFEITED).
+ */
 import React, { useState } from "react";
 import { Button, Field, Modal, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import { Select } from "../../../shared/components/Pickers.jsx";
@@ -8,6 +16,9 @@ import { useOpsEndpoint } from "../../facility-operations/workflows/useOpsEndpoi
 import { CASH_SOURCE, CASH_STATUS, cashPath } from "../../facility-operations/workflows/cashRefundModel.js";
 
 // D42/D44 · Quản lý duyệt chi tiền mặt và giao nhân viên. Không đổi được cách nhận hoàn khách đã chọn.
+/**
+ * Màn hình quản lý cơ sở phê duyệt yêu cầu chi tiền mặt hoàn cọc hoặc hoàn tiền hủy đơn.
+ */
 export function CashRefundApprovalPage() {
   const { ops, reload: reloadOps } = useOps() || {};
   const load = useOpsEndpoint("/api/ops/cash-refunds");

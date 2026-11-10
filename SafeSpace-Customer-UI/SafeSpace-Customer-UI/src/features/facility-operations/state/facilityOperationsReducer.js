@@ -1,3 +1,14 @@
+/**
+ * FACILITY OPERATIONS REDUCER - XỬ LÝ HÀNH ĐỘNG NGHIỆP VỤ TÁC NGHIỆP CƠ SỞ
+ *
+ * Xử lý các action tác nghiệp thuần túy:
+ * - ALLOCATE_UNIT: Phân bổ ô kho (M05)
+ * - VERIFY_HANDOVER: Bàn giao nhận kho (S02)
+ * - SUBMIT_INSPECTION: Biên bản kiểm kê trả kho (S03 / D38)
+ * - APPROVE_RENEWAL: Duyệt gia hạn hợp đồng (M01 / D32 / D41)
+ * - CONFIRM_REFUND: Phê duyệt hoàn cọc (M07)
+ * - CASH_PAY: Chi tiền mặt tại quầy (S10 / D42)
+ */
 import { validateKeyReceipt, transferProof, canFinalizeReturn } from "../settlements/settlementModel.js";
 import { cleaningFee, NO_RETURN_COLLECTION } from "../../../shared/utils/returnPolicy.js";
 // Nghiệp vụ vận hành tại cơ sở (thuần, có test). Mỗi action trả { state, result } hoặc ném OpsError.

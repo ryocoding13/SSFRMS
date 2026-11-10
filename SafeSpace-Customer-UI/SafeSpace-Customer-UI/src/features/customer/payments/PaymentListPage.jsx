@@ -1,3 +1,10 @@
+/**
+ * PAYMENT LIST PAGE - DANH SÁCH CÁC KHOẢN THANH TOÁN CỦA TÀI KHOẢN (C10 / UC10)
+ *
+ * Phân loại các khoản thanh toán:
+ * - Cần thanh toán: Đơn đặt chỗ chờ trả tiền, Phí gia hạn hợp đồng.
+ * - Lịch sử đã thanh toán: Tiền thuê định kỳ, tiền cọc, phụ phí dịch vụ.
+ */
 import { canPayLedger, isReturnFee } from "../../../shared/utils/returnPolicy.js";
 import React, { useState } from "react";
 import PayosModal from "../../../shared/components/PayosModal.jsx";

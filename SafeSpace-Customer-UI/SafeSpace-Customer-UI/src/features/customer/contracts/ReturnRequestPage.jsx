@@ -1,3 +1,11 @@
+/**
+ * RETURN REQUEST PAGE - ĐĂNG KÝ LỊCH TRẢ KHO (C08 / UC06)
+ *
+ * Thủ tục trả kho (Move-out):
+ * - Chọn ngày hẹn trả kho thực tế và giờ kiểm kê dự kiến.
+ * - Lựa chọn hình thức nhận hoàn tiền cọc (Chuyển khoản ngân hàng hoặc Tiền mặt tại quầy - D42).
+ * - Lưu ý hướng dẫn dọn sạch đồ đạc và bàn giao lại chìa khóa/thẻ từ.
+ */
 import React, { useRef, useState } from "react";
 import { DatePicker, Select } from "../../../shared/components/Pickers.jsx";
 import { Button, DetailList, Field, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
@@ -31,6 +39,10 @@ function RefundPreview({ c, cash }) {
     <p className="hint">{early ? `Trả trước ngày ${dateLabel(c.end_date)}: hoàn 70% cọc và tiền thuê các tháng chưa bắt đầu; tháng đang dùng tính đủ.` : "Trả đúng hạn, kho đạt tiêu chuẩn: hoàn đủ cọc."} Số chính thức xác nhận sau kiểm tra kho; tổng khấu trừ tối đa bằng cọc. {cash ? "Nhận tiền mặt tại quầy trong 30 ngày sau khi quản lý duyệt." : "Hoàn trong 3–5 ngày làm việc vào tài khoản chính chủ."}</p>
   </section>;
 }
+/**
+ * Màn hình biểu mẫu đăng ký lịch hẹn kết thúc hợp đồng và bàn giao trả kho.
+ * @param {{ contract: Object }} props
+ */
 export function ReturnRequestPage({ id }) {
   const { data, dispatch, mode } = useApp();
   const support = useRefundSupport("returnRequestSupported");

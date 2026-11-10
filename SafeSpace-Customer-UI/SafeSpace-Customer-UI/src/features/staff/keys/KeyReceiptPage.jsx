@@ -1,3 +1,10 @@
+/**
+ * KEY RECEIPT PAGE - XÁC NHẬN GIAO NHẬN CHÌA KHÓA KHO VẬT LÝ (D36 / D40)
+ *
+ * Nghiệp vụ:
+ * - Khách hàng đặt lịch hẹn nhận chìa khóa qua yêu cầu hỗ trợ chủ đề "Nhận chìa khóa" (KEY_PICKUP).
+ * - Nhân viên bàn giao thẻ từ/chìa khóa vật lý, ghi nhận số lượng và ký xác nhận hai bên.
+ */
 import React,{useState} from "react";
 import { Button, DetailList, Empty, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
@@ -5,6 +12,9 @@ import { validateKeyReceipt } from "../../facility-operations/settlements/settle
 import { OpsDemo } from "../../facility-operations/settlements/SettlementComponents.jsx";
 import { timeLabel } from "../../facility-operations/damage/DamageComponents.jsx";
 import "../../../shared/styles/customer-detail.css";
+/**
+ * Màn hình xác nhận thủ tục giao nhận chìa khóa hoặc thẻ từ vật lý vào kho.
+ */
 export function KeyReceiptPage({query}) {
  const {ops,run,source,saving,needsRefresh}=useOps(),h=ops.handovers.find(h=>h.id===query.get("id")),[checks,setChecks]=useState({identity_checked:false,condition_checked:false,key_delivered:false}),[error,setError]=useState("");
  if(!h)return <main className="container page"><Empty title="Không tìm thấy lịch nhận chìa khóa"><LinkButton to="staff/keys">Danh sách nhận chìa khóa</LinkButton></Empty></main>;

@@ -1,3 +1,9 @@
+/**
+ * POLICY STATUS PAGE - MÀN HÌNH TRA CỨU TRẠNG THÁI HIỆU LỰC CHÍNH SÁCH THUÊ (B02)
+ *
+ * Hiển thị phiên bản văn bản chính sách hiện hành, thời điểm bắt đầu hiệu lực
+ * và lịch sử các lần ban hành chính sách thuê kho SafeSpace.
+ */
 import React,{useState} from "react";
 import { businessApi } from "../api/businessApi.js";
 import { useLoad } from "../../admin/utils/adminUtils.js";
@@ -7,6 +13,9 @@ import { Button, Empty, PageHeader } from "../../../shared/components/UI.jsx";
 import { LoadState } from "../components/BusinessComponents.jsx";
 import { RecordCard } from "../../facility-operations/workflows/WorkflowComponents.jsx";
 
+/**
+ * Component hiển thị trạng thái và phiên bản chính sách thuê hiện tại.
+ */
 export function PolicyStatusPage() {
   const { onApiError } = useApp(), load = useLoad(() => businessApi.policies({}), [], onApiError), [flow, runChange] = useChangeFlow();
   const [blocked,setBlocked]=useState(false);

@@ -1,3 +1,11 @@
+/**
+ * PAYOS PAYMENT MODAL - HỘP THOẠI THANH TOÁN MÃ QR PAYOS TỰ ĐỘNG (D21)
+ *
+ * Tính năng:
+ * - Hiển thị mã QR PayOS và thông tin tài khoản ngân hàng thụ hưởng.
+ * - Tự động hỏi trạng thái giao dịch (polling 3s/lần) để chuyển sang màn hình thành công ngay khi nhận tiền.
+ * - Nút hủy thanh toán và đóng modal an toàn.
+ */
 import React, { useCallback, useEffect, useState } from "react";
 import { money } from "../utils/format.js";
 import { useApp } from "../../app/state/AppProvider.jsx";

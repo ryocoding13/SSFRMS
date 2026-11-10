@@ -1,3 +1,12 @@
+/**
+ * BUSINESS REPORT PAGE - BÁO CÁO PHÂN TÍCH DOANH THU VÀ CÔNG SUẤT VẬN HÀNH (B04)
+ *
+ * Các chỉ số báo cáo nghiệp vụ (D16 / D45):
+ * - Doanh thu thuê và các loại phí phát sinh.
+ * - Khoản cọc đang giữ và hoàn tiền cọc (REFUND).
+ * - Khoản hoàn tiền mặt quá hạn 30 ngày khách không nhận (forfeitedRefunds - D45).
+ * - Phân tích chi tiết theo từng cơ sở và theo từng loại kho lưu trữ.
+ */
 import React, { useEffect,useRef,useState } from "react";
 import { businessApi } from "../api/businessApi.js";
 import { Button, LinkButton } from "../../../shared/components/UI.jsx";
@@ -151,6 +160,10 @@ function StatusView({ data }) {
 }
 
 // B04 · Báo cáo toàn hệ thống (UC22, UC23): theo cơ sở / loại kho / doanh thu / tình trạng thuê, xuất XLSX (CSV từ API được chuyển thành workbook; trạng thái dùng snapshot đang xem)
+/**
+ * Màn hình báo cáo phân tích tài chính và hoạt động kinh doanh toàn diện.
+ * @param {{ query: URLSearchParams }} props
+ */
 export default function BusinessReportPage({ query }) {
   const { notify, onApiError } = useApp();
   const now = today();

@@ -1,3 +1,11 @@
+/**
+ * STAFF TASKS GRID - LƯỚI DANH SÁCH CÔNG VIỆC NHÂN VIÊN 3X3 (D14)
+ *
+ * Quy chuẩn thiết kế D14:
+ * - Hiển thị tối đa 9 thẻ công việc dạng lưới 3x3 trên mỗi trang có phân trang.
+ * - Phân loại theo loại việc: Thu tiền (reconcile), Bàn giao (handover), Trả kho (return), Hỗ trợ (support).
+ * - Sắp xếp theo thứ tự thời gian tạo (FIFO - cũ trước mới sau).
+ */
 import React from "react";
 import { Pagination } from "../../../shared/components/Pickers.jsx";
 import { Icon } from "../../../shared/components/UI.jsx";
@@ -186,6 +194,10 @@ export function TaskCard({ task }) {
 }
 
 const PER_PAGE = 9;
+/**
+ * Lưới hiển thị các thẻ công việc tác nghiệp theo chuẩn phân trang 3x3.
+ * @param {{ tasks: Array, base: string, query: URLSearchParams }} props
+ */
 export function TaskGrid({ tasks, base, query }) {
   const pages = Math.max(1, Math.ceil(tasks.length / PER_PAGE));
   const page = Math.min(Math.max(1, Number(query?.get("page")) || 1), pages);

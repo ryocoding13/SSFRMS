@@ -1,3 +1,18 @@
+/**
+ * BUSINESS ROUTES - ĐỊNH TUYẾN PHÂN HỆ QUẢN LÝ VẬN HÀNH KINH DOANH (B01–B05)
+ *
+ * Điều hướng theo URL con:
+ * - "" -> BusinessDashboardPage (B01)
+ * - "facilities" -> FacilityManagementPage (B05)
+ * - "policies" -> PolicySettingsPage (B02)
+ * - "policy-content" -> RentalPolicyEditorPage (Soạn thảo văn bản chính sách)
+ * - "policy-status" -> PolicyStatusPage (Tra cứu chính sách đang áp dụng)
+ * - "pricing" -> PricingPage (B03)
+ * - "rates" -> FacilityRatePage (Chi tiết giá cơ sở)
+ * - "reports" -> BusinessReportPage (B04)
+ * - "facility-report" -> FacilityReportDetailPage (Báo cáo từng cơ sở)
+ * - "export" -> ReportExportPage (Xuất báo cáo dữ liệu CSV)
+ */
 import React from "react";
 import { ReportExportPage } from "./reports/ReportExportPage.jsx";
 import { FacilityReportDetailPage } from "./reports/FacilityReportDetailPage.jsx";
@@ -14,6 +29,10 @@ import BusinessReportPage from "./reports/BusinessReportPage.jsx";
 
 // Khu Quản lý vận hành KD (Figma B01–B05), role OPERATIONS:
 // #/business · #/business/facilities · #/business/policies · #/business/pricing · #/business/reports
+/**
+ * Bộ định tuyến phân hệ Vận hành Kinh doanh SafeSpace.
+ * @param {{ parts: string[], query: URLSearchParams }} props
+ */
 export default function BusinessRoutes({ parts, query }) {
   const [a] = parts;
   let active = "business";

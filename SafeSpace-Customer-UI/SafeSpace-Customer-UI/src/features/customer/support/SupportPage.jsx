@@ -1,3 +1,12 @@
+/**
+ * SUPPORT PAGE - TRUNG TÂM TRỢ GIÚP VÀ GỬI YÊU CẦU HỖ TRỢ KỸ THUẬT (C12 / D35 / D36 / D43)
+ *
+ * Nghiệp vụ hỗ trợ:
+ * - Tạo yêu cầu theo các chủ đề: Đặt lịch nhận chìa khóa (KEY_PICKUP - D36), Kẹt khóa/quên mã,
+ *   Sự cố vệ sinh, Yêu cầu đổi kho, Hỗ trợ thanh toán.
+ * - Đính kèm tối đa 3 ảnh chụp thực tế (D35).
+ * - Luồng trao đổi hai chiều liên tục, cơ sở phản hồi chuyển sang WAITING_CUSTOMER (D43).
+ */
 import React, { useState } from "react";
 import { Select } from "../../../shared/components/Pickers.jsx";
 import { Button, Dialog, Field, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";

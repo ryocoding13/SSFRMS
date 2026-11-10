@@ -1,3 +1,11 @@
+/**
+ * CASH REFUND PAGE - THEO DÕI KHOẢN TIỀN HOÀN MẶT TẠI QUẦY (D30-15b / D44)
+ *
+ * Nghiệp vụ D44:
+ * - Hiển thị mã phiếu hoàn tiền mặt, số tiền, tên chi nhánh nhận tiền và giờ mở cửa.
+ * - Hạn chót nhận tiền trong vòng 30 ngày (quá 30 ngày khoản hoàn bị tịch thu).
+ * - Cung cấp nút chuyển đổi sang nhận hoàn bằng chuyển khoản ngân hàng nếu khách không tiện đến quầy.
+ */
 import React, { useRef, useState } from "react";
 import { Button, DetailList, Dialog, Empty, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
@@ -77,6 +85,9 @@ function CashRefundDetail({ item, expectedName, onSwitch }) {
   </>;
 }
 
+/**
+ * Màn hình thông tin phiếu nhận tiền mặt hoàn lại dành cho khách hàng.
+ */
 export function CashRefundPage({ query }) {
   const { data } = useApp();
   const load = useCashRefunds();

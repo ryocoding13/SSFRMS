@@ -1,3 +1,16 @@
+/**
+ * LOGIN PAGE - MÀN HÌNH ĐĂNG NHẬP HỆ THỐNG SAFESPACE (UC08)
+ *
+ * Hỗ trợ xác thực đăng nhập:
+ * - Cho phép đăng nhập bằng tên đăng nhập hoặc địa chỉ email (D03).
+ * - Tự động điều hướng sau đăng nhập dựa trên vai trò:
+ *   + Quản trị viên -> /admin
+ *   + Quản lý cơ sở -> /manager
+ *   + Nhân viên cơ sở -> /staff
+ *   + Quản lý vận hành kinh doanh -> /business
+ *   + Khách hàng -> trang tiếp theo (safeNext) hoặc /overview
+ * - Tích hợp hộp thoại quên mật khẩu (F43).
+ */
 import React, { useEffect, useState } from "react";
 import { Button, Field } from "../../shared/components/UI.jsx";
 import { go, href } from "../../app/router.js";
@@ -6,6 +19,10 @@ import { useApp } from "../../app/state/AppProvider.jsx";
 import { safeNext } from "./utils/safeNext.js";
 import { ForgotPassword } from "./components/ForgotPasswordDialog.jsx";
 
+/**
+ * Component màn hình đăng nhập hệ thống SafeSpace.
+ * @param {{ query: URLSearchParams }} props
+ */
 export function LoginPage({ query }) {
   // Lấy hàm đăng nhập và thông tin phiên hiện tại từ AppProvider.
   const { login, authed, isAdmin, roles } = useApp();

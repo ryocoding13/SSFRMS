@@ -1,3 +1,11 @@
+/**
+ * DAILY STAFF REPORT PAGE - BÁO CÁO CÔNG VIỆC NHÂN VIÊN CUỐI NGÀY (D42)
+ *
+ * Chức năng:
+ * - Tổng hợp kết quả công việc trong ngày của từng nhân viên cơ sở.
+ * - Số lượng việc đã hoàn tất, việc còn tồn đọng và thời gian trễ hạn.
+ * - Tự động đồng bộ với hệ thống ghi log lúc 22:00 hàng ngày.
+ */
 import React, { useState } from "react";
 import { DetailList, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import { DatePicker } from "../../../shared/components/Pickers.jsx";
@@ -8,6 +16,9 @@ import { useOpsEndpoint } from "../../facility-operations/workflows/useOpsEndpoi
 const KIND = { RETURN: "Biên bản trả kho", TICKET: "Hỗ trợ", HANDOVER: "Bàn giao chìa", CASH_CALL: "Gọi nhắc nhận tiền", CASH_PAY: "Chi tiền mặt" };
 
 // D42 · Báo cáo cuối ngày: việc chưa xong và việc đã làm của từng nhân viên (hệ thống ghi lúc 22:00).
+/**
+ * Màn hình báo cáo tổng kết năng suất và tiến độ hoàn thành công việc của nhân viên trong ngày.
+ */
 export function DailyStaffReportPage() {
   const [date, setDate] = useState(today());
   const load = useOpsEndpoint(`/api/ops/daily-report?date=${date}`);

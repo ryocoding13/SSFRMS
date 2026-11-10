@@ -1,3 +1,12 @@
+/**
+ * RETURN INSPECTION PAGE - KIỂM KÊ VÀ LẬP BIÊN BẢN TRẢ KHO (S03 / D38 / UC06)
+ *
+ * Tiêu chuẩn kiểm kê 3 mục theo D38:
+ * 1. Dọn dẹp vệ sinh sạch sẽ (nếu chưa đạt -> phí dọn dẹp tiêu chuẩn 10% cọc).
+ * 2. Tường, sàn, cửa không hư hại (nếu hư hỏng -> ghi nhận hạng mục, lý do, tải ảnh bằng chứng).
+ * 3. Trả lại đầy đủ chìa khóa / thẻ từ ra vào.
+ * Đạt tối thiểu 2/3 mục mới chuyển ô kho về trạng thái AVAILABLE (Sẵn sàng cho thuê lại).
+ */
 import React, { useEffect, useId, useRef, useState } from "react";
 import { Button, Empty, Field, Icon, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import ReturnPhotoInput from "../../../shared/components/ReturnPhotoInput.jsx";
@@ -98,6 +107,9 @@ function ChoiceSelect({ label, value, options, onChange, disabled, placeholder =
   </div>;
 }
 
+/**
+ * Màn hình lập biên bản kiểm tra thực địa ô kho khi khách hàng làm thủ tục trả kho.
+ */
 export function ReturnInspectionPage({ query }) {
   const { ops, run, source, saving, needsRefresh } = useOps(), r = ops.returns.find((x) => x.id === query.get("id"));
   const [form, setForm] = useState(DEFAULT_FORM), [files, setFiles] = useState([]), [reading, setReading] = useState(false), [error, setError] = useState("");

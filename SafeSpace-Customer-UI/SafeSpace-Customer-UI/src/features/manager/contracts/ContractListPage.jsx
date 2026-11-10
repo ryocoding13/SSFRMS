@@ -1,3 +1,11 @@
+/**
+ * CONTRACT LIST PAGE - DANH SÁCH VÀ CHI TIẾT HỢP ĐỒNG THUÊ CƠ SỞ (UC05)
+ *
+ * Nghiệp vụ:
+ * - Tra cứu toàn bộ hợp đồng thuộc cơ sở: Đang thuê (ACTIVE), Sắp hết hạn (EXPIRING),
+ *   Quá hạn (OVERDUE), Đã trả kho chờ quyết toán (RETURNED), Đã thanh lý (TERMINATED).
+ * - Xem chi tiết hợp đồng, lịch sử thanh toán, mã truy cập cửa kho và biên bản kiểm kê.
+ */
 import React, { useEffect, useRef, useState } from "react";
 import { InspectionReview } from "../../facility-operations/settlements/SettlementComponents.jsx";
 import { canFinalizeReturn } from "../../facility-operations/settlements/settlementModel.js";
@@ -26,6 +34,9 @@ function ReturnConfirmDialog({ contract, ret, onClose, onConfirm }) {
   return <ConfirmDialog title={`Duyệt đối soát · ${contract.id}`} text="Chốt số tiền tạo khoản chờ hoàn, chưa xác nhận đã chuyển tiền." busy={busy} rows={[["Khách hàng / kho",`${contract.customer} · ${contract.unit}`],["Tiền cọc",ret?.deposit!=null?money(ret.deposit):"Chưa có dữ liệu"],["Số tiền chính thức","Máy chủ tính khi chốt"]]} label="Chốt đối soát" hint="Khấu trừ không vượt cọc; không thu thêm. Kho cần vệ sinh/sửa tiếp tục bảo trì." onCancel={onClose} onConfirm={async()=>{if(busy)return;setBusy(true);try{const ok=await onConfirm(note.trim());if(!ok)setBusy(false);}catch{setBusy(false);}}}><Field label="Ghi chú đối soát"><textarea maxLength={255} value={note} disabled={busy} onChange={e=>setNote(e.target.value)}/></Field></ConfirmDialog>;
 }
 
+/**
+ * Màn hình quản lý danh sách hợp đồng thuê kho của chi nhánh.
+ */
 export function ContractListPage({ query }) {
   const { ops, run, source, saving, needsRefresh } = useOps();
   const settlementReady = source === "local" || supportsReturnPolicy(ops);

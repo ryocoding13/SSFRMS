@@ -1,3 +1,18 @@
+/**
+ * FACILITY MUTATION HELPER - XÁC THỰC KẾT QUẢ GHI DỮ LIỆU CƠ SỞ (B05)
+ *
+ * Kiểm tra xác thực lại (readback check):
+ * - Đảm bảo dữ liệu sau khi PUT/POST đã được lưu thành công trên cơ sở dữ liệu trước khi cập nhật UI.
+ * - Ngăn chặn tình trạng hiển thị sai lệch khi mạng bị ngắt quãng hoặc cập nhật bất đồng bộ.
+ */
+/**
+ * Thực thi hàm ghi cơ sở và đối chiếu lại dữ liệu trên máy chủ để đảm bảo tính nhất quán.
+ * @param {Object} api - businessApi client
+ * @param {Function} perform - Thao tác gọi API ghi
+ * @param {Object} expected - Các trường dữ liệu kỳ vọng sau khi ghi
+ * @param {number} [id] - ID cơ sở
+ * @returns {Promise<any>}
+ */
 export async function checkedFacilityWrite(api,perform,expected,id) {
  const result=await perform(),target=id??result?.facility?.facilityId??result?.facilityId;
  try {

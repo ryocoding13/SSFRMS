@@ -1,3 +1,11 @@
+/**
+ * FACILITY OPERATIONS COMPONENTS - CÁC THÀNH PHẦN GIAO DIỆN DÙNG CHUNG CỦA CƠ SỞ
+ *
+ * Cung cấp:
+ * - Badge: Huy hiệu đếm số công việc đang chờ xử lý theo màu cảnh báo.
+ * - millions: Định dạng số tiền thành chuỗi triệu đồng ngắn gọn cho báo cáo.
+ * - StatusBadge: Hiển thị trạng thái công việc và ô kho với nhãn tiếng Việt chuẩn.
+ */
 import React from "react";
 import { dayMonth, localDate, timeLabel } from "../../../shared/utils/format.js";
 import { go, qs } from "../../../app/router.js";
