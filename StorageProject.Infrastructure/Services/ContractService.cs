@@ -22,7 +22,7 @@ public class ContractService(AppDbContext dbContext) : IContractService
     /// <returns>Danh sách hợp đồng thuê của khách hàng.</returns>
     public async Task<IReadOnlyList<ContractSummaryDto>> GetMyContractsAsync(long customerId, CancellationToken ct = default)
     {
-        return await dbContext.RentalContracts
+        var contracts = await dbContext.RentalContracts
             .AsNoTracking()
             .Include(c => c.Unit)
                 .ThenInclude(u => u.Facility)
@@ -30,7 +30,33 @@ public class ContractService(AppDbContext dbContext) : IContractService
                 .ThenInclude(u => u.UnitType)
             .Where(c => c.CustomerId == customerId)
             .OrderByDescending(c => c.CreatedAt)
-            .Select(c => new ContractSummaryDto(
+            .ToListAsync(ct);
+
+        var todayVn = DateOnly.FromDateTime(DateTime.UtcNow + TimeSpan.FromHours(7));
+        var list = new List<ContractSummaryDto>();
+        foreach (var c in contracts)
+        {
+            var isSettled = c.Status is "COMPLETED" or "TERMINATED" or "CANCELLED";
+            var calcDate = isSettled && c.CompletedAt.HasValue
+                ? DateOnly.FromDateTime(c.CompletedAt.Value + TimeSpan.FromHours(7))
+                : todayVn;
+
+            var calc = await OpsRules.CalculateContractOverdueAsync(dbContext, c, calcDate, isSettled, ct);
+            var overdueDto = new ContractOverdueDto(
+                calc.PolicyId,
+                calc.PolicyScope,
+                calc.RatePerDay,
+                calc.CalculationType,
+                calc.AsOfDate,
+                calc.OverdueDays,
+                calc.OverdueFee,
+                calc.RemainingDeposit,
+                calc.DepletionDay,
+                calc.DisposalDay,
+                calc.IsSettled
+            );
+
+            list.Add(new ContractSummaryDto(
                 c.ContractId,
                 c.ReservationId,
                 c.UnitId,
@@ -42,9 +68,12 @@ public class ContractService(AppDbContext dbContext) : IContractService
                 c.AgreedMonthlyRate,
                 c.DepositAmount,
                 c.Status,
-                c.ActivatedAt
-            ))
-            .ToListAsync(ct);
+                c.ActivatedAt,
+                overdueDto
+            ));
+        }
+
+        return list;
     }
 
     /// <summary>
@@ -140,6 +169,27 @@ public class ContractService(AppDbContext dbContext) : IContractService
             )
             : null;
 
+        var todayVn = DateOnly.FromDateTime(DateTime.UtcNow + TimeSpan.FromHours(7));
+        var isSettled = c.Status is "COMPLETED" or "TERMINATED" or "CANCELLED";
+        var calcDate = isSettled && c.CompletedAt.HasValue
+            ? DateOnly.FromDateTime(c.CompletedAt.Value + TimeSpan.FromHours(7))
+            : todayVn;
+
+        var calc = await OpsRules.CalculateContractOverdueAsync(dbContext, c, calcDate, isSettled, ct);
+        var overdueDto = new ContractOverdueDto(
+            calc.PolicyId,
+            calc.PolicyScope,
+            calc.RatePerDay,
+            calc.CalculationType,
+            calc.AsOfDate,
+            calc.OverdueDays,
+            calc.OverdueFee,
+            calc.RemainingDeposit,
+            calc.DepletionDay,
+            calc.DisposalDay,
+            calc.IsSettled
+        );
+
         return new ContractDetailDto(
             c.ContractId,
             c.ReservationId,
@@ -166,7 +216,8 @@ public class ContractService(AppDbContext dbContext) : IContractService
             consent?.PolicyVersion?.Version,
             consent?.AcceptedAt,
             await UnitAvailability.NextBookingAsync(dbContext, c, ct),
-            consentDto
+            consentDto,
+            overdueDto
         );
     }
 

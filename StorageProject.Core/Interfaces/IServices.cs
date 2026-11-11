@@ -109,6 +109,7 @@ public interface IRentalPolicyService
 {
     Task<StorageProject.Core.DTOs.Policy.RentalPolicyDto> GetCurrentPolicyAsync(CancellationToken ct = default);
     Task<StorageProject.Core.DTOs.Policy.RentalPolicyDto?> GetPolicyVersionAsync(int version, CancellationToken ct = default);
+    Task<IReadOnlyList<StorageProject.Core.DTOs.Policy.RentalPolicyVersionSummaryDto>> GetPolicyVersionsAsync(CancellationToken ct = default);
     Task<StorageProject.Core.DTOs.Policy.RentalPolicyDto> SaveRentalPolicyAsync(long userId, StorageProject.Core.DTOs.Policy.SaveRentalPolicyRequest request, CancellationToken ct = default);
     Task<StorageProject.Core.DTOs.Policy.PolicyConsentDto> RecordReservationConsentAsync(long customerId, long reservationId, StorageProject.Core.DTOs.Policy.PolicyConsentRequest request, string channel = "WEB_CUSTOMER", CancellationToken ct = default);
     Task<StorageProject.Core.DTOs.Policy.PolicyConsentDto> RecordRenewalConsentAsync(long customerId, long renewalId, StorageProject.Core.DTOs.Policy.PolicyConsentRequest request, string channel = "WEB_CUSTOMER", CancellationToken ct = default);

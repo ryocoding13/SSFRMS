@@ -470,24 +470,14 @@ public partial class FacilityOpsService
     }
 
     /// <summary>
-    /// Phí quá hạn tại thời điểm khách gửi trả kho (D32: dừng tính khi gửi thành công), tối đa bằng cọc.
-    /// Chưa cấu hình chính sách OVERDUE thì trả 0 trên bảng; bước chốt M07 vẫn báo lỗi cấu hình.
+    /// P1 / D32: Phí quá hạn tại thời điểm khách gửi trả kho (dừng tính khi gửi thành công), tối đa bằng cọc.
+    /// Dùng chung bộ chọn policy OVERDUE của OpsRules.
     /// </summary>
     private async Task<decimal> OverdueFeeAtAsync(RentalContract c, long facilityId, DateTime requestedUtc, CancellationToken ct)
     {
         var requestedDate = DateOnly.FromDateTime(requestedUtc + VnOffset);
-        var overdueDays = Math.Max(0, requestedDate.DayNumber - c.EndDate.DayNumber);
-        if (overdueDays == 0) return 0;
-        var policy = await OpsRules.FindApplicablePolicyAsync(dbContext, "OVERDUE", facilityId, c.Unit.UnitTypeId, requestedDate, ct);
-        try
-        {
-            return StorageProject.Core.Policies.RefundPolicy.OverdueFeeFor(policy?.CalculationType, policy?.Value,
-                c.DepositAmount, overdueDays, maxCap: c.DepositAmount);
-        }
-        catch (InvalidOperationException)
-        {
-            return 0;
-        }
+        var calc = await OpsRules.CalculateContractOverdueAsync(dbContext, c, requestedDate, isSettled: false, ct);
+        return calc.OverdueFee;
     }
 
     /// <summary>

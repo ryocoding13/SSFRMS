@@ -63,9 +63,8 @@ public static class RenewalApproval
             throw new InvalidOperationException($"Ô đã có khách đặt từ {bookedFrom:dd/MM/yyyy} (D41). Từ chối gia hạn hoặc chuyển khách sang ô khác.");
 
         var now = DateTime.UtcNow;
-        // Hạn thanh toán: min(now + 24h, 00:00 ngày hết hạn theo giờ Việt Nam).
-        var expiryUtc = renewal.OldEndDate.ToDateTime(TimeOnly.MinValue) - VnOffset;
-        var deadline = now.AddHours(24) < expiryUtc ? now.AddHours(24) : expiryUtc;
+        // Hạn thanh toán: min(now + 24h, 00:00 ngày hết hạn theo giờ Việt Nam) chuẩn hoá theo P2.
+        var deadline = OpsRules.CalculateRenewalPaymentDeadlineUtc(now, renewal.OldEndDate);
         if (deadline <= now)
             throw new InvalidOperationException("Đã quá hạn duyệt: hợp đồng hết hạn trước khi khách kịp thanh toán gia hạn.");
 

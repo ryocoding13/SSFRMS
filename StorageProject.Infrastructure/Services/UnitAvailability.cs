@@ -15,8 +15,8 @@ public static class UnitAvailability
 {
     /// <summary>Tên loại chính sách quy định số ngày đệm cho thuê lại giữa hai chu kỳ hợp đồng (D41).</summary>
     public const string BufferPolicyType = "RELET_BUFFER";
-    /// <summary>Số ngày đệm mặc định (3 ngày) để dọn dẹp, kiểm tra kho trước khi giao khách mới.</summary>
-    public const int DefaultBufferDays = 3;
+    /// <summary>Số ngày đệm mặc định (3 ngày) để dọn dẹp, kiểm tra kho trước khi giao khách mới (D41).</summary>
+    public const int DefaultBufferDays = OpsRules.DefaultReletBufferDays;
 
     /// <summary>Các trạng thái hợp đồng còn giữ ô (khách cũ chưa trả xong hoặc khách mới đã đặt).</summary>
     public static readonly string[] HoldingStatuses = ["DRAFT", "ACTIVE", "EXPIRING", "OVERDUE", "RETURN_PENDING"];

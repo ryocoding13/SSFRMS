@@ -33,7 +33,13 @@ public record OverdueCaseDto(
     long? AssigneeId,
     int RemovalDay,
     IReadOnlyList<string> Notes,
-    OverdueRemovalRecordDto? Record = null
+    OverdueRemovalRecordDto? Record = null,
+    int? OverdueDays = null,
+    decimal? OverdueFee = null,
+    decimal? RemainingDeposit = null,
+    decimal? OverdueRate = null,
+    int? DepletionDay = null,
+    string? CalculationScope = null
 );
 
 /// <summary>

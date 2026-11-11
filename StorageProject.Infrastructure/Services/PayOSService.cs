@@ -130,10 +130,10 @@ public class PayOSService(
         }
         r.PaymentMethod = "AT_FACILITY";
         r.Status = "PENDING_AT_FACILITY";
-        // Hold until the end of the scheduled check-in day (Vietnam time), never indefinitely.
+        // Hold until the end of the scheduled check-in day (Vietnam time), never indefinitely (P2).
         var checkInDay = r.CheckInAppointmentAt.HasValue
             ? DateOnly.FromDateTime(r.CheckInAppointmentAt.Value.AddHours(7)) : r.StartDate;
-        r.ExpiresAt = checkInDay.AddDays(1).ToDateTime(TimeOnly.MinValue).AddHours(-7);
+        r.ExpiresAt = OpsRules.CalculateCounterHoldDeadlineUtc(checkInDay);
         ReservationSettlement.Audit(dbContext, customerId, "PAY_AT_FACILITY_SELECTED", r.ReservationId, new { r.OrderCode, r.ExpiresAt });
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);

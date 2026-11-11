@@ -24,13 +24,14 @@ export function depositSchedule(deposit, endDate, asOf = today(), rate = 5) {
   const percentage = Number(rate);
   if (!(percentage > 0 && percentage <= 100)) throw new Error("Mức khấu trừ mỗi ngày phải lớn hơn 0 và không quá 100%.");
   const limitDays = Math.ceil(100 / percentage);
+  const disposalDay = 20; // D32 cố định mốc xử lý đồ ngày thứ 20 quá hạn
   const rows = Array.from({ length: Math.min(days, limitDays) }, (_, i) => {
     const before = Math.min(initial, Math.round(initial * i * percentage / 100));
     const deducted = Math.min(initial, Math.round(initial * (i + 1) * percentage / 100));
     return { day: i + 1, date: addDays(String(endDate).slice(0, 10), i + 1), amount: deducted - before, balance: initial - deducted };
   });
   const deducted = Math.min(initial, Math.round(initial * days * percentage / 100));
-  return { initial, days, deducted, balance: initial - deducted, limitDays, rows };
+  return { initial, days, deducted, balance: initial - deducted, limitDays, depletionDay: limitDays, disposalDay, rows };
 }
 
 export function createWorkflowSeed() {

@@ -51,4 +51,8 @@ export const businessApi = {
 
   // Danh mục loại kho (công khai)
   unitTypes: () => request("/api/unit-types", { auth: false }),
+
+  // Lịch sử phiên bản chính sách cho thuê (công khai)
+  rentalPolicyVersions: () => request("/api/rental-policy/versions", { auth: false }),
+  rentalPolicyVersion: (version) => request(`/api/rental-policy/versions/${version}`, { auth: false }),
 };

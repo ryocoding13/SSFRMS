@@ -142,13 +142,28 @@ public sealed class RentalPolicyW3Tests
     }
 
     [Fact]
-    public async Task SaveRentalPolicy_SyncsOverduePolicyInPoliciesTable()
+    public async Task SaveRentalPolicy_PreservesOperationalPoliciesTable_P1_DoesNotMutateOverduePolicy()
     {
         await using var f = new Fixture();
         await f.InitAsync();
         var service = new RentalPolicyService(f.Db);
 
         await DbSeeder.EnsureRentalPolicyVersionsAsync(f.Db, f.AdminUser.UserId);
+
+        // Giả lập chính sách vận hành OVERDUE ban đầu tại B02 là 5.0%
+        f.Db.Policies.Add(new Policy
+        {
+            PolicyName = "Phí phạt quá hạn",
+            PolicyType = "OVERDUE",
+            CalculationType = "DEPOSIT_PERCENT_PER_DAY",
+            Value = 5.0m,
+            RuleDescription = "Phí quá hạn 5% mỗi ngày",
+            Status = "ACTIVE",
+            EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-10)),
+            CreatedBy = f.AdminUser.UserId,
+            CreatedAt = DateTime.UtcNow
+        });
+        await f.Db.SaveChangesAsync();
 
         var request = new SaveRentalPolicyRequest(
             Action: "SAVE_RENTAL_POLICY",
@@ -160,10 +175,10 @@ public sealed class RentalPolicyW3Tests
         var result = await service.SaveRentalPolicyAsync(f.AdminUser.UserId, request);
         Assert.Equal(7.5m, result.Rate);
 
+        // P1: Bảng Policies vận hành được giữ nguyên (vẫn 5.0%), không bị đường công bố nội dung tự động ghi đè
         var overduePolicy = await f.Db.Policies.FirstOrDefaultAsync(p => p.PolicyType == "OVERDUE" && p.Status == "ACTIVE");
         Assert.NotNull(overduePolicy);
-        Assert.Equal(7.5m, overduePolicy.Value);
-        Assert.Equal("DEPOSIT_PERCENT_PER_DAY", overduePolicy.CalculationType);
+        Assert.Equal(5.0m, overduePolicy.Value);
     }
 }
 

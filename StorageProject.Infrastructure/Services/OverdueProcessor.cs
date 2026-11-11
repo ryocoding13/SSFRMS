@@ -29,10 +29,10 @@ public static class OverdueProcessor
         var nowUtc = DateTime.UtcNow;
         var today = DateOnly.FromDateTime(nowUtc + VnOffset);
 
-        // 1. ACTIVE sắp hết hạn trong 30 ngày -> EXPIRING. Cập nhật có điều kiện trong một câu lệnh để không ghi đè
+        // 1. ACTIVE sắp hết hạn trong 30 ngày -> EXPIRING (P2: OpsRules.DefaultExpiringThresholdDays). Cập nhật có điều kiện trong một câu lệnh để không ghi đè
         //    trạng thái khách vừa đổi (ví dụ vừa gửi trả kho) giữa lúc đọc và lúc lưu (S05).
         await dbContext.RentalContracts
-            .Where(c => c.Status == "ACTIVE" && c.EndDate >= today && c.EndDate <= today.AddDays(30))
+            .Where(c => c.Status == "ACTIVE" && c.EndDate >= today && c.EndDate <= today.AddDays(OpsRules.DefaultExpiringThresholdDays))
             .ExecuteUpdateAsync(u => u.SetProperty(c => c.Status, "EXPIRING"), ct);
         dbContext.ChangeTracker.Clear(); // ExecuteUpdate không qua tracker; đọc lại từ DB sau bước này
 
@@ -82,27 +82,16 @@ public static class OverdueProcessor
                 }
             }
 
-            var overdueDays = Math.Max(0, calculationDate.DayNumber - contract.EndDate.DayNumber);
+            // P1 / D32: Dùng chung bộ chọn policy OVERDUE và tính phí
+            var calc = await OpsRules.CalculateContractOverdueAsync(dbContext, contract, calculationDate, isSettled: false, ct);
+            var overdueDays = calc.OverdueDays;
+            var overdueFee = calc.OverdueFee;
+
             if (overdueDays <= 0)
             {
                 await dbContext.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
                 continue;
-            }
-
-            // S05 / D32: tỷ lệ lấy từ chính sách OVERDUE đang áp dụng (B02), không ghi cứng; tối đa 100% cọc.
-            var policy = await OpsRules.FindApplicablePolicyAsync(dbContext, "OVERDUE", contract.Unit.FacilityId, contract.Unit.UnitTypeId, today, ct);
-            decimal overdueFee;
-            if (policy?.Value is decimal)
-            {
-                overdueFee = StorageProject.Core.Policies.RefundPolicy.OverdueFeeFor(policy.CalculationType, policy.Value,
-                    contract.DepositAmount, overdueDays, maxCap: contract.DepositAmount);
-            }
-            else
-            {
-                logger?.LogWarning("Chưa có chính sách OVERDUE cho hợp đồng {ContractId}; dùng mặc định {Rate}%/ngày theo D32.", contract.ContractId, OpsRules.DefaultOverdueRatePerDay);
-                overdueFee = StorageProject.Core.Policies.RefundPolicy.OverdueFeeFor("DEPOSIT_PERCENT_PER_DAY", OpsRules.DefaultOverdueRatePerDay,
-                    contract.DepositAmount, overdueDays, maxCap: contract.DepositAmount);
             }
 
             // Tìm hồ sơ quá hạn đang mở
@@ -117,9 +106,9 @@ public static class OverdueProcessor
                     OverdueFrom = contract.EndDate.AddDays(1),
                     GraceDeadline = contract.EndDate.AddDays(OpsRules.DefaultOverdueReminderEndDay),
                     OutstandingAmount = overdueFee,
-                    Status = overdueDays >= OpsRules.DefaultOverdueDisposalDay ? "ESCALATED" : "OPEN",
+                    Status = overdueDays >= calc.DisposalDay ? "ESCALATED" : "OPEN",
                     OpenedAt = nowUtc,
-                    Notes = overdueDays >= OpsRules.DefaultOverdueDisposalDay
+                    Notes = overdueDays >= calc.DisposalDay
                         ? $"Quá hạn ngày thứ {overdueDays}. Đạt mốc ngày 20 xử lý đồ. Phí quá hạn tối đa: {overdueFee:N0} đ."
                         : overdueDays >= OpsRules.DefaultOverdueReminderStartDay
                             ? $"Quá hạn ngày thứ {overdueDays}. Mốc nhắc khách ngày 10–14. Phí quá hạn: {overdueFee:N0} đ."
