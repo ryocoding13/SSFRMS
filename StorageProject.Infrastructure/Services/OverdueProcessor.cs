@@ -15,8 +15,15 @@ namespace StorageProject.Infrastructure.Services;
 /// </summary>
 public static class OverdueProcessor
 {
+    /// <summary>Độ lệch múi giờ Việt Nam (UTC+7) dùng để tính toán ngày bắt đầu quá hạn chính xác.</summary>
     private static readonly TimeSpan VnOffset = TimeSpan.FromHours(7);
 
+    /// <summary>
+    /// Thực thi tiến trình quét quá hạn tự động theo lịch định kỳ hàng ngày (Job / Worker).
+    /// </summary>
+    /// <param name="dbContext">DbContext truy vấn và lưu trạng thái cơ sở dữ liệu.</param>
+    /// <param name="logger">Logger ghi nhật ký hệ thống (tuỳ chọn).</param>
+    /// <param name="ct">Token hủy không đồng bộ.</param>
     public static async Task ProcessDailyOverdueAsync(AppDbContext dbContext, ILogger? logger = null, CancellationToken ct = default)
     {
         var nowUtc = DateTime.UtcNow;

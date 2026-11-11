@@ -1,3 +1,11 @@
+/**
+ * MANAGER DASHBOARD PAGE - TỔNG QUAN HOẠT ĐỘNG VẬN HÀNH CƠ SỞ (M01–M08)
+ *
+ * Chức năng trung tâm điều hành:
+ * - Hiển thị 4 thẻ KPI: Tổng số ô kho, Tỷ lệ lấp đầy (%), Doanh thu tháng này, Yêu cầu chờ duyệt.
+ * - Danh sách việc cần xử lý gấp: Gia hạn chờ duyệt (M01), Đơn chờ phân bổ (M05),
+ *   Việc chưa giao (M06), Kho quá hạn (M04), Hợp đồng chờ hoàn cọc (M07).
+ */
 import React from "react";
 import { Empty, LinkButton } from "../../../shared/components/UI.jsx";
 import { dateLabel, today } from "../../../shared/utils/format.js";
@@ -17,6 +25,9 @@ export const growth = (months) => {
 
 export const pct = (n) => `${n >= 0 ? "+" : ""}${n.toFixed(1).replace(".", ",")}%`;
 
+/**
+ * Trang bảng điều khiển chính dành cho Quản lý cơ sở SafeSpace.
+ */
 export function ManagerDashboardPage() {
   const { ops } = useOps();
   const renewals = ops.renewals.filter((r) => r.status === "PENDING");

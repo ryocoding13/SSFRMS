@@ -1,3 +1,12 @@
+/**
+ * FACILITY OPERATIONS PROVIDER - QUẢN LÝ DỮ LIỆU TÁC NGHIỆP CƠ SỞ TOÀN CỤC (D15 / D19)
+ *
+ * Quản lý trạng thái hai chế độ:
+ * - Chế độ API (D19): Gọi GET /api/ops/board hoặc /api/staff/board, /api/manager/board
+ *   để nạp 100% dữ liệu thực từ SQL Server.
+ * - Chế độ Trình duyệt (D15): Lưu tạm trên localStorage (safespace.ops.v1) khi máy chủ chưa kết nối.
+ * - Tự động đồng bộ lại dữ liệu sau mỗi thao tác ghi nhận (dispatch action).
+ */
 import { verifyPhotoFile } from "../../../shared/utils/refundRequest.js";
 import { opsMutationCheck, opsReceiptCheck } from "../settlements/settlementModel.js";
 import { supportsReturnPolicy, RETURN_POLICY_PENDING, NO_RETURN_COLLECTION } from "../../../shared/utils/returnPolicy.js";

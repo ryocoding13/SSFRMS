@@ -1,3 +1,13 @@
+/**
+ * CASH REFUND WORKFLOW MODEL - QUY TRÌNH QUẢN LÝ HOÀN TIỀN MẶT (D42 / D44)
+ *
+ * Quản lý trạng thái vòng đời tiền mặt:
+ * - WAITING_APPROVAL: Chờ quản lý cơ sở duyệt (M08)
+ * - READY: Đã duyệt, sẵn sàng chi tiền tại quầy (S10)
+ * - REMIND: Gọi nhắc khách nhận tiền (mốc 10, 20, 25 ngày)
+ * - PAID: Đã chi tiền mặt thành công
+ * - FORFEITED: Quá hạn 30 ngày khách không nhận, chuyển vào doanh thu khác (D44/D45)
+ */
 // D42/D44 · Khoản hoàn tiền mặt tại quầy (GET /api/ops/cash-refunds).
 export const CASH_STATUS = {
   WAITING_APPROVAL: ["Chờ quản lý duyệt", "amber"],

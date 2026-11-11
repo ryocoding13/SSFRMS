@@ -8,8 +8,18 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Dịch vụ quản lý hợp đồng thuê kho (ContractService) thực thi IContractService.
+/// Cung cấp thông tin danh sách hợp đồng, chi tiết hợp đồng, lịch sử bàn giao/thanh toán/gia hạn và quy trình đăng ký trả kho (Move-Out).
+/// </summary>
 public class ContractService(AppDbContext dbContext) : IContractService
 {
+    /// <summary>
+    /// Lấy danh sách tóm tắt các hợp đồng thuê kho của khách hàng hiện tại.
+    /// </summary>
+    /// <param name="customerId">ID khách hàng.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Danh sách hợp đồng thuê của khách hàng.</returns>
     public async Task<IReadOnlyList<ContractSummaryDto>> GetMyContractsAsync(long customerId, CancellationToken ct = default)
     {
         var contracts = await dbContext.RentalContracts
@@ -66,6 +76,13 @@ public class ContractService(AppDbContext dbContext) : IContractService
         return list;
     }
 
+    /// <summary>
+    /// Lấy thông tin chi tiết đầy đủ của một hợp đồng thuê bao gồm thanh toán, gia hạn, bàn giao và mã truy cập.
+    /// </summary>
+    /// <param name="customerId">ID khách hàng sở hữu hợp đồng.</param>
+    /// <param name="contractId">ID hợp đồng cần xem.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Chi tiết hợp đồng hoặc null nếu không tìm thấy.</returns>
     public async Task<ContractDetailDto?> GetContractDetailAsync(long customerId, long contractId, CancellationToken ct = default)
     {
         var c = await dbContext.RentalContracts
@@ -204,6 +221,15 @@ public class ContractService(AppDbContext dbContext) : IContractService
         );
     }
 
+    /// <summary>
+    /// Đăng ký trả kho (Move-Out) bởi khách hàng (D32 / T08).
+    /// Yêu cầu xác nhận dọn hết đồ, đính kèm ảnh kho trống và tài khoản nhận hoàn tiền chính chủ hoặc chọn tiền mặt (D42).
+    /// </summary>
+    /// <param name="customerId">ID khách hàng.</param>
+    /// <param name="contractId">ID hợp đồng cần trả kho.</param>
+    /// <param name="request">Thông tin đăng ký trả kho gồm ngày hẹn, khung giờ, ảnh kho trống, thông tin hoàn tiền.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Kết quả đăng ký lịch trả kho và tạo biên bản kiểm tra.</returns>
     public async Task<MoveOutResponseDto> RegisterMoveOutAsync(long customerId, long contractId, MoveOutRequest request, CancellationToken ct = default)
     {
         // D32 / T08: kiểm toàn bộ dữ liệu khách gửi trước khi ghi (ảnh kho trống bắt buộc, đã chuyển hết đồ).

@@ -1,3 +1,11 @@
+/**
+ * CUSTOMER VERIFICATION PAGE - XÁC MINH DANH TÍNH VÀ NHẬN KHO (S02 / UC04)
+ *
+ * Quy trình bàn giao kho:
+ * - Đối chiếu thông tin giấy tờ tùy thân (CCCD/Hộ chiếu) của khách hàng.
+ * - Xác nhận khách hàng đồng ý nhận kho, ký biên bản bàn giao điện tử.
+ * - Hệ thống kích hoạt trạng thái kho sang OCCUPIED và hợp đồng sang ACTIVE.
+ */
 import React,{useState} from "react";
 import { Button, Empty, Field, LinkButton, Notice } from "../../../shared/components/UI.jsx";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
@@ -5,6 +13,9 @@ import { OpsDemo } from "../../facility-operations/settlements/SettlementCompone
 import { timeLabel } from "../../facility-operations/damage/DamageComponents.jsx";
 import "../../facility-operations/settlements/settlements.css";
 export const DOC_TYPES=["Căn cước công dân","Chứng minh nhân dân","Hộ chiếu"];
+/**
+ * Màn hình nhân viên đối chiếu giấy tờ và hoàn tất thủ tục bàn giao kho cho khách.
+ */
 export function CustomerVerificationPage({query}) {
  const {ops,run,source,saving,needsRefresh}=useOps(),v=ops.verifications.find(v=>v.id===query.get("id")),[form,setForm]=useState({original_valid:false,photo_ok:false,info_ok:false,booking_matched:false}),[error,setError]=useState("");
  if(!v)return <main className="container page"><Empty title="Không tìm thấy lịch xác minh"><LinkButton to="staff/verify">Danh sách xác minh</LinkButton></Empty></main>;

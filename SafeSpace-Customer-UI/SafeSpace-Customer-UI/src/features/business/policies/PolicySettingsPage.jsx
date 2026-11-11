@@ -1,3 +1,12 @@
+/**
+ * POLICY SETTINGS PAGE - TRANG CẤU HÌNH CÁC CHÍNH SÁCH THUÊ VÀ HOÀN TIỀN (B02)
+ *
+ * Quản lý các loại chính sách:
+ * - DEPOSIT: Tỷ lệ tiền cọc (D09/D16).
+ * - CANCELLATION: Phí hủy đơn đặt chỗ trước khi nhận kho (D21/D40: 5% cọc).
+ * - OVERDUE: Phí quá hạn và thời hạn thanh toán nợ.
+ * - RELET_BUFFER: Số ngày đệm cho thuê lại giữa 2 kỳ khách (D41).
+ */
 import React, { useState } from 'react';
 import { businessApi } from "../api/businessApi.js";
 import { Button, Field, LinkButton, Tag } from "../../../shared/components/UI.jsx";
@@ -18,6 +27,9 @@ import {
   policyFields,
 } from "./policyFields.js";
 
+/**
+ * Màn hình danh sách và cấu hình các thông số chính sách nghiệp vụ hệ thống.
+ */
 export default function PolicySettingsPage() {
   const { notify, onApiError } = useApp();
   const load = useLoad(() => businessApi.policies({}), [], onApiError);

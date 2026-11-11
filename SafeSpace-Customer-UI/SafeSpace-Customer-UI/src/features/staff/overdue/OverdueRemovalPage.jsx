@@ -1,3 +1,11 @@
+/**
+ * OVERDUE REMOVAL PAGE - NIÊM PHONG VÀ XỬ LÝ KHO QUÁ HẠN (S06 / T12)
+ *
+ * Quy trình xử lý vi phạm:
+ * - Nhân viên cùng đại diện cơ sở tiến hành mở kho quá hạn đã có quyết định xử lý.
+ * - Chụp ảnh bằng chứng hiện trạng tài sản (loại ảnh OVERDUE_BEFORE / OVERDUE_AFTER - S06).
+ * - Lập biên bản kiểm kê và chuyển hàng hóa vào khu vực lưu giữ tập trung.
+ */
 import ReturnPhotoInput from "../../../shared/components/ReturnPhotoInput.jsx";
 import { actualVnTime } from "../../facility-operations/settlements/settlementModel.js";
 import { vnDateTimeInput } from "../../facility-operations/damage/damageModel.js";
@@ -8,6 +16,9 @@ import { useApp } from "../../../app/state/AppProvider.jsx";
 import { useWorkflowData } from "../../facility-operations/workflows/useWorkflowData.js";
 import { InfoTiles, RecordCard, useWorkflowChange, WorkflowEmpty, WorkflowState } from "../../facility-operations/workflows/WorkflowComponents.jsx";
 
+/**
+ * Màn hình lập biên bản niêm phong và di dời đồ đạc của hợp đồng nợ quá hạn.
+ */
 export function OverdueRemovalPage() {
   const { user } = useApp(), load = useWorkflowData("overdue"), [selected, setSelected] = useState("");
   const [form, setForm] = useState({ performedAt: "", inventory: "", location: "", unitStatus: "INSPECTION",confirmed:false }), [error, setError] = useState("");

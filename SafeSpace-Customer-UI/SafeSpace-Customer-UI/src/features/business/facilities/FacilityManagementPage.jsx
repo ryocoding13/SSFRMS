@@ -1,3 +1,11 @@
+/**
+ * FACILITY MANAGEMENT PAGE - QUẢN LÝ DANH MỤC CƠ SỞ SAFESPACE (B05)
+ *
+ * Nghiệp vụ:
+ * - Hiển thị danh sách 12 cơ sở SafeSpace (D17).
+ * - Sửa thông tin cơ sở (tên, địa chỉ, số điện thoại, giờ mở cửa, tọa độ bản đồ) qua modal B05a (D20).
+ * - Đổi trạng thái cơ sở (Hoạt động / Tạm dừng / Dừng hoạt động) có kiểm tra điều kiện ràng buộc.
+ */
 import {checkedFacilityWrite} from "./facilityMutation.js";
 import React, { useState } from "react";
 import { businessApi } from "../api/businessApi.js";
@@ -153,6 +161,10 @@ function FacilityStatusDialog({ facility, onClose, onSaved, runChange }) {
 }
 
 // B05: danh sách cơ sở, thêm cơ sở, sửa thông tin, đổi trạng thái và mở báo cáo hiệu quả kinh doanh.
+/**
+ * Màn hình quản lý thông tin và trạng thái mạng lưới cơ sở lưu trữ SafeSpace.
+ * @param {{ query: URLSearchParams }} props
+ */
 export default function FacilityManagementPage({ query }) {
   const { onApiError } = useApp();
   const load = useLoad(async () => {

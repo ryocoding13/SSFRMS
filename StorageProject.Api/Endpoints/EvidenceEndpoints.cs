@@ -11,6 +11,10 @@ namespace StorageProject.Api.Endpoints;
 /// </summary>
 public static class EvidenceEndpoints
 {
+    /// <summary>
+    /// Đăng ký endpoint tải ảnh bằng chứng qua URL có chữ ký HMAC bảo mật.
+    /// </summary>
+    /// <param name="routes">Đối tượng cấu hình route của ứng dụng.</param>
     public static void MapEvidenceEndpoints(this IEndpointRouteBuilder routes)
     {
         routes.MapGet("/api/evidence-photos/{id:long}", async (long id, long? exp, string? sig, AppDbContext db, HttpContext http, CancellationToken ct) =>

@@ -10,10 +10,24 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Dịch vụ quản lý kiểm soát ra vào ô kho tự quản (Access Control Service - UC13 / D26 / D33).
+/// Quản lý việc cấp phát và xác thực mã mở cửa thông minh (mã QR có chữ ký HMAC và mã PIN 6 số dự phòng),
+/// kiểm tra điều kiện hợp đồng có hiệu lực (không cho phép mở trước ngày bắt đầu hoặc sau khi trả kho/quá hạn).
+/// </summary>
 public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IAccessService
 {
     private static readonly TimeSpan VnOffset = TimeSpan.FromHours(7);
 
+    /// <summary>
+    /// Lấy thông tin mã QR và mã PIN dự phòng để mở cửa ô kho cho khách hàng có hợp đồng hợp lệ.
+    /// </summary>
+    /// <param name="customerId">ID của khách hàng sở hữu hợp đồng.</param>
+    /// <param name="contractId">ID hợp đồng thuê kho.</param>
+    /// <param name="ct">Token hủy bất đồng bộ.</param>
+    /// <returns>DTO chứa mã QR, mã PIN 6 số, số ô kho và thông tin hiệu lực.</returns>
+    /// <exception cref="KeyNotFoundException">Khi không tìm thấy hợp đồng hoặc không đúng chủ sở hữu.</exception>
+    /// <exception cref="InvalidOperationException">Khi hợp đồng đã trả kho, chưa đến ngày bắt đầu hoặc mã bị thu hồi.</exception>
     public async Task<AccessQrDto> GetQrAsync(long customerId, long contractId, CancellationToken ct = default)
     {
         var contract = await dbContext.RentalContracts
@@ -63,6 +77,14 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
         );
     }
 
+    /// <summary>
+    /// Quét và xác thực mã mở cửa (mã QR hoặc mã PIN 6 số) tại khóa thông minh hoặc đầu đọc thẻ cơ sở.
+    /// </summary>
+    /// <param name="rawCode">Chuỗi mã nhận được từ máy quét hoặc bàn phím số (SSQR-... hoặc mã 6 chữ số).</param>
+    /// <param name="ipAddress">Địa chỉ IP của thiết bị quét.</param>
+    /// <param name="ct">Token hủy bất đồng bộ.</param>
+    /// <param name="unitNumber">Số ô kho (bắt buộc khi quét bằng mã PIN dự phòng để tránh trùng giữa các ô).</param>
+    /// <returns>Kết quả xác thực: OPEN (mở cửa thành công) hoặc DENIED kèm lý do từ chối cụ thể.</returns>
     public async Task<ScanResultDto> ScanAsync(string? rawCode, string? ipAddress, CancellationToken ct = default, string? unitNumber = null)
     {
         if (string.IsNullOrWhiteSpace(rawCode))
@@ -204,6 +226,7 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
         return new ScanResultDto("OPEN", scannedUnit, customerName, contractCode, now, null);
     }
 
+    /// <summary>Lấy thông tin credential gần nhất theo loại (PIN hoặc QR).</summary>
     private static AccessCredential? LatestCredential(RentalContract contract, bool pin)
     {
         var items = contract.AccessCredentials.Where(c => c.CredentialType != "KEY");
@@ -214,6 +237,7 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
                 .OrderByDescending(c => c.IssuedAt).ThenByDescending(c => c.CredentialId).FirstOrDefault();
     }
 
+    /// <summary>Tính toán mã QR kèm chữ ký HMAC-SHA256 và mã PIN 6 số dự phòng tương ứng.</summary>
     private (string Code, string BackupCode) ComputeCodes(long contractId, long credentialId, DateTime issuedAt)
     {
         var rawData = $"{contractId}:{credentialId}:{issuedAt.ToUniversalTime():O}";
@@ -229,9 +253,11 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
         return (code, backupCode);
     }
 
+    /// <summary>Định dạng mã hợp đồng chuẩn hiển thị (HĐ-yyyy-xxxx).</summary>
     private static string FormatContractCode(RentalContract c) =>
         $"HĐ-{c.StartDate.Year}-{c.ContractId:0000}";
 
+    /// <summary>Ghi log nhật ký kiểm toán và trả về kết quả từ chối mở cửa DENIED.</summary>
     private async Task<ScanResultDto> LogAndDenyAsync(
         long? contractId,
         string? scannedUnit,

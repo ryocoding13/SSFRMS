@@ -1,3 +1,11 @@
+/**
+ * INCIDENT MANAGEMENT PAGE - QUẢN LÝ SỰ CỐ KỸ THUẬT VÀ CƠ SỞ VẬT CHẤT (T13)
+ *
+ * Nghiệp vụ T13 / D34:
+ * - Tiếp nhận và xử lý sự cố cơ sở (cháy, ngập nước, mất điện, hỏng khóa).
+ * - Trường hợp bất khả kháng phải chấm dứt hợp đồng trước hạn: Khách được hoàn 100%
+ *   tiền thuê kỳ hiện tại, 100% tiền cọc và không bị phạt vi phạm hợp đồng.
+ */
 import React, { useState } from "react";
 import { Button, DetailList, Empty, Field, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import ReturnPhotoInput from "../../../shared/components/ReturnPhotoInput.jsx";
@@ -19,6 +27,9 @@ function CompletionForm({item,load,actor,ask}) {
  const submit=e=>{e.preventDefault();if(disabled)return;const action=transferring?"COMPLETE_INCIDENT_TRANSFER":"FINALIZE_INCIDENT_TERMINATION",payload={expectedVersion:item.version,movedAt,confirmed};try{prepareIncidentAction(item,action,payload,actor);setError("");ask({id:item.id,action,payload,danger:!transferring,title:transferring?"Xác nhận đã hoàn tất chuyển kho?":"Kết thúc hợp đồng do sự cố?",summary:transferring?"Chỉ xác nhận sau khi chuyển đồ thực tế. Ô cũ giữ bảo trì, mã cũ hết hiệu lực, cấp mã cho ô mới; giá và kỳ thuê giữ nguyên.":"Kết thúc theo lựa chọn của khách; tạo khoản chờ hoàn đúng chính sách sự cố, chưa xác nhận đã chuyển tiền."});}catch(error){setError(error.message);}};
  return <><form className="panel customer-detail__card" onSubmit={submit} noValidate><h2>{transferring?"Hoàn tất chuyển kho":"Xử lý kết thúc do sự cố"}</h2>{transferring?<><DetailList items={[["Ô khách đồng ý",item.targetUnit?.code||"Chưa có dữ liệu"],["Giá và kỳ thuê","Giữ nguyên · phụ phí 0 đ"]]}/><Field label="Thời điểm đã chuyển · giờ Việt Nam *"><input type="datetime-local" max={vnDateTimeInput()} value={movedAt} disabled={disabled} onChange={e=>setMovedAt(e.target.value)}/></Field></>:<><IncidentRefund item={item}/><DetailList items={[["Ngân hàng",item.refundBank?.bankName||"Chưa có dữ liệu"],["Tài khoản",item.refundBank?.accountNumber?`••••${item.refundBank.accountNumber.slice(-4)}`:"Chưa có dữ liệu"],["Chủ tài khoản",item.refundBank?.accountHolder||"Chưa có dữ liệu"]]}/></>}<label className="customer-detail__choice"><input type="checkbox" checked={confirmed} disabled={disabled} onChange={e=>setConfirmed(e.target.checked)}/><span>{transferring?"Đã chuyển đồ thực tế sang đúng ô khách đồng ý":"Đã đối chiếu lựa chọn khách và thông tin kết thúc/hoàn tiền"}</span></label>{error&&<Notice tone="error">{error}</Notice>}<div className="customer-detail__actions"><Button type="submit" disabled={disabled}>{transferring?"Xác nhận hoàn tất chuyển":"Kết thúc và tạo khoản chờ hoàn"}</Button></div></form></>;
 }
+/**
+ * Màn hình theo dõi và điều phối giải quyết các sự cố kỹ thuật tại cơ sở.
+ */
 export function IncidentManagementPage({query}) {
  const {user,roles}=useApp(),{ops}=useOps(),facilityId=ops?.facility?.facility_id??null,load=useIncidents("manager",facilityId),id=query.get("id"),item=id?load.data.find(i=>i.id===id):null;
  const [dialog,ask]=useIncidentChange(load,`${id}:${facilityId}:${user?.user_id}`);

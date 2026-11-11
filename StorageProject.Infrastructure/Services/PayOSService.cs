@@ -10,12 +10,25 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Dịch vụ tích hợp cổng thanh toán trực tuyến PayOS (PayOSService) thực thi IPayOSService.
+/// Xử lý tạo link/mã QR thanh toán đơn đặt chỗ mới, chuyển hình thức thanh toán tại quầy,
+/// tạo QR thanh toán gia hạn và xử lý Webhook thanh toán an toàn, chống lặp đơn (Idempotency).
+/// </summary>
 public class PayOSService(
     AppDbContext dbContext,
     IPayOSGateway gateway,
     ILogger<PayOSService> logger,
     IConfiguration? configuration = null) : IPayOSService
 {
+    /// <summary>
+    /// Tạo mã VietQR và link thanh toán trực tuyến PayOS cho đơn đặt chỗ mới.
+    /// Yêu cầu đã chấp thuận chính sách cho thuê trước khi tạo mã (BO07).
+    /// </summary>
+    /// <param name="customerId">ID khách hàng.</param>
+    /// <param name="request">Yêu cầu tạo mã QR kèm ID đơn hoặc thông tin kho.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Dữ liệu link thanh toán và mã QR PayOS.</returns>
     public async Task<CreatePayOSQrResponse> CreatePaymentQrAsync(long customerId, CreatePayOSQrRequest request, CancellationToken ct = default)
     {
         var id = request.ReservationId;
@@ -84,6 +97,13 @@ public class PayOSService(
         return new CreatePayOSQrResponse(r.ReservationId, r.OrderCode.Value, link.Url, link.Qr, amount, expiry);
     }
 
+    /// <summary>
+    /// Chuyển phương thức thanh toán của đơn sang trả tiền mặt tại cơ sở kho (AT_FACILITY).
+    /// Huỷ link thanh toán PayOS tương ứng nếu đã tạo trước đó.
+    /// </summary>
+    /// <param name="customerId">ID khách hàng.</param>
+    /// <param name="reservationId">ID đơn đặt chỗ.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task PayAtFacilityAsync(long customerId, long reservationId, CancellationToken ct = default)
     {
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"reservation:{reservationId}", ct);
@@ -119,6 +139,13 @@ public class PayOSService(
         await tx.CommitAsync(ct);
     }
 
+    /// <summary>
+    /// Tạo mã QR thanh toán PayOS cho khoản phí gia hạn hợp đồng đã được quản lý phê duyệt (T03).
+    /// </summary>
+    /// <param name="customerId">ID khách hàng.</param>
+    /// <param name="paymentId">ID khoản thanh toán gia hạn.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Dữ liệu PayosCheckoutDto chứa link và mã QR.</returns>
     public async Task<PayosCheckoutDto> CreateRenewalPaymentQrAsync(long customerId, long paymentId, CancellationToken ct = default)
     {
         var payment = await dbContext.Payments
@@ -240,6 +267,14 @@ public class PayOSService(
         );
     }
 
+    /// <summary>
+    /// Xử lý Webhook gửi từ PayOS sau khi giao dịch thành công.
+    /// Tự động cập nhật thanh toán đơn đặt chỗ (kèm cấp hợp đồng/mã PIN) hoặc quyết toán gia hạn hợp đồng (T03).
+    /// </summary>
+    /// <param name="webhookBodyJson">Nội dung JSON của webhook.</param>
+    /// <param name="signatureHeader">Chữ ký từ header (nếu có).</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>True nếu xử lý thành công, False nếu chữ ký sai hoặc lỗi.</returns>
     public async Task<bool> ProcessWebhookAsync(string webhookBodyJson, string? signatureHeader, CancellationToken ct = default)
     {
         VerifiedReservationPayment? verified;
@@ -339,6 +374,12 @@ public class PayOSService(
         return false;
     }
 
+    /// <summary>
+    /// Tra cứu trạng thái thanh toán của một đơn đặt chỗ.
+    /// </summary>
+    /// <param name="reservationId">ID đơn đặt chỗ.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Trạng thái thanh toán của đơn.</returns>
     public async Task<ReservationPaymentStatusDto?> GetReservationPaymentStatusAsync(long reservationId, CancellationToken ct = default)
     {
         var r = await dbContext.Reservations.AsNoTracking().SingleOrDefaultAsync(r => r.ReservationId == reservationId, ct);

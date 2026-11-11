@@ -1,3 +1,14 @@
+/**
+ * UI DESIGN SYSTEM - BỘ THÀNH PHẦN GIAO DIỆN CHUẨN SAFESPACE
+ *
+ * Cung cấp các component nguyên tử dùng chung trong toàn bộ hệ thống:
+ * - Button, LinkButton: Nút bấm với các biến thể (primary, outline, danger).
+ * - Modal: Hộp thoại popup có nền mờ và bắt phím ESC.
+ * - Notice: Khung thông báo trạng thái (info, success, warning, error).
+ * - Empty: Trạng thái trống khi chưa có dữ liệu.
+ * - Field: Bọc nhãn (label) và thông báo lỗi cho ô nhập form.
+ * - PageHeader: Tiêu đề trang chuẩn mực.
+ */
 import React, { useEffect, useId, useRef } from "react";
 import { href } from "../../app/router.js";
 

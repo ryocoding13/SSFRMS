@@ -1,3 +1,11 @@
+/**
+ * OVERDUE CASE PAGE - QUẢN LÝ HỒ SƠ HỢP ĐỒNG QUÁ HẠN THANH TOÁN (M04 / D32)
+ *
+ * Quy trình xử lý quá hạn:
+ * - Nhắc nợ lần 1, lần 2, lần 3 kèm nhật ký cuộc gọi và thông báo hệ thống.
+ * - Tạm khóa mã truy cập QR/PIN vào kho.
+ * - Sau thời hạn quy định, chuyển sang quy trình niêm phong và xử lý tài sản bỏ lại (S06).
+ */
 import React, { useState } from "react";
 import { Button, Field, LinkButton, Notice, PageHeader } from "../../../shared/components/UI.jsx";
 import { dateLabel, money } from "../../../shared/utils/format.js";
@@ -5,6 +13,9 @@ import { depositSchedule, policyRate } from "../../facility-operations/workflows
 import { useWorkflowData } from "../../facility-operations/workflows/useWorkflowData.js";
 import { InfoTiles, RecordCard, useWorkflowChange, WorkflowEmpty, WorkflowState } from "../../facility-operations/workflows/WorkflowComponents.jsx";
 
+/**
+ * Màn hình xử lý các ca vi phạm hợp đồng và nợ phí quá hạn.
+ */
 export function OverdueCasePage() {
   const load = useWorkflowData("overdue"), policy = useWorkflowData("policy"), defaultRate = policyRate(policy.data), [selected, setSelected] = useState(""), [assignee, setAssignee] = useState(""), [error, setError] = useState("");
   const [dialog, ask] = useWorkflowChange(load);

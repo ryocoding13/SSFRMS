@@ -1,3 +1,11 @@
+/**
+ * RESERVATION DETAIL PAGE - CHI TIẾT ĐƠN ĐẶT CHỖ THUÊ KHO (UC02)
+ *
+ * Hiển thị toàn bộ thông tin đơn:
+ * - Tên cơ sở, loại kho, gói thời gian thuê và tổng số tiền thanh toán (tiền thuê + cọc 1 tháng).
+ * - Đếm ngược thời gian giữ chỗ thanh toán.
+ * - Trạng thái: Chờ thanh toán, Chờ đối soát, Đã phân bổ kho, Đã hoàn tất, Đã hủy.
+ */
 import React from "react";
 import { Button, DetailList, Icon, LinkButton, Notice } from "../../../shared/components/UI.jsx";
 import { bandLabel, typeLabel } from "../../../shared/utils/catalog.js";
@@ -9,6 +17,10 @@ import { useApp } from "../../../app/state/AppProvider.jsx";
 import { NotFound } from "./components/ReservationNotFound.jsx";
 import { canCancel } from "./ReservationListPage.jsx";
 
+/**
+ * Màn hình xem chi tiết và theo dõi trạng thái đơn đặt chỗ của khách hàng.
+ * @param {{ id: string|number }} props
+ */
 export function ReservationDetailPage({ id, mode = "confirmation" }) {
   const { data, retry } = useApp();
   const now = useNow(1000);

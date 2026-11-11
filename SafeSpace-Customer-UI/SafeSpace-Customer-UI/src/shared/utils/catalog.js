@@ -1,3 +1,12 @@
+/**
+ * CATALOG & PRICING RULES - DANH MỤC VÀ QUY TẮC TÍNH GIÁ KHO (D17)
+ *
+ * Chuẩn hóa mô hình Figma D17:
+ * - 4 nhóm kho chính:
+ *   + Cỡ M (15 m²): Kho thường và Kho lạnh (kiểm soát nhiệt độ)
+ *   + Cỡ L (30 m²): Kho thường và Kho lạnh (kiểm soát nhiệt độ)
+ * - Công thức tính tiền đặt cọc D09: Tiền cọc = 1 tháng tiền thuê.
+ */
 import { addMonths } from "./format.js";
 
 export const UNIT_TYPES = [

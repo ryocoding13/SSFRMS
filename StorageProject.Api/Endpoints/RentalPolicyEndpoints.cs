@@ -6,14 +6,23 @@ using StorageProject.Core.Interfaces;
 
 namespace StorageProject.Api.Endpoints;
 
+/// <summary>
+/// Định nghĩa các Minimal API Endpoints quản lý chính sách điều khoản thuê kho và ghi nhận chấp thuận (BO07).
+/// Cho phép xem chính sách hiện hành công khai, xem lịch sử phiên bản, công bố phiên bản mới và lưu bằng chứng khách hàng đồng ý điều khoản.
+/// </summary>
 public static class RentalPolicyEndpoints
 {
+    /// <summary>
+    /// Đăng ký các route chính sách thuê kho (/api/rental-policy, /api/reservations/.../policy-consent).
+    /// </summary>
+    /// <param name="app">Builder đăng ký route.</param>
+    /// <returns>Nhóm route /api đã cấu hình.</returns>
     public static RouteGroupBuilder MapRentalPolicyEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api")
             .WithTags("Rental Policy");
 
-        // Public GET /api/rental-policy
+        // GET /api/rental-policy: Xem nội dung điều khoản chính sách thuê kho hiện hành (công khai)
         group.MapGet("/rental-policy", async (IRentalPolicyService policyService, CancellationToken ct) =>
         {
             var policy = await policyService.GetCurrentPolicyAsync(ct);
@@ -27,7 +36,7 @@ public static class RentalPolicyEndpoints
             return Results.Ok(versions);
         }).AllowAnonymous();
 
-        // Public GET /api/rental-policy/versions/{version:int}
+        // GET /api/rental-policy/versions/{version}: Xem chi tiết một phiên bản chính sách theo số hiệu phiên bản
         group.MapGet("/rental-policy/versions/{version:int}", async (int version, IRentalPolicyService policyService, CancellationToken ct) =>
         {
             var policy = await policyService.GetPolicyVersionAsync(version, ct);
@@ -38,7 +47,7 @@ public static class RentalPolicyEndpoints
             return Results.Ok(policy);
         }).AllowAnonymous();
 
-        // POST /api/rental-policy/actions - OPERATIONS or ADMIN only
+        // POST /api/rental-policy/actions: Vận hành KD hoặc Admin ban hành và lưu phiên bản điều khoản mới
         group.MapPost("/rental-policy/actions", async (SaveRentalPolicyRequest request, ClaimsPrincipal user, IRentalPolicyService policyService, CancellationToken ct) =>
         {
             try
@@ -67,7 +76,7 @@ public static class RentalPolicyEndpoints
             }
         }).RequireAuthorization();
 
-        // POST /api/reservations/{id:long}/policy-consent - Customer consent
+        // POST /api/reservations/{id}/policy-consent: Khách hàng xác nhận đồng ý điều khoản khi đặt chỗ
         group.MapPost("/reservations/{id:long}/policy-consent", async (long id, PolicyConsentRequest request, ClaimsPrincipal user, IRentalPolicyService policyService, CancellationToken ct) =>
         {
             try

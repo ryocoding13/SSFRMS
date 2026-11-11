@@ -11,8 +11,18 @@ using StorageProject.Infrastructure.Data;
 
 namespace StorageProject.Infrastructure.Services;
 
+/// <summary>
+/// Dịch vụ xác thực và quản lý tài khoản người dùng (AuthService) thực thi IAuthService.
+/// Xử lý đăng ký, đăng nhập JWT, đăng xuất, xem hồ sơ, cập nhật thông tin và đổi mật khẩu.
+/// </summary>
 public class AuthService(AppDbContext dbContext, IConfiguration configuration) : IAuthService
 {
+    /// <summary>
+    /// Đăng ký tài khoản khách hàng mới vào hệ thống (mặc định gán vai trò CUSTOMER và trạng thái ACTIVE).
+    /// </summary>
+    /// <param name="request">Thông tin đăng ký gồm username, email, mật khẩu, họ tên, số điện thoại.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Thông tin người dùng vừa được tạo.</returns>
     public async Task<AuthUserDto> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(request.Username))
@@ -92,6 +102,14 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
         );
     }
 
+    /// <summary>
+    /// Đăng nhập hệ thống bằng tên đăng nhập hoặc email (T18), xác minh mật khẩu qua BCrypt và cấp JWT token.
+    /// </summary>
+    /// <param name="request">Yêu cầu đăng nhập gồm identifier (username/email) và mật khẩu.</param>
+    /// <param name="ipAddress">Địa chỉ IP của client gửi yêu cầu.</param>
+    /// <param name="deviceInfo">Thông tin thiết bị (User-Agent).</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>JWT token, thời điểm hết hạn và thông tin người dùng đăng nhập.</returns>
     public async Task<LoginResponse> LoginAsync(LoginRequest request, string? ipAddress, string? deviceInfo, CancellationToken ct = default)
     {
         var identifier = request.Username?.Trim() ?? "";
@@ -186,6 +204,11 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
         return new LoginResponse(tokenString, expiresAt, authUserDto);
     }
 
+    /// <summary>
+    /// Đăng xuất phiên làm việc hiện tại bằng cách cập nhật thời điểm LogoutAt vào LoginHistory.
+    /// </summary>
+    /// <param name="loginHistoryId">ID phiên đăng nhập từ claim của token.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task LogoutAsync(long loginHistoryId, CancellationToken ct = default)
     {
         var history = await dbContext.LoginHistories.FindAsync([loginHistoryId], ct);
@@ -196,6 +219,12 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
         }
     }
 
+    /// <summary>
+    /// Lấy thông tin hồ sơ người dùng hiện tại kèm danh sách các vai trò được phân công.
+    /// </summary>
+    /// <param name="userId">ID người dùng.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Hồ sơ người dùng.</returns>
     public async Task<UserProfileDto> GetUserProfileAsync(long userId, CancellationToken ct = default)
     {
         var user = await dbContext.Users
@@ -222,6 +251,13 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
         );
     }
 
+    /// <summary>
+    /// Cập nhật thông tin hồ sơ người dùng (họ tên từ 2 đến 100 ký tự, số điện thoại).
+    /// </summary>
+    /// <param name="userId">ID người dùng.</param>
+    /// <param name="request">Thông tin cập nhật mới.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
+    /// <returns>Hồ sơ sau khi cập nhật.</returns>
     public async Task<UserProfileDto> UpdateUserProfileAsync(long userId, UpdateProfileRequest request, CancellationToken ct = default)
     {
         var user = await dbContext.Users
@@ -234,11 +270,6 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
             throw new KeyNotFoundException($"Không tìm thấy người dùng với ID: {userId}");
         }
 
-        // Code cũ được giữ để đối chiếu.
-        // if (!string.IsNullOrWhiteSpace(request.FullName))
-        // {
-        //     user.FullName = request.FullName.Trim();
-        // }
         // Tên hiển thị phải có từ hai đến một trăm ký tự sau khi bỏ khoảng trắng ngoài.
         var fullName = request.FullName?.Trim() ?? "";
         if (fullName.Length < 2 || fullName.Length > 100)
@@ -268,13 +299,14 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
         );
     }
 
+    /// <summary>
+    /// Thay đổi mật khẩu người dùng với điều kiện mật khẩu mới tối thiểu 8 ký tự và khác mật khẩu cũ.
+    /// </summary>
+    /// <param name="userId">ID người dùng.</param>
+    /// <param name="request">Yêu cầu đổi mật khẩu gồm mật khẩu hiện tại và mật khẩu mới.</param>
+    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     public async Task ChangePasswordAsync(long userId, ChangePasswordRequest request, CancellationToken ct = default)
     {
-        // Code cũ được giữ để đối chiếu.
-        // if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
-        // {
-        //     throw new ArgumentException("Mật khẩu mới phải có ít nhất 6 ký tự.");
-        // }
         // Đồng bộ điều kiện mật khẩu với C13 và tiếp tục dùng BCrypt để xác minh và băm.
         if (string.IsNullOrWhiteSpace(request.CurrentPassword))
         {

@@ -1,3 +1,12 @@
+/**
+ * CASH REFUND COUNTER PAGE - THỰC HIỆN CHI TRẢ TIỀN MẶT TẠI QUẦY (S10 / D42 / D44)
+ *
+ * Quy trình chi tiền mặt 4 bước:
+ * 1. Kiểm tra đối chiếu giấy tờ tùy thân chính chủ người nhận.
+ * 2. Đối chiếu mã tham chiếu hoàn tiền từ hệ thống.
+ * 3. Đếm đủ số tiền mặt cần hoàn trả.
+ * 4. Khách hàng ký nhận biên bản chi tiền mặt.
+ */
 import React, { useState } from "react";
 import { Button, Field, Modal, Notice, PageHeader } from "../../../shared/components/UI.jsx";
 import { DatePicker } from "../../../shared/components/Pickers.jsx";
@@ -22,6 +31,9 @@ const PAY_CHECKS = [
 ];
 
 // Figma S10 / S10b · D42/D44: nhân viên gọi nhắc (ngày 10, 20, 25) và chi tiền hoàn tại quầy sau khi quản lý duyệt.
+/**
+ * Màn hình nhân viên thực hiện chi trả tiền mặt cho khách hàng tại cơ sở.
+ */
 export function CashRefundCounterPage() {
   const { reload: reloadOps } = useOps() || {};
   const load = useOpsEndpoint("/api/ops/cash-refunds");

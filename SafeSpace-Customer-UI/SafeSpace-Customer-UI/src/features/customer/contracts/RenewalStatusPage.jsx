@@ -1,9 +1,22 @@
+/**
+ * RENEWAL STATUS PAGE - THEO DÕI TIẾN ĐỘ XỬ LÝ GIA HẠN HỢP ĐỒNG (C07a)
+ *
+ * Hiển thị trạng thái yêu cầu gia hạn:
+ * - Chờ quản lý cơ sở duyệt (PENDING - trong vòng 24 giờ).
+ * - Đã duyệt chờ thanh toán (APPROVED - có mã thanh toán VietQR PayOS).
+ * - Đã hoàn tất thanh toán (PAID - thời hạn hợp đồng được kéo dài).
+ * - Bị từ chối (REJECTED) kèm lý do giải thích từ cơ sở.
+ */
 import React, { useState } from "react";
 import { Button, LinkButton, Notice, PageHeader } from "../../../shared/components/UI.jsx";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { dateLabel, money, timeLabel } from "../../../shared/utils/format.js";
 import { InfoTiles, RecordCard, WorkflowEmpty } from "../../facility-operations/workflows/WorkflowComponents.jsx";
 
+/**
+ * Màn hình trạng thái tiến trình xử lý yêu cầu gia hạn hợp đồng.
+ * @param {{ contract: Object }} props
+ */
 export function RenewalStatusPage({ id }) {
   const { data, dispatch } = useApp(), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const rows = data.renewals.filter(r => r.contract_id === id);

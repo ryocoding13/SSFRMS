@@ -5,36 +5,65 @@ using StorageProject.Infrastructure.Data;
 namespace StorageProject.Infrastructure.Services;
 
 /// <summary>
-/// D41 · Ô trống theo ngày. Ô đang thuê coi như trống từ ngày hết hạn hợp đồng hiện tại + số ngày đệm
-/// (chính sách RELET_BUFFER, mặc định 3 ngày). Không cho đặt trước ô có hợp đồng đang quá hạn (OVERDUE).
+/// D41 · Tính toán tình trạng ô kho trống theo ngày và lập lịch đặt trước.
+/// Ô đang thuê coi như trống từ ngày hết hạn hợp đồng hiện tại + số ngày đệm (chính sách RELET_BUFFER, mặc định 3 ngày).
+/// Không cho đặt trước ô có hợp đồng đang quá hạn (OVERDUE).
 /// Gia hạn đang chờ (PENDING/APPROVED) giữ ô tới ngày hết hạn mới.
 /// Ô bảo trì / ngừng phục vụ / đang kiểm tra mà không có hợp đồng thì không đặt được.
 /// </summary>
 public static class UnitAvailability
 {
+    /// <summary>Tên loại chính sách quy định số ngày đệm cho thuê lại giữa hai chu kỳ hợp đồng (D41).</summary>
     public const string BufferPolicyType = "RELET_BUFFER";
+    /// <summary>Số ngày đệm mặc định (3 ngày) để dọn dẹp, kiểm tra kho trước khi giao khách mới (D41).</summary>
     public const int DefaultBufferDays = OpsRules.DefaultReletBufferDays;
 
-    /// <summary>Hợp đồng còn giữ ô (khách cũ chưa trả xong hoặc khách mới đã đặt).</summary>
+    /// <summary>Các trạng thái hợp đồng còn giữ ô (khách cũ chưa trả xong hoặc khách mới đã đặt).</summary>
     public static readonly string[] HoldingStatuses = ["DRAFT", "ACTIVE", "EXPIRING", "OVERDUE", "RETURN_PENDING"];
 
+    /// <summary>Các trạng thái ô kho bị khoá kỹ thuật, không thể cho thuê.</summary>
     private static readonly string[] BlockedUnitStatuses = ["MAINTENANCE", "OUT_OF_SERVICE", "INSPECTION"];
 
+    /// <summary>Thông tin một chu kỳ giữ ô kho của hợp đồng.</summary>
+    /// <param name="ContractId">ID hợp đồng thuê đang giữ ô.</param>
+    /// <param name="StartDate">Ngày bắt đầu hiệu lực.</param>
+    /// <param name="EndDate">Ngày kết thúc hiệu lực (đã tính thời gian gia hạn đang chờ nếu có).</param>
+    /// <param name="Status">Trạng thái hợp đồng giữ ô.</param>
     public sealed record Hold(long ContractId, DateOnly StartDate, DateOnly EndDate, string Status);
 
+    /// <summary>Đại diện cho một ô kho kèm theo toàn bộ lịch trình các hợp đồng đang giữ ô.</summary>
+    /// <param name="Unit">Đối tượng ô kho lưu trữ.</param>
+    /// <param name="Holds">Danh sách các khoảng thời gian bị chiếm dụng.</param>
     public sealed record UnitSlot(StorageUnit Unit, IReadOnlyList<Hold> Holds)
     {
         /// <summary>Không có hợp đồng giữ ô, ô ở trạng thái AVAILABLE — "trống thật" (ưu tiên khi tự gán).</summary>
         public bool FreeNow => Holds.Count == 0 && Unit.Status == "AVAILABLE";
     }
 
+    /// <summary>
+    /// Lấy số ngày đệm áp dụng cho cơ sở và loại kho tại ngày chỉ định theo chính sách RELET_BUFFER (D41).
+    /// </summary>
+    /// <param name="db">DbContext truy vấn.</param>
+    /// <param name="facilityId">ID cơ sở.</param>
+    /// <param name="unitTypeId">ID loại kho.</param>
+    /// <param name="onDate">Ngày kiểm tra hiệu lực chính sách.</param>
+    /// <param name="ct">Token hủy không đồng bộ.</param>
+    /// <returns>Số ngày đệm (0 đến 60 ngày), mặc định 3 ngày.</returns>
     public static async Task<int> BufferDaysAsync(AppDbContext db, long facilityId, long unitTypeId, DateOnly onDate, CancellationToken ct)
     {
         var policy = await OpsRules.FindApplicablePolicyAsync(db, BufferPolicyType, facilityId, unitTypeId, onDate, ct);
         return policy?.Value is decimal v && v >= 0 && v <= 60 ? (int)Math.Round(v) : DefaultBufferDays;
     }
 
-    /// <summary>Ô của một loại tại cơ sở kèm các hợp đồng đang giữ ô (đã tính gia hạn đang chờ).</summary>
+    /// <summary>
+    /// Lấy danh sách ô kho của một loại tại cơ sở kèm các hợp đồng đang giữ ô (đã tính gia hạn đang chờ).
+    /// </summary>
+    /// <param name="db">DbContext truy vấn.</param>
+    /// <param name="facilityId">ID cơ sở lưu trữ.</param>
+    /// <param name="unitTypeId">ID loại kho (hoặc null nếu lấy toàn bộ cơ sở).</param>
+    /// <param name="ct">Token hủy không đồng bộ.</param>
+    /// <param name="excludeContractId">ID hợp đồng cần loại trừ khỏi tính toán (ví dụ khi đang kiểm tra chính hợp đồng đó).</param>
+    /// <returns>Danh sách các UnitSlot tương ứng.</returns>
     public static async Task<List<UnitSlot>> SlotsAsync(AppDbContext db, long facilityId, long? unitTypeId, CancellationToken ct,
         long? excludeContractId = null)
     {
@@ -62,9 +91,16 @@ public static class UnitAvailability
     }
 
     /// <summary>
-    /// Ô đặt được cho kỳ [start, end): mọi hợp đồng giữ ô hoặc kết thúc + đệm ≤ start, hoặc bắt đầu ≥ end + đệm.
+    /// Kiểm tra ô kho có đặt được cho kỳ [start, end) hay không:
+    /// Mọi hợp đồng giữ ô hoặc kết thúc + đệm ≤ start, hoặc bắt đầu ≥ end + đệm.
     /// Hợp đồng quá hạn (OVERDUE) hoặc khách đã trả nhưng chưa có ngày trống (RETURN_PENDING quá hạn) chặn mọi kỳ chồng sau đó.
     /// </summary>
+    /// <param name="slot">Thông tin ô kho và lịch giữ ô.</param>
+    /// <param name="start">Ngày bắt đầu dự kiến thuê.</param>
+    /// <param name="end">Ngày kết thúc dự kiến thuê.</param>
+    /// <param name="bufferDays">Số ngày đệm cần duy trì giữa hai lượt thuê.</param>
+    /// <param name="today">Ngày hiện tại theo giờ địa phương.</param>
+    /// <returns>True nếu ô kho khả dụng trong toàn bộ khoảng thời gian, ngược lại False.</returns>
     public static bool Bookable(UnitSlot slot, DateOnly start, DateOnly end, int bufferDays, DateOnly today)
     {
         // Ô RESERVED không có hợp đồng = đang giữ cho đề xuất đổi kho 48 giờ (D41) → không cho đơn khác lấy.
@@ -82,7 +118,13 @@ public static class UnitAvailability
         return true;
     }
 
-    /// <summary>Ngày ô trống lại để hiện "Trống từ dd/mm" (null = đang trống / không xác định được do quá hạn).</summary>
+    /// <summary>
+    /// Xác định ngày ô trống lại để hiển thị nhãn "Trống từ dd/mm" trên giao diện khách hàng.
+    /// </summary>
+    /// <param name="slot">Thông tin ô kho.</param>
+    /// <param name="bufferDays">Số ngày đệm.</param>
+    /// <param name="today">Ngày hôm nay theo giờ địa phương.</param>
+    /// <returns>Ngày bắt đầu trống (null nếu đang hoàn toàn trống hoặc không xác định được do quá hạn).</returns>
     public static DateOnly? FreeFrom(UnitSlot slot, int bufferDays, DateOnly today)
     {
         if (slot.FreeNow) return null;
@@ -92,8 +134,15 @@ public static class UnitAvailability
     }
 
     /// <summary>
-    /// Ô cho đơn mới: ưu tiên ô trống thật; chỉ dùng ô sắp hết hạn khi hết ô trống (D41), ô trống sớm hơn trước.
+    /// Lựa chọn ô kho tối ưu cho đơn đặt chỗ mới:
+    /// Ưu tiên ô trống thật (FreeNow); chỉ dùng ô sắp hết hạn khi hết ô trống (D41); ô trống sớm hơn xếp trước.
     /// </summary>
+    /// <param name="slots">Danh sách các ô kho khả thi.</param>
+    /// <param name="start">Ngày bắt đầu thuê.</param>
+    /// <param name="end">Ngày kết thúc thuê.</param>
+    /// <param name="bufferDays">Số ngày đệm.</param>
+    /// <param name="today">Ngày hôm nay.</param>
+    /// <returns>UnitSlot được lựa chọn, hoặc null nếu không có ô nào phù hợp.</returns>
     public static UnitSlot? Pick(IEnumerable<UnitSlot> slots, DateOnly start, DateOnly end, int bufferDays, DateOnly today) =>
         slots.Where(s => Bookable(s, start, end, bufferDays, today))
             .OrderBy(s => s.FreeNow ? 0 : 1)
@@ -101,7 +150,16 @@ public static class UnitAvailability
             .ThenBy(s => s.Unit.UnitNumber).ThenBy(s => s.Unit.UnitId)
             .FirstOrDefault();
 
-    /// <summary>Số ô đặt được trừ các đơn chưa gán ô đang giữ chỗ cùng kỳ.</summary>
+    /// <summary>
+    /// Đếm số lượng ô kho có thể đặt được sau khi trừ đi các đơn đặt chỗ chưa gán ô đang giữ chỗ cùng kỳ.
+    /// </summary>
+    /// <param name="db">DbContext kết nối cơ sở dữ liệu.</param>
+    /// <param name="facilityId">ID cơ sở.</param>
+    /// <param name="unitTypeId">ID loại kho.</param>
+    /// <param name="start">Ngày bắt đầu.</param>
+    /// <param name="end">Ngày kết thúc.</param>
+    /// <param name="ct">Token hủy không đồng bộ.</param>
+    /// <returns>Số lượng ô khả dụng còn lại (tối thiểu 0).</returns>
     public static async Task<int> CountBookableAsync(AppDbContext db, long facilityId, long unitTypeId, DateOnly start, DateOnly end,
         CancellationToken ct = default)
     {
@@ -117,7 +175,14 @@ public static class UnitAvailability
         return Math.Max(0, bookable - waiting);
     }
 
-    /// <summary>D41: hợp đồng mới đặt cùng ô bắt đầu từ ngày hết hạn của hợp đồng này trở đi — khoá gia hạn.</summary>
+    /// <summary>
+    /// D41: Kiểm tra xem có hợp đồng mới nào đặt cùng ô bắt đầu từ ngày hết hạn của hợp đồng này trở đi hay không.
+    /// Dùng để khoá gia hạn khi đã có khách khác đặt trước.
+    /// </summary>
+    /// <param name="db">DbContext truy vấn.</param>
+    /// <param name="contract">Hợp đồng hiện tại đang xem xét gia hạn.</param>
+    /// <param name="ct">Token hủy không đồng bộ.</param>
+    /// <returns>Ngày bắt đầu của hợp đồng tiếp theo, hoặc null nếu không có ai đặt trước.</returns>
     public static async Task<DateOnly?> NextBookingAsync(AppDbContext db, RentalContract contract, CancellationToken ct) =>
         await db.RentalContracts.AsNoTracking()
             .Where(c => c.UnitId == contract.UnitId && c.ContractId != contract.ContractId && HoldingStatuses.Contains(c.Status)

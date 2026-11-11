@@ -1,3 +1,9 @@
+/**
+ * CANCEL RENEWAL BUTTON - NÚT HỦY YÊU CẦU GIA HẠN ĐANG CHỜ DUYỆT (L5 / D32)
+ *
+ * Cho phép khách hàng chủ động hủy yêu cầu gia hạn đang ở trạng thái PENDING
+ * để gửi lại kỳ hạn khác hoặc chuyển sang làm thủ tục trả kho.
+ */
 import React, { useRef, useState } from "react";
 import { Button } from "../../../../shared/components/UI.jsx";
 import ConfirmDialog from "../../../../shared/components/ConfirmDialog.jsx";
@@ -6,6 +12,10 @@ import { useApp } from "../../../../app/state/AppProvider.jsx";
 
 // 3.2 · Figma C07b-L5c: khách huỷ yêu cầu gia hạn còn chờ duyệt để gửi trả kho hoặc gia hạn mới.
 // BE chỉ cho huỷ khi PENDING; quản lý vừa duyệt thì popup thất bại hướng dẫn thanh toán hoặc chờ tự hết hiệu lực.
+/**
+ * Component nút bấm hủy yêu cầu gia hạn kèm hộp thoại xác nhận an toàn.
+ * @param {{ renewalId: number|string, onCancelled: Function }} props
+ */
 export function CancelRenewalButton({ renewal, contract }) {
   const { dispatch, retry } = useApp();
   const [stage, setStage] = useState(null), [busy, setBusy] = useState(false), [error, setError] = useState("");

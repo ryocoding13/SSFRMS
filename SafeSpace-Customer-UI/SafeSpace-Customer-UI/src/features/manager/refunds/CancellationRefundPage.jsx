@@ -1,3 +1,11 @@
+/**
+ * CANCELLATION REFUND PAGE - QUYẾT TOÁN VÀ HOÀN TIỀN ĐƠN ĐẶT CHỖ BỊ HỦY (D21 / D40)
+ *
+ * Nghiệp vụ D40:
+ * - Khách hủy đơn đặt chỗ trước khi nhận kho: Khấu trừ phí hủy 5% tiền cọc (CancelFeeRate = 0.05).
+ * - Hoàn lại 100% tiền thuê đã trả và 95% tiền cọc ban đầu.
+ * - Hỗ trợ hoàn qua chuyển khoản ngân hàng hoặc tiền mặt tại quầy (D42).
+ */
 import { transferProof,actualVnTime,knownMoney } from "../../facility-operations/settlements/settlementModel.js";
 import { amountLabel } from "../../facility-operations/damage/DamageComponents.jsx";
 import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
@@ -63,6 +71,9 @@ function RefundDialog({ refund, onClose, onDone }) {
   );
 }
 
+/**
+ * Màn hình duyệt hoàn tiền cho các đơn đặt chỗ bị hủy trước ngày bắt đầu thuê.
+ */
 export function CancellationRefundPage() {
   const { ops,source,needsRefresh,saving } = useOps();
   const refunds = ops.refunds || [];

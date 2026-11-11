@@ -1,3 +1,10 @@
+/**
+ * CANCEL RESERVATION PAGE - HỦY ĐƠN ĐẶT CHỖ VÀ YÊU CẦU HOÀN TIỀN (C14a / D21 / D40)
+ *
+ * Chính sách hủy D40:
+ * - Đơn hủy trước ngày bắt đầu thuê: Hoàn lại 100% tiền thuê và 95% tiền cọc (khấu trừ phí hủy 5% cọc).
+ * - Khách hàng nhập thông tin tài khoản ngân hàng hoặc chọn nhận tiền mặt tại chi nhánh (D42).
+ */
 import React, { useEffect, useRef, useState } from "react";
 import { Button, DetailList, Field, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import RefundMethodFields from "../../../shared/components/RefundMethodFields.jsx";
@@ -18,6 +25,10 @@ function cancelRows(r, preview) {
   rows.push([`Phí huỷ · ${Math.round(CANCEL_DEPOSIT_FEE_RATE * 100)}% cọc`, <span className="money-deduct">− {money(preview.fee)}</span>]);
   return rows;
 }
+/**
+ * Màn hình xác nhận hủy đơn đặt trước và đăng ký thông tin nhận tiền hoàn.
+ * @param {{ id: string|number }} props
+ */
 export function CancelReservationPage({ id }) {
   const { data, dispatch, services, mode } = useApp();
   const support = useRefundSupport("cancellationBankSupported");

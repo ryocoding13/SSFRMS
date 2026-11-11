@@ -1,3 +1,11 @@
+/**
+ * RENTAL POLICY EDITOR PAGE - SOẠN THẢO VÀ PHÁT HÀNH ĐIỀU KHOẢN CHÍNH SÁCH THUÊ (B02)
+ *
+ * Cho phép Quản lý Vận hành Kinh doanh cập nhật nội dung các điều khoản:
+ * - Điều khoản sử dụng và quy định lưu trữ hàng hóa an toàn.
+ * - Quy chế thanh toán, phí cọc và hoàn trả cọc khi kết thúc hợp đồng.
+ * - Quy trình xử lý vi phạm, hàng quá hạn và bồi thường thiệt hại.
+ */
 import React, { useState, useEffect } from "react";
 import { Button, DetailList, Field, LinkButton, Modal, Notice, PageHeader } from "../../../shared/components/UI.jsx";
 import { POLICY_SECTIONS } from "../../facility-operations/workflows/workflowModel.js";
@@ -7,7 +15,9 @@ import { policyVersionLabel } from "../../../shared/utils/rentalPolicy.js";
 import { requirePublication } from "./policyPublication.js";
 import { businessApi } from "../api/businessApi.js";
 import "../../../shared/styles/customer-detail.css";
-
+/**
+ * Màn hình biên tập văn bản điều khoản chính sách cho thuê kho.
+ */
 export function RentalPolicyEditorPage() {
   const load = useWorkflowData("policy");
   const [draft, setDraft] = useState(null);

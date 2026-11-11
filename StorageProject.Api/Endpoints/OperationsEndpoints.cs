@@ -12,6 +12,10 @@ namespace StorageProject.Api.Endpoints;
 /// </summary>
 public static class OperationsEndpoints
 {
+    /// <summary>
+    /// Đăng ký các endpoints quản lý vận hành kinh doanh vào hệ thống định tuyến API.
+    /// </summary>
+    /// <param name="routes">Đối tượng cấu hình route của ứng dụng.</param>
     public static void MapOperationsEndpoints(this IEndpointRouteBuilder routes)
     {
         var group = routes.MapGroup("/api/operations")

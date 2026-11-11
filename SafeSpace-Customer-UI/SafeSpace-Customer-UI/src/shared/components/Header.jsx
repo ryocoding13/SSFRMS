@@ -1,3 +1,11 @@
+/**
+ * PUBLIC & CUSTOMER HEADER - THANH ĐIỀU HƯỚNG CHÍNH CỦA GIAO DIỆN KHÁCH HÀNG
+ *
+ * Hiển thị:
+ * - Logo thương hiệu SafeSpace.
+ * - Menu điều hướng: Tìm kho, Bảng giá, Chính sách, Hỗ trợ.
+ * - Nút Đăng nhập / Đăng ký hoặc Dropdown thông tin tài khoản khi đã đăng nhập.
+ */
 import React, { useEffect, useRef, useState } from "react";
 import { go, href } from "../../app/router.js";
 import { payableCount, unreadCount, whenLabel } from "../../app/state/appSelectors.js";
@@ -100,6 +108,9 @@ function NotificationPopup({ onClose, anchorRef }) {
   );
 }
 
+/**
+ * Header chính của ứng dụng dành cho khách hàng và khách vãng lai.
+ */
 export default function Header({ page }) {
   const { authed, user, data, roles } = useApp();
   const [open, setOpen] = useState(false);

@@ -1,3 +1,13 @@
+/**
+ * UNIT MOVE CARD - THẺ TIẾN TRÌNH CHUYỂN Ô KHO KHI GIA HẠN (D46 / D46b)
+ *
+ * Hiển thị quy trình 5 bước chuyển ô:
+ * 1. Đã duyệt giữ ô mới (HELD)
+ * 2. Đã thanh toán tiền thuê + cọc chênh (PAID)
+ * 3. Chuyển đồ sang ô mới trong 3 ngày cuối kỳ cũ (MOVE_READY -> MOVED)
+ * 4. Nhân viên nghiệm thu ô cũ (INSPECTED)
+ * 5. Hoàn tất cập nhật hợp đồng sang ô mới.
+ */
 import React, { useRef, useState } from "react";
 import { Button, DetailList, Notice } from "../../../../shared/components/UI.jsx";
 import ConfirmDialog from "../../../../shared/components/ConfirmDialog.jsx";
@@ -6,6 +16,10 @@ import { canMarkMoved, moveWindowStart, UNIT_MOVE_STATUS } from "../renewalUnitM
 import { useUnitMove } from "../useRenewalUnitMove.js";
 
 // D46 · Figma C07b-D46: khối "Chuyển sang ô mới" trong chi tiết hợp đồng + popup xác nhận / thành công / thất bại.
+/**
+ * Component thẻ trực quan hóa tiến trình dọn chuyển đồ sang ô kho mới.
+ * @param {{ move: Object, onRefresh: Function }} props
+ */
 export function UnitMoveCard({ contractApiId, onMoved }) {
   const load = useUnitMove(contractApiId);
   const [confirm, setConfirm] = useState(false), [ticked, setTicked] = useState(false), [result, setResult] = useState(null), [busy, setBusy] = useState(false);

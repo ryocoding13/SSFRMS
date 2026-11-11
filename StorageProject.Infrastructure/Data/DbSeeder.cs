@@ -4,13 +4,20 @@ using StorageProject.Core.Entities;
 namespace StorageProject.Infrastructure.Data;
 
 /// <summary>
-/// Dữ liệu khởi tạo. Mọi bước đều "chỉ thêm phần còn thiếu", nên chạy lại nhiều lần vẫn an toàn và
-/// database tạo từ trước cũng được bổ sung khi khởi động lại API.
+/// Tiến trình khởi tạo dữ liệu mẫu và dữ liệu nền tảng hệ thống SafeSpace (DbSeeder).
+/// Mọi bước đều áp dụng nguyên tắc "chỉ thêm phần còn thiếu" (idempotent), cho phép chạy lặp lại an toàn
+/// khi khởi động ứng dụng mà không làm sai lệch hay trùng lặp dữ liệu đang có.
 /// - Danh mục kho theo D17 (Figma 14/10): xem DbSeeder.Catalog.cs
 /// - Tài khoản nhân viên / quản lý cơ sở: xem DbSeeder.FacilityOps.cs
 /// </summary>
 public static partial class DbSeeder
 {
+    /// <summary>
+    /// Điều phối khởi tạo dữ liệu ban đầu theo chế độ môi trường cấu hình (SeedMode).
+    /// </summary>
+    /// <param name="context">EF Core database context của hệ thống.</param>
+    /// <param name="mode">Chế độ seed: 'reference' (chỉ dữ liệu nền), 'staging', 'development' (đầy đủ mẫu), hoặc 'none'.</param>
+    /// <param name="adminPassword">Mật khẩu khởi tạo cho tài khoản admin (nếu có).</param>
     public static async Task SeedByModeAsync(AppDbContext context, string mode, string? adminPassword = null)
     {
         switch (mode?.Trim().ToLowerInvariant())
@@ -31,6 +38,11 @@ public static partial class DbSeeder
         }
     }
 
+    /// <summary>
+    /// Khởi tạo dữ liệu tham chiếu nền tảng cho hệ thống (vai trò, quyền, admin, danh mục kho, chính sách và điều khoản).
+    /// </summary>
+    /// <param name="context">EF Core context.</param>
+    /// <param name="adminPassword">Mật khẩu quản trị viên.</param>
     public static async Task SeedReferenceAsync(AppDbContext context, string? adminPassword = null)
     {
         await EnsureRolesAndPermissionsAsync(context);
@@ -62,12 +74,21 @@ public static partial class DbSeeder
         await FacilityCoordinateSeeder.SeedAsync(context);
     }
 
+    /// <summary>
+    /// Khởi tạo dữ liệu cho môi trường kiểm thử tích hợp Staging.
+    /// </summary>
+    /// <param name="context">EF Core context.</param>
     public static async Task SeedStagingAsync(AppDbContext context)
     {
         await SeedAsync(context);
         await FacilityCoordinateSeeder.SeedAsync(context);
     }
 
+    /// <summary>
+    /// Đảm bảo danh mục vai trò người dùng (5 vai trò: ADMIN, MANAGER, STAFF, OPERATIONS, CUSTOMER)
+    /// và toàn bộ danh mục mã quyền hạn trong hệ thống được tạo đầy đủ.
+    /// </summary>
+    /// <param name="context">EF Core context.</param>
     public static async Task EnsureRolesAndPermissionsAsync(AppDbContext context)
     {
         var requiredRoles = new List<(string Name, string Description)>
@@ -166,6 +187,11 @@ public static partial class DbSeeder
         await context.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Khởi tạo dữ liệu mẫu hoàn chỉnh cho môi trường phát triển (Development):
+    /// người dùng mẫu, tài khoản phân quyền cơ sở, danh mục kho và chính sách.
+    /// </summary>
+    /// <param name="context">EF Core context.</param>
     public static async Task SeedAsync(AppDbContext context)
     {
         await EnsureRolesAndPermissionsAsync(context);
@@ -174,7 +200,7 @@ public static partial class DbSeeder
         var adminRole = await context.Roles.FirstAsync(r => r.RoleName == "ADMIN");
         var staffRole = await context.Roles.FirstAsync(r => r.RoleName == "STAFF");
 
-        // 2. Users (Ensure essential admin, staff, manager, operator, and customer users)
+        // 2. Users (Đảm bảo các tài khoản admin, staff, manager, operator, customer mẫu)
         async Task<User> EnsureUserAsync(string username, string email, string fullName, string phone, string plainPassword, Role role)
         {
             var u = await context.Users.FirstOrDefaultAsync(x => x.Username == username);
@@ -244,10 +270,11 @@ public static partial class DbSeeder
     }
 
     /// <summary>
-    /// Phiên 3 (05/11/2026), chạy mỗi lần khởi động và idempotent, không xoá dữ liệu:
-    /// S06 chuyển ảnh quá hạn cũ (lưu nhầm loại RETURN_INSPECTION, tên tệp before_/after_) sang OVERDUE_BEFORE/AFTER;
+    /// Vá dữ liệu lịch sử từ Phiên 3 (05/11/2026), chạy mỗi lần khởi động và idempotent, không xoá dữ liệu:
+    /// S06 chuyển ảnh quá hạn cũ sang loại OVERDUE_BEFORE/AFTER;
     /// D36 huỷ các lịch nhận chìa khóa SCHEDULED hệ thống tự tạo trước đây mà khách chưa yêu cầu và chưa xác minh.
     /// </summary>
+    /// <param name="context">EF Core context.</param>
     public static async Task ApplyPhien3DataFixesAsync(AppDbContext context)
     {
         // Ảnh quá hạn chỉ đổi loại khi DB đã có ràng buộc CHECK mới (migration Phien3EvidenceOwnerTypes),
@@ -274,9 +301,11 @@ public static partial class DbSeeder
     }
 
     /// <summary>
-    /// L7 (D40): gộp mã vai trò cũ BUSINESS_OPERATOR vào OPERATIONS. Chạy được nhiều lần, không xoá người dùng:
+    /// L7 (D40): Gộp mã vai trò cũ BUSINESS_OPERATOR vào OPERATIONS. Chạy được nhiều lần, không xoá người dùng:
     /// người có vai trò cũ được gán OPERATIONS (nếu chưa có), sau đó gỡ quan hệ và vai trò cũ.
     /// </summary>
+    /// <param name="context">EF Core context.</param>
+    /// <param name="opsRole">Thực thể vai trò OPERATIONS chuẩn.</param>
     public static async Task MergeLegacyOperationsRoleAsync(AppDbContext context, Role opsRole)
     {
         var legacy = await context.Roles.FirstOrDefaultAsync(r => r.RoleName == "BUSINESS_OPERATOR");
@@ -295,6 +324,7 @@ public static partial class DbSeeder
     // ------------------------------------------------------------------------------------------
     // Quản lý vận hành kinh doanh (SRS: Business Operations Manager — UC19–UC23)
     // ------------------------------------------------------------------------------------------
+    /// <summary>Thiết lập vai trò OPERATIONS và phân quyền quản trị chính sách, báo cáo toàn hệ thống.</summary>
     private static async Task EnsureOperationsRoleAsync(AppDbContext context)
     {
         var opsRole = await context.Roles.FirstOrDefaultAsync(r => r.RoleName == "OPERATIONS");
@@ -369,6 +399,11 @@ public static partial class DbSeeder
         }
     }
 
+    /// <summary>
+    /// Khởi tạo các chính sách mặc định ban đầu cho hệ thống (tiền cọc D09, phí hủy D40, phí quá hạn D32, giữ chỗ).
+    /// </summary>
+    /// <param name="context">EF Core context.</param>
+    /// <param name="adminUserId">ID của tài khoản người tạo chính sách.</param>
     public static async Task EnsurePoliciesAsync(AppDbContext context, long adminUserId)
     {
         if (!await context.Policies.AnyAsync())
@@ -435,6 +470,11 @@ public static partial class DbSeeder
         }
     }
 
+    /// <summary>
+    /// Đảm bảo phiên bản điều khoản hợp đồng thuê kho mẫu (RentalPolicyVersion) được phát hành và kích hoạt (BO07).
+    /// </summary>
+    /// <param name="context">EF Core context.</param>
+    /// <param name="adminUserId">ID người phát hành chính sách.</param>
     public static async Task EnsureRentalPolicyVersionsAsync(AppDbContext context, long adminUserId)
     {
         if (!await context.RentalPolicyVersions.AnyAsync())

@@ -14,9 +14,12 @@ using StorageProject.Core.Interfaces;
 using StorageProject.Infrastructure.Data;
 using StorageProject.Infrastructure.Services;
 
+// Khởi tạo WebApplication builder cho Minimal API StorageProject.Api
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Database Context & Validation
+// =========================================================================
+// 1. Cấu hình Database Context & Kiểm tra Connection String
+// =========================================================================
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 if (string.IsNullOrWhiteSpace(connectionString))
 {
@@ -25,7 +28,9 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-// 2. JWT Authentication & Authorization with Environment Validation
+// =========================================================================
+// 2. Cấu hình JWT Authentication, Authorization & Kiểm tra biến môi trường
+// =========================================================================
 var jwtSecret = builder.Configuration["JwtSettings:Secret"];
 var jwtIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "SSFRMSApi";
 var jwtAudience = builder.Configuration["JwtSettings:Audience"] ?? "SSFRMSClients";
@@ -81,7 +86,9 @@ builder.Services.AddRateLimiter(options => {
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 
+// =========================================================================
 // 3. Swagger / OpenAPI Configuration
+// =========================================================================
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -111,7 +118,9 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// =========================================================================
 // 4. Reverse Proxy Forwarded Headers & CORS Configuration
+// =========================================================================
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -156,7 +165,9 @@ builder.Services.AddCors(options =>
     });
 });
 
-// 5. Dependency Injection - Services
+// =========================================================================
+// 5. Dependency Injection - Đăng ký dịch vụ & Background Workers
+// =========================================================================
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IPasswordResetEmailSender, SmtpPasswordResetEmailSender>();
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
@@ -198,7 +209,7 @@ builder.Services.AddScoped<IManagerService, ManagerService>();
 
 var app = builder.Build();
 
-// Handle explicit command line bootstrap before starting web server & background workers
+// Xử lý cờ khởi tạo dữ liệu dòng lệnh (bootstrap/seeding) trước khi khởi chạy server
 if (args.Contains("--seed-reference") || args.Contains("--seed-staging") || args.Contains("--bootstrap"))
 {
     using var scope = app.Services.CreateScope();
@@ -216,7 +227,9 @@ if (args.Contains("--seed-reference") || args.Contains("--seed-staging") || args
     return;
 }
 
-// 6. Middleware Pipeline
+// =========================================================================
+// 6. Cấu hình Middleware Pipeline
+// =========================================================================
 app.UseForwardedHeaders();
 app.UseHttpsRedirection();
 app.UseCors("DefaultCorsPolicy");
@@ -235,7 +248,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 
+// =========================================================================
 // 7. Map Minimal API Endpoints
+// =========================================================================
 app.MapAuthEndpoints();
 app.MapPasswordResetEndpoints();
 app.MapSupportInquiryEndpoints();
@@ -255,8 +270,10 @@ app.MapManagerEndpoints();
 app.MapAccessEndpoints();
 app.MapEvidenceEndpoints();
 
+// =========================================================================
 // 8. Health & Readiness Endpoints
-// Liveness endpoint (lightweight check, no external DB dependencies)
+// =========================================================================
+// Liveness endpoint (kiểm tra trạng thái sống của dịch vụ API)
 app.MapGet("/health", () => Results.Ok(new
 {
     System = "SSFRMS API (Self-Storage Facility Rental Management System)",
@@ -264,7 +281,7 @@ app.MapGet("/health", () => Results.Ok(new
     Timestamp = DateTime.UtcNow
 }));
 
-// Readiness endpoint (verifies SQL Server connectivity and applied migrations)
+// Readiness endpoint (kiểm tra khả năng sẵn sàng kết nối DB và trạng thái migration)
 app.MapGet("/health/ready", async (AppDbContext db, CancellationToken ct) =>
 {
     try
@@ -312,7 +329,9 @@ app.MapGet("/health/ready", async (AppDbContext db, CancellationToken ct) =>
     }
 });
 
-// 9. Database Auto-Migration and Seeding based on Environment & Configuration
+// =========================================================================
+// 9. Tự động áp dụng Migration và Seeding theo biến môi trường
+// =========================================================================
 var autoMigrate = builder.Configuration.GetValue<bool>("Database:AutoMigrate", app.Environment.IsDevelopment());
 var seedMode = builder.Configuration.GetValue<string>("Database:SeedMode")
     ?? (app.Environment.IsDevelopment() ? "Development" : "None");
@@ -336,4 +355,7 @@ if (autoMigrate || !string.Equals(seedMode, "None", StringComparison.OrdinalIgno
 
 app.Run();
 
+/// <summary>
+/// Điểm neo Program để hỗ trợ WebApplicationFactory trong các Integration Test.
+/// </summary>
 public partial class Program { }

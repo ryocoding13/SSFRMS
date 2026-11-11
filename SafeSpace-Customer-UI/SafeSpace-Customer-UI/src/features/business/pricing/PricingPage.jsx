@@ -1,3 +1,9 @@
+/**
+ * PRICING OVERVIEW PAGE - TỔNG QUAN BIỂU GIÁ TOÀN MẠNG LƯỚI CƠ SỞ (B03)
+ *
+ * Hiển thị ma trận so sánh đơn giá cho thuê 4 loại kho trên toàn bộ 12 cơ sở SafeSpace,
+ * giúp người quản lý vận hành nhận diện cơ sở có mức giá chênh lệch để điều chỉnh kinh doanh.
+ */
 import React from "react";
 import { businessApi } from "../api/businessApi.js";
 import { useLoad } from "../../admin/utils/adminUtils.js";
@@ -9,6 +15,9 @@ import { shortFacility } from "../utils/businessFormat.js";
 import "./pricing.css";
 
 // B03 · Chọn cơ sở trước khi xem/sửa giá; B02 quản lý chính sách và phí.
+/**
+ * Màn hình tổng quan so sánh biểu giá thuê kho trên toàn bộ mạng lưới chi nhánh.
+ */
 export default function PricingPage() {
   const { onApiError } = useApp();
   const load = useLoad(() => businessApi.facilities(), [], onApiError);

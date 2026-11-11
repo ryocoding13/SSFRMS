@@ -1,3 +1,11 @@
+/**
+ * REPORT EXPORT PAGE - XUẤT BÁO CÁO KINH DOANH RA FILE CSV (B04b)
+ *
+ * Cung cấp công cụ xuất file bảng tính CSV:
+ * - Lọc theo khoảng thời gian tùy chọn (Từ ngày - Đến ngày).
+ * - Chọn phạm vi xuất: Toàn bộ hệ thống hoặc một cơ sở cụ thể.
+ * - Bảo vệ chống chèn công thức Excel độc hại (CSV Injection) qua csvForDownload.
+ */
 import "./report-export.css";
 import React,{useEffect,useRef,useState} from "react";
 import {Button,DetailList,Empty,Field,Notice,PageHeader} from "../../../shared/components/UI.jsx";
@@ -10,6 +18,9 @@ import {parseCsv} from "./reportExport.js";
 import {requireReportScope,csvForDownload,requireReportSummary} from "./reportScope.js";
 import {shortMoney,rateLabel} from "../utils/businessFormat.js";
 import "../../../shared/styles/customer-detail.css";
+/**
+ * Màn hình tùy chọn phạm vi và tải xuống file báo cáo kinh doanh dạng CSV.
+ */
 export function ReportExportPage() {
  const {onApiError}=useApp(),facilities=useLoad(()=>businessApi.facilities(),[],onApiError),[form,setForm]=useState({from:today().slice(0,8)+"01",to:today(),facilityId:"",view:"facilities"}),[pending,setPending]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(""),[done,setDone]=useState(false),guard=useRef(false),alive=useRef(true);
  useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);

@@ -1,3 +1,10 @@
+/**
+ * RENTED UNIT LIST PAGE - DANH SÁCH CÁC KHO ĐANG THUÊ CỦA TÀI KHOẢN (C06 / UC05)
+ *
+ * Liệt kê toàn bộ các kho thuộc sở hữu của khách:
+ * - Hợp đồng đang hiệu lực (ACTIVE), sắp hết hạn (EXPIRING), quá hạn (OVERDUE).
+ * - Trực quan hóa số ngày còn lại đến hạn kết thúc hợp đồng.
+ */
 import React, { useState } from "react";
 import { EmptyInline } from "../../../shared/components/Inline.jsx";
 import { Button, LinkButton, PageHeader, StatusTag, Tag } from "../../../shared/components/UI.jsx";
@@ -10,6 +17,9 @@ import { contractStatus, facilityOf, pendingRenewal, pendingReturn } from "../..
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { AccessQrModal } from "../access/AccessQrModal.jsx";
 
+/**
+ * Màn hình danh sách các ô kho lưu trữ khách hàng đang thuê trong hệ thống.
+ */
 export function RentedUnitListPage() {
   const { data } = useApp();
   const [qrContract, setQrContract] = useState(null);

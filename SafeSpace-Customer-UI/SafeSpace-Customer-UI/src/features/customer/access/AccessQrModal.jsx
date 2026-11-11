@@ -1,3 +1,11 @@
+/**
+ * ACCESS QR MODAL - HỘP THOẠI HIỂN THỊ MÃ QR VÀ MÃ PIN MỞ CỬA KHO (D22 / UC04)
+ *
+ * Nghiệp vụ D22:
+ * - Cấp mã mở cửa không trạng thái (HMAC-SHA256) từ ContractId + CredentialId.
+ * - Hiển thị mã QR dạng chuỗi 'SSQR-<contractId>-<hex>' và mã PIN dự phòng 8 chữ số dạng 'xxxx xxxx'.
+ * - Kiểm tra điều kiện: Hợp đồng hiệu lực (ACTIVE/EXPIRING/OVERDUE) và đã nhận kho (HANDED_OVER).
+ */
 import React, { useEffect, useState } from "react";
 import QrCode from "../../../shared/components/QrCode.jsx";
 import { Button, Modal, Notice } from "../../../shared/components/UI.jsx";
@@ -5,6 +13,10 @@ import { typeLabel } from "../../../shared/utils/catalog.js";
 import { dateLabel } from "../../../shared/utils/format.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 
+/**
+ * Modal hiển thị mã QR mở cửa và mã PIN dự phòng cho khách hàng.
+ * @param {{ contract: Object, onClose: Function }} props
+ */
 export function AccessQrModal({ c, facility, onClose }) {
   const { services } = useApp();
   const [state, setState] = useState({ status: "loading" });

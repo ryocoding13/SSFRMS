@@ -1,3 +1,12 @@
+/**
+ * FACILITY OPERATIONS LAYOUT - KHUNG GIAO DIỆN TÁC NGHIỆP CƠ SỞ (STAFF / MANAGER)
+ *
+ * Nghiệp vụ D15 / D18:
+ * - Dùng chung cho khu Nhân viên (#/staff) và Quản lý cơ sở (#/manager).
+ * - Hiển thị tên cơ sở phụ trách hiện tại trên thanh Header (A06).
+ * - Tích hợp hệ thống đếm số việc chờ xử lý (badges) trên từng tab chức năng.
+ * - Hỗ trợ chế độ API kết nối SQL Server (D19) hoặc chế độ lưu trình duyệt khi offline.
+ */
 import StickyHeader from "../../shared/components/StickyHeader.jsx";
 import React, { useEffect, useRef, useState } from "react";
 import { LinkButton, Icon } from "../../shared/components/UI.jsx";
@@ -74,6 +83,10 @@ function UserMenu({ roleLabel, tone, facilityName }) {
 }
 
 // Khung chung khu vận hành (Figma S01 / M01): logo, tên + vai trò, chuông, thanh điều hướng theo vai trò
+/**
+ * Layout khung giao diện chính cho phân hệ tác nghiệp cơ sở.
+ * @param {{ active?: string, children: React.ReactNode }} props
+ */
 export default function FacilityOperationsLayout({ role, active, subActive, children }) {
   const { mode, user } = useApp();
   const { source, ops } = useOps();

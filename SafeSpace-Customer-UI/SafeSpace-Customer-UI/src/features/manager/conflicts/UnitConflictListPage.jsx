@@ -1,3 +1,11 @@
+/**
+ * UNIT CONFLICT LIST PAGE - QUẢN LÝ XUNG ĐỘT Ô KHO ĐẶT TRƯỚC (D41)
+ *
+ * Nghiệp vụ D41:
+ * - Phát hiện khi khách cũ chưa trả kho hoặc gia hạn đè lên đơn đặt trước của khách mới.
+ * - Cung cấp các phương án giải quyết: Đổi ô ngang giá (SWAP), nâng cấp ô lớn miễn phí (UPGRADE),
+ *   hoặc dời ngày / hủy đơn hoàn tiền 100% không mất phí.
+ */
 import React from "react";
 import { PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import { RecordCard, WorkflowEmpty, WorkflowState } from "../../facility-operations/workflows/WorkflowComponents.jsx";
@@ -7,6 +15,9 @@ const OPTION = { SWAP: "Đổi ngang", UPGRADE: "Nâng cấp miễn phí", NONE:
 const RESOLUTION = { SWAP: "Khách nhận đổi ngang", UPGRADE: "Khách nhận nâng cấp", AUTO_SWAP: "Hệ thống tự đổi ngang", AUTO_UPGRADE: "Hệ thống tự nâng cấp", RESCHEDULE: "Khách dời ngày", CANCEL: "Khách huỷ · hoàn 100%" };
 
 // D41 · Figma M-D41: ô khách mới đặt chưa về Trống 5 ngày trước ngày nhận; khách có 48 giờ để chọn.
+/**
+ * Màn hình theo dõi và xử lý các ca xung đột bố trí ô kho giữa các khách hàng.
+ */
 export function UnitConflictListPage() {
   const load = useOpsEndpoint("/api/ops/unit-conflicts");
   const items = Array.isArray(load.data) ? load.data : [];

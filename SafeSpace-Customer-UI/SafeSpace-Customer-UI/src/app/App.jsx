@@ -1,3 +1,13 @@
+/**
+ * APP ROOT COMPONENT - ĐIỀU HƯỚNG TỔNG THỂ TOÀN BỘ ỨNG DỤNG SAFESPACE
+ *
+ * Điều hướng theo 5 phân hệ người dùng (UC01–UC27):
+ * 1. Khách hàng: #/ (Trang chủ), #/find (Tìm kho), #/checkout (Thanh toán), #/units (Kho của tôi)
+ * 2. Nhân viên cơ sở: #/staff (Bảng việc, xác minh, kiểm kê, thu phí)
+ * 3. Quản lý cơ sở: #/manager (Phân bổ ô, phân công việc, duyệt gia hạn, hoàn cọc)
+ * 4. Quản lý vận hành KD: #/business (Chính sách, bảng giá, cơ sở, báo cáo kinh doanh)
+ * 5. Quản trị hệ thống: #/admin (Tài khoản người dùng, phân quyền, phân công cơ sở, audit logs)
+ */
 import "@fontsource/inter/latin-400.css";
 import { PublicFooter } from "../shared/components/PublicFooter.jsx";
 import "@fontsource/inter/vietnamese-400.css";
@@ -241,6 +251,9 @@ function Shell() {
 
 const PUBLIC_FOOTER_PAGES = ["login", "register", "reset-password", "pricing", "guide"];
 
+/**
+ * Root component của SafeSpace, khởi tạo Router và AppProvider.
+ */
 export default function App() {
   return (
     <AppProvider>

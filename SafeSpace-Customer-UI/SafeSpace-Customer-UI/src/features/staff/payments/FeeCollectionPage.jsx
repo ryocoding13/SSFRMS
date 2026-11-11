@@ -1,3 +1,11 @@
+/**
+ * FEE COLLECTION PAGE - THU TIỀN TẠI QUẦY (S09 / UC07)
+ *
+ * Nhân viên thu tiền mặt hoặc quét VietQR PayOS tại kho cho các khoản:
+ * - Tiền thuê ban đầu và tiền cọc cho đơn đặt trước.
+ * - Phí gia hạn hợp đồng trực tiếp tại cơ sở (S02).
+ * - Các khoản phụ phí dịch vụ phát sinh.
+ */
 import React from "react";
 import { Button, Empty, LinkButton } from "../../../shared/components/UI.jsx";
 import { dateLabel, money } from "../../../shared/utils/format.js";
@@ -6,6 +14,9 @@ import { useOps } from "../../facility-operations/state/FacilityOperationsProvid
 
 // S09f / S09b · Thu phí phát sinh & công nợ tại quầy (Figma 848:10716, 830:10924). Xác nhận → S09fc / S09c,
 // kết quả S09fd / S09d, lỗi S09e (provider). Khoản khách đã trả qua PayOS không hiện ở đây.
+/**
+ * Màn hình thu tiền trực tiếp từ khách hàng tại quầy giao dịch cơ sở.
+ */
 export function FeeCollectionPage({ query }) {
   const { ops, run } = useOps();
   const fees = ops.fee_collections || [];

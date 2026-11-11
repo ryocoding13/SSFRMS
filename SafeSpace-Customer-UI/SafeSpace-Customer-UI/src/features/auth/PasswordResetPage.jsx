@@ -1,8 +1,19 @@
+/**
+ * PASSWORD RESET PAGE - MÀN HÌNH ĐẶT LẠI MẬT KHẨU BẰNG MÃ OTP EMAIL (F43)
+ *
+ * Quy trình thực hiện:
+ * 1. Bước 1 (email): Nhập email tài khoản -> Gọi API gửi mã OTP xác nhận.
+ * 2. Bước 2 (code & password): Đếm ngược thời gian chờ gửi lại (cooldown), nhập mã 6 số
+ *    và mật khẩu mới, kiểm tra độ dài và xác nhận khớp nhau -> Đặt lại mật khẩu thành công.
+ */
 import React, { useEffect, useRef, useState } from "react";
 import { Button, Field, LinkButton, Notice, PageHeader } from "../../shared/components/UI.jsx";
 import { isEmail } from "../../shared/utils/format.js";
 import { passwordResetApi } from "./api/passwordResetApi.js";
 
+/**
+ * Màn hình thực hiện luồng khôi phục mật khẩu 2 bước qua OTP email.
+ */
 export function PasswordResetPage() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");

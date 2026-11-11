@@ -1,3 +1,11 @@
+/**
+ * FACILITY LIST PAGE - DANH SÁCH MẠNG LƯỚI CƠ SỞ CHO THUÊ KHO (C02 / UC01)
+ *
+ * Chức năng:
+ * - Liệt kê 12 cơ sở SafeSpace phân bổ theo các quận/huyện.
+ * - Bộ lọc tìm kiếm theo khu vực, gói kho thường/kho lạnh và diện tích.
+ * - Hiển thị số lượng ô kho còn trống thực tế theo thời gian thực (POST /api/availability/check).
+ */
 import React from "react";
 import SearchBar from "../../../shared/components/SearchBar.jsx";
 import { ViewToggle } from "../../../shared/components/Inline.jsx";

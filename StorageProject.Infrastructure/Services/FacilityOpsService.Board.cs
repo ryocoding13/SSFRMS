@@ -4,9 +4,20 @@ using StorageProject.Core.Entities;
 
 namespace StorageProject.Infrastructure.Services;
 
-/// <summary>GET /api/ops/board — toàn bộ dữ liệu màn S01–S09 (và M01–M08 nếu là quản lý) của cơ sở được phân công.</summary>
+/// <summary>
+/// Cung cấp dữ liệu bảng điều khiển tổng hợp cho nhân viên (S01–S09) và quản lý cơ sở (M01–M08) — GET /api/ops/board.
+/// Tập hợp danh sách công việc theo thời gian thực: ô kho, thanh toán chờ đối soát, xác minh nhận kho, kiểm tra trả kho,
+/// hỗ trợ khách hàng, phân bổ ô, duyệt gia hạn, xử lý nợ/quá hạn, phân công nhân viên và thống kê doanh thu.
+/// </summary>
 public partial class FacilityOpsService
 {
+    /// <summary>
+    /// Lấy toàn bộ dữ liệu bảng điều khiển vận hành cơ sở (Board) theo quyền của tài khoản hiện tại.
+    /// Nhân viên thấy các mục phục vụ tác nghiệp (S01-S09). Quản lý thấy thêm các mục quản trị và phê duyệt (M01-M08).
+    /// </summary>
+    /// <param name="actor">Thông tin người dùng vận hành.</param>
+    /// <param name="ct">Token hủy không đồng bộ.</param>
+    /// <returns>OpsBoardDto chứa đầy đủ các phân hệ nghiệp vụ.</returns>
     public async Task<OpsBoardDto> GetBoardAsync(OpsActor actor, CancellationToken ct = default)
     {
         var facility = await FacilityOfAsync(actor, ct);
@@ -480,6 +491,7 @@ public partial class FacilityOpsService
         _ => "DONE",
     };
 
+    /// <summary>Xác định phương thức truy cập vật lý (thẻ từ CARD, vân tay FINGER, mã PIN).</summary>
     private static string? MethodOf(IEnumerable<AccessCredential> credentials)
     {
         var cred = credentials.OrderByDescending(a => a.IssuedAt).FirstOrDefault();
