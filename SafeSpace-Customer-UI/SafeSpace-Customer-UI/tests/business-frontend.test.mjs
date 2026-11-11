@@ -6,6 +6,8 @@ import { homeFor, isBusinessRoles, isOpsRoles } from "../src/shared/utils/roles.
 import {
   policyFields,
   fieldValue,
+  fieldRawValue,
+  validatePolicyNumber,
   fieldPolicy,
   policyJobs,
   isLegacyRenewal,
@@ -151,7 +153,6 @@ test('3.5 · facilityContracts gọi đúng route BE kèm bộ lọc; máy chủ
  } finally { globalThis.fetch=realFetch; setToken(null); await new Promise(r=>server.close(r)); }
 });
 
-
 test('P0 · chính sách: phân nhóm rõ ràng, bỏ ánh xạ RENEWAL=24 sang 24 ngày thông báo, nhận diện legacy', () => {
  const legacySeed = p({
   policyId: 2,
@@ -179,4 +180,47 @@ test('P0 · chính sách: phân nhóm rõ ràng, bỏ ánh xạ RENEWAL=24 sang 
  assert.ok(ENGINE_SECTIONS[0].fields.some(f => f.key === 'relet'));
  assert.ok(SYSTEM_ENFORCED_POLICIES.some(f => f.key === 'expiring' && f.value.includes('30 ngày')));
  assert.ok(GUIDELINE_SECTIONS[0].fields.some(f => f.key === 'refund'));
+});
+
+test('UI Simplification: validatePolicyNumber, fieldRawValue, and numeric pure number support', () => {
+ // Validation tỷ lệ quá hạn (overdue): 0.01 - 100, max 2 decimals, nhận dấu phẩy hoặc chấm
+ assert.equal(validatePolicyNumber('overdue', '5'), null);
+ assert.equal(validatePolicyNumber('overdue', '5,25'), null);
+ assert.equal(validatePolicyNumber('overdue', '5.25'), null);
+ assert.equal(validatePolicyNumber('overdue', '100'), null);
+ assert.equal(validatePolicyNumber('overdue', '0.01'), null);
+ assert.ok(validatePolicyNumber('overdue', ''));
+ assert.ok(validatePolicyNumber('overdue', '0'));
+ assert.ok(validatePolicyNumber('overdue', '-1'));
+ assert.ok(validatePolicyNumber('overdue', '100.01'));
+ assert.ok(validatePolicyNumber('overdue', '5,255'));
+ assert.ok(validatePolicyNumber('overdue', '5 abc'));
+
+ // Validation ngày đệm cho thuê lại (relet): số nguyên 0 - 60
+ assert.equal(validatePolicyNumber('relet', '0'), null);
+ assert.equal(validatePolicyNumber('relet', '3'), null);
+ assert.equal(validatePolicyNumber('relet', '60'), null);
+ assert.ok(validatePolicyNumber('relet', ''));
+ assert.ok(validatePolicyNumber('relet', '-1'));
+ assert.ok(validatePolicyNumber('relet', '61'));
+ assert.ok(validatePolicyNumber('relet', '3.5'));
+ assert.ok(validatePolicyNumber('relet', '3 ngày'));
+
+ // fieldRawValue: trả về chuỗi thô để nạp vào form
+ assert.equal(fieldRawValue(null, field('deposit')), '1 tháng tiền thuê');
+ assert.equal(fieldRawValue(p({ value: 5 }), field('overdue')), '5');
+ assert.equal(fieldRawValue(p({ value: 3 }), field('relet')), '3');
+ assert.equal(fieldRawValue(null, field('overdue')), '');
+ assert.equal(fieldRawValue(null, field('relet')), '');
+
+ // policyJobs lưu DEPOSIT_PERCENT_PER_DAY khi nhập số thuần overdue
+ const overdueJob = policyJobs([], { overdue: '5,25' }, day)[0];
+ assert.equal(overdueJob.body.policyType, 'OVERDUE');
+ assert.equal(overdueJob.body.calculationType, 'DEPOSIT_PERCENT_PER_DAY');
+ assert.equal(overdueJob.body.value, 5.25);
+
+ const reletZeroJob = policyJobs([], { relet: '0' }, day)[0];
+ assert.equal(reletZeroJob.body.policyType, 'RELET_BUFFER');
+ assert.equal(reletZeroJob.body.calculationType, 'FIXED');
+ assert.equal(reletZeroJob.body.value, 0);
 });

@@ -1,3 +1,36 @@
+## 2026-11-10 — Triển khai Tinh gọn màn Policies của Business Operator (UI Simplification)
+
+- **Mục tiêu:**
+  - Triển khai theo kế hoạch `SSFRMS-Policies-UI-Simplification-Plan.md`:
+    1. Tinh gọn giao diện `PolicySettingsPage.jsx`: loại bỏ văn bản dài dòng, mã quyết định (D11, D02, D45...) và tên worker/service kỹ thuật khỏi giao diện chính.
+    2. Chuyển form cấu hình sang nhận số thuần với đơn vị/hậu tố bên ngoài ô input:
+       - Tỷ lệ quá hạn (`overdue`): nhận số thuần `5` hoặc `5,25` (chuẩn hoá dấu phẩy), validate 0.01 – 100, tối đa 2 chữ số thập phân, lưu `DEPOSIT_PERCENT_PER_DAY`.
+       - Ngày đệm cho thuê lại (`relet`): nhận số nguyên thuần `3` (chấp nhận 0 – 60, `0` là hợp lệ), lưu `FIXED`.
+       - Mức cọc (`deposit`): hiển thị read-only "1 tháng tiền thuê" theo D09/D16/D32, không cho sửa bằng form để bảo đảm an toàn dòng tiền.
+    3. Quy định cố định và Hướng dẫn nghiệp vụ: chuyển thành các thẻ thông tin chỉ đọc (read-only), không có input/textarea, không tham gia vào state lưu hoặc `policyJobs`.
+    4. Bỏ hoàn toàn việc render khối Legacy (`legacyList`) trên trang chính; bản ghi cũ vẫn được lưu trong DB và tra cứu tại trang Trạng thái chính sách.
+    5. Nút lưu và xác nhận: duy nhất 1 nút "Lưu thay đổi chính sách", disabled khi không có thay đổi hoặc đang lưu/có lỗi; modal xác nhận tóm tắt trực quan giá trị cũ → mới kèm đơn vị rõ ràng.
+- **Giải pháp triển khai:**
+  1. `SafeSpace-Customer-UI/src/features/business/policies/policyFields.js`:
+     - Thêm `fieldRawValue(p, field)` nạp giá trị thô vào input (trả về số thuần, hoặc "1 tháng tiền thuê" cho cọc).
+     - Thêm `validatePolicyNumber(key, raw)` kiểm tra chặt chẽ số nhập vào (hỗ trợ dấu phẩy tiếng Việt, validate khoảng và format).
+     - Cập nhật `numericValue`: hỗ trợ cả số thuần lẫn backward compatibility cho các định dạng test cũ; khi lưu hoặc tạo mới `overdue`, tự động áp dụng `calculationType = 'DEPOSIT_PERCENT_PER_DAY'`.
+  2. `SafeSpace-Customer-UI/src/features/business/policies/PolicySettingsPage.jsx`:
+     - Tinh gọn header và điều hướng.
+     - Nhóm "Quy tắc vận hành tự động": render ô nhập số với hậu tố `% cọc / ngày` và `ngày`, hiển thị lỗi validation ngay dưới ô.
+     - Nhóm "Quy định cố định theo hệ thống" & "Hướng dẫn nghiệp vụ cho thuê": hiển thị thẻ thông tin gọn gàng dạng chỉ đọc.
+     - Loại bỏ hoàn toàn khối render `legacyList`.
+     - Nút "Lưu thay đổi chính sách" kiểm soát điều kiện kích hoạt chặt chẽ; tóm tắt thay đổi cũ → mới trước khi xác nhận.
+  3. `tests/business-frontend.test.mjs`:
+     - Bổ sung test case toàn diện cho `validatePolicyNumber`, `fieldRawValue`, `numericValue` và `policyJobs`.
+- **Kiểm chứng:**
+  - Frontend Business Tests: `npm run test:business` PASS 14/14 tests.
+  - Frontend Test Suite: `npm test` PASS 166/166 tests.
+  - Frontend Workflows & Structure: `npm run test:workflows` PASS 12/12, `npm run check:structure` PASS.
+  - Frontend Render & Build: `npm run test:render` PASS 178 routes, `npm run build` PASS.
+  - Backend Unit Tests: `dotnet test StorageProject.Tests -c Release` PASS 295/295 tests.
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
 ## 2026-11-10 — Triển khai Gói P3: Hoàn thiện quản lý nháp và lịch sử phiên bản chính sách
 
 - **Mục tiêu:**

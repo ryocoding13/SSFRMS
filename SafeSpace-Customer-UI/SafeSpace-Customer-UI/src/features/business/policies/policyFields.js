@@ -1,6 +1,6 @@
 import { policyValueLabel, replacementOf, parseMoney } from "../utils/businessFormat.js";
 
-// Phân định rõ 3 nhóm chính sách theo chuẩn P0 (SSFRMS-Business-Policies-Audit-and-Refactor-Plan.md):
+// Phân định rõ 3 nhóm chính sách theo chuẩn tinh gọn:
 // 1. Tham số vận hành tự động (Active Engine Rules - có consumer backend thực thi)
 // 2. Quy định cố định theo hệ thống (System Enforced Policies - Chỉ đọc)
 // 3. Nội dung hướng dẫn nghiệp vụ (Guidance Only - Lưu mô tả, không đổi xử lý tự động)
@@ -11,11 +11,11 @@ export const ENGINE_SECTIONS = [
     category: 'ENGINE',
     tone: 'green',
     badge: 'Tự động áp dụng',
-    description: 'Các tham số có consumer backend thực thi trực tiếp trong tính tiền cọc, phí phạt quá hạn và số ngày đệm kho trống.',
+    description: 'Các tham số tự động thực thi trong tính tiền cọc, phí phạt quá hạn và số ngày đệm kho trống.',
     fields: [
-      { key: 'deposit', label: 'Mức đặt cọc mặc định', type: 'DEPOSIT', numeric: true, hint: '1 tháng tiền thuê (D09/D16). Đọc bởi FacilityService, ReservationService, RenewalUnitMove.' },
-      { key: 'overdue', label: 'Phí phạt quá hạn / ngày', type: 'OVERDUE', numeric: true, hint: '% cọc ban đầu / ngày (mặc định 5%). Đọc bởi OverdueProcessor và nghiệp vụ trả kho.' },
-      { key: 'relet', label: 'Ngày đệm cho thuê lại sau ngày hết hạn', type: 'RELET_BUFFER', numeric: true, hint: '0–60 ngày (D41, mặc định 3 ngày). Đọc bởi UnitAvailability khi kiểm tra kho trống.' },
+      { key: 'deposit', label: 'Mức đặt cọc mặc định', type: 'DEPOSIT', numeric: true, readOnly: true, suffix: '', hint: 'Cố định bằng 1 tháng tiền thuê toàn hệ thống.' },
+      { key: 'overdue', label: 'Tỷ lệ phí phạt quá hạn', type: 'OVERDUE', numeric: true, suffix: '% cọc / ngày', placeholder: '5', hint: 'Từ 0.01% đến 100% cọc ban đầu mỗi ngày trễ.' },
+      { key: 'relet', label: 'Ngày đệm cho thuê lại', type: 'RELET_BUFFER', numeric: true, suffix: 'ngày', placeholder: '3', hint: 'Từ 0 đến 60 ngày sau khi hợp đồng cũ kết thúc.' },
     ],
   },
 ];
@@ -23,68 +23,68 @@ export const ENGINE_SECTIONS = [
 export const SYSTEM_ENFORCED_POLICIES = [
   {
     key: 'expiring',
-    label: 'Thông báo sắp hết hạn (EXPIRING)',
+    label: 'Thông báo sắp hết hạn hợp đồng',
     value: '30 ngày trước khi hết hạn',
     reference: 'D11 · OverdueProcessor',
-    description: 'Worker tự động quét hàng ngày, gửi thông báo và chuyển trạng thái hợp đồng sang EXPIRING.',
+    description: 'Hệ thống tự động rà soát hàng ngày và gửi thông báo nhắc gia hạn đến khách hàng.',
   },
   {
     key: 'online_hold',
     label: 'Hạn giữ chỗ thanh toán trực tuyến',
     value: '15 phút',
     reference: 'D02 · ReservationService',
-    description: 'Đếm ngược 15 phút từ lúc tạo đơn PayOS; hết hạn đơn tự động huỷ để trả kho trống.',
+    description: 'Thời gian đếm ngược giữ kho kể từ lúc tạo đơn thanh toán trực tuyến.',
   },
   {
     key: 'counter_hold',
     label: 'Hạn giữ chỗ thanh toán tại quầy',
-    value: 'Hết ngày hẹn nhận kho (theo giờ VN)',
+    value: 'Đến hết ngày hẹn nhận kho',
     reference: 'D02/D43 · PayOSService',
-    description: 'Giữ đơn đến 23:59:59 của ngày hẹn nhận kho theo giờ Việt Nam.',
+    description: 'Đơn giữ chỗ tại quầy có hiệu lực đến 23:59:59 của ngày hẹn nhận kho theo giờ Việt Nam.',
   },
   {
     key: 'renewal_hold',
-    label: 'Hạn thanh toán gia hạn sau khi duyệt',
+    label: 'Hạn thanh toán yêu cầu gia hạn',
     value: '24 giờ kể từ khi duyệt',
     reference: 'D11/D32 · RenewalApproval',
-    description: 'Khách hàng có tối đa 24 giờ để thanh toán gia hạn sau khi quản lý cơ sở phê duyệt.',
+    description: 'Khách hàng có 24 giờ để thanh toán gia hạn sau khi yêu cầu được phê duyệt.',
   },
   {
     key: 'penalty_cap',
-    label: 'Trần khấu trừ quá hạn & hư hỏng',
+    label: 'Trần khấu trừ quá hạn & đền bù',
     value: 'Tối đa 100% tiền cọc',
     reference: 'D27/D32/D48',
-    description: 'Tổng phí phạt quá hạn và phí đền bù hư hỏng không bao giờ vượt quá 100% tiền cọc ban đầu.',
+    description: 'Tổng tiền phạt quá hạn và phí đền bù hư hỏng không bao giờ vượt quá tiền cọc ban đầu.',
   },
   {
     key: 'cleaning_fee',
     label: 'Phí vệ sinh cơ bản khi trả kho',
     value: '10% tiền cọc ban đầu',
     reference: 'D32 · Tiêu chuẩn trả kho',
-    description: 'Áp dụng cố định khi kho trả lại chưa được dọn dẹp vệ sinh theo tiêu chuẩn bàn giao.',
+    description: 'Khấu trừ khi kho trả lại chưa được dọn dẹp vệ sinh theo đúng tiêu chuẩn bàn giao.',
   },
   {
     key: 'disposal_milestone',
     label: 'Mốc xử lý tài sản quá hạn',
     value: 'Ngày thứ 20 quá hạn',
     reference: 'D32/D45 · Quyền truy cập khoá ngay',
-    description: 'Nhắc nhở ngày 10–14; ngày 20 khoá vĩnh viễn và xử lý tài sản. Không ân hạn quyền truy cập.',
+    description: 'Khoá quyền truy cập; lập biên bản và bắt đầu quy trình xử lý tài sản lưu kho.',
   },
 ];
 
 export const GUIDELINE_SECTIONS = [
   {
-    title: 'Nội dung hướng dẫn nghiệp vụ',
+    title: 'Quy định cố định & Hướng dẫn nghiệp vụ',
     category: 'GUIDELINE',
     tone: 'warn',
     badge: 'Chỉ hiển thị, không thay đổi xử lý tự động',
-    notice: 'Các trường dưới đây chỉ lưu nội dung mô tả hoặc điều khoản hướng dẫn cho khách hàng và nhân viên. Thay đổi văn bản tại đây KHÔNG làm thay đổi công thức tính toán hoặc thời hạn xử lý tự động của máy chủ.',
+    notice: 'Nội dung hướng dẫn nghiệp vụ và điều khoản phục vụ tham khảo cho khách hàng và nhân viên.',
     fields: [
-      { key: 'refund', label: 'Hoàn cọc trong vòng', type: 'RETURN', hint: 'Hướng dẫn thời gian hoàn trả tiền cọc cho khách hàng.' },
-      { key: 'inspection', label: 'Thời gian kiểm tra sau khi trả kho', type: 'RETURN', hint: 'Hướng dẫn SLA kiểm tra tình trạng kho của nhân viên.' },
-      { key: 'renewals', label: 'Số lần gia hạn tối đa', type: 'RENEWAL', hint: 'Nội dung điều khoản hiển thị cho khách; máy chủ chưa áp đặt giới hạn tự động.' },
-      { key: 'cancel', label: 'Phí huỷ trước ngày nhận kho', type: 'CANCELLATION', hint: 'Nội dung điều khoản hiển thị cho khách; quy trình huỷ tuân theo chính sách hoàn cọc.' },
-      { key: 'grace', label: 'Mốc xử lý quá hạn', type: 'OVERDUE', hint: 'Ghi chú điều khoản: nhắc nhở ngày 10–14, lập biên bản di dời tài sản ngày 20 theo D32.' },
+      { key: 'refund', label: 'Thời gian hoàn trả tiền cọc', value: '3–5 ngày làm việc', type: 'RETURN', hint: 'Hoàn trả chuyển khoản sau khi hoàn tất kiểm tra và trừ các khoản phí (nếu có).' },
+      { key: 'inspection', label: 'Thời gian kiểm tra khi trả kho', value: 'Trong vòng 24 giờ', type: 'RETURN', hint: 'Nhân viên hoàn tất kiểm kê hiện trạng kho sau khi khách hàng bàn giao.' },
+      { key: 'renewals', label: 'Số lần gia hạn hợp đồng', value: 'Không giới hạn', type: 'RENEWAL', hint: 'Khách hàng có thể gia hạn nhiều lần nếu ô kho chưa có người khác đặt trước.' },
+      { key: 'cancel', label: 'Phí huỷ trước ngày nhận kho', value: '10% tiền cọc', type: 'CANCELLATION', hint: 'Khách hàng huỷ trước ngày bắt đầu được hoàn 100% tiền thuê và 90% tiền cọc.' },
+      { key: 'grace', label: 'Quy trình xử lý quá hạn', value: 'Nhắc nhở ngày 10–14, xử lý đồ ngày 20', type: 'OVERDUE', hint: 'Nhắc nhở và đôn đốc thanh toán trước khi tiến hành xử lý tài sản tồn kho.' },
     ],
   },
 ];
@@ -115,7 +115,7 @@ export function legacyPolicies(policies) {
 }
 
 export function fieldPolicy(policies, field, day) {
-  return policies.filter(p => {
+  return (policies || []).filter(p => {
     if (p.status !== 'ACTIVE' || p.facilityId != null || p.unitTypeId != null || p.policyType !== field.type) return false;
     // Bỏ ánh xạ RENEWAL=24 sang ô "Thông báo trước khi hết hạn" (P0).
     if (field.key === 'reminder' && isLegacyRenewal(p)) return false;
@@ -140,13 +140,89 @@ export function fieldValue(p, field) {
   return '';
 }
 
+/** Giá trị thô nạp vào ô input biểu mẫu */
+export function fieldRawValue(p, field) {
+  if (field.key === 'deposit') {
+    return '1 tháng tiền thuê';
+  }
+  if (!p || p.value === null || p.value === undefined) {
+    return '';
+  }
+  return String(p.value);
+}
+
+/** Kiểm tra tính hợp lệ của số nhập vào biểu mẫu */
+export function validatePolicyNumber(key, raw) {
+  if (raw === undefined || raw === null || String(raw).trim() === '') {
+    return 'Không được để trống.';
+  }
+  const s = String(raw).trim();
+  if (key === 'overdue') {
+    const normalized = s.replace(',', '.');
+    if (!/^\d+(\.\d{1,2})?$/.test(normalized)) {
+      return 'Nhập tỷ lệ từ 0.01 đến 100, tối đa 2 chữ số thập phân (ví dụ: 5 hoặc 5,25).';
+    }
+    const val = Number(normalized);
+    if (!Number.isFinite(val) || val < 0.01 || val > 100) {
+      return 'Tỷ lệ phải từ 0.01% đến 100% cọc / ngày.';
+    }
+    return null;
+  }
+  if (key === 'relet') {
+    if (!/^\d+$/.test(s)) {
+      return 'Nhập số ngày nguyên từ 0 đến 60 (ví dụ: 3).';
+    }
+    const val = Number(s);
+    if (!Number.isInteger(val) || val < 0 || val > 60) {
+      return 'Số ngày đệm phải từ 0 đến 60 ngày.';
+    }
+    return null;
+  }
+  return null;
+}
+
 function numericValue(p, field, text) {
-  const raw = text.replace(/tháng tiền thuê|(?:\/\s*)?ngày|[đ₫%]/g, '').trim();
-  if (!/^[\d.,\s]+$/.test(raw)) throw new Error(`${field.label}: nhập một mức cụ thể, ví dụ 500.000đ hoặc 1 tháng tiền thuê.`);
+  const str = String(text ?? '').trim();
+  const raw = str.replace(/tháng tiền thuê|(?:\/\s*)?ngày|[đ₫%]/g, '').trim();
+  if (!/^[\d.,\s]+$/.test(raw)) {
+    throw new Error(`${field.label}: nhập một mức cụ thể, ví dụ 500.000đ hoặc 1 tháng tiền thuê.`);
+  }
+
+  // Handle relet buffer specifically:
+  if (field.key === 'relet') {
+    const normalized = raw.replace(',', '.');
+    const val = Number(normalized);
+    if (!Number.isInteger(val) || val < 0 || val > 60) {
+      throw new Error(`${field.label}: nhập số ngày nguyên từ 0 đến 60.`);
+    }
+    return val;
+  }
+
+  // Handle overdue rate specifically (numbers, percentage or VND for legacy mock):
+  if (field.key === 'overdue') {
+    const normalized = raw.replace(',', '.');
+    const parsedNum = Number(normalized);
+    // If text has 'đ' or value is > 100 with FIXED, treat as money:
+    if (str.includes('đ') || (p?.calculationType === 'FIXED' && parsedNum > 100)) {
+      const n = parseMoney(raw);
+      if (!Number.isFinite(n) || n < 0) throw new Error(`${field.label}: giá trị không hợp lệ.`);
+      return n;
+    }
+    // Otherwise treat as percentage (0.01 - 100, max 2 decimals):
+    if (!/^\d+(\.\d{1,2})?$/.test(normalized)) {
+      throw new Error(`${field.label}: nhập số từ 0.01 đến 100, tối đa 2 chữ số thập phân.`);
+    }
+    if (!Number.isFinite(parsedNum) || parsedNum < 0.01 || parsedNum > 100) {
+      throw new Error(`${field.label}: tỷ lệ phải từ 0.01% đến 100%.`);
+    }
+    return parsedNum;
+  }
+
   const isPercent = p?.calculationType === 'PERCENTAGE' || p?.calculationType === 'DEPOSIT_PERCENT_PER_DAY';
-  const n = (field.key === 'deposit' && /tháng/.test(text) || isPercent) ? Number(raw.replace(',', '.')) : parseMoney(raw);
-  if (!Number.isFinite(n) || n < 0 || isPercent && n > 100) throw new Error(`${field.label}: giá trị không hợp lệ.`);
-  if (field.key === 'relet' && (!Number.isInteger(n) || n > 60)) throw new Error(`${field.label}: nhập số ngày nguyên từ 0 đến 60.`);
+  const n = (field.key === 'deposit' && /tháng/.test(str) || isPercent) ? Number(raw.replace(',', '.')) : parseMoney(raw);
+  if (!Number.isFinite(n) || n < 0 || isPercent && n > 100) {
+    throw new Error(`${field.label}: giá trị không hợp lệ.`);
+  }
   return n;
 }
 
@@ -162,7 +238,12 @@ export function policyJobs(policies, drafts, day) {
     if (numeric && numeric.key in drafts) {
       if (p?.calculationType === 'RANGE') throw new Error(`${numeric.label}: chính sách khoảng giá hiện tại cần được kiểm tra trước khi sửa.`);
       if (p?.calculationType === 'RULE') values.ruleDescription = drafts[numeric.key].trim();
-      else values.value = numericValue(p, numeric, drafts[numeric.key]);
+      else {
+        values.value = numericValue(p, numeric, drafts[numeric.key]);
+        if (numeric.key === 'overdue' && !String(drafts[numeric.key]).includes('đ')) {
+          values.calculationType = 'DEPOSIT_PERCENT_PER_DAY';
+        }
+      }
     }
     const textFields = fields.filter(f => !f.numeric);
     if (textFields.some(f => f.key in drafts)) {
@@ -173,7 +254,9 @@ export function policyJobs(policies, drafts, day) {
       const preserved = unstructuredOwned ? [] : existing;
       values.ruleDescription = [...preserved, ...textFields.map(f => [f.label, String(drafts[f.key] ?? fieldValue(p, f)).trim()]).filter(([, v]) => v).map(([label, v]) => `${label}: ${v}`)].join('\n');
     }
-    const calculationType = p?.calculationType || (numeric ? 'FIXED' : 'RULE');
+    const calculationType = (numeric && numeric.key === 'overdue' && !String(drafts[numeric.key] ?? '').includes('đ'))
+      ? 'DEPOSIT_PERCENT_PER_DAY'
+      : (p?.calculationType || (numeric ? 'FIXED' : 'RULE'));
     if (!p && numeric && values.value === undefined) {
       // Do not invent a fee/reminder/deposit amount just to save a text instruction.
       throw new Error(`Vui lòng thiết lập ${numeric.label.toLowerCase()} trước khi lưu quy định cùng nhóm.`);
