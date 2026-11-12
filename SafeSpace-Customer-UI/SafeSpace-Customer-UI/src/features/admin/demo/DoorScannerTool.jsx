@@ -2,7 +2,8 @@
  * DOOR SCANNER TOOL - MÁY QUÉT TẠI CỬA KHO (Lượt 6b · #48 #50 #51 #59 · Figma A-DEMO-CỬA)
  *
  * Mô phỏng thiết bị kiểm soát ra vào có bàn phím (D21: không dùng thiết bị thật):
- * - Chọn cơ sở và ô kho → nhập PIN 6 số (chỉ 1–9, D51) hoặc "Mở cửa bằng QR" (camera; không có camera thì dán mã).
+ * - Chọn cơ sở và ô kho → nhập PIN 6 số (chỉ 1–9, D51) hoặc "Mở cửa bằng QR" (camera, đọc bằng BarcodeDetector
+ *   hoặc jsQR trên Windows; không có camera thì dán mã).
  * - Cửa không tự khoá (D51): mở tới khi bấm "Đóng cửa" (popup xác nhận, không nhập lại mã).
  * - "Gọi hỗ trợ" gửi yêu cầu tới nhân viên cơ sở; trong 30 phút không tạo yêu cầu trùng.
  * - Mọi lần mở, từ chối, đóng đều vào Nhật ký cửa (không lưu nguyên mã QR/PIN).
@@ -15,6 +16,7 @@ import { useApp } from "../../../app/state/AppProvider.jsx";
 import { dateTimeLabel } from "../../../shared/utils/format.js";
 import { DemoHead } from "./DemoShared.jsx";
 import { PIN_LENGTH, pinError, scanScreen } from "./demoModel.js";
+import { cameraErrorState, cameraProblem, createQrReader } from "./qrReader.js";
 import "./demo-tools.css";
 
 const SCREEN = {
@@ -26,38 +28,54 @@ const SCREEN = {
 };
 const clock = () => new Date().toTimeString().slice(0, 5);
 
-/** Đọc QR bằng camera (BarcodeDetector). Không có camera / trình duyệt chặn → báo lỗi để chọn nhập PIN hoặc dán mã. */
+/**
+ * Đọc QR bằng camera. Luôn xin quyền camera trước; đọc mã bằng BarcodeDetector nếu trình duyệt có,
+ * không có (Chrome/Edge trên Windows) thì dùng jsQR (#51). Không mở được camera → popup nêu đúng lý do,
+ * vẫn cho dán mã hoặc nhập PIN.
+ */
+const CAMERA_TEXT = {
+  missing: ["Không tìm thấy camera", "Thiết bị này không có camera hoặc camera đang tắt. Dán nội dung mã QR của khách bên dưới, hoặc dùng PIN 6 số."],
+  busy: ["Camera đang bận", "Camera đang được ứng dụng khác sử dụng (ví dụ Zalo, Zoom, Teams). Đóng ứng dụng đó rồi bấm Thử lại, hoặc dán mã / dùng PIN."],
+  insecure: ["Trang chưa được phép dùng camera", "Trình duyệt chỉ cho mở camera trên trang HTTPS hoặc localhost. Mở máy quét bằng địa chỉ localhost / HTTPS, hoặc dán mã / dùng PIN."],
+};
+
 function QrDialog({ onCode, onClose, onPin }) {
   const video = useRef(null);
-  const [state, setState] = useState("starting"); // starting | live | blocked | missing
+  const [state, setState] = useState("starting"); // starting | live | blocked | missing | busy | insecure
+  const [attempt, setAttempt] = useState(0);
   const [paste, setPaste] = useState("");
   useEffect(() => {
     let stream, timer, stop = false;
+    setState("starting");
     (async () => {
-      if (!navigator.mediaDevices?.getUserMedia || typeof window.BarcodeDetector !== "function") return setState("missing");
+      const problem = cameraProblem(window);
+      if (problem) return setState(problem);
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        if (stop) return;
+        // Hiện hộp hỏi quyền camera của trình duyệt; "environment" chỉ là ưu tiên, laptop vẫn dùng webcam trước
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+        if (stop) return stream.getTracks().forEach((t) => t.stop());
         video.current.srcObject = stream; await video.current.play(); setState("live");
-        const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+        const detect = await createQrReader(window);
         const tick = async () => {
           if (stop) return;
-          try { const [hit] = await detector.detect(video.current); if (hit?.rawValue) return onCode(hit.rawValue); } catch { /* khung hình chưa sẵn sàng */ }
-          timer = setTimeout(tick, 300);
+          try { const code = await detect(video.current); if (code) return onCode(code); } catch { /* khung hình chưa sẵn sàng */ }
+          timer = setTimeout(tick, 250);
         };
         tick();
-      } catch (e) { setState(e?.name === "NotAllowedError" ? "blocked" : "missing"); }
+      } catch (e) { if (!stop) setState(cameraErrorState(e)); }
     })();
     return () => { stop = true; clearTimeout(timer); stream?.getTracks().forEach((t) => t.stop()); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [attempt]); // eslint-disable-line react-hooks/exhaustive-deps
   if (state === "blocked") return <ConfirmDialog tone="warning" title="Trình duyệt đang chặn camera" label="Nhập PIN" cancelLabel="Đóng" hint=""
-    text="Cho phép camera trong cài đặt trình duyệt rồi tải lại trang, hoặc nhập PIN 6 số." onCancel={onClose} onConfirm={onPin} />;
-  return <Modal title={state === "missing" ? "Không tìm thấy camera" : "Đưa mã QR vào camera"} size="md" onClose={onClose}>
-    {state === "missing"
-      ? <p className="modal__text">Thiết bị này không có camera hoặc trình duyệt chưa hỗ trợ đọc QR. Dán nội dung mã QR của khách bên dưới, hoặc dùng PIN 6 số.</p>
-      : <div className="demo-scan__video"><video ref={video} muted playsInline aria-label="Camera máy quét" />{state === "starting" && <span>Đang mở camera…</span>}</div>}
+    text="Bấm biểu tượng ổ khoá cạnh thanh địa chỉ → Camera → Cho phép, rồi mở lại “Mở cửa bằng QR”. Hoặc nhập PIN 6 số." onCancel={onClose} onConfirm={onPin} />;
+  const problem = CAMERA_TEXT[state];
+  return <Modal title={problem ? problem[0] : "Đưa mã QR vào camera"} size="md" onClose={onClose}>
+    {problem
+      ? <p className="modal__text">{problem[1]}</p>
+      : <div className="demo-scan__video"><video ref={video} muted playsInline aria-label="Camera máy quét" />{state === "starting" && <span>Đang mở camera… Chọn “Cho phép” khi trình duyệt hỏi.</span>}</div>}
     <Field label="Hoặc dán nội dung mã QR"><input value={paste} placeholder="Ví dụ: SSQR-12-4821" onChange={(e) => setPaste(e.target.value)} /></Field>
     <div className="modal__actions modal__actions--end">
+      {(state === "busy" || state === "missing") && <Button variant="outline" onClick={() => setAttempt((n) => n + 1)}>Thử lại</Button>}
       <Button variant="outline" onClick={onPin}>Nhập PIN</Button>
       <Button disabled={!paste.trim()} onClick={() => onCode(paste.trim())}>Quét mã này</Button>
     </div>
