@@ -140,7 +140,8 @@ public static partial class DbSeeder
                     {
                         ContractId = contract.ContractId, ReservationId = reservation.ReservationId, PaymentType = kind, Amount = amount,
                         Currency = "VND", PaymentMethod = "PAYMENT_GATEWAY",
-                        TransactionReference = $"SS-{reservation.CreatedAt.AddHours(7):yyyyMMdd}-{reservation.ReservationId:0000}",
+                        // Mã giao dịch là UNIQUE: mỗi khoản một mã, giống ReservationSettlement ("{mã đơn}:{loại}")
+                        TransactionReference = $"SS-{reservation.CreatedAt.AddHours(7):yyyyMMdd}-{reservation.ReservationId:0000}:{kind}",
                         DueDate = start, PaidAt = paidAt, Status = "PAID", CreatedAt = paidAt, UpdatedAt = paidAt
                     });
                 }
