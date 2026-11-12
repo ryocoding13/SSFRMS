@@ -44,11 +44,12 @@ function UserMenu({ roleLabel, tone }) {
       </button>
       {open && (
         <div className="usermenu__pop" role="menu">
-          <p>
-            {user?.username || user?.full_name}
-            <br />
-            <span>{user?.email}</span>
-          </p>
+          {/* #7: mỗi thông tin một dòng, không gộp tên đăng nhập và email vào cùng một dòng; Vận hành KD không gắn cơ sở nào */}
+          <div className="usermenu__info">
+            <strong>{user?.full_name || user?.username}</strong>
+            <span>{roleLabel}</span>
+            {user?.email && <span>{user.email}</span>}
+          </div>
           <button
             type="button"
             role="menuitem"

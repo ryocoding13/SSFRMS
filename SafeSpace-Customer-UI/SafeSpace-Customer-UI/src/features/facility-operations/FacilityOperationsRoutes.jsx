@@ -20,6 +20,7 @@ import { StaffInquiryPage } from "../staff/support/StaffInquiryPage.jsx";
 import { OverdueCasePage } from "../manager/overdue/OverdueCasePage.jsx";
 import { IncidentManagementPage } from "../manager/incidents/IncidentManagementPage.jsx";
 import { DepositRefundPage } from "../manager/refunds/DepositRefundPage.jsx";
+import { RefundCenterPage } from "../manager/refunds/RefundCenterPage.jsx";
 
 import { Empty, LinkButton } from "../../shared/components/UI.jsx";
 import { UnitAllocationPage } from "../manager/allocations/UnitAllocationPage.jsx";
@@ -46,7 +47,9 @@ import { StaffTaskList } from "./components/StaffTasks.jsx";
 const LIST_KIND = { reconcile: "reconcile", verify: "verify", handover: "handover", keys: "handover", return: "return", support: "support" };
 function StaffTab({ kind, Detail, query }) {
   const me = useMe();
-  return query.get("id") ? <Detail key={query.get("id")} query={query} /> : <StaffTaskList kind={kind} query={query} me={me} />;
+  if (query.get("id")) return <Detail key={query.get("id")} query={query} />;
+  // #7: "Kiểm tra ô cũ" gộp vào trang Kiểm tra trả kho (không còn tab riêng dưới navbar)
+  return <><StaffTaskList kind={kind} query={query} me={me} />{kind === "return" && <OldUnitInspectionPage embedded />}</>;
 }
 
 // #/staff/...  (Figma S01–S09)      #/manager/...  (Figma M01–M08)
@@ -55,7 +58,7 @@ const STAFF = {
   "cash-refunds": [CashRefundCounterPage, "staff/reconcile"],
   recheck: [ReturnRecheckPage, "staff/return"],
   "unit-moves": [OldUnitInspectionPage, "staff/return"],
-  overdue: [OverdueRemovalPage, "staff"],
+  overdue: [OverdueRemovalPage, "staff/return"], // #7: việc "Đồ quá hạn" nằm trong trang Kiểm tra trả kho
   inquiries: [StaffInquiryPage, "staff/support"],
   "": [StaffDashboardPage, "staff"],
   reconcile: [PaymentConfirmationPage, "staff/reconcile"],
@@ -67,19 +70,22 @@ const STAFF = {
   done: [StaffResultPage, "staff"],
 };
 const MANAGER = {
-  incidents: [IncidentManagementPage, "manager/contracts"],
-  overdue: [OverdueCasePage, "manager/contracts"],
-  "cash-refunds": [CashRefundApprovalPage, "manager/contracts"],
-  "unit-conflicts": [UnitConflictListPage, "manager/contracts"],
+  // #7 (12/11): navbar quản lý chỉ còn Tổng quan · Danh sách kho · Hợp đồng & quá hạn · Hoàn tiền · Báo cáo.
+  // Các màn con vẫn giữ đường dẫn để mở từ thẻ việc / nút trong trang.
+  incidents: [IncidentManagementPage, "manager/units"], // mở từ Danh sách kho
+  overdue: [OverdueCasePage, "manager/contracts"], // nút "Xử lý quá hạn" trên hợp đồng
+  refund: [RefundCenterPage, "manager/refund"],
+  "cash-refunds": [CashRefundApprovalPage, "manager/refund"],
+  "unit-conflicts": [UnitConflictListPage, "manager"], // thẻ "Cần xử lý" khi không còn ô tương đương
   "daily-report": [DailyStaffReportPage, "manager/report"],
-  "deposit-refunds": [DepositRefundPage, "manager/contracts"],
+  "deposit-refunds": [DepositRefundPage, "manager/refund"],
   "": [ManagerDashboardPage, "manager"],
   units: [UnitManagementPage, "manager/units"],
-  allocate: [UnitAllocationPage, "manager/allocate"],
-  assign: [StaffAssignmentPage, "manager/assign"],
+  allocate: [UnitAllocationPage, "manager"], // chỉ còn cho đơn đã thanh toán mà hệ thống không bố trí được ô
+  assign: [StaffAssignmentPage, "manager"], // bỏ khỏi navbar: yêu cầu của khách hiện thẳng bên nhân viên
   renewals: [RenewalApprovalPage, "manager/renewals"],
   contracts: [ContractListPage, "manager/contracts"],
-  refunds: [CancellationRefundPage, "manager/contracts"],
+  refunds: [CancellationRefundPage, "manager/refund"],
   report: [FacilityReportPage, "manager/report"],
   done: [ManagerResultPage, "manager"],
 };

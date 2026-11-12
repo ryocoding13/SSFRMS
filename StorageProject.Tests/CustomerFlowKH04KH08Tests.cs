@@ -134,18 +134,21 @@ public sealed class CustomerFlowKH04KH08Tests
     // =========================================================================
 
     [Fact]
-    public async Task C07_GetQr_BeforeStartDate_ThrowsInvalidOperationException()
+    public async Task C07_GetQr_BeforeStartDate_ShowsCodesButNotUsableUntilMidnight()
     {
+        // #59 (thay L13): khách xem được QR/PIN trước ngày thuê, chỉ mở cửa từ 00:00 ngày bắt đầu.
         await using var f = await Fixture.Create();
         var futureStart = Fixture.TodayVn.AddDays(3);
         var contract = await f.CreateContract(futureStart, futureStart.AddMonths(3));
 
         var accessService = new AccessService(f.Db, new AccessQrOptions("test-access-secret-at-least-thirty-two-characters"));
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            accessService.GetQrAsync(f.Customer.UserId, contract.ContractId));
-        Assert.Contains("Mã ra vào chỉ hiển thị từ ngày bắt đầu thuê", ex.Message);
-        Assert.Contains(futureStart.ToString("dd/MM/yyyy"), ex.Message);
+        var qr = await accessService.GetQrAsync(f.Customer.UserId, contract.ContractId);
+        Assert.False(qr.UsableNow);
+        Assert.Equal(futureStart.ToString("yyyy-MM-dd") + "T00:00:00", qr.UsableFrom);
+        var scan = await accessService.ScanAsync(qr.Code, "test");
+        Assert.Equal("DENIED", scan.Result);
+        Assert.Equal($"Chưa đến ngày sử dụng. Có thể mở cửa từ 00:00 ngày {futureStart:dd/MM/yyyy}.", scan.Reason);
     }
 
     [Fact]
@@ -160,7 +163,8 @@ public sealed class CustomerFlowKH04KH08Tests
 
         Assert.NotNull(qrDto);
         Assert.StartsWith("SSQR-", qrDto.Code);
-        Assert.Matches(@"^\d{6}$", qrDto.BackupCode);
+        Assert.Matches(@"^[1-9]{6}$", qrDto.BackupCode); // D51: PIN chỉ số 1–9
+        Assert.True(qrDto.UsableNow);
         Assert.Equal("K01", qrDto.UnitNumber);
         Assert.Equal(today.ToString("yyyy-MM-dd"), qrDto.ValidFrom);
     }
@@ -298,5 +302,54 @@ public sealed class CustomerFlowKH04KH08Tests
             Assert.Contains("?exp=", p.Url);
             Assert.Contains("&sig=", p.Url);
         });
+    }
+
+    // =========================================================================
+    // Lượt 6 · #48–#51 / D51: cửa mô phỏng không tự khoá, PIN 1–9, đóng cửa, hỗ trợ tại cửa chống trùng, nhật ký
+    // =========================================================================
+    [Fact]
+    public async Task Door_opens_by_pin_stays_open_until_closed_and_logs_without_codes()
+    {
+        await using var f = await Fixture.Create();
+        var today = Fixture.TodayVn;
+        var contract = await f.CreateContract(today, today.AddMonths(3));
+        var access = new AccessService(f.Db, new AccessQrOptions("test-access-secret-at-least-thirty-two-characters"));
+        var doors = new DoorService(f.Db);
+        var qr = await access.GetQrAsync(f.Customer.UserId, contract.ContractId);
+
+        Assert.Equal("LOCKED", (await doors.GetUnitStateAsync("K01", null)).Door);
+        Assert.Equal("DENIED", (await access.ScanAsync("120345", "test", unitNumber: "K01")).Result); // có số 0
+        Assert.Equal("OPEN", (await access.ScanAsync(qr.BackupCode, "test", unitNumber: "K01")).Result);
+        Assert.Equal("OPEN", (await doors.GetUnitStateAsync("K01", null)).Door); // không tự khoá
+
+        var closed = await doors.CloseByCustomerAsync(f.Customer.UserId, contract.ContractId);
+        Assert.True(closed.Changed);
+        Assert.Equal("LOCKED", closed.Door);
+        Assert.False((await doors.CloseFromDeviceAsync("K01", null, "test")).Changed); // đóng lần nữa không ghi trùng
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => doors.CloseByCustomerAsync(f.OtherCustomer.UserId, contract.ContractId));
+
+        var logs = await doors.GetDoorLogsAsync(new StorageProject.Core.DTOs.Access.DoorLogFilter(null, "K01", null, null, null));
+        Assert.Contains(logs.Items, r => r.Result == "OPEN" && r.Method == "PIN");
+        Assert.Contains(logs.Items, r => r.Result == "CLOSED" && r.Method == "CLOSE_APP");
+        Assert.Contains(logs.Items, r => r.Result == "DENIED" && r.Reason == "Mã PIN gồm 6 số từ 1 đến 9.");
+        var raw = await f.Db.ActivityLogs.Where(l => l.Action == "ACCESS_SCANNED").Select(l => l.NewValue).ToListAsync();
+        Assert.DoesNotContain(raw, v => v!.Contains(qr.BackupCode) || v.Contains(qr.Code)); // không lưu nguyên QR/PIN
+    }
+
+    [Fact]
+    public async Task Door_support_reaches_facility_once_within_30_minutes()
+    {
+        await using var f = await Fixture.Create();
+        var today = Fixture.TodayVn;
+        await f.CreateContract(today, today.AddMonths(3));
+        var doors = new DoorService(f.Db);
+        var first = await doors.RequestSupportAsync(new StorageProject.Core.DTOs.Access.DoorSupportRequest("K01"), "test");
+        var again = await doors.RequestSupportAsync(new StorageProject.Core.DTOs.Access.DoorSupportRequest("K01"), "test");
+        Assert.False(first.Duplicate);
+        Assert.True(again.Duplicate);
+        Assert.Equal(first.TicketCode, again.TicketCode);
+        var ticket = await f.Db.SupportTickets.SingleAsync();
+        Assert.Equal(f.Unit.UnitId, ticket.UnitId);
+        Assert.Equal("OPEN", ticket.Status);
     }
 }

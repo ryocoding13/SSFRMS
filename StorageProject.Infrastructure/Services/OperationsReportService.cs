@@ -400,16 +400,33 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
     public async Task<RevenueTrendDto> GetRevenueTrendAsync(int months, long? facilityId, long? unitTypeId, CancellationToken ct = default)
     {
         if (months is < 1 or > 24) throw new ArgumentException("Số tháng phải từ 1 đến 24.");
+        var today = OpsRules.TodayLocal;
+        var firstOfThisMonth = new DateOnly(today.Year, today.Month, 1);
+        return await GetRevenueTrendRangeAsync(firstOfThisMonth.AddMonths(-(months - 1)), firstOfThisMonth, facilityId, unitTypeId, ct);
+    }
+
+    /// <summary>
+    /// #58 · Doanh thu theo tháng trong khoảng tháng đã chọn (qua năm được, ví dụ 11/2026 – 02/2027).
+    /// Tháng bắt đầu không được sau tháng kết thúc; tối đa 24 tháng. Ngày trong tháng bị bỏ qua (lấy tháng chứa ngày đó).
+    /// </summary>
+    public static int MonthCount(DateOnly fromMonth, DateOnly toMonth) =>
+        (toMonth.Year - fromMonth.Year) * 12 + toMonth.Month - fromMonth.Month + 1;
+
+    public async Task<RevenueTrendDto> GetRevenueTrendRangeAsync(DateOnly fromMonth, DateOnly toMonth, long? facilityId, long? unitTypeId, CancellationToken ct = default)
+    {
+        var first = new DateOnly(fromMonth.Year, fromMonth.Month, 1);
+        var last = new DateOnly(toMonth.Year, toMonth.Month, 1);
+        var months = MonthCount(first, last);
+        if (months < 1) throw new ArgumentException("Tháng bắt đầu phải trước hoặc bằng tháng kết thúc.");
+        if (months > 24) throw new ArgumentException("Khoảng xem tối đa 24 tháng.");
         await ValidateFilterAsync(facilityId, unitTypeId, ct);
 
         var source = await LoadAsync(facilityId, unitTypeId, ct);
-        var today = OpsRules.TodayLocal;
-        var firstOfThisMonth = new DateOnly(today.Year, today.Month, 1);
 
         var rows = new List<RevenueMonthRow>();
-        for (var i = months - 1; i >= 0; i--)
+        for (var i = 0; i < months; i++)
         {
-            var start = firstOfThisMonth.AddMonths(-i);
+            var start = first.AddMonths(i);
             var m = Compute(source, OpsRules.LocalDayStartUtc(start), OpsRules.LocalDayStartUtc(start.AddMonths(1)));
             rows.Add(new RevenueMonthRow(start.Year, start.Month, $"Tháng {start.Month}/{start.Year}",
                 m.Collected, m.Refunded, m.RentalAndFeeRevenue, m.DepositCollected));
@@ -481,7 +498,7 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
     // UC23 — Xuất CSV (UTF-8, có tiêu đề, đơn vị, bộ lọc và thời điểm xuất)
     // ---------------------------------------------------------------------
 
-    public async Task<CsvExport> ExportCsvAsync(string view, ReportFilter filter, int months, long userId, CancellationToken ct = default)
+    public async Task<CsvExport> ExportCsvAsync(string view, ReportFilter filter, int months, long userId, CancellationToken ct = default, bool useRange = false)
     {
         await ValidateFilterAsync(filter.FacilityId, filter.UnitTypeId, ct);
 
@@ -534,11 +551,16 @@ public class OperationsReportService(AppDbContext dbContext) : IOperationsReport
             }
             case "revenue-trend":
             {
-                var report = await GetRevenueTrendAsync(months, filter.FacilityId, filter.UnitTypeId, ct);
+                // #58: xuất đúng khoảng tháng đang xem (from/to của bộ lọc); không có thì N tháng gần nhất như trước
+                var report = useRange
+                    ? await GetRevenueTrendRangeAsync(filter.From, filter.To, filter.FacilityId, filter.UnitTypeId, ct)
+                    : await GetRevenueTrendAsync(months, filter.FacilityId, filter.UnitTypeId, ct);
                 snapshotAt = report.SnapshotAt;
-                title = $"Báo cáo tiền thu {months} tháng gần nhất";
+                title = useRange
+                    ? $"Báo cáo tiền thu {filter.From.Month:00}/{filter.From.Year} – {filter.To.Month:00}/{filter.To.Year}"
+                    : $"Báo cáo tiền thu {months} tháng gần nhất";
                 fileKey = "theo-thang";
-                WriteHeader(csv, title, filter, facilityName, unitTypeName, snapshotAt, withPeriod: false);
+                WriteHeader(csv, title, filter, facilityName, unitTypeName, snapshotAt, withPeriod: useRange);
                 Line(csv, ["Tháng", "Tiền thu (VND)", "Tiền hoàn (VND)", "Doanh thu thuê và phí (VND)", "Cọc thu trong kỳ (VND)"]);
                 foreach (var r in report.Months)
                 {

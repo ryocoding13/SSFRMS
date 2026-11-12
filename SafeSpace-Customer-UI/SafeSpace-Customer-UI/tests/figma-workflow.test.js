@@ -15,9 +15,10 @@ test('staff badges derive from pending work and exclude waiting customers or ano
   assert.ok(Object.values(pendingTaskCounts(ops,'STAFF',{staff_id:'me'})).every(n=>n===0));
 });
 test('manager allocation badge decreases after allocation and reaches zero',()=>{
-  let ops=createOpsData("2026-10-22"); const before=pendingTaskCounts(ops,'MANAGER')['manager/allocate'];
+  // #7 (12/11): đơn chưa có ô hiện ở Tổng quan (không còn mục Phân bổ kho trên navbar)
+  let ops=createOpsData("2026-10-22"); ops.unit_conflicts=[]; const before=pendingTaskCounts(ops,'MANAGER')['manager'];
   for(const a of ops.allocations.filter(a=>a.status==='PENDING')) a.status='DONE';
-  assert.ok(before>0); assert.equal(pendingTaskCounts(ops,'MANAGER')['manager/allocate'],0);
+  assert.ok(before>0); assert.equal(pendingTaskCounts(ops,'MANAGER')['manager'],0);
 });
 // D36/D40 (Thắng chốt 04/11): C12 thêm chủ đề "Nhận chìa khóa · lần đầu nhận kho" → 9 nhóm
 test('nine support topic groups incl. key pickup and each access reissue title',()=>{

@@ -62,7 +62,7 @@ export function RenewalUnitChangePage({ id }) {
     guard.current = true; setBusy(true);
     try {
       await load.send(months, { version: String(version) }, choice.kind === "KEEP" ? null : choice.unitId);
-      setConfirm(false); retry?.(); go("payments");
+      setConfirm(false); retry?.(); go(`units/${encodeURIComponent(id)}/renewal-status`);
     } catch (err) {
       const taken = /vừa có người đặt|không còn trống/i.test(err?.message || "");
       setConfirm(false); setResult({ ok: false, taken, message: err?.message || "Chưa gửi được yêu cầu. Vui lòng thử lại." });

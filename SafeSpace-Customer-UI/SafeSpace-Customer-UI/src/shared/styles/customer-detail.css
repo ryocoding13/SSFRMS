@@ -180,3 +180,21 @@
 .support-recent__reply { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .support-recent__actions { display: flex; gap: 8px; flex: none; }
 .support-recent__actions .btn { min-width: 72px; }
+
+/* Lượt 3 · #26 #27: thanh toán gia hạn ngay trong luồng */
+.renewal-card { display: grid; gap: 14px; animation: renewal-in .22s ease-out both; }
+.renewal-card__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.renewal-card__head h2 { margin: 0; }
+.renewal-card__head p { margin: 4px 0 0; }
+.renewal-card__methods { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.renewal-card__method { display: grid; gap: 6px; align-content: start; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--white, #fff); transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+.renewal-card__method:hover { border-color: var(--blue); box-shadow: 0 6px 18px rgba(37, 99, 235, .08); transform: translateY(-1px); }
+.renewal-card__method span { color: var(--muted); font-size: 14px; }
+.renewal-card__method .btn { justify-self: start; margin-top: 6px; min-width: 140px; }
+.renewal-booked { display: grid; gap: 10px; justify-items: start; animation: renewal-in .22s ease-out both; }
+@keyframes renewal-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .renewal-card, .renewal-booked { animation: none; } .renewal-card__method { transition: none; } }
+
+/* Lượt 6 · #59: trạng thái mã mở cửa */
+.access-qr__state { display: grid; gap: 4px; justify-items: start; padding: 12px 14px; border-radius: 10px; background: var(--soft, #f1f5f9); margin-bottom: 12px; animation: renewal-in .2s ease-out both; }
+.access-qr__state span { font-size: 13px; color: var(--muted); }

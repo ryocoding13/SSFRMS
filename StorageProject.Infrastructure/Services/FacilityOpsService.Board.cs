@@ -121,12 +121,40 @@ public partial class FacilityOpsService
             return "ACTIVE";
         }
 
+        // #47: Sử dụng theo hợp đồng đang hiệu lực hôm nay; Vận hành theo trạng thái kỹ thuật + sự cố/bảo trì đang mở;
+        // Cửa theo nhật ký mô phỏng (ACCESS_SCANNED OPEN / DOOR_CLOSED), không gọi là thiết bị thật.
+        var unitIdsOnBoard = units.Select(u => u.UnitId).ToList();
+        var openIncidents = await dbContext.FacilityIncidents.AsNoTracking()
+            .Where(i => i.FacilityId == fid && OpenIncidentStatuses.Contains(i.Status))
+            .Select(i => new { i.OldUnitId, i.CaseCode, i.UpdatedAt }).ToListAsync(ct);
+        var maintenanceUnits = (await dbContext.MaintenanceRequests.AsNoTracking()
+            .Where(m => unitIdsOnBoard.Contains(m.UnitId) && m.Status != "COMPLETED" && m.Status != "CANCELLED")
+            .Select(m => m.UnitId).Distinct().ToListAsync(ct)).ToHashSet();
+        var doorByUnit = await DoorStatesAsync(fid, ct);
+        var rentedNow = new[] { "ACTIVE", "EXPIRING", "OVERDUE", "RETURN_PENDING" };
         var unitDtos = units.Select(u =>
         {
             heldByUnit.TryGetValue(u.UnitId, out var c);
+            var holding = contracts.Where(x => x.UnitId == u.UnitId && HeldContractStatuses.Contains(x.Status)).ToList();
+            var current = holding.Where(x => rentedNow.Contains(x.Status) && x.StartDate <= today).OrderByDescending(x => x.StartDate).FirstOrDefault();
+            var next = holding.Where(x => x.StartDate > today).OrderBy(x => x.StartDate).FirstOrDefault();
+            var incident = openIncidents.Where(i => i.OldUnitId == u.UnitId).OrderByDescending(i => i.UpdatedAt).FirstOrDefault();
+            var operation = u.Status switch
+            {
+                "MAINTENANCE" or "OUT_OF_SERVICE" => "MAINTENANCE",
+                "INSPECTION" or "UNDER_INSPECTION" => "INSPECTION",
+                _ => incident != null || maintenanceUnits.Contains(u.UnitId) ? "MAINTENANCE" : "ACTIVE"
+            };
+            doorByUnit.TryGetValue(u.UnitNumber, out var door);
             var floor = (u.Floor ?? string.Empty).Replace("Tầng", string.Empty).Trim();
-            return new OpsUnitDto(u.UnitNumber, c?.Customer.FullName, u.UnitType.Area, floor.Length > 0 ? floor : "trệt",
-                TypeKey(u.UnitType), UnitState(u), c?.EndDate);
+            var shown = current ?? c;
+            return new OpsUnitDto(u.UnitNumber, shown?.Customer.FullName, u.UnitType.Area, floor.Length > 0 ? floor : "trệt",
+                TypeKey(u.UnitType), UnitState(u), shown?.EndDate,
+                Usage: current != null ? "RENTED" : "FREE", Operation: operation,
+                Door: door.Open ? "OPEN" : "LOCKED", DoorAt: Local(door.At),
+                Contract: shown != null ? ContractCode(shown) : null,
+                BookedFrom: current == null ? next?.StartDate : null,
+                Incident: incident?.CaseCode);
         }).ToList();
 
         // ---- S09 · Đối soát chuyển khoản
@@ -214,13 +242,21 @@ public partial class FacilityOpsService
                 i.DamageFee, i.CleaningFee, i.CleaningRequired, i.DamageItem ?? "", i.FeeReason ?? "", overdueFee,
                 PhotosOf(inspectionPhotos, i.InspectionId));
             var damageWorkflowResolved = i.Status == "COMPLETED" && IsDeductionResolved(deduction.Status);
+            // #16/#19: có biên bản thì có bảng đối soát; hợp đồng đã chốt (không còn RETURN_PENDING) → số chính thức
+            OpsSettlementDto? settlement = null;
+            if (i.Status == "COMPLETED")
+            {
+                var (scenario, input, _) = SettlementInputOf(c, i, overdueFee, overdueFee > 0 ? 1 : 0, now);
+                settlement = SettlementDtoOf(c, scenario, input, official: c.Status != "RETURN_PENDING");
+            }
             return new OpsReturnDto(ReturnCode(i.InspectionId), ContractCode(c), c.Unit.UnitNumber, c.Customer.FullName,
                 LocalOrDate(i.ScheduledAt, c.EndDate), c.DepositAmount, Unpaid(c), i.Status == "COMPLETED" ? "SUBMITTED" : "SCHEDULED",
                 report, Local(i.InspectedAt), Utc(i.CreatedAt), overdueFee, DamageWorkflowResolved: damageWorkflowResolved,
                 MoveOutPhotos: PhotosOf(moveOutPhotos, i.InspectionId),
                 LateInspection: i.Status != "COMPLETED" && now - i.CreatedAt > InspectionSla,
                 DeductionStatus: deduction.Status, DeductionDeadlineAt: Local(deduction.DeadlineUtc),
-                DeductionPhotos: PhotosOf(deductionPhotos, i.InspectionId));
+                DeductionPhotos: PhotosOf(deductionPhotos, i.InspectionId),
+                Settlement: settlement);
         }).ToList();
 
         // ---- S05 · Yêu cầu hỗ trợ
@@ -506,44 +542,70 @@ public partial class FacilityOpsService
     /// và hoàn tiền (cùng định nghĩa "rentalAndFeeRevenue" của báo cáo Vận hành KD, SRS 10.2).
     /// Cơ cấu theo loại kho là của tháng hiện tại.
     /// </summary>
-    private async Task<OpsRevenueDto> RevenueAsync(long facilityId, CancellationToken ct)
+    private Task<OpsRevenueDto> RevenueAsync(long facilityId, CancellationToken ct)
     {
         var today = VnToday;
-        var firstMonth = new DateOnly(today.Year, today.Month, 1).AddMonths(-5);
+        var thisMonth = new DateOnly(today.Year, today.Month, 1);
+        return RevenueAsync(facilityId, thisMonth.AddMonths(-5), thisMonth, ct);
+    }
+
+    /// <summary>
+    /// #58 · Doanh thu của cơ sở trong khoảng tháng đã chọn (GET /api/ops/revenue?from=&amp;to=).
+    /// #34: số tiền đầy đủ theo đồng (trước đây làm tròn triệu). Cơ cấu theo loại kho và tiền mặt khách không nhận
+    /// tính trên cùng khoảng tháng.
+    /// </summary>
+    public async Task<OpsRevenueDto> GetRevenueAsync(OpsActor actor, DateOnly fromMonth, DateOnly toMonth, CancellationToken ct = default)
+    {
+        RequireManager(actor);
+        var facility = await FacilityOfAsync(actor, ct);
+        var first = new DateOnly(fromMonth.Year, fromMonth.Month, 1);
+        var last = new DateOnly(toMonth.Year, toMonth.Month, 1);
+        var count = OperationsReportService.MonthCount(first, last);
+        if (count < 1) throw new ArgumentException("Tháng bắt đầu phải trước hoặc bằng tháng kết thúc.");
+        if (count > 24) throw new ArgumentException("Khoảng xem tối đa 24 tháng.");
+        return await RevenueAsync(facility.FacilityId, first, last, ct);
+    }
+
+    private async Task<OpsRevenueDto> RevenueAsync(long facilityId, DateOnly firstMonth, DateOnly lastMonth, CancellationToken ct)
+    {
+        var today = VnToday;
         var fromUtc = UtcFromLocal(firstMonth, 0);
+        var toUtc = UtcFromLocal(lastMonth.AddMonths(1), 0);
+        var monthCount = OperationsReportService.MonthCount(firstMonth, lastMonth);
 
         var rows = await dbContext.Payments
             .AsNoTracking()
             .Where(p => (p.ContractId != null ? p.Contract.Unit.FacilityId : p.Reservation.FacilityId) == facilityId
-                        && p.PaidAt != null && p.PaidAt >= fromUtc
+                        && p.PaidAt != null && p.PaidAt >= fromUtc && p.PaidAt < toUtc
                         && (p.Status == "PAID" || p.Status == "REFUNDED" || p.Status == "PARTIALLY_REFUNDED")
                         && p.PaymentType != "DEPOSIT" && p.PaymentType != "REFUND")
             .Select(p => new { p.Amount, p.PaidAt, Cold = p.ContractId != null ? p.Contract.Unit.UnitType.ClimateControlled : p.Reservation.UnitType.ClimateControlled })
             .ToListAsync(ct);
 
-        static decimal Million(decimal v) => Math.Round(v / 1_000_000m, 1, MidpointRounding.AwayFromZero);
+        // #34: tiền đầy đủ theo đồng (không rút gọn triệu), khớp báo cáo Vận hành KD
+        static decimal Full(decimal v) => Math.Round(v, 0, MidpointRounding.AwayFromZero);
 
-        var months = Enumerable.Range(0, 6).Select(i =>
+        var months = Enumerable.Range(0, monthCount).Select(i =>
         {
             var m = firstMonth.AddMonths(i);
             var sum = rows.Where(r => { var d = r.PaidAt!.Value + VnOffset; return d.Year == m.Year && d.Month == m.Month; }).Sum(r => r.Amount);
-            return new OpsRevenueMonthDto($"Tháng {m.Month}", m.Month, m.Year, Million(sum));
+            return new OpsRevenueMonthDto($"Tháng {m.Month}", m.Month, m.Year, Full(sum));
         }).ToList();
 
-        var current = rows.Where(r => { var d = r.PaidAt!.Value + VnOffset; return d.Year == today.Year && d.Month == today.Month; }).ToList();
+        // Cơ cấu theo loại kho trên toàn khoảng đang xem (cùng phạm vi với biểu đồ)
         var byType = new List<OpsRevenueTypeDto>
         {
-            new("Kho thường", Million(current.Where(r => !r.Cold).Sum(r => r.Amount))),
-            new("Kho lạnh", Million(current.Where(r => r.Cold).Sum(r => r.Amount))),
+            new("Kho thường", Full(rows.Where(r => !r.Cold).Sum(r => r.Amount))),
+            new("Kho lạnh", Full(rows.Where(r => r.Cold).Sum(r => r.Amount))),
         };
 
         var forfeited = (await dbContext.Payments.AsNoTracking()
             .Where(p => (p.ContractId != null ? p.Contract.Unit.FacilityId : p.Reservation.FacilityId) == facilityId
-                        && p.PaymentType == "REFUND" && p.Status == "CANCELLED" && p.UpdatedAt >= fromUtc
+                        && p.PaymentType == "REFUND" && p.Status == "CANCELLED" && p.UpdatedAt >= fromUtc && p.UpdatedAt < toUtc
                         && p.TransactionReference != null && p.TransactionReference.StartsWith("FORFEITED:"))
             .Select(p => p.Amount).ToListAsync(ct)).Sum(); // cộng trong bộ nhớ: SQLite không SUM được decimal
 
-        return new OpsRevenueDto(months, byType, today, Million(forfeited));
+        return new OpsRevenueDto(months, byType, today, Full(forfeited));
     }
 
     private static bool IsDeductionResolved(string status)

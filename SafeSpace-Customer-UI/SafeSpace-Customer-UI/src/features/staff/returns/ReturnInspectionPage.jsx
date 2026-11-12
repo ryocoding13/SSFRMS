@@ -10,10 +10,11 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { Button, Empty, Field, Icon, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import ReturnPhotoInput from "../../../shared/components/ReturnPhotoInput.jsx";
-import { cleaningFee, earlyStopKeep, isEarlyStop } from "../../../shared/utils/returnPolicy.js";
+import { cleaningFee } from "../../../shared/utils/returnPolicy.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
 import { validateInspection } from "../../facility-operations/settlements/settlementModel.js";
-import { OpsDemo, SettlementSummary } from "../../facility-operations/settlements/SettlementComponents.jsx";
+import { OpsDemo, SettlementTable } from "../../facility-operations/settlements/SettlementComponents.jsx";
+import { depositSidePreview, settlementOf } from "../../facility-operations/settlements/settlementModel.js";
 import { DamagePhotos, timeLabel } from "../../facility-operations/damage/DamageComponents.jsx";
 import "../../../shared/styles/customer-detail.css";
 
@@ -116,15 +117,16 @@ export function ReturnInspectionPage({ query }) {
   if (!r) return <main className="container page"><Empty title="Không tìm thấy lịch trả kho" text="Chọn đúng hồ sơ trong danh sách."><LinkButton to="staff/return">Danh sách trả kho</LinkButton></Empty></main>;
   const submitted = r.status === "SUBMITTED";
   const flags = inspectionFlags(form);
-  // D49: trả sớm sau StartDate không giữ 30% cọc; nếu có vệ sinh/hư hỏng thì trừ vào cọc như trả đúng hạn
-  const contract = ops.contracts.find((c) => c.id === r.contract);
-  const moveOut = r.requested_at ? new Date(new Date(r.requested_at).getTime() + 7 * 3600000).toISOString().slice(0, 10) : null;
-  const early = isEarlyStop(contract?.end, moveOut), keep = early ? earlyStopKeep(r.deposit) : 0;
   // D38: "Sẵn sàng cho thuê lại" chỉ khi đạt ≥ 2/3 tiêu chuẩn và không có khấu trừ (D32: ô cần vệ sinh/sửa giữ bảo trì)
   const charged = form.cleaning_required || (flags.damaged && Number(form.damage_fee) > 0);
   const canReady = flags.clean >= 2 && !charged;
   const proposal = form.proposal === READY && !canReady ? PROPOSALS[0] : form.proposal;
   const report = submitted ? r.report || {} : buildInspectionReport({ ...form, proposal }, r.deposit);
+  // D49 / #56: không giữ 30% cọc. #16: sau khi gửi, bảng đối soát lấy đúng số máy chủ tính (r.settlement);
+  // khi đang lập biên bản chỉ xem phần cọc dự kiến theo các khoản đang nhập.
+  const settlement = submitted && r.settlement
+    ? settlementOf(r.settlement)
+    : depositSidePreview(r.deposit, submitted ? report.cleaning_fee : cleaningFee(r.deposit, form.cleaning_required), Number(report.damage_fee) || 0, r.overdue_fee || 0);
   const blocked = saving || needsRefresh || reading || r.status !== "SCHEDULED", supported = source !== "api" || ops.inspection_evidence_supported === true;
   const change = (key, value) => { setForm((f) => ({ ...f, [key]: value })); setError(""); };
   // Chọn tình trạng: chưa đạt vệ sinh/còn đồ tự tick phí vệ sinh; trạng thái ô theo mức nặng nhất (người dùng vẫn đổi được)
@@ -169,6 +171,8 @@ export function ReturnInspectionPage({ query }) {
           {report.fee_reason && <p className="hint">Lý do / ghi chú: {report.fee_reason}</p>}
         </> : <>
           <ReturnPhotoInput files={files} onChange={setFiles} onReading={setReading} disabled={blocked} required label="Tải ảnh hiện trạng / hư hỏng" />
+          {/* #14: ảnh hiện trạng bắt buộc khi nhân viên gửi biên bản; dữ liệu đã nhập vẫn được giữ */}
+          {files.length === 0 && <p className="hint inspect-photo-required">Cần tối thiểu 1 ảnh hiện trạng trước khi gửi biên bản. Nội dung đã nhập vẫn được giữ.</p>}
           {flags.damaged && <Field label="Mức khấu trừ hư hỏng (đ)" hint={`Hạng mục: ${flags.damageItem}. Bắt buộc có ảnh bằng chứng hiện trạng.`}>
             <input inputMode="numeric" value={form.damage_fee} disabled={blocked} onChange={(e) => change("damage_fee", e.target.value.replace(/[^\d]/g, ""))} />
           </Field>}
@@ -181,11 +185,11 @@ export function ReturnInspectionPage({ query }) {
         {submitted ? <Notice>Đã gửi lúc {timeLabel(r.submitted_at)}. Chờ quản lý duyệt đối soát.</Notice> : <div className="customer-detail__actions">
           <Button variant="outline" disabled={blocked} onClick={saveDraft}>Lưu nháp</Button>
           <Button variant="outline" disabled={blocked} onClick={openDraft}>Mở nháp</Button>
-          <Button type="submit" disabled={blocked || !supported}>Gửi biên bản cho quản lý</Button>
+          <Button type="submit" disabled={blocked || !supported || files.length === 0}>Gửi biên bản</Button>
         </div>}
       </form>
       <div className="customer-detail__column">
-        <SettlementSummary deposit={r.deposit} damage={report.damage_fee} cleaning={submitted ? report.cleaning_fee : cleaningFee(r.deposit, form.cleaning_required)} overdue={r.overdue_fee} keep={keep > 0 ? keep : undefined} />
+        <SettlementTable title="Khấu trừ dự kiến" settlement={settlement} report={submitted ? r.report : { fee_reason: form.fee_reason, damage_item: form.damage_item }} />
       </div>
     </div>
     <div className="workflow-links"><LinkButton to="staff/return" variant="outline">Danh sách trả kho</LinkButton></div>

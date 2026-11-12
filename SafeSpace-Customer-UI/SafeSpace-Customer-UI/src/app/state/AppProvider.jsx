@@ -18,7 +18,8 @@ import { readPhotoData, verifyPhotoFile } from "../../shared/utils/refundRequest
 import { submitRenewalWithConsent } from "../../shared/api/renewalConsentApi.js";
 import { api } from "../../shared/api/customerApi.js";
 import { ApiError, setToken } from "../../shared/api/httpClient.js";
-import { isUnsupported, localAccessCode, normAccess, normCancelPreview, normPayos, normScan } from "../../features/customer/access/accessApi.js";
+import { isUnsupported, localAccessCode, normAccess, normCancelPreview, normDoor, normPayos, normScan } from "../../features/customer/access/accessApi.js";
+import { notYetMessage } from "../../shared/utils/access.js";
 import { bankAccount } from "../config/payment.js";
 import { vietQrPayload } from "../../shared/utils/vietqr.js";
 import { composeData, emptyOverlay, mapCatalog, reservationCode, reservationsToExpire, ticketCode } from "../../shared/api/apiMappers.js";
@@ -224,7 +225,20 @@ function LocalProvider({ children }) {
       async accessQr(contract) {
         if (ref.current.data.returns.some(r => r.contract_id === contract.contract_id && !["CANCELLED", "REJECTED"].includes(r.status))) return { ok: false, error: "QR đã hết hiệu lực do đã gửi trả kho." };
         if (contract.access_issued === false || ["DRAFT", "ENDED"].includes(contract.status)) return { ok: false, error: "QR mở cửa chỉ được cấp khi hợp đồng đã được xác nhận." };
-        return { ok: true, access: localAccessCode(contract) };
+        const access = localAccessCode(contract);
+        return { ok: true, access: { ...access, usable_now: localDate(new Date()) >= String(contract.start_date).slice(0, 10) } };
+      },
+      // Lượt 6 · D51: cửa mô phỏng trên trình duyệt (không có máy chủ) — mở khi quét hợp lệ, giữ mở tới khi bấm Đóng cửa
+      async doorState(contract) {
+        let doors; try { doors = JSON.parse(localStorage.getItem("safespace.doors") || "{}"); } catch { doors = {}; }
+        const d = doors[contract.contract_id]; return { ok: true, door: { unit: contract.unit_number, door: d?.door === "OPEN" ? "OPEN" : "LOCKED", at: d?.at || null, changed: false } };
+      },
+      async closeDoor(contract) {
+        let doors; try { doors = JSON.parse(localStorage.getItem("safespace.doors") || "{}"); } catch { doors = {}; }
+        const open = doors[contract.contract_id]?.door === "OPEN", at = new Date().toISOString();
+        doors[contract.contract_id] = { door: "LOCKED", at: open ? at : doors[contract.contract_id]?.at || null };
+        try { localStorage.setItem("safespace.doors", JSON.stringify(doors)); } catch { /* bộ nhớ trình duyệt bị chặn */ }
+        return { ok: true, door: { unit: contract.unit_number, door: "LOCKED", at: doors[contract.contract_id].at, changed: open } };
       },
       async scan(code, unit) {
         const d = ref.current.data;
@@ -237,8 +251,10 @@ function LocalProvider({ children }) {
         if (!c) return { ok: true, scan: { result: "DENIED", unit: null, customer: null, contract: null, at: now, reason: "Mã không đúng. Kiểm tra lại mã trên ứng dụng hoặc mã dự phòng." } };
         if (d.returns.some(r => r.contract_id === c.contract_id && !["CANCELLED", "REJECTED"].includes(r.status))) return { ok: true, scan: { result: "DENIED", at: now, reason: "QR đã hết hiệu lực do đã gửi trả kho." } };
         if (c.status === "ENDED") return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Mã đã hết hiệu lực — hợp đồng đã trả kho." } };
-        if (c.access_issued === false || c.start_date > localDate(new Date())) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Chưa đến ngày bắt đầu hợp đồng hoặc mã chưa được cấp." } };
+        if (c.access_issued === false) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Mã ra vào chưa được cấp." } };
+        if (c.start_date > localDate(new Date())) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: notYetMessage(c.start_date) } };
         if (c.end_date <= localDate(new Date())) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Hợp đồng đã quá hạn. Vui lòng gia hạn hoặc liên hệ cơ sở." } };
+        try { const doors = JSON.parse(localStorage.getItem("safespace.doors") || "{}"); doors[c.contract_id] = { door: "OPEN", at: now }; localStorage.setItem("safespace.doors", JSON.stringify(doors)); } catch { /* bộ nhớ trình duyệt bị chặn */ }
         return { ok: true, scan: { result: "OPEN", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: null } };
       },
       async cancelPreview(r) {
@@ -857,6 +873,8 @@ function ApiProvider({ children }) {
           return access ? { ok: true, access } : fail("Máy chủ chưa trả mã mở cửa.");
         }),
       scan: (code, unit) => guard(async () => ({ ok: true, scan: normScan(await api.scanAccess({ code: String(code || "").trim(), unitNumber: unit || null })) })),
+      doorState: (contract) => guard(async () => ({ ok: true, door: normDoor(await api.doorState(contract.api_id)) })),
+      closeDoor: (contract) => guard(async () => ({ ok: true, door: normDoor(await api.closeDoor(contract.api_id)) })),
       cancelPreview: (r) =>
         guard(async () => {
           const preview = normCancelPreview(await api.cancelPreview(r.api_id));

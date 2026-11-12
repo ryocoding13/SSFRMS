@@ -19,6 +19,12 @@ const BY_NAME = [
 // Trung tâm TP.HCM, dùng khi cơ sở chưa có toạ độ
 export const HCMC_CENTER = [10.7769, 106.7009];
 
+/** Cơ sở có vị trí thật để ghim lên bản đồ (toạ độ nhập ở Vận hành KD hoặc vị trí đã biết theo tên). */
+export function hasMapCoords(facility) {
+  if (facility?.lat != null && facility?.lng != null) return true;
+  return BY_NAME.some(([key]) => (facility?.name || "").includes(key));
+}
+
 export function coordsOf(facility) {
   if (facility?.lat != null && facility?.lng != null) return [Number(facility.lat), Number(facility.lng)];
   const hit = BY_NAME.find(([key]) => (facility?.name || "").includes(key));

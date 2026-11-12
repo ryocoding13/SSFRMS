@@ -475,19 +475,13 @@ public partial class FacilityOpsService
         await RequireDeductionSettledAsync(inspection, actorId, now, ct);
         // D32 / T09: Dừng tính phí quá hạn khi gửi trả kho thành công (inspection.CreatedAt là thời điểm khách gửi move-out).
         var moveOutDate = DateOnly.FromDateTime((inspection.CreatedAt != default ? inspection.CreatedAt : (inspection.InspectedAt ?? now)) + VnOffset);
-        var returnDate = DateOnly.FromDateTime((inspection.InspectedAt ?? now) + VnOffset);
-        var scenario = moveOutDate < contract.EndDate ? RefundScenario.EarlyStop : RefundScenario.NormalReturn;
         // P1 / D32: Dùng chung bộ chọn policy OVERDUE và tính phí
         var calc = await OpsRules.CalculateContractOverdueAsync(dbContext, contract, moveOutDate, isSettled: false, ct);
         var overdueDays = calc.OverdueDays;
         var overdueFee = calc.OverdueFee;
-        var rentPaid = contract.Payments.Where(p => p.PaymentType == "RENT" && p.Status == "PAID").Sum(p => p.Amount);
-        // Biên bản cũ có thể chỉ lưu tình trạng hoặc phí vệ sinh.
-        var cleaningRequired = inspection.CleaningRequired || inspection.CleaningFee > 0 || inspection.ConditionStatus == "DIRTY";
-        var result = RefundPolicy.Calculate(new RefundInput(scenario, contract.DepositAmount, rentPaid,
-            contract.StartDate, contract.EndDate, returnDate,
-            HygieneViolation: cleaningRequired,
-            Overdue: overdueDays > 0, DamageFee: inspection.DamageFee, OverdueFee: overdueFee));
+        // #16: cùng hàm dựng đầu vào với bảng đối soát dự kiến trên bảng việc (BuildBoard) → số dự kiến = số chính thức
+        var (scenario, input, cleaningRequired) = SettlementInputOf(contract, inspection, overdueFee, overdueDays, now);
+        var result = RefundPolicy.Calculate(input);
 
         // D32: chỉ phần bù từ cọc là PAID; phần còn lại được miễn, không giữ công nợ.
         SettleFromDeposit(contract, "DAMAGE_FEE", result.DamageDeduction, now, actorId);
@@ -529,6 +523,36 @@ public partial class FacilityOpsService
             overdueDays, note = Clip(note, 500), system = actorId == null
         });
         return new OpsSettlementResult(refund, refundStatus);
+    }
+
+    /// <summary>
+    /// #16: đầu vào RefundPolicy cho một biên bản trả kho. Dùng chung cho bước chốt (SettleReturnAsync) và bảng đối soát
+    /// dự kiến trên bảng việc, để biên bản, bước duyệt và khoản hoàn luôn ra cùng một số.
+    /// Mốc dừng phí: lúc khách gửi trả kho (inspection.CreatedAt); mốc tính tháng thuê: lúc nhân viên kiểm tra.
+    /// </summary>
+    internal static (RefundScenario Scenario, RefundInput Input, bool CleaningRequired) SettlementInputOf(
+        RentalContract contract, ReturnInspection inspection, decimal overdueFee, int overdueDays, DateTime nowUtc)
+    {
+        var moveOutDate = DateOnly.FromDateTime((inspection.CreatedAt != default ? inspection.CreatedAt : (inspection.InspectedAt ?? nowUtc)) + VnOffset);
+        var returnDate = DateOnly.FromDateTime((inspection.InspectedAt ?? nowUtc) + VnOffset);
+        var scenario = moveOutDate < contract.EndDate ? RefundScenario.EarlyStop : RefundScenario.NormalReturn;
+        var rentPaid = contract.Payments.Where(p => p.PaymentType == "RENT" && p.Status == "PAID").Sum(p => p.Amount);
+        // Biên bản cũ có thể chỉ lưu tình trạng hoặc phí vệ sinh.
+        var cleaningRequired = inspection.CleaningRequired || inspection.CleaningFee > 0 || inspection.ConditionStatus == "DIRTY";
+        var input = new RefundInput(scenario, contract.DepositAmount, rentPaid, contract.StartDate, contract.EndDate, returnDate,
+            HygieneViolation: cleaningRequired, Overdue: overdueDays > 0, DamageFee: inspection.DamageFee, OverdueFee: overdueFee);
+        return (scenario, input, cleaningRequired);
+    }
+
+    /// <summary>#16: bảng đối soát (dự kiến hoặc chính thức) từ kết quả RefundPolicy.</summary>
+    internal static OpsSettlementDto SettlementDtoOf(RentalContract contract, RefundScenario scenario, RefundInput input, bool official)
+    {
+        var r = RefundPolicy.Calculate(input);
+        var total = RefundPolicy.TotalMonths(contract.StartDate, contract.EndDate);
+        var charged = scenario == RefundScenario.EarlyStop ? RefundPolicy.MonthsBegun(contract.StartDate, contract.EndDate, input.Today) : total;
+        var deduction = r.FixedDeduction + r.DamageDeduction + r.OverdueDeduction;
+        return new OpsSettlementDto(official, scenario.ToString(), contract.DepositAmount, r.FixedDeduction, r.DamageDeduction,
+            r.OverdueDeduction, deduction, r.DepositRefund, r.RentRefund, r.Total, total, charged);
     }
 
     /// <summary>Hạn hoàn: 5 ngày làm việc (thứ 2–6) sau ngày chốt theo giờ Việt Nam (D32: 3–5 ngày làm việc).</summary>

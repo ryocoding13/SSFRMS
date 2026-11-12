@@ -87,9 +87,20 @@ public static class RefundPolicy
     public static decimal UnusedRent(decimal rentPaid, DateOnly start, DateOnly end, DateOnly today)
     {
         var total = TotalMonths(start, end);
+        var begun = MonthsBegun(start, end, today);
+        return Money(rentPaid * (total - begun) / total);
+    }
+
+    /// <summary>
+    /// #57 / D49: số tháng thuê đã bắt đầu sử dụng tính từ 00:00 ngày nhận kho (tháng đã bắt đầu tính đủ).
+    /// Ví dụ đăng ký 3 tháng từ 20/09, trả 21/10 → đã bắt đầu 2 tháng, hoàn 1 tháng.
+    /// </summary>
+    public static int MonthsBegun(DateOnly start, DateOnly end, DateOnly today)
+    {
+        var total = TotalMonths(start, end);
         var begun = 0;
         while (begun < total && start.AddMonths(begun) <= today) begun++;
-        return Money(rentPaid * (total - begun) / total);
+        return begun;
     }
 
     /// <summary>

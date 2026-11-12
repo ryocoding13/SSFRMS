@@ -1,0 +1,11 @@
+/* Mục Hoàn tiền: bộ lọc trong trang + các phần nối tiếp */
+.refund-center__filters { margin: 8px 0 20px; }
+.refund-center__body { display: grid; gap: 28px; animation: refund-center-in .2s ease-out both; }
+.refund-center__section { display: grid; gap: 14px; }
+.refund-center__section > .section-title { margin: 0; }
+.old-unit-embedded, .daily-report-embedded { display: grid; gap: 14px; margin-top: 32px; animation: refund-center-in .2s ease-out both; }
+@keyframes refund-center-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .refund-center__body, .old-unit-embedded, .daily-report-embedded { animation: none; } }
+/* Khối nhúng dùng cùng độ rộng với trang chứa nó */
+.container.workflow-page.old-unit-embedded { max-width: 1440px; padding-inline: var(--pad-x); padding-bottom: 80px; }
+.daily-report-embedded .field :is(input, select) { max-width: 320px; }

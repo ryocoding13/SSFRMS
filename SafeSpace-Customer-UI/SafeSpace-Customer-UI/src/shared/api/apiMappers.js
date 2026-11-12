@@ -264,6 +264,9 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       timeout_seconds,
       transfer_confirmed_at: overlay.transfers[id] ? new Date(overlay.transfers[id]).toISOString() : null,
       contract_api_id: remote.reservationDetails?.[id]?.contractId ?? null,
+      // #2: ô hệ thống bố trí khi tạo đơn (chưa phân bổ chính thức) hoặc ô đã phân bổ
+      unit_code: resDetail?.assignedUnitNumber || resDetail?.proposedUnitNumber || null,
+      unit_assigned: Boolean(resDetail?.assignedUnitNumber),
     };
   });
 
@@ -354,6 +357,8 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       const deadline = parseUtc(p.paymentDeadlineAt || ren?.paymentDeadlineAt);
       const expiredRenewal = kind === "RENEWAL" && !paid && (ren?.status === "EXPIRED" || p.status === "FAILED" || (deadline && deadline <= now));
       const open = !paid && !["CANCELLED", "REFUNDED", "FAILED"].includes(p.status);
+      // #28: gia hạn đã chọn tại quầy thì không còn mở QR PayOS.
+      const renewalAtCounter = kind === "RENEWAL" && open && !expiredRenewal && Boolean(ren?.atCounter || p.paymentMethod === "CASH");
       const status = expiredRenewal
         ? "EXPIRED"
         : kind === "REFUND"
@@ -364,7 +369,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
               : "RECONCILED"
             : p.status === "REFUNDED" || kind === "REFUND"
               ? "REFUNDED"
-              : fee && open && overlay.feesAtCounter?.[p.paymentId] ? "AT_COUNTER" : "UNPAID";
+              : (renewalAtCounter || (fee && open && overlay.feesAtCounter?.[p.paymentId])) ? "AT_COUNTER" : "UNPAID";
       const isCash = p.paymentMethod === "CASH" || (p.transactionReference && p.transactionReference.startsWith("CASH"));
       const transactionRef = isCash ? null : (paid ? publicTransactionRef(p.transactionReference) : null);
       ledger.push({
@@ -380,7 +385,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
         transaction_ref: transactionRef,
         // C11: khoản gia hạn đã duyệt nhưng chưa trả → nút "Thanh toán" (QR PayOS)
         // D32: khoản phí trả kho không được mở thanh toán ngoài cọc.
-        payable: p.status === "PENDING" && kind === "RENEWAL" && !expiredRenewal,
+        payable: p.status === "PENDING" && kind === "RENEWAL" && !expiredRenewal && !renewalAtCounter,
         fee,
         period: ren ? { from: dateOnly(ren.oldEndDate), to: dateOnly(ren.newEndDate), months: ren.renewalPeriodMonths } : null,
         // 3.6 · Figma C11h / LS02: thời gian, phương thức và mã giao dịch thật (mã nội bộ của hệ thống không hiện cho khách)

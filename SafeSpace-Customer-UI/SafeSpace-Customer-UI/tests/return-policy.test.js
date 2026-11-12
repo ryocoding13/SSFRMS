@@ -105,7 +105,7 @@ test("badge nhân viên và quản lý hiển thị đúng cho tất cả các t
   assert.equal(staffBadges["staff/inquiries"], 1);
   assert.equal(staffBadges["staff/reconcile"], 4); // 1 payment + 1 renewal + 2 cash refunds
   assert.equal(staffBadges["staff/verify"], 2); // 1 verify + 1 handover
-  assert.equal(staffBadges["staff/return"], 2); // 1 scheduled + 1 recheck
+  assert.equal(staffBadges["staff/return"], 3); // 1 scheduled + 1 recheck + 1 đồ quá hạn (#7: cùng trang Kiểm tra trả kho)
   assert.equal(staffBadges["staff/support"], 3); // 2 tickets (NV-01 + null) + 1 inquiry
   assert.equal(staffBadges["staff"], 12); // 4 + 2 + 2 + 3 + 1 overdue
 
@@ -117,21 +117,23 @@ test("badge nhân viên và quản lý hiển thị đúng cho tất cả các t
     refunds: [{ status: "PENDING" }],
     deposit_refunds: [{ status: "PENDING" }],
     cash_refunds: [{ status: "WAITING_APPROVAL" }, { status: "READY" }],
-    unit_conflicts: [{ status: "OPEN" }],
+    unit_conflicts: [{ status: "OPEN", option: "NONE" }, { status: "OPEN", option: "SWAP" }],
     overdue_cases: [{ status: "OPEN" }],
   };
 
   const mgrBadges = pendingTaskCounts(opsManager, "MANAGER", {});
-  assert.equal(mgrBadges["manager/allocate"], 1);
-  assert.equal(mgrBadges["manager/assign"], 1);
+  // #7 (12/11): Phân bổ / Phân công không còn trên navbar
+  assert.equal(mgrBadges["manager/allocate"], undefined);
+  assert.equal(mgrBadges["manager/assign"], undefined);
   assert.equal(mgrBadges["manager/renewals"], undefined);
   assert.equal(mgrBadges["manager/cash-refunds"], 1);
   assert.equal(mgrBadges["manager/deposit-refunds"], 1);
-  assert.equal(mgrBadges["manager/unit-conflicts"], 1);
+  assert.equal(mgrBadges["manager/unit-conflicts"], 1); // chỉ ca không còn ô tương đương; SWAP do khách tự chọn
   assert.equal(mgrBadges["manager/overdue"], 1);
   assert.equal(mgrBadges["manager/refunds"], 1);
-  assert.equal(mgrBadges["manager/contracts"], 6); // 1 overdue + 1 refund + 1 dep refund + 1 cash waiting + 1 conflict + 1 overdue case
-  assert.equal(mgrBadges["manager"], 8); // 1 + 1 + 6
+  assert.equal(mgrBadges["manager/contracts"], 2); // 1 hợp đồng quá hạn + 1 hồ sơ quá hạn
+  assert.equal(mgrBadges["manager/refund"], 3); // 1 đơn huỷ + 1 hoàn cọc + 1 tiền mặt chờ duyệt
+  assert.equal(mgrBadges["manager"], 2); // Tổng quan: 1 đơn chưa có ô + 1 ca không còn ô tương đương
 });
 
 test("badge khách hàng: nút Thanh toán & lịch hẹn hiển thị số khoản cần thanh toán", () => {

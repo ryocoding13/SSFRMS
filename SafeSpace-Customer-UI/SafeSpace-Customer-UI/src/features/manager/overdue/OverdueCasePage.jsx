@@ -16,13 +16,15 @@ import { InfoTiles, RecordCard, useWorkflowChange, WorkflowEmpty, WorkflowState 
 /**
  * Màn hình xử lý các ca vi phạm hợp đồng và nợ phí quá hạn.
  */
-export function OverdueCasePage() {
+export function OverdueCasePage({ query = new URLSearchParams() } = {}) {
   const load = useWorkflowData("overdue"), policy = useWorkflowData("policy"), defaultRate = policyRate(policy.data), [selected, setSelected] = useState(""), [assignee, setAssignee] = useState(""), [error, setError] = useState("");
   const [dialog, ask] = useWorkflowChange(load);
   return <main className="container page workflow-page">
     <PageHeader title="Hồ sơ quá hạn & xử lý đồ" description="Theo dõi khấu trừ cọc, phân công nhân viên và biên bản thực tế." />
     <WorkflowState load={load}>
-      {(load.data || []).map(item => {
+      {/* #7: mở từ nút "Xử lý quá hạn" trên hợp đồng → chỉ hiện hồ sơ của hợp đồng đó */}
+      {query.get("contract") && <p className="hint">Đang xem hồ sơ của {query.get("contract")} · <a href="#/manager/overdue">Xem tất cả hồ sơ quá hạn</a></p>}
+      {(load.data || []).filter(item => !query.get("contract") || item.contractId === query.get("contract")).map(item => {
         const rate = item.overdueRate ?? defaultRate;
         const d = depositSchedule(item.deposit, item.endDate, undefined, rate);
         const overdueDays = item.overdueDays ?? d.days;

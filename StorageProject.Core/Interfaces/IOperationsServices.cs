@@ -32,7 +32,9 @@ public interface IOperationsReportService
     Task<SystemReportDto> GetSystemReportAsync(ReportFilter filter, CancellationToken ct = default);
     Task<UnitTypeReportDto> GetUnitTypeReportAsync(ReportFilter filter, CancellationToken ct = default);
     Task<RevenueTrendDto> GetRevenueTrendAsync(int months, long? facilityId, long? unitTypeId, CancellationToken ct = default);
+    /// <summary>#58: doanh thu theo tháng trong khoảng [từ tháng, đến tháng] (qua năm được, tối đa 24 tháng).</summary>
+    Task<RevenueTrendDto> GetRevenueTrendRangeAsync(DateOnly fromMonth, DateOnly toMonth, long? facilityId, long? unitTypeId, CancellationToken ct = default);
     Task<RentalStatusDto> GetRentalStatusAsync(long? facilityId, long? unitTypeId, CancellationToken ct = default);
     Task<IReadOnlyList<FacilityContractRow>> GetFacilityContractsAsync(long facilityId, string? status, long? unitTypeId, CancellationToken ct = default);
-    Task<CsvExport> ExportCsvAsync(string view, ReportFilter filter, int months, long userId, CancellationToken ct = default);
+    Task<CsvExport> ExportCsvAsync(string view, ReportFilter filter, int months, long userId, CancellationToken ct = default, bool useRange = false);
 }

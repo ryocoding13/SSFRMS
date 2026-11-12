@@ -15,6 +15,15 @@ import { cleaningFee, NO_RETURN_COLLECTION } from "../../../shared/utils/returnP
 import { dateLabel, money } from "../../../shared/utils/format.js";
 import { settleReturn } from "../utils/opsConfirmation.js";
 
+// #16 (chế độ mô phỏng FE): dữ liệu demo không có lịch sử tiền thuê nên bảng đối soát chỉ có phần cọc (tiền thuê hoàn 0 đ).
+// Chế độ API dùng bảng đối soát máy chủ tính bằng RefundPolicy (board.returns[].settlement).
+function demoSettlement(r, official = false) {
+  const report = r?.report || {}, d = settleReturn(r);
+  const cleaning = Number(report.cleaning_fee) || 0, damage = Number(report.damage_fee) || 0, overdue = Number(report.overdue_fee) || 0;
+  return { official, scenario: "NormalReturn", deposit: r.deposit, cleaning, damage, overdue, total_deduction: d.deduction,
+    deposit_refund: d.refund, rent_refund: 0, total: d.refund, months_total: null, months_charged: null };
+}
+
 export class OpsError extends Error {}
 const fail = (m) => {
   throw new OpsError(m);
@@ -116,6 +125,7 @@ const ACTIONS = {
         submitted_at: iso(now),
         deduction_status: hasDeductions ? "WAITING" : "NONE",
         damage_workflow_resolved: !hasDeductions,
+        settlement: demoSettlement({ ...r, report }),
       })),
       units: patchUnit(state.units, r.unit, () => ({ status: "INSPECTION" })),
       contracts: hasDeductions
@@ -146,7 +156,7 @@ const ACTIONS = {
       tickets: patch(state.tickets, id, (x) => ({ status, assignee: x.assignee || staff || null, notes: [...x.notes, { text: note.trim(), at: iso(now), staff }] })),
       assignments: status === "DONE" ? state.assignments.map((a) => (a.ref === id ? { ...a, status: "DONE" } : a)) : state.assignments,
     };
-    return { state: addLog(next, now, `Cập nhật ${id}: ${TICKET_STATE[status][0]}`, "manager/assign", "MANAGER"), result: { id } };
+    return { state: addLog(next, now, `Cập nhật ${id}: ${TICKET_STATE[status][0]}`, "manager", "MANAGER"), result: { id } };
   },
 
   REISSUE_CREDENTIAL(state, { unit, type, reason }, now) {
@@ -207,8 +217,9 @@ const ACTIONS = {
     const { refund } = settleReturn(r, c);
     const next = {
       ...state,
-      deposit_refunds: [...(state.deposit_refunds||[]), {id:`HC-${id}`,contractId:id,unit:r.unit,customer:r.customer,facilityId:state.facility?.facility_id,ownerId:r.owner_id,deposit:r.deposit,overdue:r.report?.overdue_fee,damage:r.report?.damage_fee,cleaning:r.report?.cleaning_fee,amount:refund,status:refund>0?"PENDING":"NO_REFUND",version:1,bankName:r.bank_name,accountNumber:r.account_number,accountHolder:r.account_holder,inspectedAt:iso(now)}],
+      deposit_refunds: [...(state.deposit_refunds||[]), {id:`HC-${id}`,contractId:id,unit:r.unit,customer:r.customer,facilityId:state.facility?.facility_id,ownerId:r.owner_id,deposit:r.deposit,deposit_refund:refund,rent_refund:0,overdue:r.report?.overdue_fee,damage:r.report?.damage_fee,cleaning:r.report?.cleaning_fee,amount:refund,status:refund>0?"PENDING":"NO_REFUND",version:1,bankName:r.bank_name,accountNumber:r.account_number,accountHolder:r.account_holder,inspectedAt:iso(now)}],
       contracts: patch(state.contracts, id, () => ({ state: "CLOSED", due: `Chờ hoàn ${money(refund)}`, refund_status: "PENDING", refund_amount: refund })),
+      returns: patch(state.returns, r.id, () => ({ settlement: demoSettlement(r, true) })),
       units: r ? patchUnit(state.units, r.unit, () => ({ status: r.report?.cleaning_required || r.report?.proposal !== "Sẵn sàng cho thuê lại" ? "MAINTENANCE" : "EMPTY", tenant: null, end: null })) : state.units,
     };
     return { state: addLog(next, now, `Chờ hoàn cọc ${money(refund)} · ${id}`, "manager/contracts", "MANAGER"), result: { id, refund, refundStatus: "PENDING" } };

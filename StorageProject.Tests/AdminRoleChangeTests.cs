@@ -118,4 +118,36 @@ public sealed class AdminRoleChangeTests
         Assert.Contains("Admin hoạt động duy nhất", ex.Message);
         Assert.Equal(before, await f.RolesOf(f.Root.UserId));
     }
+
+    // Lượt 6b: admin không xem được IP (và thiết bị) của tài khoản khách hàng; IP nhân viên/admin vẫn hiện.
+    [Fact]
+    public async Task Logs_HideCustomerIp_KeepStaffIp()
+    {
+        await using var f = await Fixture.Create();
+        var customerRole = new Role { RoleName = "CUSTOMER", Description = "Khách hàng" };
+        var customer = new User { Username = "customer01", Email = "c@storage.vn", FullName = "Khách", PasswordHash = "x", Status = "ACTIVE", CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+        f.Db.AddRange(customerRole, customer);
+        await f.Db.SaveChangesAsync();
+        f.Db.UserRoles.Add(new UserRole { UserId = customer.UserId, RoleId = customerRole.RoleId, AssignedAt = DateTime.UtcNow });
+        var now = DateTime.UtcNow;
+        f.Db.LoginHistories.AddRange(
+            new LoginHistory { UserId = customer.UserId, LoginAt = now, IpAddress = "113.161.24.5", DeviceInfo = "phone", LoginStatus = "SUCCESS" },
+            new LoginHistory { UserId = f.Worker.UserId, LoginAt = now.AddMinutes(-1), IpAddress = "113.161.55.2", DeviceInfo = "pc", LoginStatus = "SUCCESS" });
+        f.Db.ActivityLogs.AddRange(
+            new ActivityLog { UserId = customer.UserId, Action = "UPDATE", EntityType = "USER", IpAddress = "113.161.24.5", LoggedAt = now },
+            new ActivityLog { UserId = f.Worker.UserId, Action = "UPDATE", EntityType = "USER", IpAddress = "113.161.55.2", LoggedAt = now.AddMinutes(-1) },
+            new ActivityLog { UserId = null, Action = "SYSTEM", EntityType = "JOB", IpAddress = "10.0.0.1", LoggedAt = now.AddMinutes(-2) });
+        await f.Db.SaveChangesAsync();
+        f.Db.ChangeTracker.Clear();
+
+        var logins = (await f.Service.GetLoginHistoriesAsync(new LogQueryFilter())).Items;
+        Assert.Null(logins.Single(x => x.UserId == customer.UserId).IpAddress);
+        Assert.Null(logins.Single(x => x.UserId == customer.UserId).DeviceInfo);
+        Assert.Equal("113.161.55.2", logins.Single(x => x.UserId == f.Worker.UserId).IpAddress);
+
+        var acts = (await f.Service.GetActivityLogsAsync(new LogQueryFilter())).Items;
+        Assert.Null(acts.Single(x => x.UserId == customer.UserId).IpAddress);
+        Assert.Equal("113.161.55.2", acts.Single(x => x.UserId == f.Worker.UserId).IpAddress);
+        Assert.Equal("10.0.0.1", acts.Single(x => x.UserId == null).IpAddress);
+    }
 }

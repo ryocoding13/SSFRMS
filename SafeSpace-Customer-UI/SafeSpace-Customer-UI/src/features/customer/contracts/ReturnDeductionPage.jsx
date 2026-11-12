@@ -165,8 +165,9 @@ export function ReturnDeductionPage({ id }) {
         </div>
         <aside className="panel customer-detail__card customer-detail__sidebar"><h2>Khoản hoàn sau khấu trừ</h2>
           <DetailList items={[["Cọc ban đầu", money(deposit)], ...(overdue > 0 ? [[`Quá hạn ${d.overdueDays} ngày`, minus(overdue)]] : []), ["Vệ sinh · theo chính sách", minus(d.cleaningFee)], ["Hư hỏng · theo biên bản", minus(d.damageFee)]]} />
-          <div className="summary-total"><span>Dự kiến hoàn</span><strong>{money(total)}</strong></div>
-          <p className="hint">Hoàn cọc chỉ hoàn tất sau khi bạn xác nhận. Nếu cơ sở chấp nhận bạn tự dọn hoặc thay thế, khoản đó không bị trừ. Tổng khấu trừ tối đa bằng tiền cọc.</p>
+          <div className="summary-total"><span>Cọc còn hoàn dự kiến</span><strong>{money(total)}</strong></div>
+          {/* #16: cùng cách gọi với bảng đối soát của quản lý; tiền thuê tháng chưa bắt đầu tính khi chốt (D49) */}
+          <p className="hint">Nếu bạn trả kho trước hạn, tiền thuê các tháng chưa bắt đầu sử dụng được cộng vào khoản hoàn khi cơ sở chốt đối soát. Không giữ 30% cọc. Hoàn cọc chỉ hoàn tất sau khi bạn xác nhận. Nếu cơ sở chấp nhận bạn tự dọn hoặc thay thế, khoản đó không bị trừ. Tổng khấu trừ tối đa bằng tiền cọc.</p>
         </aside>
       </div>}
     {confirm && <ConfirmDialog title="Gửi phản hồi cho cơ sở?" tone="warning" text="Bạn chỉ chọn được một lần cho biên bản này." rows={summaryRows} busy={busy} onCancel={() => setConfirm(false)} onConfirm={send} label="Gửi phản hồi" />}

@@ -86,6 +86,8 @@ export default function AuditLogPage() {
   const nameOf = (id) => userMap.get(id)?.fullName;
   // Hàm lấy chuỗi các vai trò của người dùng từ map
   const rolesOf = (id) => sortRoles(userMap.get(id)?.roles || []).map(roleLabel).join(", ") || "—";
+  // Lượt 6b: không hiện địa chỉ IP của tài khoản khách hàng (chỉ ẩn trên giao diện)
+  const hideIp = (id) => Boolean(id) && (userMap.get(id)?.roles || []).includes("CUSTOMER");
 
   /*
    * rows - Chuẩn hóa và gộp danh sách bản ghi hiển thị
@@ -216,7 +218,7 @@ export default function AuditLogPage() {
                 <td>{r.user}</td>
                 <td>{r.userId ? rolesOf(r.userId) : "—"}</td>
                 <td>{r.action}</td>
-                <td className="nowrap" title={r.device || undefined}>{r.ip}</td>
+                <td className="nowrap" title={hideIp(r.userId) ? "Không hiển thị IP của khách hàng" : r.device || undefined}>{hideIp(r.userId) ? <span className="muted">Ẩn</span> : r.ip}</td>
               </tr>
             ))}
             {/* Trường hợp không có dữ liệu */}

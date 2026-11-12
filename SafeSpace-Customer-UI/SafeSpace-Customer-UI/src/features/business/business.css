@@ -165,3 +165,6 @@
 .facility-report-detail__item p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
 @keyframes facility-row-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .facility-report-detail__item, .business-app .table-link { animation: none; transition: none; } }
+
+/* #33: số tiền đầy đủ (#34) không tràn thẻ ở 4 cột */
+.business-app .stat strong { font-size: clamp(20px, 1.7vw, 24px); white-space: nowrap; }

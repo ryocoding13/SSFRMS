@@ -11,6 +11,7 @@ import { requireRentalPolicy } from "../../shared/utils/rentalPolicy.js";
 import { storedRefundChoice, validateRefundChoice } from "../../shared/utils/refundRequest.js";
 import { isReturnFee, NO_RETURN_COLLECTION } from "../../shared/utils/returnPolicy.js";
 import { RENTAL_PLANS, SIZE_BANDS, offerByKey, quote } from "../../shared/utils/catalog.js";
+import { unitsFor } from "../../shared/utils/units.js";
 import {
   addDays,
   addMonths,
@@ -88,6 +89,16 @@ const hasPending = (state, contract_id) => ({
 
 // C14a · Ước tính hoàn tiền khi huỷ đơn đã thanh toán trước ngày bắt đầu thuê (chế độ trình duyệt).
 // Chính sách D27 (shared/utils/policy.js). Chế độ API lấy từ GET /api/reservations/{id}/cancel-preview.
+/** #2 · Mô phỏng: chọn ô đầu tiên khả dụng cả kỳ (theo thứ tự mã ô), bỏ qua ô đã bố trí cho đơn khác còn hiệu lực trùng kỳ. */
+export function proposeUnit(state, facility, offer, start, end) {
+  const held = new Set((state.reservations || [])
+    .filter(r => r.facility_id === facility.facility_id && r.unit_code && ["PENDING_PAYMENT", "PENDING_VERIFICATION", "CONFIRMED"].includes(r.status) && r.start_date < end && r.end_date > start)
+    .map(r => r.unit_code));
+  const busy = new Set((state.contracts || []).filter(c => c.facility_id === facility.facility_id && c.status !== "ENDED" && c.start_date < end && c.end_date > start).map(c => c.unit_number));
+  const unit = unitsFor(facility).find(u => u.offer_key === offer.key && u.bookable_for_period && !held.has(u.code) && !busy.has(u.code));
+  return unit?.code || null;
+}
+
 export function cancelPreviewOf(r) {
   const paid = r.initial_total || 0;
   const fee = Math.round((r.deposit || 0) * CANCEL_DEPOSIT_FEE_RATE);
@@ -129,6 +140,9 @@ const handlers = {
     if (dup) return { state, result: { reservation_id: dup.reservation_id } };
 
     const q = quote({ offer, months, start_date: p.start_date });
+    // #2: hệ thống tự bố trí ô khả dụng cả kỳ, không trùng ô đã bố trí cho đơn khác còn hiệu lực cùng kỳ.
+    const unit_code = proposeUnit(state, facility, offer, p.start_date, q.end_date);
+    if (!unit_code) fail("Không có ô phù hợp nào trống trong toàn bộ kỳ thuê tại cơ sở này. Đổi ngày bắt đầu, diện tích hoặc cơ sở để hệ thống tìm lại.", "NO_UNIT");
     const reservation_id = newReservationId(state, ctx.now);
     const timeout = ctx.timeoutSeconds;
     const reservation = {
@@ -138,7 +152,8 @@ const handlers = {
       band: offer.band,
       offer_key: offer.key,
       size_label: offer.size_label,
-      unit_code: p.unit_code || null, // ô khách chọn trên sơ đồ (quản lý phân bổ chính thức ở M05)
+      unit_code, // #2: ô hệ thống bố trí; khách không phải chọn trên sơ đồ
+      unit_assigned: false,
       months,
       start_date: p.start_date,
       end_date: q.end_date,
@@ -216,7 +231,9 @@ const handlers = {
   CHOOSE_RENEWAL_AT_COUNTER(state, { renewal_id }) {
     const r = state.renewals.find(x => x.renewal_id === renewal_id);
     if (!r || r.status !== "APPROVED") fail("Yêu cầu chưa được duyệt hoặc đã được thanh toán.");
-    return { state: { ...state, renewals: state.renewals.map(x => x === r ? { ...x, at_counter: true } : x) }, result: { renewal_id } };
+    // #28: dòng sổ thu tương ứng chuyển "Chờ thu tại quầy", không còn trả bằng QR.
+    const ledger = state.ledger.map(l => l.kind === "RENEWAL" && l.contract_id === r.contract_id && l.period?.to === r.new_end && l.status === "UNPAID" ? { ...l, status: "AT_COUNTER", payable: false, method: "CASH" } : l);
+    return { state: { ...state, ledger, renewals: state.renewals.map(x => x === r ? { ...x, at_counter: true } : x) }, result: { renewal_id } };
   },
   CHOOSE_FEE_AT_COUNTER() { fail(NO_RETURN_COLLECTION); },
   PAYOS_PAID(state, p, ctx) {
