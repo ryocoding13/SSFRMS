@@ -346,10 +346,9 @@ public partial class FacilityOpsService
         var contract = incident.Contract;
         RequireIncidentContract(contract);
         var cash = RefundBank.IsCash(incident.RefundBankName);
-        if (!cash && (!RefundBank.IsComplete(incident.RefundBankName, incident.RefundAccountNumber, incident.RefundAccountHolder)
-            || RefundBank.NormalizeHolder(incident.RefundAccountHolder) != RefundBank.NormalizeHolder(contract.Customer.FullName)))
+        if (!cash && !RefundBank.IsComplete(incident.RefundBankName, incident.RefundAccountNumber, incident.RefundAccountHolder))
         {
-            throw new InvalidOperationException("Thiếu tài khoản nhận hoàn chính chủ của khách.");
+            throw new InvalidOperationException("Thiếu tài khoản nhận hoàn hợp lệ của khách.");
         }
 
         var now = NowUtc;

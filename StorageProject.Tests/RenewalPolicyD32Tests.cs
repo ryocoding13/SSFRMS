@@ -196,18 +196,14 @@ public sealed partial class RenewalPolicyD32Tests
     {
         await using var f = await Fixture.CreateAsync();
 
-        // Customer requests renewal for 3 months with policy consent
+        var originalEndDate = f.Contract.EndDate;
+
+        // Customer requests renewal for 3 months -> auto-approved with pending payment, EndDate unchanged
         var request = new CreateRenewalRequest(RenewalPeriodMonths: 3, PolicyVersion: 1, Accepted: true);
         var renewalDto = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, request);
         Assert.NotNull(renewalDto);
-        Assert.Equal("PENDING", renewalDto.Status);
-
-        var originalEndDate = f.Contract.EndDate;
-
-        // Manager approves renewal
-        var approvedDto = await f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, renewalDto.RenewalId);
-        Assert.Equal("APPROVED", approvedDto.Status);
-        Assert.NotNull(approvedDto.PaymentDeadlineAt);
+        Assert.Equal("APPROVED", renewalDto.Status);
+        Assert.NotNull(renewalDto.PaymentDeadlineAt);
 
         // CONTRACT END DATE MUST REMAIN UNCHANGED
         var contract = await f.Db.RentalContracts.FindAsync(f.Contract.ContractId);
@@ -238,8 +234,10 @@ public sealed partial class RenewalPolicyD32Tests
 
         var originalEndDate = f.Contract.EndDate;
 
-        // Call legacy ManagerService using renewal ID as string
-        await f.ManagerSvc.ApproveRenewalAsync(f.ManagerUser.UserId, renewalDto.RenewalId.ToString());
+        // Old manager manual approve/reject routes are locked
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            f.ManagerSvc.ApproveRenewalAsync(f.ManagerUser.UserId, renewalDto.RenewalId.ToString()));
+        Assert.Contains("đã bỏ", ex.Message);
 
         var contract = await f.Db.RentalContracts.FindAsync(f.Contract.ContractId);
         Assert.NotNull(contract);
@@ -262,9 +260,9 @@ public sealed partial class RenewalPolicyD32Tests
         var request = new CreateRenewalRequest(RenewalPeriodMonths: 2, PolicyVersion: 1, Accepted: true);
         var renewalDto = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, request);
 
-        await f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, renewalDto.RenewalId);
-        
-        // Second approval attempt throws domain exception
+        // Duplicate renewal request & manual approval attempt throw domain exception
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, request));
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, renewalDto.RenewalId));
 
@@ -280,7 +278,7 @@ public sealed partial class RenewalPolicyD32Tests
 
         var request = new CreateRenewalRequest(RenewalPeriodMonths: 3, PolicyVersion: 1, Accepted: true);
         var renewalDto = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, request);
-        await f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, renewalDto.RenewalId);
+        Assert.Equal("APPROVED", renewalDto.Status);
 
         var initialEndDate = f.Contract.EndDate;
         var payment = await f.Db.Payments.FirstAsync(p => p.RenewalId == renewalDto.RenewalId);
@@ -326,7 +324,7 @@ public sealed partial class RenewalPolicyD32Tests
 
         var request = new CreateRenewalRequest(RenewalPeriodMonths: 1, PolicyVersion: 1, Accepted: true);
         var renewalDto = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, request);
-        await f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, renewalDto.RenewalId);
+        Assert.Equal("APPROVED", renewalDto.Status);
 
         var initialEndDate = f.Contract.EndDate;
 
@@ -491,7 +489,7 @@ public sealed partial class RenewalPolicyD32Tests
 
         var request = new CreateRenewalRequest(RenewalPeriodMonths: 1, PolicyVersion: 1, Accepted: true);
         var renewalDto = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, request);
-        await f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, renewalDto.RenewalId);
+        Assert.Equal("APPROVED", renewalDto.Status);
 
         // Force deadline into the past
         var renewal = await f.Db.ContractRenewals.FindAsync(renewalDto.RenewalId);
@@ -521,7 +519,7 @@ public sealed partial class RenewalPolicyD32Tests
 
         var request = new CreateRenewalRequest(RenewalPeriodMonths: 1, PolicyVersion: 1, Accepted: true);
         var renewalDto = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, request);
-        await f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, renewalDto.RenewalId);
+        Assert.Equal("APPROVED", renewalDto.Status);
         await f.RenewalSvc.SelectCounterPaymentAsync(f.CustomerUser.UserId, renewalDto.RenewalId);
 
         // Call GetBoardAsync as Staff

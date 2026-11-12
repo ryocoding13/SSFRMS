@@ -28,7 +28,6 @@ export const MANAGER_TABS = [
   ["manager/units", "Danh sách kho"],
   ["manager/allocate", "Phân bổ kho"],
   ["manager/assign", "Phân công"],
-  ["manager/renewals", "Gia hạn"],
   ["manager/contracts", "Hợp đồng & quá hạn"],
   ["manager/report", "Báo cáo"],
 ];

@@ -42,8 +42,8 @@ public sealed record RefundResult(
 /// </summary>
 public static class RefundPolicy
 {
-    public const decimal CancelFeeRate = 0.05m;
-    public const decimal EarlyStopKeepRate = 0.30m;
+    public const decimal CancelFeeRate = 0.00m;
+    public const decimal EarlyStopKeepRate = 0.00m;
     public const decimal HygieneFeeRate = 0.10m;
 
     public static RefundResult Calculate(RefundInput i)
@@ -57,7 +57,9 @@ public static class RefundPolicy
             return new RefundResult(i.RentPaid, i.Deposit - fee, fee, 0, 0);
         }
 
-        var fixedDeduction = i.Scenario == RefundScenario.EarlyStop
+        // D49: Dừng sớm sau StartDate hoàn 100% cọc nếu đạt chuẩn vệ sinh và không hư hỏng/quá hạn;
+        // nếu vi phạm vệ sinh/hư hỏng/quá hạn thì khấu trừ vào cọc như trả kho khi đến hạn.
+        var fixedDeduction = (i.Scenario == RefundScenario.EarlyStop && EarlyStopKeepRate > 0m)
             ? Money(i.Deposit * EarlyStopKeepRate)
             : i.HygieneViolation ? Money(i.Deposit * HygieneFeeRate) : 0m;
 

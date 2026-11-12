@@ -95,8 +95,11 @@ public sealed class AuthSupportTests
         await Assert.ThrowsAsync<ArgumentException>(() => service.ChangePasswordAsync(f.Customer.UserId, new("Customer@123", "1234567")));
         await Assert.ThrowsAsync<ArgumentException>(() =>
             service.ChangePasswordAsync(f.Customer.UserId, new("Customer@123", new string('đ', 37))));
-        var profile = await service.UpdateUserProfileAsync(f.Customer.UserId, new("  Tên mới  ", null));
+        var profile = await service.UpdateUserProfileAsync(f.Customer.UserId, new("  Tên mới  ", null, "new.mail@example.com"));
         Assert.Equal("Tên mới", profile.FullName);
+        Assert.Equal("new.mail@example.com", profile.Email);
+        await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateUserProfileAsync(f.Customer.UserId, new("Tên mới", null, "not-an-email")));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.UpdateUserProfileAsync(f.Customer.UserId, new("Tên mới", null, f.Manager.Email)));
         Assert.True(BCrypt.Net.BCrypt.Verify("Customer@123", f.Customer.PasswordHash));
     }
     // C13 ghi đúng tài khoản được truyền từ claim, đọc lại từ database sau khi bỏ cache EF.
@@ -206,7 +209,9 @@ public sealed class AuthSupportTests
     {
         await using var f = await Fixture.Create(); var (c, _) = await f.Contract(); var service = new SupportTicketService(f.Db);
         await Assert.ThrowsAsync<ArgumentException>(() => service.CreateTicketAsync(f.Customer.UserId, new(c.ContractId, null, "BAD_TYPE", "Tiêu đề", "Nội dung", "NORMAL")));
-        await Assert.ThrowsAsync<ArgumentException>(() => service.CreateTicketAsync(f.Customer.UserId, new(c.ContractId, null, "UNIT", "Tiêu đề", "  ", "NORMAL")));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.CreateTicketAsync(f.Customer.UserId, new(c.ContractId, null, "UNIT", "  ", "Nội dung", "NORMAL")));
+        var blankDesc = await service.CreateTicketAsync(f.Customer.UserId, new(c.ContractId, null, "UNIT", "Tiêu đề không cần mô tả", "  ", "NORMAL"));
+        Assert.Equal("OPEN", blankDesc.Status);
         var result = await service.CreateTicketAsync(f.Customer.UserId, new(c.ContractId, null, "UNIT", "Tiêu đề", "Nội dung", ""));
         Assert.Equal("NORMAL", result.Priority);
     }

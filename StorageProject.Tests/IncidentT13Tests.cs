@@ -177,10 +177,10 @@ public sealed partial class IncidentT13Tests
         Assert.Null(sent.TargetUnit);
 
         var choose = new IncidentActionRequest("CHOOSE_INCIDENT_OPTION", sent.Id, sent.Version, Choice: "TERMINATE", Note: "",
-            RefundBank: new RefundBankInput("Vietcombank", "0011223344", "TRAN VAN B"));
+            RefundBank: new RefundBankInput("Vietcombank", "0011223344", "   "));
         await Assert.ThrowsAsync<ArgumentException>(() => f.Ops.ChooseIncidentOptionAsync(f.Customer.UserId, sent.ContractId, choose));
         var chosen = (await f.Ops.ChooseIncidentOptionAsync(f.Customer.UserId, sent.ContractId,
-            choose with { RefundBank = new RefundBankInput("Vietcombank", "0011223344", "NGUYEN THI MAI") })).Incident;
+            choose with { RefundBank = new RefundBankInput("Vietcombank", "0011223344", "TRAN VAN B") })).Incident;
         Assert.Equal("TERMINATION_PENDING", chosen.Status);
         Assert.Equal("0011223344", chosen.RefundBank!.AccountNumber);
 

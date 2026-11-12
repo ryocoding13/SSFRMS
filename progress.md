@@ -1,3 +1,35 @@
+## 2026-11-12 — Triển khai tuần tự 16 task nghiệp vụ & giao diện không cần Figma trước (#1, #3, #4+D49, #5, #6, #8, #9, #10, #11, #12, #13, #15, #18, #20, #21, #23)
+
+- **Mục tiêu & Quyết định áp dụng:**
+  - Chốt D49 và D50 trong `DECISIONS.md` theo yêu cầu người dùng ngày 12/11/2026, đồng thời triển khai toàn bộ 16 task không yêu cầu vẽ lại Figma trước (giữ nguyên 7 task Figma-first `#2, #7, #14, #16, #17, #19, #22`).
+- **Tóm tắt thay đổi theo nhóm nghiệp vụ:**
+  1. **#1 (Footer & thông tin liên hệ):** Cập nhật giờ hoạt động `06:00–22:00`, hotline `0825123676`, tiền tố `Trụ sở :` trên footer và các điểm hiển thị đồng bộ (`PublicFooter.jsx`, `FacilityService.cs`, `DbSeeder.cs`, `appSeed.js`/catalog).
+  2. **#3 (Sơ đồ kho & lịch tương lai):** Hiển thị ngày hết hạn dự kiến cho ô đang thuê (`FacilityDetailPage.jsx`, `UnitMap.jsx`), phân biệt trạng thái hiện tại với khả năng đặt trong khoảng ngày đang chọn, kiểm tra trùng hợp đồng/đặt chỗ tương lai (kể cả năm sau) và ngày đệm ở cả `UnitAvailability.cs`, `FacilityService.cs`, `ReservationService.cs`, `units.js` — không khóa đặt lịch tương lai chỉ vì hôm nay ô đang có khách thuê.
+  3. **#4 + D49 (Bỏ phí huỷ 5% trước `StartDate` & bỏ giữ 30% cọc khi dừng sớm):**
+     - Huỷ trước `StartDate`: phí huỷ `0%` (`CancellationFeePercent = 0m`), hoàn 100% tiền thuê + 100% cọc nếu đã thanh toán (`RefundPolicy.cs`, `ReservationService.cs`, `OpsRules.cs`, `DbSeeder.cs`, `policy.js`, `CancelReservationPage.jsx`, `ReservationDetailPage.jsx`, `CancellationRefundPage.jsx`, `PolicySettingsPage`/`policyFields.js`).
+     - Dừng sớm từ `00:00` ngày `StartDate` trở đi đi theo luồng trả kho (`EarlyStopKeepRate = 0m`): hoàn 100% cọc nếu không có vi phạm (nếu có vệ sinh/hư hỏng thì trừ vào cọc tối đa 100% như trả kho đúng hạn), cộng hoàn các tháng nguyên chưa bắt đầu (`D27/D32`).
+  4. **#5, #6 (Hỗ trợ khách hàng & nhận chìa khóa):** Bỏ mục `2. Mô tả & ảnh đính kèm` ở form tạo hỗ trợ (`SupportPage.jsx`, `SupportTicketService.cs`, `SupportDtos.cs`) trong khi vẫn giữ luồng trao đổi/chat phản hồi (`SupportTicketDetailPage.jsx`). Đặt lịch nhận chìa khóa chỉ chọn ngày (bỏ Sáng/Chiều/khung giờ/ghi chú "Ngày khác" và không hiển thị như đã chọn giờ cụ thể khi xem lại).
+  5. **#8, #9, #13 (Trả kho không ảnh bắt buộc, chỉ chọn ngày, `"Còn ít đồ"` đạt tiêu chuẩn):**
+     - Khách gửi trả kho chỉ chọn ngày mong muốn (bỏ khung giờ), không bắt buộc ảnh (`ReturnRequestPage.jsx`, `ReturnProgressPage.jsx`, `ContractService.cs`, `customerApi.js`, `refundRequest.js`); yêu cầu trả kho chưa được coi là đã kiểm tra xong, nhân viên cơ sở chịu trách nhiệm kiểm tra và bắt buộc đính kèm ảnh hiện trạng (`ReturnInspectionPage.jsx`, `settlementModel.js`).
+     - `"Còn ít đồ"` / `"Đạt · còn ít đồ"` đánh giá đạt tiêu chuẩn, không tự động tick hoặc thu phí vệ sinh 10% (`InspectionStandard.cs`, `ReturnInspectionPage.jsx`, `FacilityOpsService.Workflows.cs`).
+  6. **#10, #11, #20, #21 (Tài khoản nhận hoàn, bố cục form, khoá phương thức hoàn & bỏ tự sinh mã):**
+     - Bắt buộc đủ 3 trường Ngân hàng (chọn từ danh sách `bankCatalog.js` / `RefundBank.cs`), Số tài khoản (giữ số `0` đầu, kiểm tra độ dài/định dạng theo ngân hàng), Tên chủ tài khoản; bỏ yêu cầu trùng tên hợp đồng (cho phép nhận vào tài khoản người thân/người khác) và ghi rõ kiểm tra định dạng không thay thế xác minh tồn tại. Chỉnh bố cục 2 cột + hàng tên chủ tài khoản trong `RefundBankFields.jsx` / `ss.css`.
+     - Khoá phương thức hoàn tiền hai chiều theo lựa chọn của khách (`FacilityOpsService.Refunds.cs`, `DepositRefundPage.jsx`, `CancellationRefundPage.jsx`, `settlementModel.js`). Bỏ tự sinh mã giao dịch mặc định và bỏ nút `"Tạo lại mã"` trên `DepositRefundPage.jsx`.
+  7. **#12 (Sửa email trong Tài khoản của tôi):** Hỗ trợ cập nhật Email ở cả FE (`CustomerProfilePage.jsx`, `AuthProvider`/`customerApi.js`) và BE (`AuthEndpoints.cs`, `AuthDtos.cs`, `AuthService.cs`), kiểm tra định dạng & trùng Email/Username và hiển thị lại ngay sau khi lưu.
+  8. **#15, #18 (Ẩn đối soát sớm tới khi hoàn tất kiểm tra + phản hồi khấu trừ; chọn đồng ý đồng thời nhiều khoản khấu trừ):**
+     - `FacilityOpsService.Board.cs` (`IsDeductionResolved`), `settlementModel.js` (`isReturnSettlementReady`), `ManagerDashboardPage.jsx`, `ContractListPage.jsx`, `pendingTaskCounts.js`: chỉ đưa hợp đồng sang hàng chờ đối soát (`RETURNED`) khi biên bản kiểm tra đã `COMPLETED` và khấu trừ đã giải quyết xong (`NONE`/`AGREED`/`AUTO_AGREED`/`RECHECKED`).
+     - `WorkflowDtos.cs`, `FacilityOpsService.Workflows.cs`, `useReturnDeduction.js`, `ReturnDeductionPage.jsx`, `ReturnRecheckPage.jsx`, `StaffTasks.jsx`: hỗ trợ `SELF_REMEDY` và chọn riêng hoặc `"Đồng ý toàn bộ biên bản"` cho nhiều khoản (vệ sinh, hư hỏng).
+  9. **#23 (Bỏ quản lý duyệt gia hạn — tự động xác nhận gia hạn hợp lệ):**
+     - `RenewalService.cs` (`RequestRenewalAsync` kiểm tra điều kiện/lịch trống, tự chuyển `Status = "APPROVED"`, chốt `PaymentDeadlineAt`, tạo khoản `RENEWAL` `PENDING`, giữ ô mới ngay khi đổi ô, giữ nguyên `contract.EndDate` tới khi thanh toán đủ); khóa các route duyệt/từ chối thủ công ở `RenewalService.cs`, `ManagerService.cs`, `FacilityOpsService.Actions.cs`, `facilityOperationsReducer.js`.
+     - FE (`RenewalRequestPage.jsx`, `RenewalUnitChangePage.jsx`, `RenewalStatusPage.jsx`, `RentedUnitDetailPage.jsx`, `appReducer.js`, `appSelectors.js`, `AppProvider.jsx`) mở thẳng màn thanh toán; gỡ tab/card/badge chờ duyệt gia hạn khỏi `FacilityOperationsLayout.jsx`, `ManagerDashboardPage.jsx`, `pendingTaskCounts.js`, `ContractListPage.jsx`, `RenewalApprovalPage.jsx`.
+- **Kiểm chứng:**
+  - Build BE: `dotnet build StorageProject.slnx -c Release` PASS (`0 Warning(s), 0 Error(s)`).
+  - BE Unit Tests (SQLite in-memory): `dotnet test StorageProject.Tests -c Release --no-restore -m:1` PASS `300/300` (Failed: 0, Skipped: 0, Duration: 35s).
+  - FE Structure & Build: `npm run check:structure` PASS, `npm run build` PASS.
+  - FE Tests & SSR Render: `npm test` PASS `168/168`, `npm run test:business` PASS `14/14`, `npm run test:workflows` PASS `12/12`, `npm run test:render` PASS `178/178` routes.
+  - Whitespace: `git diff --check` PASS (0 lỗi; giữ nguyên file `scripts/configure-password-reset.ps1` có sửa đổi từ trước).
+  - **Giới hạn chưa kiểm chứng:** `StorageProject.IntegrationTests` (SQL Server thật), PayOS live webhook thật và kiểm thử giao diện trực tiếp trên trình duyệt chưa chạy trong phiên này.
+
 ## 2026-11-10 — Triển khai Tinh gọn màn Policies của Business Operator (UI Simplification)
 
 - **Mục tiêu:**

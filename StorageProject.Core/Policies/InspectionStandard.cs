@@ -1,8 +1,8 @@
 namespace StorageProject.Core.Policies;
 
 /// <summary>
-/// D38: quy chuẩn đánh giá biên bản trả kho theo 3 tiêu chí chọn từ danh sách (Figma D30-08).
-/// Tiêu chí "đạt tiêu chuẩn" là lựa chọn bắt đầu bằng "Đạt" hoặc "Đã nhận đủ chìa".
+/// D38 / Task #13: quy chuẩn đánh giá biên bản trả kho theo 3 tiêu chí chọn từ danh sách (Figma D30-08).
+/// Tiêu chí "đạt tiêu chuẩn" là lựa chọn bắt đầu bằng "Đạt" (kể cả "Đạt · còn ít đồ") hoặc "Đã nhận đủ chìa".
 /// Chỉ khi đạt tối thiểu 2/3 mục mới được xem là đủ điều kiện cho thuê lại.
 /// </summary>
 public static class InspectionStandard

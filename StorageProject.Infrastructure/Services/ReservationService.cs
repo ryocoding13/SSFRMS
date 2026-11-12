@@ -227,7 +227,7 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         return new CancelPreviewDto(quote.Paid, quote.Fee, quote.Refund, CancelPolicyName);
     }
 
-    private const string CancelPolicyName = "Huỷ trước ngày bắt đầu: phí 5% tiền cọc, hoàn đủ tiền thuê và 95% tiền cọc";
+    private const string CancelPolicyName = "Huỷ trước ngày bắt đầu: miễn phí huỷ (0%), hoàn đủ 100% tiền thuê và 100% tiền cọc";
 
     // D27: chỉ tính trên khoản đã thu (RENT + DEPOSIT, PAID). Đơn chưa thanh toán thì không phát sinh phí.
     private async Task<(decimal Paid, decimal Fee, decimal Refund)> QuoteCancelAsync(Reservation reservation, CancellationToken ct)

@@ -16,26 +16,37 @@ public sealed class RefundPolicyTests
         RefundPolicy.Calculate(new RefundInput(scenario, Deposit, Rent, Start, End, today, hygiene, overdue, damage, overdueFee));
 
     [Fact]
-    public void Cancel_before_start_charges_5_percent_of_deposit_and_refunds_all_rent()
+    public void Cancel_before_start_charges_zero_fee_and_refunds_full_rent_and_deposit()
     {
-        // D40 (05/11/2026) thay 10% của D27/D32.
+        // D49 (12/11/2026) bỏ phí hủy 5% của D40: hoàn 100% tiền thuê + 100% cọc.
         var r = Calc(RefundScenario.CancelBeforeStart, new DateOnly(2026, 10, 25));
-        Assert.Equal(50_000m, r.FixedDeduction);
-        Assert.Equal(950_000m, r.DepositRefund);
+        Assert.Equal(0m, r.FixedDeduction);
+        Assert.Equal(Deposit, r.DepositRefund);
         Assert.Equal(Rent, r.RentRefund);
-        Assert.Equal(3_950_000m, r.Total);
+        Assert.Equal(Rent + Deposit, r.Total);
         Assert.InRange(r.FixedDeduction + r.DamageDeduction + r.OverdueDeduction, 0m, Deposit);
     }
 
     [Fact]
-    public void Early_stop_keeps_30_percent_deposit_and_refunds_months_not_yet_begun()
+    public void Early_stop_clean_refunds_full_deposit_and_months_not_yet_begun()
     {
-        // 15/12: tháng 1 và tháng 2 đã bắt đầu, tháng 3 (từ 01/01) chưa bắt đầu.
+        // D49: dừng sớm không vi phạm vệ sinh/hư hỏng hoàn 100% cọc + các tháng nguyên chưa bắt đầu.
+        // 15/12: tháng 1 và tháng 2 đã bắt đầu (dùng 1 tháng + 15 ngày -> trừ 2 tháng), tháng 3 (từ 01/01) chưa bắt đầu.
         var r = Calc(RefundScenario.EarlyStop, new DateOnly(2026, 12, 15));
-        Assert.Equal(300_000m, r.FixedDeduction);
-        Assert.Equal(700_000m, r.DepositRefund);
+        Assert.Equal(0m, r.FixedDeduction);
+        Assert.Equal(Deposit, r.DepositRefund);
         Assert.Equal(1_000_000m, r.RentRefund);
-        Assert.Equal(1_700_000m, r.Total);
+        Assert.Equal(2_000_000m, r.Total);
+    }
+
+    [Fact]
+    public void Early_stop_hygiene_violation_deducts_10_percent_and_damage_just_like_normal_return()
+    {
+        var r = Calc(RefundScenario.EarlyStop, new DateOnly(2026, 12, 15), hygiene: true, damage: 250_000m);
+        Assert.Equal(100_000m, r.FixedDeduction);
+        Assert.Equal(250_000m, r.DamageDeduction);
+        Assert.Equal(650_000m, r.DepositRefund);
+        Assert.Equal(1_000_000m, r.RentRefund);
     }
 
     [Fact]
@@ -43,14 +54,14 @@ public sealed class RefundPolicyTests
     {
         var r = Calc(RefundScenario.EarlyStop, new DateOnly(2027, 1, 10));
         Assert.Equal(0m, r.RentRefund);
-        Assert.Equal(700_000m, r.DepositRefund);
+        Assert.Equal(Deposit, r.DepositRefund);
     }
 
     [Fact]
-    public void Early_stop_damage_beyond_remaining_deposit_is_capped_without_debt()
+    public void Early_stop_damage_beyond_deposit_is_capped_without_debt()
     {
-        var r = Calc(RefundScenario.EarlyStop, new DateOnly(2026, 12, 15), damage: 800_000m);
-        Assert.Equal(700_000m, r.DamageDeduction);
+        var r = Calc(RefundScenario.EarlyStop, new DateOnly(2026, 12, 15), damage: 1_200_000m);
+        Assert.Equal(Deposit, r.DamageDeduction);
         Assert.Equal(0m, r.DepositRefund);
         Assert.Equal(Deposit, r.FixedDeduction + r.DamageDeduction + r.OverdueDeduction);
         Assert.Equal(1_000_000m, r.Total); // vẫn hoàn tiền thuê tháng chưa bắt đầu

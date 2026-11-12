@@ -39,7 +39,8 @@ public record UserProfileDto(
 
 public record UpdateProfileRequest(
     string FullName,
-    string? Phone
+    string? Phone,
+    string? Email = null
 );
 
 public record ChangePasswordRequest(

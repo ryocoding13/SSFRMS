@@ -12,10 +12,13 @@ public record ReturnDeductionDto(
     string? SentAt, string? DeadlineAt, bool NeedsConfirmation,
     string Status, string? Decision, string? DecisionNote, string? DecidedAt, string? RecheckNote,
     decimal OverdueFee = 0, int OverdueDays = 0, string? StaffName = null,
-    IReadOnlyList<EvidencePhotoDto>? CustomerPhotos = null);
+    IReadOnlyList<EvidencePhotoDto>? CustomerPhotos = null,
+    string? CleaningDecision = null, string? DamageDecision = null);
 
-/// <summary>D39: khách chọn AGREE · SELF_CLEAN · SELF_REPLACE · DISPUTE.</summary>
-public record ReturnDeductionDecisionRequest(string? Decision, string? Note, IReadOnlyList<EvidencePhotoUpload>? Photos = null);
+/// <summary>D39: khách chọn AGREE · SELF_CLEAN · SELF_REPLACE · DISPUTE (hỗ trợ chọn theo từng mục).</summary>
+public record ReturnDeductionDecisionRequest(
+    string? Decision, string? Note, IReadOnlyList<EvidencePhotoUpload>? Photos = null,
+    string? CleaningDecision = null, string? DamageDecision = null);
 
 /// <summary>D39: cơ sở kiểm tra lại phương án khách tự làm / khiếu nại; đạt thì không trừ khoản tương ứng.</summary>
 public record ReturnRecheckRequest(bool? CleaningPassed, bool? ReplacementPassed, string? Note);

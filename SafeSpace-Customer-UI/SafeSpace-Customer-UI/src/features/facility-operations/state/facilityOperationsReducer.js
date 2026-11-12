@@ -107,14 +107,32 @@ const ACTIONS = {
     if (Number(report.damage_fee) > 0 && !String(report.fee_reason || "").trim()) fail("Nhập lý do khấu trừ.");
     if (report.cleaning_required && !String(report.fee_reason || "").trim()) report = { ...report, fee_reason: "Kho chưa đạt tiêu chuẩn vệ sinh (10% cọc)" };
     report = { ...report,photo_files:files.map(f=>({fileName:f.name,contentType:f.type,size:f.size})), cleaning_fee: cleaningFee(r.deposit, report.cleaning_required) };
+    const hasDeductions = Boolean(report.cleaning_required || Number(report.damage_fee || 0) > 0);
     const next = {
       ...state,
-      returns: patch(state.returns, id, () => ({ status: "SUBMITTED", report, submitted_at: iso(now) })),
+      returns: patch(state.returns, id, () => ({
+        status: "SUBMITTED",
+        report,
+        submitted_at: iso(now),
+        deduction_status: hasDeductions ? "WAITING" : "NONE",
+        damage_workflow_resolved: !hasDeductions,
+      })),
       units: patchUnit(state.units, r.unit, () => ({ status: "INSPECTION" })),
-      contracts: state.contracts.map((c) => (c.id === r.contract ? { ...c, state: "RETURNED", due: "Chờ chốt khấu trừ tiền cọc" } : c)),
+      contracts: hasDeductions
+        ? state.contracts
+        : state.contracts.map((c) => (c.id === r.contract ? { ...c, state: "RETURNED", due: "Chờ chốt khấu trừ tiền cọc" } : c)),
       assignments: state.assignments.map((a) => (a.ref === id ? { ...a, status: "DONE" } : a)),
     };
-    return { state: addLog(next, now, `Biên bản trả kho ${r.unit} chờ quản lý xác nhận`, "manager/contracts", "MANAGER"), result: { id } };
+    return {
+      state: addLog(
+        next,
+        now,
+        hasDeductions ? `Biên bản trả kho ${r.unit} chờ khách xác nhận khấu trừ` : `Biên bản trả kho ${r.unit} chờ quản lý xác nhận`,
+        hasDeductions ? "staff/returns" : "manager/contracts",
+        hasDeductions ? "STAFF" : "MANAGER",
+      ),
+      result: { id },
+    };
   },
 
   // S05
@@ -139,20 +157,9 @@ const ACTIONS = {
     return { state: addLog(next, now, `Cấp lại ${type} · Kho ${unit} · ${reason}`, "staff/support", "STAFF"), result: { unit } };
   },
 
-  // M03
-  DECIDE_RENEWAL(state, { id, approve, reason }, now) {
-    const r = find(state.renewals, id, "yêu cầu gia hạn");
-    if (r.status !== "PENDING") fail("Yêu cầu này đã được xử lý.");
-    if (!approve && !String(reason || "").trim()) fail("Nhập lý do từ chối để gửi cho khách hàng.");
-    let next = { ...state, renewals: patch(state.renewals, id, () => ({ status: approve ? "APPROVED" : "REJECTED", reason: reason?.trim() || null, decided_at: iso(now) })) };
-    if (approve) next.units = patchUnit(next.units, r.unit, (u) => ({ end: r.to, status: u.status === "EXPIRING" || u.status === "OVERDUE" ? "ACTIVE" : u.status }));
-    next.contracts = next.contracts.map((c) =>
-      c.unit === r.unit && c.state === "RENEWAL"
-        ? { ...c, state: "RESOLVED", due: approve ? `Đã duyệt gia hạn đến ${dateLabel(r.to)}` : `Từ chối gia hạn · ${reason.trim()}` }
-        : c,
-    );
-    next = addLog(next, now, `${approve ? "Đã duyệt" : "Đã từ chối"} gia hạn ${r.unit} · ${r.customer}`, "manager/renewals", "MANAGER");
-    return { state: next, result: { id } };
+  // M03 — giữ handler để trả lỗi rõ ràng nếu UI/API cũ gọi duyệt/từ chối gia hạn thủ công
+  DECIDE_RENEWAL() {
+    fail("Chức năng quản lý duyệt gia hạn đã bỏ. Hệ thống tự động xác nhận gia hạn hợp lệ để khách thanh toán trực tiếp.");
   },
 
   // M05

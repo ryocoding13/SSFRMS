@@ -160,25 +160,35 @@ public class SupportTicketService(AppDbContext dbContext) : ISupportTicketServic
     /// D36 / S01: tạo (hoặc mở lại lịch đã huỷ) HandoverRecord SCHEDULED cho hợp đồng. Mỗi hợp đồng một lịch;
     /// đã nhận chìa khóa hoặc đang có lịch chờ thì không tạo trùng.
     /// </summary>
-    private async Task ScheduleKeyPickupAsync(long contractId, long ticketId, DateTime? preferredLocal, DateTime now, CancellationToken ct)
+    private async Task ValidateKeyPickupAsync(long contractId, DateOnly? preferredDate, DateTime? preferredLocal, DateTime now, CancellationToken ct)
     {
-        var contract = await dbContext.RentalContracts.Include(c => c.HandoverRecord).Include(c => c.Unit)
+        var contract = await dbContext.RentalContracts.AsNoTracking().Include(c => c.HandoverRecord)
             .SingleAsync(c => c.ContractId == contractId, ct);
         if (contract.Status is not ("ACTIVE" or "EXPIRING"))
             throw new InvalidOperationException("Chỉ hợp đồng đã thanh toán còn hiệu lực mới đặt lịch nhận chìa khóa.");
         var h = contract.HandoverRecord;
         if (h?.Status == "HANDED_OVER") throw new InvalidOperationException("Bạn đã nhận chìa khóa cho kho này. Cần chìa mới thì chọn chủ đề Ra vào kho.");
-        if (h?.Status is "SCHEDULED" or "VERIFIED") throw new InvalidOperationException("Đã có lịch nhận chìa khóa đang chờ. Nhân viên sẽ liên hệ theo giờ đã hẹn.");
+        if (h?.Status is "SCHEDULED" or "VERIFIED") throw new InvalidOperationException("Đã có lịch nhận chìa khóa đang chờ. Nhân viên sẽ liên hệ theo ngày đã hẹn.");
+        var todayVn = DateOnly.FromDateTime(now.AddHours(7));
+        var chosenDate = preferredDate ?? (preferredLocal.HasValue ? DateOnly.FromDateTime(preferredLocal.Value) : (DateOnly?)null);
+        if (chosenDate.HasValue && chosenDate.Value < todayVn)
+            throw new ArgumentException("Ngày muốn nhận chìa khóa phải từ hôm nay trở đi.");
+    }
 
-        var start = contract.StartDate.ToDateTime(new TimeOnly(8, 0)).AddHours(-7); // 08:00 giờ Việt Nam ngày bắt đầu
-        // Không chọn giờ: 08:00 ngày bắt đầu, hoặc ngay bây giờ nếu kỳ thuê đã bắt đầu.
-        var scheduled = preferredLocal.HasValue ? DateTime.SpecifyKind(preferredLocal.Value.AddHours(-7), DateTimeKind.Utc)
-            : start > now ? start : now;
-        if (preferredLocal.HasValue && scheduled < now.AddMinutes(-5)) throw new ArgumentException("Giờ muốn nhận chìa khóa phải từ bây giờ trở đi.");
+    private async Task ScheduleKeyPickupAsync(long contractId, long ticketId, DateOnly? preferredDate, DateTime? preferredLocal, DateTime now, CancellationToken ct)
+    {
+        var contract = await dbContext.RentalContracts.Include(c => c.HandoverRecord).Include(c => c.Unit)
+            .SingleAsync(c => c.ContractId == contractId, ct);
+        var h = contract.HandoverRecord;
+        var todayVn = DateOnly.FromDateTime(now.AddHours(7));
+        var chosenDate = preferredDate ?? (preferredLocal.HasValue ? DateOnly.FromDateTime(preferredLocal.Value) : (DateOnly?)null);
+
+        var effectiveDate = chosenDate ?? (contract.StartDate > todayVn ? contract.StartDate : todayVn);
+        var scheduled = DateTime.SpecifyKind(effectiveDate.ToDateTime(new TimeOnly(9, 0)).AddHours(-7), DateTimeKind.Utc);
         var staffId = await dbContext.UserFacilities.AsNoTracking()
             .Where(f => f.FacilityId == contract.Unit.FacilityId && f.Status == "ACTIVE")
             .OrderBy(f => f.UserId).Select(f => (long?)f.UserId).FirstOrDefaultAsync(ct) ?? contract.CustomerId;
-        var notes = $"Khách yêu cầu nhận chìa khóa · HT-{ticketId:0000}";
+        var notes = $"Khách yêu cầu nhận chìa khóa ngày {effectiveDate:dd/MM/yyyy} · HT-{ticketId:0000}";
         if (h == null)
         {
             contract.HandoverRecord = new HandoverRecord { StaffId = staffId, CreatedAt = now, ScheduledAt = scheduled, Status = "SCHEDULED", Notes = notes };
@@ -190,7 +200,7 @@ public class SupportTicketService(AppDbContext dbContext) : ISupportTicketServic
         dbContext.ActivityLogs.Add(new ActivityLog
         {
             UserId = contract.CustomerId, Action = "KEY_PICKUP_REQUESTED", EntityType = "SUPPORT_TICKET", EntityId = ticketId,
-            NewValue = System.Text.Json.JsonSerializer.Serialize(new { contractId, scheduledAt = scheduled }), LoggedAt = now
+            NewValue = System.Text.Json.JsonSerializer.Serialize(new { contractId, scheduledDate = effectiveDate.ToString("yyyy-MM-dd") }), LoggedAt = now
         });
     }
 
@@ -223,10 +233,17 @@ public class SupportTicketService(AppDbContext dbContext) : ISupportTicketServic
         if (!new[] { "UNIT", "LOCK", "ACCESS_CODE", "ACCESS_CARD", "PAYMENT", "STORED_ITEM", "OTHER" }.Contains(type))
             throw new ArgumentException("Chủ đề hỗ trợ không hợp lệ.");
         var title = keyPickup ? KeyPickupTitle : request.Title?.Trim() ?? "";
-        var description = request.Description?.Trim() ?? "";
+        var keyDate = keyPickup
+            ? (request.PreferredDate ?? (request.PreferredAt.HasValue ? DateOnly.FromDateTime(request.PreferredAt.Value) : (DateOnly?)null))
+            : null;
+        var description = !string.IsNullOrWhiteSpace(request.Description)
+            ? request.Description.Trim()
+            : keyPickup && keyDate.HasValue
+                ? $"Ngày muốn nhận chìa khóa: {keyDate.Value:dd/MM/yyyy}"
+                : "";
         var priority = string.IsNullOrWhiteSpace(request.Priority) ? "NORMAL" : request.Priority.Trim().ToUpperInvariant();
-        if (title.Length is < 1 or > 150 || description.Length is < 1 or > 1000)
-            throw new ArgumentException("Tiêu đề cần từ 1 đến 150 ký tự và nội dung từ 1 đến 1000 ký tự.");
+        if (title.Length is < 1 or > 150 || description.Length > 1000)
+            throw new ArgumentException("Tiêu đề cần từ 1 đến 150 ký tự và nội dung tối đa 1000 ký tự.");
         if (!new[] { "LOW", "NORMAL", "HIGH", "URGENT" }.Contains(priority))
             throw new ArgumentException("Mức ưu tiên hỗ trợ không hợp lệ.");
 
@@ -236,6 +253,7 @@ public class SupportTicketService(AppDbContext dbContext) : ISupportTicketServic
 
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"move-out:{contract.ContractId}", ct);
         var now = DateTime.UtcNow;
+        if (keyPickup) await ValidateKeyPickupAsync(contract.ContractId, request.PreferredDate, request.PreferredAt, now, ct);
         var ticket = new SupportTicket
         {
             CustomerId = customerId, ContractId = contract.ContractId, UnitId = contract.UnitId,
@@ -245,7 +263,7 @@ public class SupportTicketService(AppDbContext dbContext) : ISupportTicketServic
         dbContext.SupportTickets.Add(ticket);
         await dbContext.SaveChangesAsync(ct);
         if (photos.Count > 0) EvidencePhotos.Attach(dbContext, photos, EvidencePhotos.SupportTicket, ticket.TicketId, customerId, now);
-        if (keyPickup) await ScheduleKeyPickupAsync(contract.ContractId, ticket.TicketId, request.PreferredAt, now, ct);
+        if (keyPickup) await ScheduleKeyPickupAsync(contract.ContractId, ticket.TicketId, request.PreferredDate, request.PreferredAt, now, ct);
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return new SupportTicketDto(ticket.TicketId, contract.ContractId, ticket.UnitId, ticket.IssueType,

@@ -82,29 +82,43 @@ test("sweepExpired chỉ huỷ đơn chờ chuyển khoản đã quá hạn", ()
   assert.equal(swept.reservations.filter((r) => r.status === "CONFIRMED").length, 1);
 });
 
-test("gia hạn: chỉ 1 yêu cầu chờ duyệt, chặn trả kho song song, hiện ở khoản thu", () => {
+test("gia hạn: tự động xác nhận ngay (#23), tạo khoản chờ thanh toán, chặn trả kho song song", () => {
   const s = createSeedData(T);
+  s.renewals = [];
+  s.ledger = s.ledger.filter((l) => l.kind !== "RENEWAL");
+  const endBefore = s.contracts[1].end_date;
   const a = run(s, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 3 });
-  assert.equal(a.state.renewals[0].status, "PENDING");
-  assert.equal(a.state.renewals[0].new_end, addMonths(s.contracts[1].end_date, 3));
-  assert.equal(a.state.ledger.at(-1).status, "RENEWAL_PENDING");
+  assert.equal(a.state.renewals[0].status, "APPROVED");
+  assert.ok(a.state.renewals[0].approved_at);
+  assert.ok(a.state.renewals[0].payment_deadline_at);
+  assert.equal(a.state.renewals[0].new_end, addMonths(endBefore, 3));
+  assert.equal(a.state.contracts[1].end_date, endBefore);
+  assert.equal(a.state.ledger.at(-1).kind, "RENEWAL");
+  assert.equal(a.state.ledger.at(-1).status, "UNPAID");
+  assert.equal(a.state.ledger.at(-1).payable, true);
   assert.equal(a.state.ledger.at(-1).amount, 3 * 1380000); // B-015: kho lạnh cỡ M tại Nguyễn Lương Bằng
-  assert.match(run(a.state, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 1 }).error.message, /đang chờ/);
+  assert.match(run(a.state, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 1 }).error.message, /chờ thanh toán/);
   assert.match(run(a.state, "REQUEST_RETURN", { contract_id: "HĐ-2026-0086", date: T, slot: "09:00–09:30" }).error.message, /gia hạn/);
   assert.match(run(s, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 2 }).error.message, /1, 3 hoặc 6/);
 });
 
-test("3.2: huỷ yêu cầu gia hạn chờ duyệt → mở lại trả kho; đã huỷ/đã duyệt không huỷ được", () => {
+test("3.2: gia hạn tự động xác nhận không huỷ theo luồng chờ duyệt; bản ghi PENDING cũ huỷ được", () => {
   const s = createSeedData(T);
+  s.renewals = [];
+  s.ledger = s.ledger.filter((l) => l.kind !== "RENEWAL");
   const a = run(s, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 3 });
-  const id = a.state.renewals[0].renewal_id;
-  const b = run(a.state, "CANCEL_RENEWAL", { renewal_id: id });
+  assert.match(run(a.state, "CANCEL_RENEWAL", { renewal_id: a.state.renewals[0].renewal_id }).error.message, /chờ quản lý duyệt/);
+
+  const legacyPending = {
+    ...s,
+    renewals: [{ renewal_id: "GH-9999", contract_id: "HĐ-2026-0086", status: "PENDING" }],
+    ledger: [{ ref: "SS-0086-REN", contract_id: "HĐ-2026-0086", status: "RENEWAL_PENDING" }],
+  };
+  const b = run(legacyPending, "CANCEL_RENEWAL", { renewal_id: "GH-9999" });
   assert.equal(b.state.renewals[0].status, "CANCELLED");
   assert.ok(!b.state.ledger.some((l) => l.status === "RENEWAL_PENDING" && l.contract_id === "HĐ-2026-0086"));
   assert.doesNotMatch(run(b.state, "REQUEST_RETURN", { contract_id: "HĐ-2026-0086", date: T, slot: "09:00–09:30" }).error?.message || "", /gia hạn/);
-  assert.match(run(b.state, "CANCEL_RENEWAL", { renewal_id: id }).error.message, /chờ quản lý duyệt/);
-  const approved = { ...a.state, renewals: a.state.renewals.map((r) => ({ ...r, status: "APPROVED" })) };
-  assert.match(run(approved, "CANCEL_RENEWAL", { renewal_id: id }).error.message, /chờ quản lý duyệt/);
+  assert.match(run(b.state, "CANCEL_RENEWAL", { renewal_id: "GH-9999" }).error.message, /chờ quản lý duyệt/);
 });
 
 test("trả kho: tạo lịch hẹn chờ xác nhận, không đổi trạng thái hợp đồng", () => {
@@ -125,17 +139,21 @@ test("hợp đồng: trạng thái suy ra theo ngày (30 ngày → sắp hết h
   assert.equal(contractStatus({ ...s.contracts[1], end_date: "2026-09-01" }, NOW), "OVERDUE");
 });
 
-test("hỗ trợ: tạo yêu cầu; khách không huỷ yêu cầu (D43/D45)", () => {
+test("hỗ trợ: tạo yêu cầu không bắt buộc mô tả; khách không huỷ yêu cầu (D43/D45)", () => {
   const s = createSeedData(T);
-  assert.match(run(s, "CREATE_TICKET", { contract_id: "HĐ-2026-0142", topic: "ACCESS", description: "  " }).error.message, /mô tả/);
+  assert.match(run(s, "CREATE_TICKET", { contract_id: "HĐ-2026-0142", topic: "OTHER", subject: "  " }).error.message, /chủ đề/i);
+  const noDesc = run(s, "CREATE_TICKET", { contract_id: "HĐ-2026-0142", topic: "ACCESS", description: "  " });
+  assert.equal(noDesc.error, undefined);
   const a = run(s, "CREATE_TICKET", { contract_id: "HĐ-2026-0142", topic: "LOCK", description: "Mất chìa", attachments: ["a.png"] });
   const id = a.result.ticket_id;
   assert.equal(id, "HT-0083");
   assert.ok(run(a.state, "CANCEL_TICKET", { ticket_id: id }).error, "Không còn thao tác huỷ yêu cầu hỗ trợ");
 });
 
-test("hồ sơ: đổi tên, đổi mật khẩu kiểm tra mật khẩu hiện tại", () => {
+test("hồ sơ: đổi tên, email, đổi mật khẩu kiểm tra mật khẩu hiện tại", () => {
   const s = createSeedData(T);
+  assert.equal(run(s, "UPDATE_NAME", { name: " Mai B ", email: "mai.b@example.com" }).state.user.email, "mai.b@example.com");
+  assert.ok(run(s, "UPDATE_NAME", { name: "Mai B", email: "khong-hop-le" }).error);
   assert.equal(run(s, "UPDATE_NAME", { name: " Mai B " }).state.user.full_name, "Mai B");
   assert.equal(run(s, "CHANGE_PASSWORD", { current: "sai", next: "MatKhauMoi1" }).error.code, "BAD_PASSWORD");
   assert.match(run(s, "CHANGE_PASSWORD", { current: "SafeSpace@123", next: "ngan" }).error.message, /8 ký tự/);
@@ -167,13 +185,15 @@ test("tìm cơ sở: lọc khu vực Quận 7 → 5 cơ sở; cả 12 cơ sở c
   assert.equal(searchFacilities(s.facilities, { budget: true }).some((f) => f.facility_id === 5), false); // 1.250.000
 });
 
-test("mốc sắp tới sắp theo ngày và phản ánh yêu cầu gia hạn đang chờ", () => {
+test("mốc sắp tới sắp theo ngày và phản ánh gia hạn đã xác nhận chờ thanh toán", () => {
   const s = createSeedData(T);
+  s.renewals = [];
+  s.ledger = s.ledger.filter((l) => l.kind !== "RENEWAL");
   const a = run(s, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 3 }).state;
   const m = milestones(a, NOW);
   assert.equal(m.length, 3);
   assert.ok(m[0].date <= m[1].date && m[1].date <= m[2].date);
-  assert.ok(m.some((x) => x.detail === "Yêu cầu gia hạn đang chờ cơ sở duyệt"));
+  assert.ok(m.some((x) => x.detail === "Gia hạn đã xác nhận · chờ thanh toán"));
 });
 
 test("đăng ký: kiểm tra đủ trường, khớp mật khẩu; dữ liệu tài khoản mới rỗng", () => {
@@ -238,14 +258,14 @@ test("PayOS gia hạn (C11q → C11b): khoản gia hạn đã duyệt chuyển �
   assert.equal(out.state.contracts.find((c) => c.contract_id === row.contract_id).end_date, row.period.to);
 });
 
-test("huỷ đơn (C14a, D40): đơn đã thanh toán chưa nhận kho được huỷ và hoàn tiền trừ phí 5% tiền cọc; đơn đã nhận kho thì không", () => {
+test("huỷ đơn (C14a, D49): đơn đã thanh toán chưa nhận kho được huỷ và hoàn 100% tiền thuê + 100% tiền cọc; đơn đã nhận kho thì không", () => {
   const s = createSeedData(T);
   s.reservations.find(r => r.reservation_id === "SS-20260914-0142").start_date = "2026-09-22";
   const out = run(s, "CANCEL_RESERVATION", { reservation_id: "SS-20260914-0142", reason: "Đổi kế hoạch chuyển nhà", bank: {bankName:"VCB",accountNumber:"0123456789",accountHolder:s.user.full_name}, bankConfirmed:true });
   const r = out.state.reservations.find((x) => x.reservation_id === "SS-20260914-0142");
   assert.equal(r.status, "CANCELLED");
   assert.equal(r.refund_status, "PENDING");
-  assert.equal(r.refund_amount, 4600000 - 57500); // D40: phí huỷ 5% tiền cọc (cọc 1.150.000), hoàn đủ tiền thuê
+  assert.equal(r.refund_amount, 4600000); // D49: bỏ phí huỷ 5% cọc, hoàn đủ tiền thuê + 100% cọc
   assert.equal(out.state.contracts.find((c) => c.reservation_id === r.reservation_id).status, "ENDED");
   assert.match(run(s, "CANCEL_RESERVATION", { reservation_id: "SS-20260615-0086" }).error.message, /nhận kho/);
 });

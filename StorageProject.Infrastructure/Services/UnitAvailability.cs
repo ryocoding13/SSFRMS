@@ -119,7 +119,45 @@ public static class UnitAvailability
     }
 
     /// <summary>
-    /// Xác định ngày ô trống lại để hiển thị nhãn "Trống từ dd/mm" trên giao diện khách hàng.
+    /// Ngày dự kiến hết hạn của hợp đồng đang thuê/giữ ô ở hiện tại (nếu có).
+    /// </summary>
+    public static DateOnly? CurrentContractEndDate(UnitSlot slot, DateOnly today)
+    {
+        if (slot.Holds.Count == 0) return null;
+        var current = slot.Holds
+            .Where(h => h.StartDate <= today)
+            .OrderByDescending(h => h.EndDate)
+            .FirstOrDefault();
+        if (current != null) return current.EndDate;
+        return slot.Unit.Status != "AVAILABLE" ? slot.Holds[0].EndDate : null;
+    }
+
+    /// <summary>
+    /// Lý do ô kho không khả dụng cho kỳ [start, end) (null nếu khả dụng).
+    /// </summary>
+    public static string? UnavailableReason(UnitSlot slot, DateOnly start, DateOnly end, int bufferDays, DateOnly today)
+    {
+        if (Bookable(slot, start, end, bufferDays, today)) return null;
+        if (slot.Holds.Any(h => h.Status == "OVERDUE")) return "Ô đang quá hạn trả, chưa nhận đặt trước.";
+        if (slot.Holds.Count == 0 && slot.Unit.Status == "RESERVED") return "Ô đang được giữ cho đề xuất đổi kho.";
+        if (slot.Holds.Count == 0 && BlockedUnitStatuses.Contains(slot.Unit.Status))
+            return "Ô đang bảo trì / kiểm tra kỹ thuật trong thời gian này.";
+
+        var endWithBuffer = end.AddDays(bufferDays);
+        var conflict = slot.Holds.FirstOrDefault(h =>
+        {
+            var endsAt = h.EndDate < today && h.Status == "RETURN_PENDING" ? today : h.EndDate;
+            var freeFrom = endsAt.AddDays(bufferDays);
+            return !(freeFrom <= start || h.StartDate >= endWithBuffer);
+        });
+        return conflict != null
+            ? $"Ô đã có hợp đồng/lịch giữ chỗ trùng kỳ chọn ({conflict.StartDate:dd/MM/yyyy} – {conflict.EndDate:dd/MM/yyyy})."
+            : "Ô không khả dụng trong khoảng ngày đã chọn.";
+    }
+
+    /// <summary>
+    /// Xác định ngày ô trống sớm nhất sau hợp đồng hiện tại (cộng ngày đệm) để hiển thị trên sơ đồ.
+    /// Không nhảy vượt qua khoảng trống hợp lệ giữa hợp đồng hiện tại và hợp đồng tương lai (năm sau).
     /// </summary>
     /// <param name="slot">Thông tin ô kho.</param>
     /// <param name="bufferDays">Số ngày đệm.</param>
@@ -129,8 +167,24 @@ public static class UnitAvailability
     {
         if (slot.FreeNow) return null;
         if (slot.Holds.Any(h => h.Status == "OVERDUE")) return null;
-        var last = slot.Holds.Count == 0 ? (DateOnly?)null : slot.Holds.Max(h => h.EndDate < today ? today : h.EndDate);
-        return last?.AddDays(bufferDays);
+        if (slot.Holds.Count == 0)
+            return BlockedUnitStatuses.Contains(slot.Unit.Status) ? today.AddDays(bufferDays) : null;
+
+        var candidate = today;
+        foreach (var h in slot.Holds.OrderBy(x => x.StartDate))
+        {
+            var endsAt = h.EndDate < today && h.Status == "RETURN_PENDING" ? today : (h.EndDate < today ? today : h.EndDate);
+            var afterHold = endsAt.AddDays(bufferDays);
+            if (h.StartDate <= candidate)
+            {
+                if (afterHold > candidate) candidate = afterHold;
+            }
+            else
+            {
+                break;
+            }
+        }
+        return candidate;
     }
 
     /// <summary>

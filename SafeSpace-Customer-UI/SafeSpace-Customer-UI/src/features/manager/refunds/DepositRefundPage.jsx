@@ -17,17 +17,11 @@ import { amountLabel,timeLabel } from "../../facility-operations/damage/DamageCo
 import { vnDateTimeInput } from "../../facility-operations/damage/damageModel.js";
 import "../../../shared/styles/customer-detail.css";
 import { go } from "../../../app/router.js";
-function defaultCode(item, m) {
-  if (m === "CASH") return `PC-${item.id}`;
-  const clean = (item.contractId || item.id || "").replace(/[^a-zA-Z0-9]/g, "");
-  return `FT${clean}${String(Date.now()).slice(-4)}`;
-}
 
 function TransferForm({item,load,ask}) {
   const hasBank = Boolean(item.bankName && item.bankName !== "CASH" && item.accountNumber);
-  const initialMethod = (item.method === "CASH" || item.bankName === "CASH" || !hasBank) ? "CASH" : "BANK_TRANSFER";
-  const [method, setMethod] = useState(initialMethod);
-  const [ref, setRef] = useState(() => item.transactionRef || defaultCode(item, initialMethod));
+  const method = (item.method === "CASH" || item.bankName === "CASH") ? "CASH" : "BANK_TRANSFER";
+  const [ref, setRef] = useState(() => item.transactionRef || "");
   const [at, setAt] = useState(() => vnDateTimeInput());
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState("");
@@ -47,17 +41,6 @@ function TransferForm({item,load,ask}) {
     transferProof(item, payload);
     valid = true;
   } catch {}
-
-  const switchMethod = (newMethod) => {
-    setMethod(newMethod);
-    setRef(defaultCode(item, newMethod));
-    setError("");
-  };
-
-  const regenerateCode = (e) => {
-    e.preventDefault();
-    setRef(defaultCode(item, method));
-  };
 
   return (
     <form
@@ -91,50 +74,29 @@ function TransferForm({item,load,ask}) {
       }}
       noValidate
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
-        <h2>{isCash ? "Ghi nhận chi tiền mặt tại quầy" : "Ghi nhận chuyển khoản"}</h2>
-        <div style={{ display: "inline-flex", gap: "6px" }}>
-          <Button
-            type="button"
-            size="small"
-            variant={!isCash ? "primary" : "outline"}
-            disabled={disabled}
-            onClick={() => switchMethod("BANK_TRANSFER")}
-          >
-            Chuyển khoản
-          </Button>
-          <Button
-            type="button"
-            size="small"
-            variant={isCash ? "primary" : "outline"}
-            disabled={disabled}
-            onClick={() => switchMethod("CASH")}
-          >
-            Tiền mặt tại quầy
-          </Button>
-        </div>
-      </div>
+      <h2>{isCash ? "Ghi nhận chi tiền mặt tại quầy" : "Ghi nhận chuyển khoản"}</h2>
 
       <Notice>
         {isCash
-          ? "Khách hàng nhận tiền mặt trực tiếp tại quầy cơ sở. Kiểm tra CCCD trùng tên hợp đồng trước khi chi tiền và lưu phiếu chi."
-          : "Hạn hoàn: 3–5 ngày làm việc từ khi chốt đối soát. Chuyển đúng số tiền vào tài khoản chính chủ rồi ghi nhận."}
+          ? "Khách hàng đã chọn nhận tiền mặt tại quầy cơ sở. Kiểm tra CCCD trùng tên hợp đồng trước khi chi tiền và lưu phiếu chi."
+          : "Khách đã chọn nhận chuyển khoản ngân hàng (khóa theo lựa chọn của khách). Chuyển đúng số tiền vào tài khoản nhận hoàn rồi nhập mã giao dịch thật."}
       </Notice>
 
       <DetailList
         items={
           isCash
             ? [
+                ["Hình thức khách đã chọn", "Tiền mặt tại quầy cơ sở"],
                 ["Người nhận tiền", item.customer || item.accountHolder || "Chưa có dữ liệu"],
-                ["Hình thức nhận", "Tiền mặt tại quầy cơ sở (không áp dụng số tài khoản)"],
               ]
             : [
+                ["Hình thức khách đã chọn", "Chuyển khoản ngân hàng"],
                 ["Người nhận", item.accountHolder || item.customer || "Chưa có dữ liệu"],
                 [
                   "Ngân hàng / tài khoản",
                   hasBank
                     ? `${item.bankName} · ••••${item.accountNumber.slice(-4)}`
-                    : "Chưa có dữ liệu (chọn 'Tiền mặt tại quầy' nếu khách nhận tại cơ sở)",
+                    : "Chưa có dữ liệu tài khoản nhận hoàn",
                 ],
               ]
         }
@@ -142,18 +104,13 @@ function TransferForm({item,load,ask}) {
 
       <div className="form-row">
         <Field label={isCash ? "Mã phiếu chi / chứng từ *" : "Mã giao dịch *"}>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <input
-              maxLength={100}
-              value={ref}
-              disabled={disabled}
-              onChange={(e) => setRef(e.target.value)}
-              placeholder={isCash ? "Ví dụ: PC-001" : "Mã tham chiếu ngân hàng"}
-            />
-            <Button type="button" variant="outline" size="small" disabled={disabled} onClick={regenerateCode} title="Tự động tạo mã mới">
-              Tạo lại mã
-            </Button>
-          </div>
+          <input
+            maxLength={100}
+            value={ref}
+            disabled={disabled}
+            onChange={(e) => setRef(e.target.value)}
+            placeholder={isCash ? "Ví dụ: PC-001" : "Nhập mã tham chiếu giao dịch thật"}
+          />
         </Field>
         <Field label={isCash ? "Thời gian chi · giờ Việt Nam *" : "Thời gian chuyển · giờ Việt Nam *"}>
           <input

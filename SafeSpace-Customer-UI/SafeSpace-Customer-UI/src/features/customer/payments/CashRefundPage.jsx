@@ -63,7 +63,7 @@ function CashRefundDetail({ item, expectedName, onSwitch }) {
           {item.status === "FORFEITED" && <Notice tone="error">Đã quá 30 ngày kể từ khi cơ sở duyệt chi mà chưa nhận tiền mặt, nên khoản hoàn này không còn được chi theo chính sách bạn đã đồng ý.</Notice>}
         </section>
         {switchable(item.status) && <form className="panel customer-detail__card" onSubmit={submit} noValidate><h2>Đổi sang chuyển khoản</h2>
-          <p className="hint">Không tiện đến quầy? Trong thời hạn nhận, bạn đổi được sang chuyển khoản vào tài khoản chính chủ, trùng tên trên hợp đồng. Sau khi đổi, khoản này không nhận tiền mặt được nữa.</p>
+          <p className="hint">Không tiện đến quầy? Trong thời hạn nhận, bạn đổi được sang chuyển khoản ngân hàng (chấp nhận tài khoản của chính bạn, người thân hoặc người nhận hộ). Sau khi đổi, khoản này không nhận tiền mặt được nữa.</p>
           <RefundBankFields intro={false} value={bank} onChange={setBank} disabled={busy} expectedName={expectedName} />
           {error && <Notice tone="error">{error}</Notice>}
           <div className="customer-detail__actions"><Button type="submit" disabled={busy}>Đổi sang chuyển khoản</Button></div>
@@ -79,7 +79,7 @@ function CashRefundDetail({ item, expectedName, onSwitch }) {
         </section>
       </aside>
     </div>
-    {confirm && <ConfirmDialog title="Đổi khoản hoàn sang chuyển khoản?" tone="warning" text={`Sau khi đổi, khoản ${item.id} không nhận tiền mặt tại quầy được nữa. Quản lý cơ sở chuyển khoản và ghi mã giao dịch.`} rows={[["Số tiền", money(item.amount)], ["Ngân hàng", bank.bankName], ["Số tài khoản", bank.accountNumber], ["Chủ tài khoản", bank.accountHolder]]} hint="Hoàn trong 3–5 ngày làm việc vào tài khoản chính chủ." cancelLabel="Giữ tiền mặt" busy={busy} onCancel={() => setConfirm(false)} onConfirm={send} label="Đổi sang chuyển khoản" />}
+    {confirm && <ConfirmDialog title="Đổi khoản hoàn sang chuyển khoản?" tone="warning" text={`Sau khi đổi, khoản ${item.id} không nhận tiền mặt tại quầy được nữa. Quản lý cơ sở chuyển khoản và ghi mã giao dịch.`} rows={[["Số tiền", money(item.amount)], ["Ngân hàng", bank.bankName], ["Số tài khoản", bank.accountNumber], ["Chủ tài khoản", bank.accountHolder]]} hint="Hoàn trong 3–5 ngày làm việc vào tài khoản nhận hoàn đã khai báo." cancelLabel="Giữ tiền mặt" busy={busy} onCancel={() => setConfirm(false)} onConfirm={send} label="Đổi sang chuyển khoản" />}
     {result?.ok && <Dialog title="Đã đổi sang chuyển khoản" message={`Khoản ${item.id} sẽ được chuyển vào tài khoản ${bank.bankName} ${tail}. Bạn nhận thông báo khi cơ sở ghi nhận đã chuyển.`} actionLabel="Theo dõi khoản hoàn" onClose={() => { setResult(null); go("refunds"); }} />}
     {result && !result.ok && <Dialog title="Chưa đổi được cách nhận hoàn" message={`${result.error} Thông tin bạn đã nhập được giữ nguyên.${item.deadlineDate ? ` Khoản hoàn vẫn chờ nhận tiền mặt tại quầy đến 22:00 · ${vnDate(item.deadlineDate)}.` : ""}`} actionLabel="Thử lại" onClose={() => setResult(null)} />}
   </>;

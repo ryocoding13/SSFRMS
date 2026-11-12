@@ -33,7 +33,6 @@ public sealed partial class RenewalPolicyD32Tests
     private static async Task<RenewalDto> RequestApprovePayAsync(Fixture f, StorageUnit target)
     {
         var dto = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, new CreateRenewalRequest(1, 1, true, target.UnitId));
-        await f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, dto.RenewalId);
         Assert.True(await RenewalSettlement.RecordAsync(f.Db, f.Contract.ContractId, dto.RenewalId, "CASH", $"TEST-{dto.RenewalId}", f.StaffUser.UserId, default));
         await f.Db.SaveChangesAsync();
         return dto;
@@ -58,8 +57,7 @@ public sealed partial class RenewalPolicyD32Tests
         Assert.Equal(("K02", "SWAP", 300_000m), (option.UnitNumber, option.Kind, option.DepositTopUp));
 
         var dto = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, new CreateRenewalRequest(1, 1, true, k02.UnitId));
-        Assert.Equal("AVAILABLE", (await f.Db.StorageUnits.AsNoTracking().SingleAsync(u => u.UnitId == k02.UnitId)).Status); // chưa giữ khi mới gửi
-        await f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, dto.RenewalId);
+        Assert.Equal("APPROVED", dto.Status);
         Assert.Equal("RESERVED", (await f.Db.StorageUnits.AsNoTracking().SingleAsync(u => u.UnitId == k02.UnitId)).Status);
         var pending = await f.Db.Payments.AsNoTracking().SingleAsync(p => p.RenewalId == dto.RenewalId);
         Assert.Equal(1_500_000m + 300_000m, pending.Amount); // một khoản gộp tiền gia hạn + cọc chênh
@@ -125,7 +123,7 @@ public sealed partial class RenewalPolicyD32Tests
         var options = await f.RenewalSvc.GetRenewalUnitOptionsAsync(f.CustomerUser.UserId, f.Contract.ContractId);
         Assert.Equal(start, options.BookedFrom);
         var dto = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, new CreateRenewalRequest(1, 1, true, k02.UnitId));
-        await f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, dto.RenewalId);
+        Assert.Equal("APPROVED", dto.Status);
         Assert.Equal("APPROVED", (await f.Db.ContractRenewals.AsNoTracking().SingleAsync(r => r.RenewalId == dto.RenewalId)).Status);
     }
 
@@ -136,16 +134,15 @@ public sealed partial class RenewalPolicyD32Tests
         var k02 = await AddFreeUnitAsync(f);
         var k03 = await AddFreeUnitAsync(f, "K03");
 
-        var first = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, new CreateRenewalRequest(1, 1, true, k02.UnitId));
         var taken = await f.Db.StorageUnits.SingleAsync(u => u.UnitId == k02.UnitId);
-        taken.Status = "RESERVED"; // ô vừa bị giữ cho đơn khác trước khi quản lý duyệt
+        taken.Status = "RESERVED"; // ô vừa bị giữ cho đơn khác trước khi khách gửi gia hạn
         await f.Db.SaveChangesAsync();
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, first.RenewalId));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, new CreateRenewalRequest(1, 1, true, k02.UnitId)));
         Assert.Contains("vừa có người đặt", ex.Message);
-        await f.RenewalSvc.RejectRenewalAsync(f.ManagerUser.UserId, first.RenewalId, "Ô vừa có người đặt, chọn ô khác");
 
         var second = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, new CreateRenewalRequest(1, 1, true, k03.UnitId));
-        await f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, second.RenewalId);
+        Assert.Equal("APPROVED", second.Status);
         Assert.Equal("RESERVED", (await f.Db.StorageUnits.AsNoTracking().SingleAsync(u => u.UnitId == k03.UnitId)).Status);
         var r = await f.Db.ContractRenewals.SingleAsync(x => x.RenewalId == second.RenewalId);
         r.PaymentDeadlineAt = DateTime.UtcNow.AddMinutes(-1);
@@ -213,14 +210,10 @@ public sealed partial class RenewalPolicyD32Tests
         var swap = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, new CreateRenewalRequest(1, 1, true, k02.UnitId));
 
         var board = await new FacilityOpsService(f.Db).GetBoardAsync(new OpsActor(f.ManagerUser.UserId, true));
-        var row = Assert.Single(board.Renewals, r => r.Status == "PENDING");
-        Assert.Equal(("K02", 300_000m), (row.TargetUnit, row.DepositTopUp)); // quản lý thấy ô mới và cọc chênh trước khi duyệt
-
-        await f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, swap.RenewalId);
-        board = await new FacilityOpsService(f.Db).GetBoardAsync(new OpsActor(f.ManagerUser.UserId, true));
-        row = Assert.Single(board.Renewals);
+        var row = Assert.Single(board.Renewals);
+        Assert.Equal("APPROVED", row.Status);
         Assert.Equal(("K02", 300_000m, 1_800_000m), (row.TargetUnit, row.DepositTopUp, row.Amount + row.DepositTopUp));
-        // Màn quản lý lấy /api/manager/board (ManagerService) — cũng phải có ô mới và cọc chênh.
+        // Màn quản lý lấy /api/manager/board (ManagerService) — cũng có ô mới và cọc chênh.
         var managerBoard = await new ManagerService(f.Db, new StaffService(f.Db)).GetManagerBoardAsync(f.ManagerUser.UserId);
         var mrow = Assert.Single(managerBoard.Renewals, r => r.Id == $"GH-{swap.RenewalId:D4}");
         Assert.Equal(("K02", 300_000m), (mrow.TargetUnit, mrow.DepositTopUp));

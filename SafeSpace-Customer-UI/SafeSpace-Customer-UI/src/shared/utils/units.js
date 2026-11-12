@@ -83,14 +83,17 @@ export function unitsFor(facility, stock = null, realUnits = null) {
       monthly_rate: offer?.monthly_rate || 0,
       position: `Tầng trệt · Dãy ${row}`,
       status,
-      // D41: ô đang thuê trống lại từ ngày này (ngày hết hạn + ngày đệm); ô quá hạn không nhận đặt trước
+      // D41 / T3: tách trạng thái hiện tại với khả năng đặt trong kỳ đang tìm và ngày hết hạn dự kiến
+      current_contract_end_date: real?.currentContractEndDate || null,
       free_from: real?.freeFrom || null,
       overdue: Boolean(real?.overdue),
+      bookable_for_period: real?.bookableForPeriod ?? (real ? fromBackendStatus(real.status) === "FREE" : status === "FREE"),
+      period_unavailable_reason: real?.periodUnavailableReason || null,
     };
   });
 }
 
-
 export const freeCount = (units) => units.filter((u) => u.status === "FREE").length;
+export const bookableCount = (units) => units.filter((u) => u.bookable_for_period).length;
 export const countBy = (units) =>
   LEGEND.reduce((acc, s) => ({ ...acc, [s]: units.filter((u) => u.status === s).length }), {});

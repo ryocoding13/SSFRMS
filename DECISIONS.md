@@ -560,3 +560,32 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - **Quyền:** `POST/DELETE /api/admin/roles/{id}/permissions` trả 410 (D32: ma trận quyền chỉ xem, T25); đổi vai trò dùng `POST /api/admin/users/{id}/role-change` trong một giao dịch (T24).
 - **Báo cáo chi tiết cơ sở (Figma B04a)** và **lịch sử thanh toán đủ thời gian / phương thức / mã giao dịch (Figma C11h, LS02)** làm trong đợt này, chỉ FE, dùng API có sẵn. Trường `outstanding` hiển thị là "Khoản chờ thu" (D32: không có công nợ ngoài cọc).
 - **Lỗi phát hiện khi rà soát (sửa ở Phiên 2):** khấu trừ khi kiểm tra ô cũ bị lưu `PENDING`, thiếu thời điểm tạo (PR #82) → lưu `PAID`.
+
+## D49 — 12/11/2026: Bỏ phí huỷ 5% trước ngày bắt đầu thuê và bỏ giữ 30% cọc khi trả kho sớm — Đã chốt
+
+> Người dùng chốt ngày 12/11/2026. Thay ý `"Phí huỷ 5% cọc"` của D40 và phần hoàn cọc/huỷ đơn tương ứng của D27, D32 (mục huỷ đơn 10% cọc và mục giữ 30% / hoàn 70% cọc khi dừng sớm sau `StartDate`); giữ nguyên toàn bộ lịch sử ở trên.
+
+- **Huỷ đơn đặt chỗ trước `StartDate`:** phí huỷ = **`0%`** (hoàn **100% tiền thuê + 100% tiền cọc** nếu đã thanh toán).
+- **Tách bạch hoàn toàn với trả kho sớm sau `StartDate`:** từ `00:00` ngày `StartDate` trở đi đi theo luồng trả kho (`EarlyStop`):
+  - **Tiền cọc:** hoàn **100% cọc** nếu sau khi nhân viên kiểm tra kho không có vi phạm vệ sinh/hư hỏng; nếu có vi phạm vệ sinh (10% cọc theo chính sách) hoặc hư hỏng (theo biên bản kiểm tra), xử lý trừ vào tiền cọc **giống như lúc trả kho khi đến hạn** (tổng khấu trừ tối đa 100% cọc, không phát sinh công nợ ngoài cọc theo D32). Bỏ quy tắc giữ cố định `30%` / hoàn `70%` cọc của D27/D32.
+  - **Tiền thuê:** tính tròn theo các tháng đã bắt đầu (ví dụ dùng 1 tháng 1 ngày thì trừ tiền thuê của **2 tháng**); hoàn tiền thuê của **các tháng nguyên chưa bắt đầu** theo quy tắc D27/D32.
+- **Phạm vi đồng bộ khi triển khai code:** bảng/chính sách `RentalPolicy` / `policies` (`CANCELLATION = 0%`), `RefundPolicy` / `OpsRules` / `DbSeeder`, API `cancel-preview` và xác nhận huỷ, màn Chính sách (`PolicySettingsPage`, màn Chính sách khách hàng), màn xác nhận huỷ `C14a`, màn trả kho `ReturnRequestPage` / `ReturnInspectionPage` / `SettlementComponents`, màn hoàn tiền `M08` (`CancellationRefundPage`), và các unit test / FE test liên quan.
+
+## D50 — 12/11/2026: Chốt nghiệp vụ cho bộ task #1–#23 (không cần Figma trước) — Đã chốt
+
+> Người dùng yêu cầu triển khai tuần tự toàn bộ 16 task (#1, #3, #4, #5, #6, #8, #9, #10, #11, #12, #13, #15, #18, #20, #21, #23; phần #4 và dừng sớm đã chốt tại D49); giữ nguyên toàn bộ lịch sử ở trên.
+
+- **Thông tin liên hệ (#1, thay ý `"Hotline footer là số minh hoạ"` của D40):** Hotline công khai là `0825123676`, giờ hoạt động `06:00–22:00`, địa chỉ có tiền tố `Trụ sở :` phía trước.
+- **Sơ đồ kho & lịch tương lai (#3, bổ sung D41):** Ô đang thuê hiển thị ngày hết hạn dự kiến; phân biệt trạng thái hiện tại với khả năng đặt trong khoảng ngày khách đang chọn; kiểm tra trùng với toàn bộ hợp đồng/đặt chỗ tương lai (kể cả năm sau) + ngày đệm, không khóa đặt lịch tương lai chỉ vì hôm nay ô đang có người thuê.
+- **Hỗ trợ & nhận chìa khóa (#5, #6, thay phần mô tả/ảnh bắt buộc của D35 và khung giờ của D36/D45):** Bỏ mục `2. Mô tả & ảnh đính kèm` ở biểu mẫu hỗ trợ khách hàng (vẫn giữ luồng chat phản hồi sau khi tạo). Nhận chìa khóa chỉ chọn ngày (`DatePicker`), bỏ Sáng/Chiều/Ngày khác và không hiển thị giờ cụ thể khi xem lại.
+- **Trả kho (#8, #9, thay phần ảnh trả kho bắt buộc của khách trong D32/D35):** Khách gửi trả kho chỉ chọn ngày mong muốn (bỏ khung giờ), không phải đính kèm ảnh; yêu cầu trả kho chưa coi là đã kiểm tra xong. Nhân viên cơ sở chịu trách nhiệm kiểm tra thực địa và bắt buộc đính kèm ảnh hiện trạng khi lập biên bản.
+- **Tài khoản nhận hoàn & màn hoàn tiền (#10, #11, #20, #21, thay yêu cầu trùng tên hợp đồng của D27/D32/D44/D45, củng cố D42/D47):**
+  - Bắt buộc đủ 3 trường: Ngân hàng (chọn từ danh sách), Số tài khoản (kiểm tra độ dài/định dạng theo ngân hàng đã chọn, giữ số `0` đầu), Tên chủ tài khoản nhận tiền.
+  - **Không bắt buộc trùng tên đăng ký/hợp đồng**, cho phép nhận vào tài khoản người thân/người khác; ghi rõ chỉ kiểm tra định dạng theo ngân hàng, không coi là đã xác minh tài khoản tồn tại.
+  - Quản lý cơ sở **không được đổi** phương thức hoàn tiền của khách; **bỏ** tự sinh mã giao dịch mặc định và **bỏ** nút `"Tạo lại mã"`.
+- **Tài khoản của tôi (#12):** Cho phép sửa Email với kiểm tra định dạng hợp lệ và không trùng Email/Username của tài khoản khác.
+- **Kiểm tra `"Còn ít đồ"` (#13, cập nhật D38):** `"Còn ít đồ"` được đánh giá **Đạt tiêu chuẩn**, không tự động tick hoặc thu phí vệ sinh `10%` cọc.
+- **Hiển thị đối soát & phản hồi nhiều khoản khấu trừ (#15, #18, bổ sung D39/D40):**
+  - Quản lý chỉ thấy hồ sơ ở hàng chờ đối soát/xác nhận hoàn cọc khi đã có biên bản kiểm tra trả kho `COMPLETED` **và** khách hàng/cơ sở đã hoàn tất bước phản hồi khấu trừ (`DamageWorkflowResolved = true`, không còn `WAITING`/`SELF_CLEAN`/`SELF_REPLACE`/`DISPUTE`).
+  - Khách hàng được chọn đồng ý đồng thời nhiều khoản khấu trừ (vệ sinh, hư hỏng) hoặc chọn phương án riêng cho từng khoản.
+- **Bỏ quản lý duyệt gia hạn (#23, thay phần duyệt gia hạn M01/M03 của D11/D32/D46b):** Khách gửi gia hạn hợp lệ (tại chỗ hoặc chuyển ô) thì hệ thống tự kiểm tra điều kiện/lịch trống, chốt giá và mở thanh toán trực tiếp (`APPROVED` / tạo `RENEWAL` `PENDING`, giữ ô mới nếu đổi ô); chỉ cập nhật `EndDate` hợp đồng sau khi thanh toán đủ.

@@ -213,9 +213,10 @@ public partial class FacilityOpsService
                 Read(submitted, "items") ?? "", Read(submitted, "walls") ?? "", Read(submitted, "keys") ?? "", Read(submitted, "proposal") ?? "",
                 i.DamageFee, i.CleaningFee, i.CleaningRequired, i.DamageItem ?? "", i.FeeReason ?? "", overdueFee,
                 PhotosOf(inspectionPhotos, i.InspectionId));
+            var damageWorkflowResolved = i.Status == "COMPLETED" && IsDeductionResolved(deduction.Status);
             return new OpsReturnDto(ReturnCode(i.InspectionId), ContractCode(c), c.Unit.UnitNumber, c.Customer.FullName,
                 LocalOrDate(i.ScheduledAt, c.EndDate), c.DepositAmount, Unpaid(c), i.Status == "COMPLETED" ? "SUBMITTED" : "SCHEDULED",
-                report, Local(i.InspectedAt), Utc(i.CreatedAt), overdueFee, DamageWorkflowResolved: true,
+                report, Local(i.InspectedAt), Utc(i.CreatedAt), overdueFee, DamageWorkflowResolved: damageWorkflowResolved,
                 MoveOutPhotos: PhotosOf(moveOutPhotos, i.InspectionId),
                 LateInspection: i.Status != "COMPLETED" && now - i.CreatedAt > InspectionSla,
                 DeductionStatus: deduction.Status, DeductionDeadlineAt: Local(deduction.DeadlineUtc),
@@ -337,7 +338,12 @@ public partial class FacilityOpsService
         foreach (var c in contracts.OrderBy(c => c.EndDate))
         {
             var unpaid = Unpaid(c);
-            var inspected = c.ReturnInspections.Any(i => i.Status == "COMPLETED");
+            var latestCompleted = c.ReturnInspections
+                .Where(i => i.Status == "COMPLETED")
+                .OrderByDescending(i => i.InspectedAt ?? i.CreatedAt)
+                .FirstOrDefault();
+            var inspectionResolved = latestCompleted != null && IsDeductionResolved(
+                DeductionStateOf(latestCompleted, returnLogs.Where(l => l.EntityId == latestCompleted.InspectionId), now).Status);
             var lastRenewal = c.ContractRenewals.OrderByDescending(r => r.RequestedAt).FirstOrDefault();
             string state, due;
             decimal amount = 0;
@@ -356,16 +362,11 @@ public partial class FacilityOpsService
                         ? $"Đã hoàn {Money(refundPayment.Amount)}"
                         : $"Chờ hoàn {Money(refundPayment.Amount)}";
             }
-            else if (c.Status == "RETURN_PENDING" && inspected)
+            else if (c.Status == "RETURN_PENDING" && inspectionResolved)
             {
                 state = "RETURNED";
                 due = $"{Money(unpaid)} · Chờ quản lý xác nhận hoàn cọc";
                 amount = unpaid;
-            }
-            else if (lastRenewal?.Status == "PENDING")
-            {
-                state = "RENEWAL";
-                due = "Yêu cầu gia hạn";
             }
             else if (c.Status == "OVERDUE" || (c.Status is "ACTIVE" or "EXPIRING" && c.EndDate < today))
             {
@@ -544,4 +545,7 @@ public partial class FacilityOpsService
 
         return new OpsRevenueDto(months, byType, today, Million(forfeited));
     }
+
+    private static bool IsDeductionResolved(string status)
+        => status is "NONE" or "AGREED" or "AUTO_AGREED" or "RECHECKED";
 }
