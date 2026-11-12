@@ -8,8 +8,9 @@ namespace StorageProject.Infrastructure.Data;
 /// #60 · Dữ liệu demo theo từng cơ sở (D48: chỉ thêm dữ liệu, không đổi bảng/cột).
 /// Mỗi cơ sở đang hoạt động có:
 /// - 1 nhân viên Staff_&lt;MÃ&gt; và 1 quản lý Manager_&lt;MÃ&gt; được phân công đúng cơ sở (mỗi quản lý 1 cơ sở).
-/// - Customer&lt;MÃ&gt;01: hợp đồng đang thuê đã thanh toán, có QR/PIN — để thử gia hạn, trả kho, máy quét.
-/// - Customer&lt;MÃ&gt;02: đơn chờ thanh toán tại quầy — để nhân viên thử thu tiền tại quầy.
+/// - Customer&lt;MÃ&gt;01 là khách duy nhất: 1–6 hợp đồng đang thuê (số lượng khác nhau giữa các cơ sở để báo cáo
+///   vận hành thấy chênh lệch), ngày bắt đầu rải qua 5 tháng gần nhất để biểu đồ doanh thu không trống, tất cả còn trong hạn.
+///   Mỗi cơ sở dùng tối đa 6/12 ô; các ô còn lại để tự demo đặt kho.
 /// Chạy lại không tạo trùng, không ghi đè dữ liệu đã có; ô được chọn phải trống và không có hợp đồng/đơn giữ chỗ khác.
 /// Mật khẩu chung (chỉ dùng cho database demo): Staff@123, Manager@123, Customer@123.
 /// </summary>
@@ -31,6 +32,30 @@ public static partial class DbSeeder
         ["SafeSpace Tân Bình"] = "TB",
         ["SafeSpace Bình Tân"] = "BTA",
     };
+
+    /// <summary>
+    /// Số hợp đồng demo của Customer&lt;MÃ&gt;01 tại từng cơ sở (tối đa 6). NLB chỉ 1 vì cơ sở gốc này đã có sẵn
+    /// bộ dữ liệu vận hành của customer01–06 (DbSeeder.FacilityOps) chiếm 6 ô và 1 ô bảo trì.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, int> DemoFacilityOrderCounts = new Dictionary<string, int>
+    {
+        ["NLB"] = 1, ["HL"] = 6, ["PX"] = 5, ["TT"] = 2, ["PMH"] = 6, ["BTH"] = 4,
+        ["NB"] = 1, ["BC"] = 3, ["TD"] = 5, ["GV"] = 2, ["TB"] = 4, ["BTA"] = 3,
+    };
+
+    /// <summary>
+    /// Thứ tự hợp đồng demo: (loại kho, bắt đầu cách hôm nay bao nhiêu ngày, số tháng). Cơ sở có N hợp đồng lấy N dòng đầu.
+    /// Mọi kỳ thuê đều còn hiệu lực; dòng 3 hết hạn trong khoảng 12 ngày để thử mốc "Sắp hết hạn" (14 ngày).
+    /// </summary>
+    private static readonly (string Type, int DaysAgo, int Months)[] DemoOrderSlots =
+    [
+        ("NormalL", 8, 6),     // tháng này
+        ("ColdM", 120, 6),     // 4 tháng trước
+        ("ColdL", 80, 3),      // ~2,5 tháng trước, sắp hết hạn
+        ("NormalM", 155, 9),   // 5 tháng trước
+        ("NormalM", 60, 12),   // 2 tháng trước
+        ("NormalL", 35, 6),    // tháng trước
+    ];
 
     private static readonly string[] DemoLiveReservationStatuses = ["PENDING_PAYMENT", "PENDING_AT_FACILITY", "PENDING_VERIFICATION", "CONFIRMED", "UNIT_ASSIGNED"];
     private static readonly string[] DemoRunningContractStatuses = ["ACTIVE", "EXPIRING", "OVERDUE", "RETURN_PENDING"];
@@ -54,7 +79,6 @@ public static partial class DbSeeder
             var staff = await EnsureUserAsync(context, $"Staff_{code}", $"staff.{lower}@safespace.vn", "Staff@123", $"Nhân viên {ShortName(facility.Name)}", "0900000100", "STAFF");
             var manager = await EnsureUserAsync(context, $"Manager_{code}", $"manager.{lower}@safespace.vn", "Manager@123", $"Quản lý {ShortName(facility.Name)}", "0900000200", "MANAGER");
             var renter = await EnsureUserAsync(context, $"Customer{code}01", $"customer{lower}01@example.com", "Customer@123", $"Khách {code} 01", "0900000301", "CUSTOMER");
-            var payer = await EnsureUserAsync(context, $"Customer{code}02", $"customer{lower}02@example.com", "Customer@123", $"Khách {code} 02", "0900000302", "CUSTOMER");
 
             // Phân công: chỉ gán khi tài khoản chưa có cơ sở nào đang hiệu lực (không đè phân công admin đã đổi)
             foreach (var user in new[] { staff, manager })
@@ -107,13 +131,19 @@ public static partial class DbSeeder
                 });
             }
 
-            // 1. Customer<MÃ>01: hợp đồng đang thuê (bắt đầu 20 ngày trước, 3 tháng), đã thanh toán, có QR/PIN
-            var hasRunning = await context.RentalContracts.AnyAsync(c => c.CustomerId == renter.UserId && DemoRunningContractStatuses.Contains(c.Status));
-            if (!hasRunning && rates.ContainsKey(catalog.NormalM.UnitTypeId) && await FreeUnitAsync(catalog.NormalM.UnitTypeId) is StorageUnit unit)
+            // Customer<MÃ>01 là khách duy nhất của cơ sở: N hợp đồng đang thuê (N khác nhau giữa các cơ sở, tối đa 6),
+            // đã thanh toán trước cả kỳ, có QR/PIN. Đếm theo số hợp đồng đã có nên chạy lại không tạo thêm.
+            var target = DemoFacilityOrderCounts.TryGetValue(code, out var n) ? n : 1;
+            var existing = await context.RentalContracts.CountAsync(c => c.CustomerId == renter.UserId && c.Unit.FacilityId == facility.FacilityId);
+            for (var slot = existing; slot < Math.Min(target, DemoOrderSlots.Length); slot++)
             {
-                var start = today.AddDays(-20);
+                var (typeKey, daysAgo, months) = DemoOrderSlots[slot];
+                var type = typeKey switch { "NormalL" => catalog.NormalL, "ColdM" => catalog.ColdM, "ColdL" => catalog.ColdL, _ => catalog.NormalM };
+                if (!rates.ContainsKey(type.UnitTypeId) || await FreeUnitAsync(type.UnitTypeId) is not StorageUnit unit) continue;
+
+                var start = today.AddDays(-daysAgo);
                 var paidAt = Utc(start.AddDays(-2), 10);
-                var reservation = NewReservation(renter, catalog.NormalM, start, 3, "UNIT_ASSIGNED", paidAt.AddMinutes(-30));
+                var reservation = NewReservation(renter, type, start, months, "UNIT_ASSIGNED", paidAt.AddMinutes(-30));
                 reservation.PaidAt = paidAt;
                 reservation.ExpiresAt = paidAt;
                 context.Reservations.Add(reservation);
@@ -165,28 +195,6 @@ public static partial class DbSeeder
                 {
                     UserId = null, Action = "CONTRACT_AUTO_ISSUED", EntityType = "CONTRACT", EntityId = contract.ContractId,
                     NewValue = JsonSerializer.Serialize(new { unit = unit.UnitNumber, demo = true }), LoggedAt = paidAt
-                });
-                await context.SaveChangesAsync();
-            }
-
-            // 2. Customer<MÃ>02: một đơn chờ thu tiền tại quầy còn hiệu lực (hết hạn cuối ngày nhận kho, như PayAtFacilityAsync)
-            var hasPending = await context.Reservations.AnyAsync(r => r.CustomerId == payer.UserId && r.FacilityId == facility.FacilityId
-                && r.Status == "PENDING_AT_FACILITY" && r.ExpiresAt > nowUtc);
-            if (!hasPending && rates.ContainsKey(catalog.NormalL.UnitTypeId) && await FreeUnitAsync(catalog.NormalL.UnitTypeId) is StorageUnit proposed)
-            {
-                var start = today.AddDays(3);
-                var reservation = NewReservation(payer, catalog.NormalL, start, 1, "PENDING_AT_FACILITY", nowUtc);
-                reservation.PaymentMethod = "AT_FACILITY";
-                reservation.ExpiresAt = Services.OpsRules.CalculateCounterHoldDeadlineUtc(start);
-                context.Reservations.Add(reservation);
-                await context.SaveChangesAsync();
-                Consent(payer, reservation, nowUtc);
-                // #2: ô hệ thống đã bố trí cho đơn (activity_logs UNIT_PROPOSED)
-                context.ActivityLogs.Add(new ActivityLog
-                {
-                    UserId = payer.UserId, Action = "UNIT_PROPOSED", EntityType = "RESERVATION", EntityId = reservation.ReservationId,
-                    NewValue = JsonSerializer.Serialize(new { unitId = proposed.UnitId, unit = proposed.UnitNumber, reason = "Dữ liệu demo #60" }),
-                    LoggedAt = nowUtc
                 });
                 await context.SaveChangesAsync();
             }
