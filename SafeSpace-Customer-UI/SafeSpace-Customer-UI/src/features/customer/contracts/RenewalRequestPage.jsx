@@ -43,13 +43,13 @@ export function RenewalRequestPage({ id }) {
     try {
       const res = await dispatch("REQUEST_RENEWAL", { contract_id: id, months, policy_consent: { version: String(version), acceptedAt: new Date().toISOString(), channel: "WEB" } });
       if (!res.ok) { setError(res.error); return; }
-      go(`sent?type=renew&contract=${encodeURIComponent(id)}`);
+      go("payments");
     } catch { setError("Chưa gửi được yêu cầu. Vui lòng kiểm tra kết nối và thử lại."); }
     finally { setBusy(false); }
   };
   return <main className="container page customer-records customer-detail">
     <p className="customer-records__breadcrumb">SafeSpace / Khách hàng / Kho của tôi / {id} / Gia hạn</p>
-    <PageHeader title={`Gia hạn kho ${c.unit_number}`} description="Gửi yêu cầu trước ngày hết hạn. Cơ sở duyệt và chốt giá, sau đó bạn thanh toán để kéo dài hợp đồng."><Tag tone="blue">Hết hạn {dateLabel(c.end_date)}</Tag></PageHeader>
+    <PageHeader title={`Gia hạn kho ${c.unit_number}`} description="Hệ thống tự động xác nhận gia hạn hợp lệ và mở thanh toán trực tiếp. Hợp đồng chỉ kéo dài sau khi thanh toán đủ."><Tag tone="blue">Hết hạn {dateLabel(c.end_date)}</Tag></PageHeader>
     <div className="customer-detail__grid">
       <form className="panel customer-detail__card" onSubmit={submit}>
         <h2>Kỳ gia hạn</h2>
@@ -64,12 +64,12 @@ export function RenewalRequestPage({ id }) {
         {policy.error && <Button variant="outline" onClick={policy.reload}>Tải lại chính sách</Button>}
         {blocked && <Notice>Không thể gửi thêm yêu cầu: hợp đồng đã hết hạn hoặc đang có yêu cầu gia hạn/trả kho chờ xử lý.</Notice>}
         {error && <Notice tone="error">{error}</Notice>}
-        <div className="customer-detail__actions"><LinkButton to={`units/${id}`} variant="outline">Quay lại hợp đồng</LinkButton><Button type="submit" disabled={busy || blocked || !accepted}>{busy ? "Đang gửi…" : "Gửi yêu cầu gia hạn"}</Button></div>
+        <div className="customer-detail__actions"><LinkButton to={`units/${id}`} variant="outline">Quay lại hợp đồng</LinkButton><Button type="submit" disabled={busy || blocked || !accepted}>{busy ? "Đang xác nhận…" : "Xác nhận gia hạn & mở thanh toán"}</Button></div>
       </form>
       <aside className="panel customer-detail__card customer-detail__sidebar">
         <h2>Chi phí dự kiến</h2>
         <DetailList items={[["Giá hiện tại", `${money(c.monthly_rate)} / tháng`], ["Số tháng", months], ["Tạm tính", money(months * c.monthly_rate)]]} />
-        <p className="hint">Giá chốt khi quản lý duyệt. Thanh toán trong 24 giờ sau khi duyệt và trước {dateLabel(c.end_date)}; hợp đồng chỉ kéo dài khi đã thanh toán đủ. Tiền cọc chuyển sang kỳ mới, không thu thêm.</p>
+        <p className="hint">Xác nhận tự động ngay khi bạn gửi và mở thanh toán trong 24 giờ, trước {dateLabel(c.end_date)}; hợp đồng chỉ kéo dài khi đã thanh toán đủ. Tiền cọc chuyển sang kỳ mới, không thu thêm.</p>
         <p className="visually-hidden" aria-live="polite">Ngày kết thúc mới dự kiến {dateLabel(newEnd)}</p>
       </aside>
     </div>

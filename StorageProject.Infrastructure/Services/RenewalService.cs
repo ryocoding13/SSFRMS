@@ -71,8 +71,12 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
             throw new ArgumentException("Thời gian gia hạn phải lớn hơn 0 tháng.");
         }
 
+        // Khoá theo hợp đồng để kiểm tra ô trống / giữ ô và tạo khoản thanh toán đồng bộ (Task #23: tự động duyệt không qua quản lý).
+        await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract:{contractId}", ct);
+
         var contract = await dbContext.RentalContracts
             .Include(c => c.Unit)
+            .Include(c => c.ReturnInspections)
             .Where(c => c.ContractId == contractId && c.CustomerId == customerId)
             .FirstOrDefaultAsync(ct)
             ?? throw new InvalidOperationException("Không tìm thấy hợp đồng hợp lệ.");
@@ -82,25 +86,22 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
             throw new InvalidOperationException($"Chỉ hợp đồng ở trạng thái 'ACTIVE' mới có thể gia hạn. Trạng thái hiện tại: {contract.Status}");
         }
 
-        // Vietnam time now
-        var vnToday = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        if (contract.ReturnInspections.Any(i => i.Status != "CANCELLED"))
+        {
+            throw new InvalidOperationException("Hợp đồng đang có yêu cầu trả kho, không thể gia hạn.");
+        }
+
+        var now = DateTime.UtcNow;
+        var vnToday = DateOnly.FromDateTime(now + TimeSpan.FromHours(7));
         if (contract.EndDate <= vnToday)
         {
             throw new InvalidOperationException("Hợp đồng đã đến hoặc quá ngày hết hạn, không thể gửi yêu cầu gia hạn.");
         }
 
-        // D46: gia hạn sang ô khác — kiểm ô khách chọn còn trống (cùng loại, hoặc loại đã đặt ban đầu sau nâng cấp D41).
-        RenewalUnitOptionDto? targetOption = null;
-        if (request.TargetUnitId is long targetUnitId)
+        var deadline = OpsRules.CalculateRenewalPaymentDeadlineUtc(now, contract.EndDate);
+        if (deadline <= now)
         {
-            if (await RenewalUnitMove.HasPendingMoveAsync(dbContext, contractId, ct))
-                throw new InvalidOperationException("Hợp đồng đang chuyển sang ô mới. Gửi gia hạn tiếp sau khi chuyển đồ xong.");
-            targetOption = await RenewalUnitMove.ValidateAsync(dbContext, contract, targetUnitId, ct);
-        }
-        // D41: ô đã có khách mới đặt trước từ ngày hết hạn → khoá gia hạn ô này (khách có thể chuyển sang ô khác còn trống)
-        else if (await UnitAvailability.NextBookingAsync(dbContext, contract, ct) is DateOnly bookedFrom)
-        {
-            throw new InvalidOperationException($"Ô đã có khách đặt từ {bookedFrom:dd/MM/yyyy}, không gia hạn được ô này. Liên hệ cơ sở để chuyển sang ô khác còn trống.");
+            throw new InvalidOperationException("Đã quá hạn gia hạn: hợp đồng hết hạn trước khi kịp thanh toán gia hạn.");
         }
 
         // Check if there is already a pending or approved renewal open
@@ -128,15 +129,30 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
             throw new InvalidOperationException("Phiên bản chính sách không còn hiệu lực. Vui lòng tải lại trang để chấp thuận bản mới nhất.");
         }
 
-        int? consentVersion = expectedVersion;
-        DateTime? consentAcceptedAt = DateTime.UtcNow;
+        // D46: gia hạn sang ô khác — kiểm ô khách chọn còn trống (cùng loại, hoặc loại đã đặt ban đầu sau nâng cấp D41).
+        RenewalUnitOptionDto? targetOption = null;
+        if (request.TargetUnitId is long targetUnitId)
+        {
+            if (await RenewalUnitMove.HasPendingMoveAsync(dbContext, contractId, ct))
+                throw new InvalidOperationException("Hợp đồng đang chuyển sang ô mới. Gửi gia hạn tiếp sau khi chuyển đồ xong.");
+            targetOption = await RenewalUnitMove.ValidateAsync(dbContext, contract, targetUnitId, ct);
+        }
+        // D41: ô đã có khách mới đặt trước từ ngày hết hạn → khoá gia hạn ô này (khách có thể chuyển sang ô khác còn trống)
+        else if (await UnitAvailability.NextBookingAsync(dbContext, contract, ct) is DateOnly bookedFrom)
+        {
+            throw new InvalidOperationException($"Ô đã có khách đặt từ {bookedFrom:dd/MM/yyyy}, không gia hạn được ô này. Liên hệ cơ sở để chuyển sang ô khác còn trống.");
+        }
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        int? consentVersion = expectedVersion;
+        DateTime? consentAcceptedAt = now;
+
+        var vnDate = DateOnly.FromDateTime(now + TimeSpan.FromHours(7));
         var activeRate = await dbContext.RentalRates
-            .Where(r => r.FacilityId == contract.Unit.FacilityId 
-                     && r.UnitTypeId == contract.Unit.UnitTypeId 
-                     && r.EffectiveFrom <= today 
-                     && (r.EffectiveTo == null || r.EffectiveTo >= today))
+            .Where(r => r.FacilityId == contract.Unit.FacilityId
+                     && r.UnitTypeId == contract.Unit.UnitTypeId
+                     && r.Status == "ACTIVE"
+                     && r.EffectiveFrom <= vnDate
+                     && (r.EffectiveTo == null || r.EffectiveTo >= vnDate))
             .OrderByDescending(r => r.EffectiveFrom)
             .FirstOrDefaultAsync(ct);
 
@@ -154,20 +170,47 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
             OldMonthlyRate = contract.AgreedMonthlyRate,
             NewMonthlyRate = newRate,
             RenewalAmount = renewalAmount,
-            Status = "PENDING",
-            RequestedAt = DateTime.UtcNow,
+            Status = "APPROVED",
+            RequestedAt = now,
+            ApprovedBy = null,
+            ApprovedAt = now,
+            PaymentDeadlineAt = deadline,
             PolicyVersion = consentVersion,
             AcceptedAt = consentAcceptedAt,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = now
         };
 
         dbContext.ContractRenewals.Add(renewal);
         await dbContext.SaveChangesAsync(ct);
+
+        var depositTopUp = 0m;
         if (targetOption != null)
         {
             RenewalUnitMove.Record(dbContext, contract, renewal, targetOption);
             await dbContext.SaveChangesAsync(ct);
+            var unitPlan = await RenewalUnitMove.PlanAsync(dbContext, renewal.RenewalId, ct);
+            if (unitPlan != null)
+            {
+                (newRate, depositTopUp) = await RenewalUnitMove.HoldAsync(dbContext, customerId, renewal, unitPlan, ct);
+                renewal.NewMonthlyRate = newRate;
+                renewal.RenewalAmount = newRate * renewal.RenewalPeriodMonths;
+            }
         }
+
+        var payment = new Payment
+        {
+            ContractId = contract.ContractId,
+            RenewalId = renewal.RenewalId,
+            PaymentType = "RENEWAL",
+            Amount = renewal.RenewalAmount + depositTopUp,
+            Currency = "VND",
+            PaymentMethod = "BANK_TRANSFER",
+            DueDate = renewal.OldEndDate,
+            Status = "PENDING",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        dbContext.Payments.Add(payment);
 
         if (consentVersion.HasValue)
         {
@@ -183,8 +226,29 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
                 AcceptedAt = consentAcceptedAt!.Value,
                 Channel = "WEB_CUSTOMER"
             });
-            await dbContext.SaveChangesAsync(ct);
         }
+
+        dbContext.ActivityLogs.Add(new ActivityLog
+        {
+            UserId = null,
+            EntityType = "RENEWAL",
+            EntityId = renewal.RenewalId,
+            Action = "RENEWAL_APPROVED",
+            NewValue = JsonSerializer.Serialize(new
+            {
+                renewal.RenewalId,
+                contractId = contract.ContractId,
+                amount = renewal.RenewalAmount,
+                depositTopUp,
+                paymentDeadlineAt = deadline,
+                newEndDate = renewal.NewEndDate.ToString("yyyy-MM-dd"),
+                autoApproved = true
+            }),
+            LoggedAt = now
+        });
+
+        await dbContext.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
         return new RenewalDto(
             renewal.RenewalId,
@@ -201,7 +265,7 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
             renewal.PaymentDeadlineAt,
             renewal.AppliedAt,
             renewal.ExpiredAt,
-            null,
+            payment.PaymentId,
             renewal.PolicyVersion,
             renewal.AcceptedAt
         );
@@ -478,77 +542,12 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
     /// <param name="renewalId">ID yêu cầu gia hạn.</param>
     /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     /// <returns>Thông tin gia hạn sau phê duyệt.</returns>
-    public async Task<RenewalDto> ApproveRenewalAsync(long userId, long renewalId, CancellationToken ct = default)
-    {
-        var userFacility = await dbContext.UserFacilities.AsNoTracking()
-            .FirstOrDefaultAsync(uf => uf.UserId == userId && uf.Status == "ACTIVE", ct)
-            ?? throw new UnauthorizedAccessException("Bạn chưa được phân công phụ trách cơ sở.");
-        var facilityOfRenewal = await dbContext.ContractRenewals.AsNoTracking()
-            .Where(r => r.RenewalId == renewalId).Select(r => (long?)r.Contract.Unit.FacilityId).FirstOrDefaultAsync(ct)
-            ?? throw new KeyNotFoundException("Không tìm thấy yêu cầu gia hạn.");
-        if (facilityOfRenewal != userFacility.FacilityId)
-            throw new UnauthorizedAccessException("Yêu cầu gia hạn không thuộc cơ sở do bạn phụ trách.");
+    public Task<RenewalDto> ApproveRenewalAsync(long userId, long renewalId, CancellationToken ct = default)
+        => throw new InvalidOperationException("Chức năng quản lý duyệt gia hạn đã bỏ. Hệ thống tự động xác nhận gia hạn hợp lệ để khách thanh toán trực tiếp.");
 
-        // M01: một đường duyệt chuẩn cho mọi route.
-        var (renewal, payment) = await RenewalApproval.ApproveAsync(dbContext, userId, renewalId, userFacility.FacilityId, ct);
-        return new RenewalDto(
-            renewal.RenewalId, renewal.ContractId, renewal.OldEndDate, renewal.NewEndDate, renewal.RenewalPeriodMonths,
-            renewal.OldMonthlyRate, renewal.NewMonthlyRate, renewal.RenewalAmount, renewal.Status, renewal.RequestedAt,
-            renewal.ApprovedAt, renewal.PaymentDeadlineAt, renewal.AppliedAt, renewal.ExpiredAt, payment.PaymentId,
-            renewal.PolicyVersion, renewal.AcceptedAt);
-    }
-
-    /// <summary>
-    /// Từ chối yêu cầu gia hạn hợp đồng (M03) kèm lý do.
-    /// </summary>
-    /// <param name="userId">ID Quản lý thực hiện.</param>
-    /// <param name="renewalId">ID yêu cầu gia hạn.</param>
-    /// <param name="reason">Lý do từ chối gửi cho khách.</param>
-    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
-    public async Task RejectRenewalAsync(long userId, long renewalId, string reason, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(reason))
-        {
-            throw new ArgumentException("Nhập lý do từ chối để gửi cho khách hàng.");
-        }
-
-        var renewal = await dbContext.ContractRenewals
-            .Include(r => r.Contract).ThenInclude(c => c.Unit)
-            .FirstOrDefaultAsync(r => r.RenewalId == renewalId, ct)
-            ?? throw new KeyNotFoundException("Không tìm thấy yêu cầu gia hạn.");
-
-        var userFacility = await dbContext.UserFacilities
-            .AsNoTracking()
-            .FirstOrDefaultAsync(uf => uf.UserId == userId && uf.Status == "ACTIVE", ct)
-            ?? throw new UnauthorizedAccessException("Bạn chưa được phân công phụ trách cơ sở.");
-
-        if (renewal.Contract.Unit.FacilityId != userFacility.FacilityId)
-        {
-            throw new UnauthorizedAccessException("Yêu cầu gia hạn không thuộc cơ sở do bạn phụ trách.");
-        }
-
-        if (renewal.Status != "PENDING")
-        {
-            throw new InvalidOperationException("Yêu cầu này đã được xử lý.");
-        }
-
-        var now = DateTime.UtcNow;
-        renewal.Status = "REJECTED";
-        renewal.ApprovedBy = userId;
-        renewal.ApprovedAt = now;
-
-        dbContext.ActivityLogs.Add(new ActivityLog
-        {
-            UserId = userId,
-            EntityType = "RENEWAL",
-            EntityId = renewal.RenewalId,
-            Action = "RENEWAL_REJECTED",
-            NewValue = JsonSerializer.Serialize(new { renewal.RenewalId, reason }),
-            LoggedAt = now
-        });
-
-        await dbContext.SaveChangesAsync(ct);
-    }
+    /// <summary>Khóa luồng từ chối gia hạn thủ công sau Task #23.</summary>
+    public Task RejectRenewalAsync(long userId, long renewalId, string reason, CancellationToken ct = default)
+        => throw new InvalidOperationException("Chức năng quản lý duyệt gia hạn đã bỏ. Hệ thống tự động xác nhận gia hạn hợp lệ để khách thanh toán trực tiếp.");
 
     /// <summary>
     /// Khách hàng tự huỷ yêu cầu gia hạn khi yêu cầu vẫn còn ở trạng thái PENDING chờ duyệt (L5).

@@ -48,7 +48,7 @@ export default function FacilityDetailPage({ id, query }) {
     if (!getFacilityUnits || !facility || view !== "map") return undefined;
     let alive = true;
     (async () => {
-      const list = await getFacilityUnits(facility.facility_id);
+      const list = await getFacilityUnits(facility.facility_id, { startDate: start, months });
       if (alive && Array.isArray(list)) {
         setRealUnits(list);
       }
@@ -56,7 +56,7 @@ export default function FacilityDetailPage({ id, query }) {
     return () => {
       alive = false;
     };
-  }, [getFacilityUnits, facility?.facility_id, view]);
+  }, [getFacilityUnits, facility?.facility_id, view, start, months]);
 
 
   // Giữ trạng thái xem trên URL (không cuộn lên đầu trang như khi đổi hash)
@@ -142,13 +142,15 @@ export default function FacilityDetailPage({ id, query }) {
   const types = offerTypes(facility);
   const sizes = facility.offers.filter((o) => o.type === offer?.type);
   const q = quote({ offer, months, start_date: start });
-  const unitBlocked = Boolean(unit && unit.status !== "FREE");
+  const unitBlocked = Boolean(unit && unit.bookable_for_period === false);
   const soldOut = stock && !stock.available;
 
-  // Ở chế độ sơ đồ, đổi loại kho / diện tích sẽ chọn ô còn trống khớp lựa chọn (nếu có)
+  // Ở chế độ sơ đồ, đổi loại kho / diện tích sẽ ưu tiên ô trống hôm nay, hoặc ô khả dụng trong kỳ đang tìm
   const pickUnitFor = (key) => {
     if (view !== "map") return;
-    const hit = units.find((u) => u.offer_key === key && u.status === "FREE");
+    const hit =
+      units.find((u) => u.offer_key === key && u.status === "FREE") ||
+      units.find((u) => u.offer_key === key && u.bookable_for_period);
     if (hit) setUnitCode(hit.code);
   };
   const changeType = (type) => {
@@ -162,7 +164,7 @@ export default function FacilityDetailPage({ id, query }) {
   const proceed = async () => {
     setError("");
     if (!offer) return setError("Cơ sở này chưa có loại kho phù hợp.");
-    if (unitBlocked) return setError("Ô này hiện không khả dụng. Vui lòng chọn một ô còn trống (màu xanh) trên sơ đồ.");
+    if (unitBlocked) return setError(unit.period_unavailable_reason || "Ô này hiện không khả dụng trong kỳ đã chọn. Vui lòng chọn ô khả dụng hoặc đổi ngày bắt đầu.");
     if (!authed)
       return go(`login?next=${encodeURIComponent(`find/${facility.facility_id}${qs({ offer: offer.key, months, start, view: unit ? "map" : "", unit: unit?.code })}`)}`);
     setBusy(true);
@@ -237,8 +239,24 @@ export default function FacilityDetailPage({ id, query }) {
             <div className="booking__unit">
               <p className="booking__eyebrow">Ô ĐANG CHỌN</p>
               <h2>Ô kho {unit.code} · {unit.position}</h2>
-              <p className={`unit-badge unit-badge--${UNIT_STATUS[unit.status].tone}`}>{UNIT_STATUS[unit.status].label}</p>
-              {unit.status !== "FREE" && (unit.overdue ? <p className="hint">Ô đang quá hạn trả, chưa nhận đặt trước.</p> : unit.free_from ? <p className="hint">Trống từ {dateLabel(unit.free_from)} · đặt trước được từ ngày này.</p> : null)}
+              <p className={`unit-badge unit-badge--${UNIT_STATUS[unit.status].tone}`}>
+                Hiện tại: {UNIT_STATUS[unit.status].label}
+              </p>
+              {unit.current_contract_end_date && (
+                <p className="hint">Ngày hết hạn dự kiến: <strong>{dateLabel(unit.current_contract_end_date)}</strong></p>
+              )}
+              {unit.bookable_for_period ? (
+                <p className="unit-badge unit-badge--free">
+                  Khả dụng trong kỳ ({dateLabel(start)} – {dateLabel(q?.end_date)})
+                </p>
+              ) : (
+                <p className="hint">
+                  {unit.period_unavailable_reason || (unit.overdue ? "Ô đang quá hạn trả, chưa nhận đặt trước." : unit.free_from ? `Trống từ ${dateLabel(unit.free_from)} · đặt trước được từ ngày này.` : "Không khả dụng trong khoảng ngày đang tìm.")}
+                </p>
+              )}
+              {unit.status !== "FREE" && unit.free_from && unit.bookable_for_period && (
+                <p className="hint">Trống từ {dateLabel(unit.free_from)} · đặt trước được từ ngày bạn chọn.</p>
+              )}
             </div>
           )}
           {offer ? (
@@ -275,7 +293,7 @@ export default function FacilityDetailPage({ id, query }) {
               <p className="hint hint--tight">Kết thúc dự kiến: {dateLabel(q.end_date)}</p>
               <h4>Chi phí dự kiến</h4>
               {unitBlocked ? (
-                <p className="muted">Chọn một ô còn trống (màu xanh) trên sơ đồ để xem chi phí dự kiến.</p>
+                <p className="muted">Chọn một ô khả dụng trong kỳ hoặc đổi ngày bắt đầu để xem chi phí dự kiến.</p>
               ) : (
                 <dl className="cost">
                   <div><dt>Tiền thuê {months} tháng</dt><dd>{money(q.rent_total)}</dd></div>
@@ -293,7 +311,7 @@ export default function FacilityDetailPage({ id, query }) {
           <div className="booking__actions">
             {offer && (
               <Button onClick={proceed} disabled={busy || soldOut || unitBlocked} className={unitBlocked ? "btn--muted" : ""}>
-                {unitBlocked ? "Ô này hiện không khả dụng" : busy ? "Đang tạo đơn…" : "Tiếp tục đặt chỗ"}
+                {unitBlocked ? "Không khả dụng trong kỳ này" : busy ? "Đang tạo đơn…" : "Tiếp tục đặt chỗ"}
               </Button>
             )}
             <a className="btn btn--outline" href={href(`find${qs({ type: query.get("type"), band: query.get("band") })}`)}>Chọn cơ sở khác</a>

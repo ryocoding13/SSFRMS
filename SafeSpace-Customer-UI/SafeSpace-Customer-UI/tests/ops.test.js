@@ -58,14 +58,10 @@ test("D32: chốt trả kho tạo chờ hoàn, không trừ trường công nợ
   assert.equal(out.state.units.find((u) => u.code === "K04").status, "EMPTY");
 });
 
-test("duyệt / từ chối gia hạn; từ chối bắt buộc có lý do", () => {
+test("quản lý không còn duyệt / từ chối gia hạn thủ công (#23)", () => {
   let s = createOpsData(T);
-  assert.ok(run(s, "DECIDE_RENEWAL", { id: "GH-0077", approve: false }).error);
-  s = run(s, "DECIDE_RENEWAL", { id: "GH-0077", approve: false, reason: "Kho đã có đơn đặt trước" }).state;
-  assert.equal(s.contracts.find((c) => c.id === "HĐ-0077").state, "RESOLVED");
-  s = run(s, "DECIDE_RENEWAL", { id: "GH-0208", approve: true }).state;
-  const r = s.renewals.find((x) => x.id === "GH-0208");
-  assert.equal(s.units.find((u) => u.code === "K02").end, r.to);
+  assert.match(run(s, "DECIDE_RENEWAL", { id: "GH-0077", approve: false, reason: "Không dùng nữa" }).error.message, /đã bỏ/);
+  assert.match(run(s, "DECIDE_RENEWAL", { id: "GH-0208", approve: true }).error.message, /đã bỏ/);
 });
 
 test("phân công việc hỗ trợ cho nhân viên → yêu cầu chuyển sang đang xử lý", () => {

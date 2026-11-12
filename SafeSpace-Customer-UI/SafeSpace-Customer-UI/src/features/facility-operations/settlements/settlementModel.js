@@ -14,7 +14,13 @@ export function actualVnTime(value,now=new Date()) {
 export function transferProof(item,payload,now=new Date()) {
  if(!item||item.status!=="PENDING"||!knownMoney(item.amount)||item.amount<=0)throw new Error("Khoản hoàn chưa có số tiền hợp lệ hoặc không còn chờ xử lý.");
  if(!item.customer)throw new Error("Thiếu tên khách trên hợp đồng.");
- const isCash = payload.method === "CASH" || item.method === "CASH" || item.bankName === "CASH";
+ const customerIsCash = item.method === "CASH" || item.bankName === "CASH";
+ if (payload.method && payload.method !== (customerIsCash ? "CASH" : "BANK_TRANSFER")) {
+  throw new Error(customerIsCash
+   ? "Khách chọn nhận tiền mặt tại quầy. Duyệt chi tiền mặt, không ghi chuyển khoản."
+   : "Khách đã chọn nhận chuyển khoản ngân hàng. Không thể đổi sang tiền mặt.");
+ }
+ const isCash = customerIsCash;
  if (!isCash) {
   const error=validateRefundBank({bankName:item.bankName,accountNumber:item.accountNumber,accountHolder:item.accountHolder},item.customer);if(error)throw new Error(error);
  }
@@ -35,14 +41,21 @@ export function validateInspection(ret,report,files=[]) {
  if(["items","walls","keys","proposal"].some(k=>!String(report[k]||"").trim()))throw new Error("Điền đủ bốn mục kiểm kê.");
  if(!knownMoney(report.damage_fee)||!Number.isSafeInteger(report.damage_fee))throw new Error("Khấu trừ hư hỏng phải là số tiền nguyên không âm.");
  validateDamageFiles(files);
- if(report.damage_fee>0&&(!files.length||!String(report.damage_item||"").trim()))throw new Error("Hư hỏng cần hạng mục và ảnh bằng chứng.");
+ if(!files.length)throw new Error("Vui lòng tải ít nhất 1 ảnh hiện trạng kho khi kiểm tra trả kho.");
+ if(report.damage_fee>0&&!String(report.damage_item||"").trim())throw new Error("Hư hỏng cần hạng mục và ảnh bằng chứng.");
  if((report.damage_fee>0||report.cleaning_required)&&!String(report.fee_reason||"").trim())throw new Error("Nhập lý do khấu trừ.");
  if((report.damage_fee>0||report.cleaning_required)&&report.proposal==="Sẵn sàng cho thuê lại")throw new Error("Kho cần vệ sinh hoặc sửa phải chờ kiểm tra/bảo trì.");
 }
 export function canFinalizeReturn(board,contract,ret) {
  if(!contract||contract.state!=="RETURNED"||!ret||ret.status!=="SUBMITTED")return false;
- if(board.damage_cases_pending?.some(c=>(c.contractId||c.contract_id)===contract.id))return false;
+ if(board?.damage_cases_pending?.some(c=>(c.contractId||c.contract_id)===contract.id))return false;
+ if(["WAITING","SELF_CLEAN","SELF_REPLACE","SELF_REMEDY","DISPUTE"].includes(ret.deduction_status))return false;
  return ret.damage_workflow_resolved!==false;
+}
+export function isReturnSettlementReady(board,contract) {
+ if(!contract||contract.state!=="RETURNED")return false;
+ const ret=board?.returns?.find(r=>r.contract===contract.id);
+ return canFinalizeReturn(board,contract,ret);
 }
 export function opsMutationCheck(type,payload,ops,source,role) {
  const staff=["VERIFY_CUSTOMER","RECORD_KEY_RECEIPT","SUBMIT_RETURN"].includes(type),manager=["CONFIRM_REFUND","CONFIRM_RESERVATION_REFUND","CONFIRM_DEPOSIT_REFUND"].includes(type);

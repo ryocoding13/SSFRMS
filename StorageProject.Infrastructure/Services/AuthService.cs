@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -17,6 +18,7 @@ namespace StorageProject.Infrastructure.Services;
 /// </summary>
 public class AuthService(AppDbContext dbContext, IConfiguration configuration) : IAuthService
 {
+    private static readonly Regex EmailPattern = new(@"\A[^\s@]+@[^\s@]+\.[^\s@]+\z");
     /// <summary>
     /// Đăng ký tài khoản khách hàng mới vào hệ thống (mặc định gán vai trò CUSTOMER và trạng thái ACTIVE).
     /// </summary>
@@ -281,6 +283,24 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
         if (request.Phone != null)
         {
             user.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
+        }
+
+        if (request.Email != null)
+        {
+            var email = request.Email.Trim();
+            if (email.Length == 0 || email.Length > 150 || !EmailPattern.IsMatch(email))
+            {
+                throw new ArgumentException("Email chưa đúng định dạng.");
+            }
+            var normalizedEmail = email.ToUpperInvariant();
+            var emailInUse = await dbContext.Users.AnyAsync(
+                u => u.UserId != userId && (u.Email.ToUpper() == normalizedEmail || u.Username.ToUpper() == normalizedEmail),
+                ct);
+            if (emailInUse)
+            {
+                throw new InvalidOperationException("Email này đã được sử dụng cho tài khoản khác.");
+            }
+            user.Email = email;
         }
 
         user.UpdatedAt = DateTime.UtcNow;

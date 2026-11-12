@@ -232,9 +232,9 @@ public class ContractService(AppDbContext dbContext) : IContractService
     /// <returns>Kết quả đăng ký lịch trả kho và tạo biên bản kiểm tra.</returns>
     public async Task<MoveOutResponseDto> RegisterMoveOutAsync(long customerId, long contractId, MoveOutRequest request, CancellationToken ct = default)
     {
-        // D32 / T08: kiểm toàn bộ dữ liệu khách gửi trước khi ghi (ảnh kho trống bắt buộc, đã chuyển hết đồ).
+        // Task #8: bỏ bắt buộc ảnh kho trống khi khách gửi yêu cầu trả kho (ảnh là tuỳ chọn); vẫn bắt buộc xác nhận đã dọn hết đồ.
         if (request.Emptied != true) throw new ArgumentException("Vui lòng xác nhận đã chuyển hết đồ ra khỏi kho.");
-        var photos = EvidencePhotos.Decode(request.Photos, required: true, what: "kho trống");
+        var photos = EvidencePhotos.Decode(request.Photos, required: false, what: "kho trống");
         var today = OpsRules.TodayLocal;
         if (request.Date < today) throw new ArgumentException("Ngày trả kho phải từ hôm nay trở đi.");
         var note = (request.Note ?? string.Empty).Trim();

@@ -40,7 +40,7 @@ test("PayOS đặt chỗ: tạo QR → webhook → đơn đã thanh toán; huỷ
 
     const preview = normCancelPreview((await call("GET", `/api/reservations/${r.reservationId}/cancel-preview`, undefined, t)).data);
     assert.equal(preview.paid, r.estimatedAmount + r.requiredDeposit);
-    assert.equal(preview.refund, preview.paid - Math.round(r.estimatedAmount * 0.1));
+    assert.equal(preview.refund, preview.paid);
     assert.equal((await call("POST", `/api/reservations/${r.reservationId}/cancel`, { reason: "Đổi kế hoạch" }, t)).status, 200);
     const list = (await call("GET", "/api/reservations", undefined, t)).data;
     const d = composeData({ catalog: { facilities: [], unitTypes: [] }, remote: { reservations: list, reservationDetails: {}, contracts: [], tickets: [] }, overlay: {}, session: { user: { userId: 3 } }, timeoutSeconds: 600 });

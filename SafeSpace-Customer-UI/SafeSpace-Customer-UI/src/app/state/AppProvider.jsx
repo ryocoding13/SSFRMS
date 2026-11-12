@@ -14,7 +14,7 @@ import { isReturnFee, NO_RETURN_COLLECTION } from "../../shared/utils/returnPoli
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { customerNotifications } from "../../features/customer/notifications/customerNotifications.js";
 import { submitCancellation, submitReturnRequest } from "../../shared/api/refundRequestApi.js";
-import { RETURN_SLOTS, readPhotoData, verifyPhotoFile } from "../../shared/utils/refundRequest.js";
+import { readPhotoData, verifyPhotoFile } from "../../shared/utils/refundRequest.js";
 import { submitRenewalWithConsent } from "../../shared/api/renewalConsentApi.js";
 import { api } from "../../shared/api/customerApi.js";
 import { ApiError, setToken } from "../../shared/api/httpClient.js";
@@ -647,7 +647,7 @@ function ApiProvider({ children }) {
             if (!r) return fail("Không tìm thấy đơn đặt chỗ.", "NOT_FOUND");
             const paid = r.status === "CONFIRMED";
             if (paid && r.start_date && r.start_date <= localDate(new Date())) return fail("Đã đến ngày bắt đầu thuê. Vui lòng sử dụng quy trình trả kho.");
-            if (paid && p.bankConfirmed !== true) return fail("Vui lòng xác nhận tài khoản chính chủ.");
+            if (paid && p.bankConfirmed !== true) return fail("Vui lòng xác nhận thông tin nhận hoàn.");
             const contract = d.contracts.find(c => c.reservation_id === r.reservation_id);
             await submitCancellation(api, r.api_id, p.reason || "Khách hàng huỷ đặt chỗ", p.bank, paid, contract?.customer_name || r.customer_name);
             await loadCustomer();
@@ -658,15 +658,15 @@ function ApiProvider({ children }) {
             if (!c) return fail("Không tìm thấy hợp đồng.");
             const months = Number(p.months);
             if (!RENTAL_PLANS.includes(months)) return fail("Gói gia hạn chỉ gồm 1, 3 hoặc 6 tháng.");
-            if (pendingRenewal(d, c.contract_id)) return fail("Đã có yêu cầu gia hạn đang chờ cơ sở duyệt.");
+            if (pendingRenewal(d, c.contract_id)) return fail("Hợp đồng đã có yêu cầu gia hạn đang chờ thanh toán.");
             if (pendingReturn(d, c.contract_id)) return fail("Hợp đồng đang có yêu cầu trả kho.");
             if (c.status === "ENDED" || c.end_date <= localDate(new Date())) return fail("Hợp đồng đã hết hạn, không thể gửi gia hạn.");
             const { dto, acknowledged } = await submitRenewalWithConsent(api, c.api_id, months, p.policy_consent);
             if (!acknowledged) {
               await loadCustomer();
-              return fail("Máy chủ đã nhận yêu cầu nhưng chưa xác nhận bằng chứng đồng ý. Kiểm tra Theo dõi gia hạn hoặc liên hệ cơ sở trước khi gửi lại.");
+              return fail("Máy chủ đã nhận gia hạn nhưng chưa xác nhận bằng chứng đồng ý. Kiểm tra Theo dõi gia hạn hoặc liên hệ cơ sở trước khi gửi lại.");
             }
-            remember("Đã gửi yêu cầu gia hạn", `Kho ${c.unit_number} · chờ cơ sở duyệt.`, `units/${c.contract_id}`, `Yêu cầu gia hạn ${c.unit_number} đã gửi — chờ duyệt`);
+            remember("Gia hạn đã được xác nhận", `Kho ${c.unit_number} · mở thanh toán để kéo dài hợp đồng.`, "payments", `Gia hạn ${c.unit_number} đã xác nhận — chờ thanh toán`);
             await loadCustomer();
             return { ok: true, renewal_id: `GH-${String(dto.renewalId).padStart(4, "0")}` };
           }
@@ -686,14 +686,14 @@ function ApiProvider({ children }) {
             const title = ticketTitle(p);
             if (p.topic === "OTHER" && (!title || title.length > 100)) return fail("Chủ đề của bạn phải có từ 1 đến 100 ký tự.");
             const description = String(p.description || "").trim();
-            if (!description) return fail("Vui lòng mô tả vấn đề.");
             if (description.length > 1000) return fail("Mô tả không quá 1000 ký tự.");
             const c = d.contracts.find((x) => x.contract_id === p.contract_id);
             if (!c) return fail("Cần có hợp đồng thuê kho để gửi yêu cầu hỗ trợ. Vui lòng chọn kho liên quan.");
-            // D35: ảnh thật (JPG/PNG, tối đa 3) kiểm chữ ký tệp trước khi gửi; D36: giờ muốn nhận chìa khóa
+            // D35 / Task #5: ảnh không bắt buộc; Task #6: KEY_PICKUP gửi ngày muốn nhận chìa khóa (không giờ)
             const files = (p.photos || []).slice(0, 3);
             for (const file of files) await verifyPhotoFile(file);
             const photos = await Promise.all(files.map(readPhotoData));
+            const keyDate = p.topic === "KEY_PICKUP" ? (p.preferred_date || "") : "";
             const dto = await api.createTicket({
               contractId: c.api_id,
               unitId: null,
@@ -702,7 +702,7 @@ function ApiProvider({ children }) {
               description,
               priority: ["ACCESS", "LOCK"].includes(p.topic) ? "HIGH" : "NORMAL",
               ...(photos.length ? { photos } : {}),
-              ...(p.topic === "KEY_PICKUP" && p.preferred_at ? { preferredAt: `${p.preferred_at}:00` } : {}),
+              ...(keyDate ? { preferredDate: keyDate } : {}),
             });
             const names = (p.attachments || []).slice(0, 3);
             if (names.length) updateOverlay((o) => ({ ...o, attachments: { ...o.attachments, [dto.ticketId]: names } }));
@@ -730,11 +730,12 @@ function ApiProvider({ children }) {
             const current = refs.current.session;
             if (!current) return fail("Vui lòng đăng nhập lại.");
             const body = { fullName: String(p.name || "").trim() };
-            // Backend: Phone = null thì giữ nguyên số cũ, chuỗi rỗng thì xoá số
+            // Backend: Phone = null thì giữ nguyên số cũ, chuỗi rỗng thì xoá số; Email = null thì giữ email cũ.
             if (p.phone !== undefined) body.phone = String(p.phone || "").replace(/[\s.-]/g, "");
+            if (p.email !== undefined) body.email = String(p.email || "").trim();
             const profile = await api.updateProfile(body);
             if (!applyProfile(profile, current)) return fail("Phiên đăng nhập đã thay đổi. Vui lòng thử lại.");
-            return { ok: true, name: profile.fullName, phone: profile.phone ?? body.phone };
+            return { ok: true, name: profile.fullName, email: profile.email ?? body.email, phone: profile.phone ?? body.phone };
           }
           case "REQUEST_RETURN": {
             const c = d.contracts.find((x) => x.contract_id === p.contract_id);
@@ -743,9 +744,8 @@ function ApiProvider({ children }) {
             if (["ENDED", "RETURN_PENDING"].includes(c.status) || c.start_date > localDate(new Date())) return fail("Hợp đồng chưa thể đăng ký trả kho.");
             if (pendingReturn(d, c.contract_id)) return fail("Đã có yêu cầu trả kho.");
             if (!/^\d{4}-\d{2}-\d{2}$/.test(p.date || "") || p.date < localDate(new Date())) return fail("Ngày hẹn không được ở quá khứ.");
-            if (!RETURN_SLOTS.includes(p.slot)) return fail("Vui lòng chọn khung giờ hợp lệ.");
             const res = await submitReturnRequest(api, c.api_id, p, c.customer_name);
-            remember("Đã đặt lịch trả kho", `Kho ${c.unit_number} · ${p.date} (${p.slot || "giờ hành chính"})`, `units/${c.contract_id}`, `Lịch trả kho ${c.unit_number} đã được ghi nhận`);
+            remember("Đã đặt lịch trả kho", `Kho ${c.unit_number} · ngày ${p.date}`, `units/${c.contract_id}`, `Yêu cầu trả kho ${c.unit_number} đã được ghi nhận`);
             try {
               await loadCustomer();
             } catch {
@@ -790,9 +790,9 @@ function ApiProvider({ children }) {
     }
   }, []);
 
-  const getFacilityUnits = useCallback(async (facilityId) => {
+  const getFacilityUnits = useCallback(async (facilityId, params) => {
     try {
-      return await api.facilityUnits(facilityId);
+      return await api.facilityUnits(facilityId, params);
     } catch {
       return null;
     }

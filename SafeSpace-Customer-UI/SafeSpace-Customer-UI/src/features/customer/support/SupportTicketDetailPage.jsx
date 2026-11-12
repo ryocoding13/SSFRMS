@@ -49,7 +49,7 @@ export default function SupportTicketDetailPage({ id }) {
       <Button variant="outline" onClick={retry}>Cập nhật yêu cầu</Button>
       <ol className="support-timeline">
         <TimelineStep title="Đã gửi yêu cầu" at={ticket.created_at} by="Bạn">
-          <p className="support-description">{ticket.description}</p>
+          {ticket.description && <p className="support-description">{ticket.description}</p>}
           {ticket.attachments?.length > 0 && <div className="support-attachments"><strong>Ảnh đính kèm ({ticket.attachments.length})</strong><ul>{ticket.attachments.map((name, i) => <li key={i}>{name}</li>)}</ul></div>}
         </TimelineStep>
         <TimelineStep title="Nhân viên tiếp nhận" at={ticket.assigned_at} pending={!ticket.assigned_at} by={!ticket.assigned_at ? "Chưa có thời gian tiếp nhận" : null} />

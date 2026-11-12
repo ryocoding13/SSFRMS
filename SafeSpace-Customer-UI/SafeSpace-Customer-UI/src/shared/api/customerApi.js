@@ -15,7 +15,13 @@ export const api = {
   unitTypes: () => request("/api/unit-types", { auth: false }),
   rates: () => request("/api/rates", { auth: false }),
   availability: (body) => request("/api/availability/check", { method: "POST", body, auth: false }),
-  facilityUnits: (facilityId) => request(`/api/facilities/${facilityId}/units`, { auth: false }),
+  facilityUnits: (facilityId, params = {}) => {
+    const query = new URLSearchParams();
+    if (params.startDate) query.set("startDate", params.startDate);
+    if (params.months != null) query.set("months", String(params.months));
+    const qs = query.toString();
+    return request(`/api/facilities/${facilityId}/units${qs ? `?${qs}` : ""}`, { auth: false });
+  },
 
   // Đặt chỗ
   reservations: () => request("/api/reservations"),

@@ -4,9 +4,9 @@ export const NO_RETURN_COLLECTION = "Phí trả kho chỉ khấu trừ trong ti�
 export const isReturnFee = row => Boolean(row?.fee) || ["DAMAGE_FEE", "CLEANING_FEE", "OVERDUE_FEE"].includes(row?.kind);
 export const canPayLedger = row => !isReturnFee(row) && row?.kind === "RENEWAL" && row?.payable && row?.status === "UNPAID";
 export const cleaningFee = (deposit, required) => required ? Math.round(Number(deposit) * CLEANING_DEPOSIT_RATE) : 0;
-// D27/D32 · Trả kho trước ngày hết hạn (sau StartDate): giữ 30% cọc thay cho phí vệ sinh/quá hạn cố định,
-// hoàn tiền thuê các tháng chưa bắt đầu. Bám RefundPolicy.Calculate (BE); số chính thức do BE chốt ở M07.
-export const EARLY_STOP_KEEP_RATE = 0.3;
+// D49 · Trả kho sớm sau StartDate: hoàn 100% cọc nếu đạt chuẩn vệ sinh và không hư hỏng/quá hạn
+// (nếu có vi phạm vệ sinh/hư hỏng/quá hạn thì trừ vào cọc như trả kho khi đến hạn) + hoàn tiền thuê tháng chưa bắt đầu.
+export const EARLY_STOP_KEEP_RATE = 0;
 const addMonthsIso = (iso, n) => { const [y, m, d] = String(iso).split("-").map(Number); const t = new Date(Date.UTC(y, m - 1 + n, 1)); const last = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate(); t.setUTCDate(Math.min(d, last)); return t.toISOString().slice(0, 10); };
 export const isEarlyStop = (endDate, moveOutDate) => Boolean(endDate && moveOutDate && moveOutDate < endDate);
 export const earlyStopKeep = deposit => Math.round(Math.max(0, Number(deposit) || 0) * EARLY_STOP_KEEP_RATE);

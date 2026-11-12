@@ -35,7 +35,13 @@ test("D32: kiểm kê tính vệ sinh cố định, chốt chỉ PENDING và gi�
   const a=reduceOps(state,{type:"SUBMIT_RETURN",payload:{id:ret.id,report:{items:"Trống",walls:"Bẩn",keys:"Đủ",proposal:"Sẵn sàng cho thuê lại",cleaning_required:true,cleaning_fee:999999,damage_fee:0,fee_reason:"Vệ sinh"}}});
   assert.ifError(a.error);
   assert.equal(a.state.returns[0].report.cleaning_fee,Math.round(ret.deposit*.1));
-  const b=reduceOps(a.state,{type:"CONFIRM_REFUND",payload:{id:ret.contract}});
+  assert.ok(reduceOps(a.state,{type:"CONFIRM_REFUND",payload:{id:ret.contract}}).error);
+  const agreedState = {
+    ...a.state,
+    returns: a.state.returns.map((r) => (r.id === ret.id ? { ...r, deduction_status: "AGREED", damage_workflow_resolved: true } : r)),
+    contracts: a.state.contracts.map((c) => (c.id === ret.contract ? { ...c, state: "RETURNED" } : c)),
+  };
+  const b=reduceOps(agreedState,{type:"CONFIRM_REFUND",payload:{id:ret.contract}});
   assert.ifError(b.error); assert.equal(b.result.refundStatus,"PENDING");
   assert.equal(b.state.units.find(u=>u.code===ret.unit).status,"MAINTENANCE");
   assert.ok(reduceOps(b.state,{type:"CONFIRM_REFUND",payload:{id:ret.contract}}).error);
@@ -106,7 +112,7 @@ test("badge nhân viên và quản lý hiển thị đúng cho tất cả các t
   const opsManager = {
     allocations: [{ status: "PENDING" }],
     assignments: [{ status: "OPEN" }],
-    renewals: [{ status: "PENDING" }],
+    renewals: [{ status: "APPROVED" }],
     contracts: [{ state: "OVERDUE" }],
     refunds: [{ status: "PENDING" }],
     deposit_refunds: [{ status: "PENDING" }],
@@ -118,14 +124,14 @@ test("badge nhân viên và quản lý hiển thị đúng cho tất cả các t
   const mgrBadges = pendingTaskCounts(opsManager, "MANAGER", {});
   assert.equal(mgrBadges["manager/allocate"], 1);
   assert.equal(mgrBadges["manager/assign"], 1);
-  assert.equal(mgrBadges["manager/renewals"], 1);
+  assert.equal(mgrBadges["manager/renewals"], undefined);
   assert.equal(mgrBadges["manager/cash-refunds"], 1);
   assert.equal(mgrBadges["manager/deposit-refunds"], 1);
   assert.equal(mgrBadges["manager/unit-conflicts"], 1);
   assert.equal(mgrBadges["manager/overdue"], 1);
   assert.equal(mgrBadges["manager/refunds"], 1);
   assert.equal(mgrBadges["manager/contracts"], 6); // 1 overdue + 1 refund + 1 dep refund + 1 cash waiting + 1 conflict + 1 overdue case
-  assert.equal(mgrBadges["manager"], 9); // 1 + 1 + 1 + 6
+  assert.equal(mgrBadges["manager"], 8); // 1 + 1 + 6
 });
 
 test("badge khách hàng: nút Thanh toán & lịch hẹn hiển thị số khoản cần thanh toán", () => {

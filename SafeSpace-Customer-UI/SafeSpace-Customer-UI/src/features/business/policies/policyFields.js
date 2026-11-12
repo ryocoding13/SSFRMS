@@ -83,7 +83,7 @@ export const GUIDELINE_SECTIONS = [
       { key: 'refund', label: 'Thời gian hoàn trả tiền cọc', value: '3–5 ngày làm việc', type: 'RETURN', hint: 'Hoàn trả chuyển khoản sau khi hoàn tất kiểm tra và trừ các khoản phí (nếu có).' },
       { key: 'inspection', label: 'Thời gian kiểm tra khi trả kho', value: 'Trong vòng 24 giờ', type: 'RETURN', hint: 'Nhân viên hoàn tất kiểm kê hiện trạng kho sau khi khách hàng bàn giao.' },
       { key: 'renewals', label: 'Số lần gia hạn hợp đồng', value: 'Không giới hạn', type: 'RENEWAL', hint: 'Khách hàng có thể gia hạn nhiều lần nếu ô kho chưa có người khác đặt trước.' },
-      { key: 'cancel', label: 'Phí huỷ trước ngày nhận kho', value: '10% tiền cọc', type: 'CANCELLATION', hint: 'Khách hàng huỷ trước ngày bắt đầu được hoàn 100% tiền thuê và 90% tiền cọc.' },
+      { key: 'cancel', label: 'Phí huỷ trước ngày nhận kho', value: '0% (Miễn phí huỷ)', type: 'CANCELLATION', hint: 'Khách hàng huỷ trước ngày bắt đầu thuê được hoàn 100% tiền thuê và 100% tiền cọc.' },
       { key: 'grace', label: 'Quy trình xử lý quá hạn', value: 'Nhắc nhở ngày 10–14, xử lý đồ ngày 20', type: 'OVERDUE', hint: 'Nhắc nhở và đôn đốc thanh toán trước khi tiến hành xử lý tài sản tồn kho.' },
     ],
   },

@@ -7,11 +7,12 @@ public record CreateTicketRequest(
     long? UnitId,
     string IssueType,
     string Title,
-    string Description,
-    string Priority,
-    // D35: ảnh khách đính kèm (tối đa 3, JPG/PNG ≤ 5 MB). D36: KEY_PICKUP kèm giờ muốn nhận chìa khóa (giờ Việt Nam).
+    string? Description = null,
+    string Priority = "NORMAL",
+    // D35: ảnh khách đính kèm (tối đa 3, JPG/PNG ≤ 5 MB). D36 / Task #6: KEY_PICKUP chỉ chọn ngày muốn nhận chìa khóa.
     IReadOnlyList<EvidencePhotoUpload>? Photos = null,
-    DateTime? PreferredAt = null
+    DateTime? PreferredAt = null,
+    DateOnly? PreferredDate = null
 );
 
 public record SupportTicketDto(

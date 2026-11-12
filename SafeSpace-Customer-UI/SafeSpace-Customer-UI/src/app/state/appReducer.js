@@ -8,7 +8,7 @@
  * - Hỗ trợ: CREATE_TICKET, REPLY_TICKET
  */
 import { requireRentalPolicy } from "../../shared/utils/rentalPolicy.js";
-import { storedRefundChoice, validateRefundChoice, validateReturnPhotos, RETURN_SLOTS } from "../../shared/utils/refundRequest.js";
+import { storedRefundChoice, validateRefundChoice } from "../../shared/utils/refundRequest.js";
 import { isReturnFee, NO_RETURN_COLLECTION } from "../../shared/utils/returnPolicy.js";
 import { RENTAL_PLANS, SIZE_BANDS, offerByKey, quote } from "../../shared/utils/catalog.js";
 import {
@@ -78,7 +78,11 @@ export function sweepExpired(state, now = new Date(), timeoutSeconds = 60) {
 
 const contractOf = (state, id) => state.contracts.find((c) => c.contract_id === id);
 const hasPending = (state, contract_id) => ({
-  renewal: state.renewals.some((r) => r.contract_id === contract_id && r.status === "PENDING"),
+  renewal: state.renewals.some((r) =>
+    r.contract_id === contract_id && (
+      r.status === "PENDING" ||
+      (r.status === "APPROVED" && !state.ledger.some((l) => l.kind === "RENEWAL" && l.contract_id === contract_id && l.period?.to === r.new_end && l.status === "RECONCILED"))
+    )),
   ret: state.returns.some((r) => r.contract_id === contract_id && ["PENDING", "SCHEDULED"].includes(r.status)),
 });
 
@@ -273,7 +277,7 @@ const handlers = {
     if (preview) {
       const error = validateRefundChoice(p.bank, contract?.customer_name || r.customer_name || state.user?.full_name);
       if (error) fail(error);
-      if (p.bankConfirmed !== true) fail("Vui lòng xác nhận tài khoản chính chủ.");
+      if (p.bankConfirmed !== true) fail("Vui lòng xác nhận thông tin nhận hoàn.");
     }
     let next = {
       ...state,
@@ -320,8 +324,10 @@ const handlers = {
     const months = Number(p.months);
     if (!RENTAL_PLANS.includes(months)) fail("Gói gia hạn chỉ gồm 1, 3 hoặc 6 tháng.");
     const pending = hasPending(state, c.contract_id);
-    if (pending.renewal) fail("Đã có yêu cầu gia hạn đang chờ cơ sở duyệt.");
+    if (pending.renewal) fail("Hợp đồng đã có gia hạn đang xử lý hoặc chờ thanh toán.");
     if (pending.ret) fail("Hợp đồng đang có yêu cầu trả kho.");
+    const approvedAt = iso(ctx.now);
+    const paymentDeadlineAt = new Date(ctx.now.getTime() + 86400000).toISOString();
     const renewal = {
       renewal_id: `GH-${pad(nextSeq(state.renewals, "renewal_id"))}`,
       contract_id: c.contract_id,
@@ -329,8 +335,10 @@ const handlers = {
       old_end: c.end_date,
       new_end: addMonths(c.end_date, months),
       amount: months * c.monthly_rate,
-      status: "PENDING",
-      requested_at: iso(ctx.now),
+      status: "APPROVED",
+      requested_at: approvedAt,
+      approved_at: approvedAt,
+      payment_deadline_at: paymentDeadlineAt,
       ...(p.policy_consent ? { policy_consent: { ...p.policy_consent } } : {}),
     };
     const base = refBase(c.contract_id);
@@ -342,15 +350,19 @@ const handlers = {
         ...state.ledger,
         {
           ref: `${base}-REN${n ? n + 1 : ""}`,
-          label: "Gia hạn đề xuất",
+          kind: "RENEWAL",
+          label: `Gia hạn ${months} tháng`,
           contract_id: c.contract_id,
+          unit_number: c.unit_number,
+          period: { from: renewal.old_end, to: renewal.new_end, months },
           amount: renewal.amount,
-          status: "RENEWAL_PENDING",
+          status: "UNPAID",
+          payable: true,
         },
       ],
     };
-    next = notify(next, "Đã gửi yêu cầu gia hạn", `Kho ${c.unit_number} · chờ cơ sở duyệt.`, `units/${c.contract_id}`, ctx.now);
-    next = log(next, `Yêu cầu gia hạn ${c.unit_number} đã gửi — chờ duyệt`, "amber", ctx.now);
+    next = notify(next, "Gia hạn đã xác nhận — mở thanh toán", `Kho ${c.unit_number} · thanh toán ${renewal.amount.toLocaleString("vi-VN")} đ trong 24 giờ.`, "payments", ctx.now);
+    next = log(next, `Gia hạn ${c.unit_number} tự động xác nhận — chờ thanh toán`, "green", ctx.now);
     return { state: next, result: { renewal_id: renewal.renewal_id } };
   },
 
@@ -362,18 +374,17 @@ const handlers = {
     if (pending.renewal) fail("Hợp đồng đang có yêu cầu gia hạn chờ duyệt.");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(p.date || "") || p.date < localDate(ctx.now))
       fail("Ngày trả kho không được ở quá khứ.");
-    if (!RETURN_SLOTS.includes(p.slot)) fail("Vui lòng chọn khung giờ hợp lệ.");
-    const invalid = validateRefundChoice(p.bank, c.customer_name || state.user?.full_name) || validateReturnPhotos(p.photos);
+    const invalid = validateRefundChoice(p.bank, c.customer_name || state.user?.full_name);
     if (invalid) fail(invalid);
     if (p.emptied !== true) fail("Vui lòng xác nhận đã chuyển hết đồ ra khỏi kho.");
     const ret = {
       refund_bank: storedRefundChoice(p.bank),
-      photos: p.photos.map(({name, type, size}) => ({name, type, size})),
+      photos: [],
       emptied: true,
       return_id: `TK-${pad(nextSeq(state.returns, "return_id"))}`,
       contract_id: c.contract_id,
       date: p.date,
-      slot: p.slot,
+      slot: "",
       notes: (p.notes || "").trim(),
       status: "PENDING",
       requested_at: iso(ctx.now),
@@ -386,12 +397,12 @@ const handlers = {
       facility_id: c.facility_id,
       unit_number: c.unit_number,
       date: p.date,
-      slot: p.slot,
+      slot: "",
       status: "PENDING",
-      note: "Dọn hết đồ, trả thẻ / chìa khóa và có mặt để kiểm tra cùng nhân viên.",
+      note: "Dọn hết đồ, trả thẻ / chìa khóa và chờ nhân viên kiểm tra thực tế.",
     };
     let next = { ...state, returns: [ret, ...state.returns], appointments: [appointment, ...state.appointments], contracts: state.contracts.map(x => x.contract_id === c.contract_id ? { ...x, access_issued: false } : x) };
-    next = notify(next, "Đã gửi lịch trả kho", `Kho ${c.unit_number} · ${dateLabel(p.date)} · ${p.slot}. Chờ cơ sở xác nhận.`, "payments", ctx.now);
+    next = notify(next, "Đã gửi lịch trả kho", `Kho ${c.unit_number} · ngày ${dateLabel(p.date)}. Chờ cơ sở kiểm tra thực tế.`, "payments", ctx.now);
     next = log(next, `Yêu cầu trả kho ${c.unit_number} đã gửi — chờ xác nhận`, "amber", ctx.now);
     return { state: next, result: { return_id: ret.return_id } };
   },
@@ -400,10 +411,12 @@ const handlers = {
     if (!TICKET_TOPICS[p.topic]) fail("Vui lòng chọn chủ đề.");
     const title = ticketTitle(p);
     if (p.topic === "OTHER" && (!title || title.length > 100)) fail("Chủ đề của bạn phải có từ 1 đến 100 ký tự.");
-    const description = (p.description || "").trim();
-    if (!description) fail("Vui lòng mô tả vấn đề.");
-    if (description.length > 1000) fail("Mô tả không quá 1000 ký tự.");
+    const rawDesc = (p.description || "").trim();
+    if (rawDesc.length > 1000) fail("Mô tả không quá 1000 ký tự.");
     if (p.contract_id && !contractOf(state, p.contract_id)) fail("Vui lòng chọn kho / hợp đồng của bạn.");
+    const keyDate = p.topic === "KEY_PICKUP" ? (p.preferred_date || "") : "";
+    if (p.topic === "KEY_PICKUP" && keyDate && !/^\d{4}-\d{2}-\d{2}$/.test(keyDate)) fail("Ngày muốn nhận chìa khóa không hợp lệ.");
+    const description = rawDesc || (keyDate ? `Ngày muốn nhận chìa khóa: ${keyDate.split("-").reverse().join("/")}` : "");
     const attachments = (p.attachments || []).slice(0, 3);
     const ticket = {
       ticket_id: `HT-${pad(nextSeq(state.tickets, "ticket_id"))}`,
@@ -411,6 +424,7 @@ const handlers = {
       topic: p.topic,
       title,
       description,
+      preferred_date: keyDate || null,
       attachments,
       status: "OPEN",
       staff_note: "Cơ sở sẽ tiếp nhận và phản hồi qua thông báo.",
@@ -423,15 +437,20 @@ const handlers = {
     return { state: next, result: { ticket_id: ticket.ticket_id } };
   },
 
-  // C13: lưu tên hiển thị và (nếu gửi kèm) số điện thoại
+  // C13 / Task #12: lưu tên hiển thị, email (nếu gửi kèm) và số điện thoại
   UPDATE_NAME(state, p) {
     const name = (p.name || "").trim();
     if (name.length < 2) fail("Vui lòng nhập tên hiển thị.");
     if (name.length > 100) fail("Tên không quá 100 ký tự.");
-    if (p.phone === undefined) return { state: { ...state, user: { ...state.user, full_name: name } }, result: { name } };
-    const phone = String(p.phone || "").replace(/[\s.-]/g, "");
-    if (phone && !/^(0\d{9}|\+84\d{9})$/.test(phone)) fail("Số điện thoại chưa đúng định dạng.");
-    return { state: { ...state, user: { ...state.user, full_name: name, phone } }, result: { name, phone } };
+    let email = state.user?.email || "";
+    if (p.email !== undefined) {
+      email = String(p.email || "").trim();
+      if (!email || email.length > 150 || !isEmail(email)) fail("Email chưa đúng định dạng.");
+    }
+    const phone = p.phone === undefined ? state.user?.phone : String(p.phone || "").replace(/[\s.-]/g, "");
+    if (p.phone !== undefined && phone && !/^(0\d{9}|\+84\d{9})$/.test(phone)) fail("Số điện thoại chưa đúng định dạng.");
+    const nextUser = { ...state.user, full_name: name, ...(p.email !== undefined ? { email } : {}), ...(p.phone !== undefined ? { phone } : {}) };
+    return { state: { ...state, user: nextUser }, result: { name, ...(p.email !== undefined ? { email } : {}), ...(p.phone !== undefined ? { phone } : {}) } };
   },
 
   CHANGE_PASSWORD(state, p) {

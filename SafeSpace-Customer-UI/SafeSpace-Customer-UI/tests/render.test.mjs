@@ -56,11 +56,12 @@ try {
   seed(true);
   window.location.hash = "#/units/HĐ-2026-0142/return";
   const returnHtml = renderToStaticMarkup(React.createElement(App));
-  // D42: khách chọn cách nhận hoàn (chuyển khoản / tiền mặt tại quầy); mặc định chuyển khoản vẫn hiện ô tài khoản
-  for (const text of ["Hiện trạng kho", "Tải ảnh kho trống", "Nhận tiền hoàn · Chính chủ", "Nhận hoàn qua", "Tiền mặt tại quầy", "Số tài khoản", "Không thể huỷ yêu cầu", "QR/PIN khoá ngay", "48 giờ"]) assert.ok(returnHtml.includes(text), text);
+  // D42 + Task #8/#9: trả kho chỉ chọn ngày, không bắt ảnh hay khung giờ; chọn cách nhận hoàn (chuyển khoản / tiền mặt tại quầy)
+  for (const text of ["Lịch trả kho", "Ngày mong muốn trả kho", "Nhận tiền hoàn", "Nhận hoàn qua", "Tiền mặt tại quầy", "Số tài khoản", "Không thể huỷ yêu cầu", "QR/PIN khoá ngay", "48 giờ"]) assert.ok(returnHtml.includes(text), text);
+  for (const text of ["Tải ảnh kho trống", "Khung giờ"]) assert.ok(!returnHtml.includes(text), text);
   window.location.hash = "#/reservations/SS-20260914-0142/cancel";
   const cancelHtml = renderToStaticMarkup(React.createElement(App));
-  for (const text of ["Nhận tiền hoàn · Chính chủ", "Tiền mặt tại quầy", "Số tài khoản", "Chủ tài khoản", "Khoản hoàn dự kiến"]) assert.ok(cancelHtml.includes(text), text);
+  for (const text of ["Nhận tiền hoàn", "Tiền mặt tại quầy", "Số tài khoản", "Chủ tài khoản", "Khoản hoàn dự kiến"]) assert.ok(cancelHtml.includes(text), text);
   const { createWorkflowSeed } = await vite.ssrLoadModule("/src/features/facility-operations/workflows/workflowModel.js");
   const workflowFixture = createWorkflowSeed();
   const owner = createSeedData().user.user_id;
@@ -279,7 +280,7 @@ try {
     ["units/HĐ-2026-0086", ["Xem QR &amp; PIN 6 số", "Gia hạn", "Trả kho"]],
     ["payments", ["Thanh toán", "Gia hạn B-015 · 3 tháng", "Chờ thanh toán"]],
     ["support", ["Phản hồi của nhân viên", "Thẻ cũ bị lỗi từ", "Yêu cầu gần đây", "Lưu ý khi gửi"]],
-    ["reservations", ["Huỷ đơn SS-0142", "Thao tác", "phí huỷ 5% tiền cọc"]], // D40
+    ["reservations", ["Huỷ đơn SS-0142", "Thao tác", "miễn phí huỷ"]], // D49
     ["find/1", ["Chỉ đường đến cơ sở", "google.com/maps/dir"]],
   ];
   for (const [r, texts] of pages) {
@@ -358,10 +359,12 @@ try {
   assert.ok(b8html.includes("Thiếu hồ sơ xác minh hợp lệ"));assert.match(b8html,/<button[^>]*disabled[^>]*>Ghi nhận đã giao chìa khóa<\/button>/);
   b8ops.verifications=[{id:keyTask.verification_id,status:"DONE",doc_last4:"1234",doc_type:"CCCD"}];memory.set(OPS_KEY,JSON.stringify(b8ops));
   b8html=renderToStaticMarkup(React.createElement(App));assert.equal((b8html.match(/type="checkbox"/g)||[]).length,3);assert.ok(!/type="checkbox"[^>]*checked/.test(b8html));assert.ok(b8html.includes("Chưa có bằng chứng chính sách"));
-  window.location.hash="#/staff/return?id=TK-0098";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Tải ảnh hiện trạng / hư hỏng")&&b8html.includes("Lưu nháp"));assert.ok(b8html.includes("Ảnh kho trống do khách gửi")&&b8html.includes("Ảnh kho trống K04 do khách chụp"));assert.ok(!b8html.includes("Đã chuyển hết đồ khỏi kho"),"Không điền sẵn kết luận kiểm kê");
-  b8ops.returns[0].move_out_photos=[];memory.set(OPS_KEY,JSON.stringify(b8ops));b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Khách hàng chưa đính kèm ảnh kho trống khi yêu cầu trả kho."));
+  const { inspectionFlags } = await vite.ssrLoadModule("/src/features/staff/returns/ReturnInspectionPage.jsx");
+  const fewItems = inspectionFlags({ items: "Đạt · còn ít đồ", walls: "Đạt tiêu chuẩn", keys: "Đã nhận đủ chìa" });
+  assert.equal(fewItems.clean, 3); assert.equal(fewItems.dirty, false);
+  window.location.hash="#/staff/return?id=TK-0098";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Tải ảnh hiện trạng / hư hỏng · Bắt buộc")&&b8html.includes("Lưu nháp"));assert.ok(!b8html.includes("Ảnh kho trống do khách gửi"),"Task #8 bỏ khung ảnh khách gửi");assert.ok(!b8html.includes("Đã chuyển hết đồ khỏi kho"),"Không điền sẵn kết luận kiểm kê");
   seed(true,manager);window.location.hash="#/manager/contracts?id=missing";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Không tìm thấy hợp đồng"));assert.ok(!b8html.includes("Bước tiếp theo"));assert.ok(!b8html.includes('table--hover'));
-  window.location.hash="#/manager/deposit-refunds?id=HC-0098";b8html=renderToStaticMarkup(React.createElement(App));for(const text of ["Mã giao dịch","Thời gian chuyển","đúng tài khoản nhận"])assert.ok(b8html.includes(text),text);assert.match(b8html,/<button[^>]*disabled[^>]*>Ghi nhận đã chuyển tiền<\/button>/);
+  window.location.hash="#/manager/deposit-refunds?id=HC-0098";b8html=renderToStaticMarkup(React.createElement(App));for(const text of ["Mã giao dịch","Thời gian chuyển","đúng tài khoản nhận"])assert.ok(b8html.includes(text),text);assert.match(b8html,/<button[^>]*disabled[^>]*>Ghi nhận đã chuyển tiền<\/button>/);assert.ok(!b8html.includes("Tạo lại mã")&&!b8html.includes('value="FT'),"Task #21 bỏ nút Tạo lại mã và tự sinh mã");assert.ok(!b8html.includes("Tiền mặt tại quầy"),"Task #20 khóa hình thức hoàn theo khách");
   delete b8ops.deposit_refunds[0].amount;memory.set(OPS_KEY,JSON.stringify(b8ops));b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Chưa có dữ liệu"));assert.ok(!b8html.includes("Không còn khoản hoàn;"));
   b8ops.deposit_refunds[0].amount=0;b8ops.deposit_refunds[0].status="NO_REFUND";memory.set(OPS_KEY,JSON.stringify(b8ops));b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("không tạo giao dịch chuyển tiền"));assert.ok(!b8html.includes('type="datetime-local"'));
   b8ops.refunds=[{...b8ops.refunds[0],status:"UNKNOWN",amount:undefined}];memory.set(OPS_KEY,JSON.stringify(b8ops));window.location.hash="#/manager/refunds";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Chưa rõ trạng thái")&&b8html.includes("Chưa có dữ liệu"));assert.ok(!b8html.includes("Đã hoàn"));

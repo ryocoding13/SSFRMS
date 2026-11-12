@@ -237,8 +237,8 @@ public partial class FacilityOpsService
         {
             throw new ArgumentException("Đạt dưới 2/3 tiêu chuẩn nên chưa được chọn \"Sẵn sàng cho thuê lại\".");
         }
-        // Kiểm toàn bộ ảnh trước khi ghi; hư hỏng bắt buộc có ảnh bằng chứng.
-        var photos = EvidencePhotos.Decode(request.Photos, required: damageFee > 0, what: "bằng chứng hư hỏng");
+        // Task #8: nhân viên chịu trách nhiệm kiểm tra và bắt buộc gửi ít nhất 1 ảnh hiện trạng kho.
+        var photos = EvidencePhotos.Decode(request.Photos, required: true, what: "hiện trạng trả kho");
 
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"return-inspection:{facility.FacilityId}:{id}", ct);
         var i = await InspectionAsync(facility.FacilityId, id, ct);
@@ -398,30 +398,18 @@ public partial class FacilityOpsService
                ?? throw new KeyNotFoundException("Không tìm thấy yêu cầu gia hạn tại cơ sở của bạn.");
     }
 
-    /// <summary>Quản lý duyệt yêu cầu gia hạn hợp đồng (M03 / M01).</summary>
-    public async Task ApproveRenewalAsync(OpsActor actor, string id, CancellationToken ct = default)
+    /// <summary>Khóa luồng quản lý duyệt gia hạn thủ công sau Task #23.</summary>
+    public Task ApproveRenewalAsync(OpsActor actor, string id, CancellationToken ct = default)
     {
         RequireManager(actor);
-        var facility = await FacilityOfAsync(actor, ct);
-        // M01: cùng một đường duyệt (khoá hợp đồng rồi mới kiểm lại).
-        await RenewalApproval.ApproveAsync(dbContext, actor.UserId, ParseCode(id, "GH-", "yêu cầu gia hạn"), facility.FacilityId, ct);
+        throw new InvalidOperationException("Chức năng quản lý duyệt gia hạn đã bỏ. Hệ thống tự động xác nhận gia hạn hợp lệ để khách thanh toán trực tiếp.");
     }
 
-    /// <summary>Quản lý từ chối yêu cầu gia hạn hợp đồng kèm lý do (M03).</summary>
-    public async Task RejectRenewalAsync(OpsActor actor, string id, OpsRejectRequest request, CancellationToken ct = default)
+    /// <summary>Khóa luồng quản lý từ chối gia hạn thủ công sau Task #23.</summary>
+    public Task RejectRenewalAsync(OpsActor actor, string id, OpsRejectRequest request, CancellationToken ct = default)
     {
         RequireManager(actor);
-        var facility = await FacilityOfAsync(actor, ct);
-        var r = await RenewalAsync(facility.FacilityId, id, ct);
-        if (r.Status != "PENDING") throw new InvalidOperationException("Yêu cầu này đã được xử lý.");
-        var reason = Clip(request.Reason, 500);
-        if (reason.Length == 0) throw new ArgumentException("Nhập lý do từ chối để gửi cho khách hàng.");
-
-        r.Status = "REJECTED";
-        r.ApprovedBy = actor.UserId; // người quyết định
-        r.ApprovedAt = NowUtc;
-        Log(actor.UserId, LogAction.RenewalRejected, LogEntity.Renewal, r.RenewalId, new { reason });
-        await dbContext.SaveChangesAsync(ct);
+        throw new InvalidOperationException("Chức năng quản lý duyệt gia hạn đã bỏ. Hệ thống tự động xác nhận gia hạn hợp lệ để khách thanh toán trực tiếp.");
     }
 
     // =====================================================================
@@ -612,7 +600,7 @@ public partial class FacilityOpsService
         }
         if (!RefundBank.IsComplete(r.RefundBankName, r.RefundAccountNumber, r.RefundAccountHolder))
         {
-            throw new InvalidOperationException("Đơn huỷ chưa có tài khoản nhận hoàn chính chủ. Liên hệ khách bổ sung trước khi chuyển tiền.");
+            throw new InvalidOperationException("Đơn huỷ chưa có tài khoản nhận hoàn hợp lệ. Liên hệ khách bổ sung trước khi chuyển tiền.");
         }
         var paidAt = TransferTimeOf(request.TransferredAt, r.CancelledAt ?? pending.CreatedAt, "huỷ đơn");
         await EnsureUniqueTransactionRefAsync(reference, pending.PaymentId, ct);

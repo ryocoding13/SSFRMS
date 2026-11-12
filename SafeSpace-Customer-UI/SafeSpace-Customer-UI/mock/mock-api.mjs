@@ -336,6 +336,15 @@ export function startMockApi(
       if (!u) return send(401);
       if (body.fullName) u.fullName = body.fullName.trim();
       if (body.phone !== undefined) u.phone = body.phone;
+      if (body.email !== undefined) {
+        const email = String(body.email || "").trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return bad("Email chưa đúng định dạng.");
+        const lower = email.toLowerCase();
+        if (S.users.some((x) => x.userId !== u.userId && (x.email?.toLowerCase() === lower || x.username?.toLowerCase() === lower))) {
+          return bad("Email này đã được sử dụng cho tài khoản khác.");
+        }
+        u.email = email;
+      }
       const roleNames = S.userRoles.filter((r) => r.userId === u.userId).map((r) => S.roles.find((x) => x.roleId === r.roleId).roleName);
       return send(200, { userId: u.userId, username: u.username, fullName: u.fullName, email: u.email, phone: u.phone || null, status: u.status, roles: roleNames });
     }
@@ -639,15 +648,14 @@ export function startMockApi(
       const r = S.reservations.find((x) => x.reservationId === +m[1] && x.customerId === me);
       if (!r) return send(404, { error: "Không tìm thấy đơn đặt chỗ." });
       const paid = r.status === "CONFIRMED" ? r.estimatedAmount + r.requiredDeposit : 0;
-      const fee = paid ? Math.round(r.estimatedAmount * 0.1) : 0;
-      return send(200, { paidAmount: paid, cancellationFee: fee, refundAmount: paid - fee, policyName: "Huỷ trước ngày nhận kho: phí 10% tiền thuê" });
+      return send(200, { paidAmount: paid, cancellationFee: 0, refundAmount: paid, policyName: "Huỷ trước ngày bắt đầu: miễn phí huỷ (0%), hoàn đủ 100% tiền thuê và 100% tiền cọc" });
     }
     if (req.method === "POST" && (m = path.match(/^\/api\/reservations\/(\d+)\/cancel$/))) {
       const r = S.reservations.find((x) => x.reservationId === +m[1] && x.customerId === me);
       if (!r) return bad("Không tìm thấy đơn đặt chỗ hợp lệ.");
       if (!["PENDING_PAYMENT", "CONFIRMED"].includes(r.status)) return bad(`Không thể hủy đơn đặt chỗ ở trạng thái '${r.status}'.`);
       const paid = r.status === "CONFIRMED" && r.paymentMethod === "PAYOS";
-      Object.assign(r, { status: "CANCELLED", cancelledAt: new Date(), cancellationReason: body?.reason, ...(paid ? { refundAmount: r.estimatedAmount + r.requiredDeposit - Math.round(r.estimatedAmount * 0.1), refundStatus: "PENDING" } : {}) });
+      Object.assign(r, { status: "CANCELLED", cancelledAt: new Date(), cancellationReason: body?.reason, ...(paid ? { refundAmount: r.estimatedAmount + r.requiredDeposit, refundStatus: "PENDING" } : {}) });
       return send(200, { message: "Đã hủy đơn đặt chỗ thành công." });
     }
     if (req.method === "POST" && (path === "/api/v1/reservations/create-payos-qr" || path === "/api/reservations/create-payos-qr")) {

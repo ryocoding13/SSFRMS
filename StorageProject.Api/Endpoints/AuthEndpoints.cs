@@ -92,8 +92,8 @@ public static class AuthEndpoints
             {
                 return Results.NotFound(new { error = ex.Message });
             }
-            // Trả lỗi tên không hợp lệ để C13 hiển thị ngay trong biểu mẫu.
-            catch (ArgumentException ex)
+            // Trả lỗi tên / email không hợp lệ hoặc trùng lặp để C13 hiển thị ngay trong biểu mẫu.
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
                 return Results.BadRequest(new { error = ex.Message });
             }

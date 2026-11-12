@@ -72,13 +72,13 @@ public record HandoverSummaryDto(
 );
 
 /// <summary>
-/// Gửi trả kho (D32 / T08). Bắt buộc: ảnh kho trống (1–5 ảnh JPG/PNG), xác nhận đã chuyển hết đồ,
-/// tài khoản ngân hàng chính chủ nhận hoàn cọc. Gửi thành công thì QR/PIN hết hiệu lực, dừng tính phí quá hạn.
+/// Gửi trả kho (D32 / T08 / Task #8 & #9). Bắt buộc: xác nhận đã chuyển hết đồ, ngày mong muốn trả kho,
+/// phương thức nhận tiền hoàn (chuyển khoản hoặc tiền mặt). Ảnh kho trống và khung giờ không bắt buộc với khách.
 /// </summary>
 public record MoveOutRequest(
     DateOnly Date,
-    string? Slot,
-    string? Note,
+    string? Slot = null,
+    string? Note = null,
     string? BankName = null,
     string? AccountNumber = null,
     string? AccountHolder = null,

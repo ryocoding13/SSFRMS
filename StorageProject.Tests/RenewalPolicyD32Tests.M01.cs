@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using StorageProject.Core.DTOs.Ops;
 using StorageProject.Core.DTOs.Renewal;
 using StorageProject.Core.Entities;
+using StorageProject.Infrastructure.Services;
 using Xunit;
 
 namespace StorageProject.Tests;
@@ -14,9 +15,14 @@ public sealed partial class RenewalPolicyD32Tests
     {
         await using var f = await Fixture.CreateAsync();
         var dto = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, new CreateRenewalRequest(1, 1, true));
+        Assert.Equal("APPROVED", dto.Status);
 
-        await f.ManagerSvc.ApproveRenewalAsync(f.ManagerUser.UserId, dto.RenewalId.ToString());
-        await Assert.ThrowsAsync<InvalidOperationException>(() => f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, dto.RenewalId));
+        var ex1 = await Assert.ThrowsAsync<InvalidOperationException>(() => f.ManagerSvc.ApproveRenewalAsync(f.ManagerUser.UserId, dto.RenewalId.ToString()));
+        var ex2 = await Assert.ThrowsAsync<InvalidOperationException>(() => f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, dto.RenewalId));
+        var ex3 = await Assert.ThrowsAsync<InvalidOperationException>(() => new FacilityOpsService(f.Db).ApproveRenewalAsync(new StorageProject.Core.DTOs.FacilityOps.OpsActor(f.ManagerUser.UserId, true), $"GH-{dto.RenewalId:D4}"));
+        Assert.Contains("đã bỏ", ex1.Message);
+        Assert.Contains("đã bỏ", ex2.Message);
+        Assert.Contains("đã bỏ", ex3.Message);
 
         Assert.Single(await f.Db.Payments.Where(p => p.RenewalId == dto.RenewalId).ToListAsync());
         Assert.Single(await f.Db.ActivityLogs.Where(l => l.EntityType == "RENEWAL" && l.EntityId == dto.RenewalId && l.Action == "RENEWAL_APPROVED").ToListAsync());
@@ -26,8 +32,6 @@ public sealed partial class RenewalPolicyD32Tests
     public async Task M01_LegacyManagerRoute_BlocksUnitBookedByNextCustomer_D41()
     {
         await using var f = await Fixture.CreateAsync();
-        var dto = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, new CreateRenewalRequest(1, 1, true));
-
         var start = f.Contract.EndDate.AddDays(5);
         var next = new Reservation
         {
@@ -44,9 +48,10 @@ public sealed partial class RenewalPolicyD32Tests
         });
         await f.Db.SaveChangesAsync();
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => f.ManagerSvc.ApproveRenewalAsync(f.ManagerUser.UserId, dto.RenewalId.ToString()));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, new CreateRenewalRequest(1, 1, true)));
         Assert.Contains("đã có khách đặt", ex.Message);
-        Assert.Equal("PENDING", (await f.Db.ContractRenewals.AsNoTracking().FirstAsync(r => r.RenewalId == dto.RenewalId)).Status);
+        Assert.Empty(await f.Db.ContractRenewals.AsNoTracking().Where(r => r.ContractId == f.Contract.ContractId).ToListAsync());
     }
 
     [Fact]
@@ -54,11 +59,11 @@ public sealed partial class RenewalPolicyD32Tests
     {
         await using var f = await Fixture.CreateAsync();
         var dto = await f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, new CreateRenewalRequest(1, 1, true));
-        f.Contract.EndDate = f.Contract.EndDate.AddDays(30); // kỳ thuê đổi sau khi khách gửi yêu cầu
-        await f.Db.SaveChangesAsync();
+        Assert.Equal("APPROVED", dto.Status);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => f.RenewalSvc.ApproveRenewalAsync(f.ManagerUser.UserId, dto.RenewalId));
-        Assert.Empty(await f.Db.Payments.Where(p => p.RenewalId == dto.RenewalId).ToListAsync());
+        // Không thể gửi gia hạn thứ hai khi đang có gia hạn tự động xác nhận chờ thanh toán
+        await Assert.ThrowsAsync<InvalidOperationException>(() => f.RenewalSvc.RequestRenewalAsync(f.CustomerUser.UserId, f.Contract.ContractId, new CreateRenewalRequest(1, 1, true)));
+        Assert.Single(await f.Db.Payments.Where(p => p.RenewalId == dto.RenewalId).ToListAsync());
     }
 
     [Fact]

@@ -43,9 +43,10 @@ test('hoàn tất chuyển: ô cũ bảo trì, đổi mã đúng lúc, kỳ/giá
  const before=accepted(),out=act(before,'COMPLETE_INCIDENT_TRANSFER',{confirmed:true,movedAt:'2026-10-28T12:30'})[0];assert.equal(out.status,'TRANSFERRED');assert.equal(out.currentUnit,'B-016');assert.equal(out.oldUnitStatus,'MAINTENANCE');assert.deepEqual(out.access,{oldUnit:'INVALID',newUnit:'ISSUED'});assert.equal(out.surcharge,0);
  for(const key of ['startDate','endDate','monthlyRate','deposit','contractStatus'])assert.equal(out[key],before[0][key]);assert.equal(before[0].currentUnit,'B-015');assert.throws(()=>act([out],'COMPLETE_INCIDENT_TRANSFER',{confirmed:true,movedAt:'2026-10-28T12:30'}));
 });
-test('kết thúc yêu cầu ngân hàng chính chủ và dữ liệu đủ; hoàn cả tháng đang thuê, không chia ngày',()=>{
+test('kết thúc yêu cầu tài khoản nhận hoàn hợp lệ (kể cả người thân) và dữ liệu đủ; hoàn cả tháng đang thuê',()=>{
  assert.equal(incidentRefund(proposed()[0]),3450000);assert.equal(incidentRefund({...proposed()[0],unusedRent:0}),2300000);assert.equal(incidentRefund({...proposed()[0],currentMonthRent:undefined}),null);
- for(const refundBank of [{},{...bank,accountNumber:'123'},{...bank,accountHolder:'Người khác'}])assert.throws(()=>act(proposed(),'CHOOSE_INCIDENT_OPTION',{choice:'TERMINATE',refundBank},customer));
+ for(const refundBank of [{},{...bank,accountNumber:'123'},{...bank,accountHolder:'  '}])assert.throws(()=>act(proposed(),'CHOOSE_INCIDENT_OPTION',{choice:'TERMINATE',refundBank},customer));
+ assert.equal(act(proposed(),'CHOOSE_INCIDENT_OPTION',{choice:'TERMINATE',refundBank:{...bank,accountHolder:'Người khác'}},customer)[0].status,'TERMINATION_PENDING');
  const p=proposed();delete p[0].deposit;assert.throws(()=>act(p,'CHOOSE_INCIDENT_OPTION',{choice:'TERMINATE',refundBank:bank},customer),/dữ liệu/);
  const out=terminating()[0];assert.equal(out.status,'TERMINATION_PENDING');assert.equal(out.contractStatus,'ACTIVE');assert.equal(out.refund,undefined);assert.equal(out.refundBank.accountNumber,bank.accountNumber);
 });

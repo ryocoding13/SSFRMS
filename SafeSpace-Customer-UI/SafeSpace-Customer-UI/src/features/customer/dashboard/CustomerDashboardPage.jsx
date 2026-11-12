@@ -50,7 +50,7 @@ export default function CustomerDashboardPage() {
       : { title: "Đơn đặt chỗ", text: "Theo dõi đơn và trạng thái thanh toán", cta: "Xem đơn", to: "reservations" },
     {
       title: "Thanh toán & lịch hẹn",
-      text: nextAppt ? `${nextAppt.kind === "CHECK_IN" ? "Nhận kho" : "Trả kho"} ${nextAppt.unit_number} ngày ${dayMonth(nextAppt.date)} · ${nextAppt.slot.slice(0, 5)}` : "Xem khoản thu và lịch hẹn",
+      text: nextAppt ? (nextAppt.kind === "CHECK_IN" ? `Nhận kho ${nextAppt.unit_number} ngày ${dayMonth(nextAppt.date)}${nextAppt.slot ? ` · ${nextAppt.slot.slice(0, 5)}` : ""}` : `Trả kho ${nextAppt.unit_number} ngày ${dayMonth(nextAppt.date)}`) : "Xem khoản thu và lịch hẹn",
       cta: "Xem chi tiết",
       to: "payments",
     },

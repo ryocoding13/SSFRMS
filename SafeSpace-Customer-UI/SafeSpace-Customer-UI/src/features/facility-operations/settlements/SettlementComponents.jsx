@@ -1,10 +1,10 @@
 import React from "react";
 import { DetailList, Notice } from "../../../shared/components/UI.jsx";
 import { amountLabel, DamagePhotos } from "../damage/DamageComponents.jsx";
-// keep: trả trước hạn giữ 30% cọc (D27/D32), thay cho vệ sinh/quá hạn cố định; tiền thuê tháng chưa bắt đầu BE tính khi chốt.
+// D49: trả sớm sau StartDate hoàn 100% cọc nếu đạt chuẩn, khấu trừ vệ sinh/hư hỏng/quá hạn vào cọc như trả đúng hạn; hoàn thêm tiền thuê tháng chưa bắt đầu khi BE chốt.
 export function SettlementSummary({deposit,damage,cleaning,overdue,amount,official=false,keep}) {
- const early=typeof keep==="number",known=[deposit,damage,cleaning,overdue].every(v=>typeof v==="number"&&Number.isFinite(v)&&v>=0),deduction=known?Math.min(deposit,damage+cleaning+overdue+(early?keep:0)):undefined;
- return <aside className="panel customer-detail__card customer-detail__sidebar"><h2>Đối chiếu khấu trừ từ cọc</h2><DetailList items={[["Cọc ban đầu",amountLabel(deposit)],...(early?[["Trả trước hạn · giữ 30% cọc",amountLabel(keep)]]:[]),["Quá hạn",amountLabel(overdue)],["Vệ sinh",early?"Đã gồm trong 30%":amountLabel(cleaning)],["Hư hỏng",amountLabel(damage)],["Tổng khấu trừ",amountLabel(deduction)],["Dự kiến hoàn cọc",amountLabel(official?amount:(amount ?? (known?Math.max(0,deposit-deduction):undefined)))]]}/><p className="hint">{early?"Khách trả trước ngày hết hạn: giữ 30% cọc, hoàn thêm tiền thuê các tháng chưa bắt đầu khi quản lý chốt. ":""}Khấu trừ tối đa bằng cọc, không tạo nợ vượt cọc. Đây là bản đối chiếu; tiền hoàn chính thức do máy chủ chốt.</p></aside>;
+ const hasKeep=typeof keep==="number"&&keep>0,known=[deposit,damage,cleaning,overdue].every(v=>typeof v==="number"&&Number.isFinite(v)&&v>=0),deduction=known?Math.min(deposit,damage+cleaning+overdue+(hasKeep?keep:0)):undefined;
+ return <aside className="panel customer-detail__card customer-detail__sidebar"><h2>Đối chiếu khấu trừ từ cọc</h2><DetailList items={[["Cọc ban đầu",amountLabel(deposit)],...(hasKeep?[["Giữ cọc",amountLabel(keep)]]:[]),["Quá hạn",amountLabel(overdue)],["Vệ sinh",amountLabel(cleaning)],["Hư hỏng",amountLabel(damage)],["Tổng khấu trừ",amountLabel(deduction)],["Dự kiến hoàn cọc",amountLabel(official?amount:(amount ?? (known?Math.max(0,deposit-deduction):undefined)))]]}/><p className="hint">{typeof keep==="number"?"Khách trả trước ngày hết hạn: hoàn 100% cọc (trừ vệ sinh/hư hỏng/quá hạn nếu có) và tiền thuê các tháng nguyên chưa bắt đầu khi quản lý chốt. ":""}Khấu trừ tối đa bằng cọc, không tạo nợ vượt cọc. Đây là bản đối chiếu; tiền hoàn chính thức do máy chủ chốt.</p></aside>;
 }
 export function OpsDemo({source}) {return source==="local"?<Notice>Chế độ mô phỏng FE: thao tác lưu trên trình duyệt, không chuyển tiền hoặc thay đổi quyền mở kho thật.</Notice>:null;}
 

@@ -1,3 +1,5 @@
+import { isReturnSettlementReady } from "../settlements/settlementModel.js";
+
 // Derive badges from the same work queues as each page; never store a second counter.
 export function pendingTaskCounts(ops, role, me) {
   const count = (items, test) => (items || []).filter(test).length;
@@ -20,7 +22,7 @@ export function pendingTaskCounts(ops, role, me) {
 
     const scheduledReturns = count(ops.returns, r => r.status === "SCHEDULED");
     const recheckReturns = count(ops.returns, r =>
-      ["SELF_CLEAN", "SELF_REPLACE", "DISPUTE"].includes(r.deduction_status)
+      ["SELF_CLEAN", "SELF_REPLACE", "SELF_REMEDY", "DISPUTE"].includes(r.deduction_status)
     );
     const returns = scheduledReturns + recheckReturns;
 
@@ -59,14 +61,12 @@ export function pendingTaskCounts(ops, role, me) {
 
   const allocate = count(ops.allocations, a => a.status === "PENDING");
   const assign = count(ops.assignments, a => a.status === "OPEN");
-  const renewals = count(ops.renewals, r => r.status === "PENDING");
-  const contracts = count(ops.contracts, c => ["OVERDUE", "RETURNED"].includes(c.state)) +
+  const contracts = count(ops.contracts, c => c.state === "OVERDUE" || isReturnSettlementReady(ops, c)) +
     refunds + depositRefunds + managerCashRefunds + unitConflicts + overdueCases;
 
   const result = {
     "manager/allocate": allocate,
     "manager/assign": assign,
-    "manager/renewals": renewals,
     "manager/contracts": contracts,
   };
 
@@ -75,7 +75,7 @@ export function pendingTaskCounts(ops, role, me) {
   if (unitConflicts > 0 || ops.unit_conflicts !== undefined) result["manager/unit-conflicts"] = unitConflicts;
   if (depositRefunds > 0 || ops.deposit_refunds !== undefined) result["manager/deposit-refunds"] = depositRefunds;
   if (refunds > 0 || ops.refunds !== undefined) result["manager/refunds"] = refunds;
-  result["manager"] = allocate + assign + renewals + contracts;
+  result["manager"] = allocate + assign + contracts;
 
   return result;
 }

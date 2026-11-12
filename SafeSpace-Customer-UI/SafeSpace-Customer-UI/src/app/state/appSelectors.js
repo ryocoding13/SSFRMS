@@ -80,13 +80,13 @@ export function milestones(data, now = new Date(), limit = 3) {
       key: a.appointment_id,
       date: a.date,
       title: `${a.kind === "CHECK_IN" ? "Nhận kho" : "Trả kho"} ${a.unit_number}`,
-      detail: `${a.slot} · ${f.name}`,
+      detail: a.kind === "CHECK_IN" && a.slot ? `${a.slot} · ${f.name}` : f.name,
     });
   }
   for (const c of data.contracts) {
     if (c.status === "ENDED" || c.end_date < t) continue;
     let detail = `Kỳ thuê ${c.months} tháng · có thể gia hạn trước 7 ngày`;
-    if (pendingRenewal(data, c.contract_id)) detail = "Yêu cầu gia hạn đang chờ cơ sở duyệt";
+    if (pendingRenewal(data, c.contract_id)) detail = "Gia hạn đã xác nhận · chờ thanh toán";
     else if (pendingReturn(data, c.contract_id)) detail = "Yêu cầu trả kho đang chờ cơ sở xác nhận";
     items.push({
       key: `end-${c.contract_id}`,

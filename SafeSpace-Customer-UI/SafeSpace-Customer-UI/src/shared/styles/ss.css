@@ -125,9 +125,11 @@ h4 { font-size: 16px; font-weight: 700; color: var(--ink); }
 .pill { display: inline-flex; padding: 4px 12px; border-radius: 999px; background: var(--soft); color: var(--blue); font-size: 12px; font-weight: 700; letter-spacing: 0.02em; width: max-content; }
 
 /* ---------- Forms ---------- */
-.field { display: grid; gap: 6px; position: relative; }
-.field label, .field__label { font-size: 14px; font-weight: 500; color: var(--text); }
-.field input, .field textarea, .select select, .select-like, .attach { width: 100%; border: 1px solid var(--line); background: var(--white); border-radius: 8px; padding: 12px 14px; font-size: 15px; color: var(--text); }
+.field { display: grid; gap: 6px; position: relative; align-content: start; min-width: 0; }
+.field label, .field__label { font-size: 14px; font-weight: 500; color: var(--text); line-height: 1.4; }
+.field input, .field textarea, .select select, .select-like, .attach { width: 100%; border: 1px solid var(--line); background: var(--white); border-radius: 8px; padding: 11px 14px; font-size: 15px; line-height: 1.35; color: var(--text); box-sizing: border-box; }
+.field input:not([type="checkbox"]):not([type="radio"]), .select select, .select-like { min-height: 46px; height: 46px; }
+.select select { text-overflow: ellipsis; }
 .field input::placeholder, .field textarea::placeholder { color: #8a97ab; }
 .field textarea { resize: vertical; min-height: 72px; }
 .field input[readonly] { color: var(--text); cursor: default; }
@@ -147,7 +149,8 @@ h4 { font-size: 16px; font-weight: 700; color: var(--ink); }
 .form-card .field input, .form-card .field textarea, .form-card .select select, .form-card .select-like, .attach { background: var(--field); border-color: transparent; }
 .form-card .field--invalid input { background: #fff; border-color: #dc2626; }
 .form-card > .btn { justify-self: start; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.form-row > * { min-width: 0; }
 .attach { text-align: left; color: var(--text); cursor: pointer; }
 .files { display: grid; gap: 6px; margin-top: 6px; }
 .files li { display: flex; justify-content: space-between; gap: 8px; background: var(--soft); border-radius: 8px; padding: 6px 10px; font-size: 14px; }
@@ -560,6 +563,9 @@ a.cell-strong:hover { color: var(--blue); }
 .unit-tile strong { font-size: 22px; font-weight: 700; }
 .unit-tile span { font-size: 13px; white-space: nowrap; }
 .unit-tile--free { color: #fff; }
+.unit-tile--bookable { box-shadow: inset 0 0 0 2px #16a34a; }
+.unit-tile__meta { font-size: 11px !important; color: var(--muted); }
+.unit-tile__bookable { font-size: 11px !important; font-weight: 600; color: #15803d; }
 .unit-tile:hover { transform: translateY(-2px); }
 .unit-tile.is-selected { box-shadow: inset 0 0 0 4px var(--soft), 0 0 0 2px var(--blue); }
 .unit-tile--free.is-selected { box-shadow: inset 0 0 0 4px var(--soft); }

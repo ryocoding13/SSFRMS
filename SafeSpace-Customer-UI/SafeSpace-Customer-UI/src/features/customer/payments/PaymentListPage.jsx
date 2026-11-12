@@ -52,7 +52,7 @@ export default function PaymentListPage() {
             <h2>Lịch hẹn</h2>
             {!appointments.length && <Empty title="Chưa có lịch hẹn" text="Lịch nhận hoặc trả kho sẽ xuất hiện tại đây sau khi cơ sở xác nhận." />}
             {appointments.map(a => <RecordSummaryCard key={a.appointment_id}
-              title={`${dateLabel(a.date)} · ${a.slot} · ${a.kind === "CHECK_IN" ? "Nhận chìa khóa" : "Kiểm tra trả kho"} ${a.unit_number || ""}`}
+              title={a.kind === "CHECK_IN" ? `${dateLabel(a.date)}${a.slot ? ` · ${a.slot}` : ""} · Nhận chìa khóa ${a.unit_number || ""}` : `${dateLabel(a.date)} · Kiểm tra trả kho ${a.unit_number || ""}`}
               status={<StatusTag map={APPOINTMENT_STATUS} status={a.status} />}
               actions={a.status !== "CANCELLED" && a.status !== "DONE" && <LinkButton to={`support?contract=${encodeURIComponent(a.contract_id || "")}&topic=SCHEDULE`} variant="outline">Đổi lịch</LinkButton>}>
               <p>{facilityOf(data, a.facility_id).name}{a.note ? ` · ${a.note}` : ""}</p>

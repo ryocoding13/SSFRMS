@@ -50,9 +50,12 @@ test("khu vận hành qua API: nhân viên xử lý, quản lý phân bổ / duy
     assert.ok(alloc, "đơn vừa đối soát nằm trong hàng phân bổ");
     const unit = board.units.find((u) => u.status === "EMPTY" && u.type === alloc.type && u.area >= alloc.min_area && u.area <= alloc.max_area);
     assert.equal((await act("ALLOCATE", { id: alloc.id, unit: unit.code }, manager)).status, 200);
-    assert.equal((await act("DECIDE_RENEWAL", { id: "GH-0077", approve: false, reason: "" }, manager)).status, 400, "từ chối phải có lý do");
-    assert.equal((await act("DECIDE_RENEWAL", { id: "GH-0077", approve: false, reason: "Kho đã có đơn" }, manager)).status, 200);
-    assert.equal((await act("DECIDE_RENEWAL", { id: "GH-0208", approve: true }, manager)).status, 200);
+    const denyReject = await act("DECIDE_RENEWAL", { id: "GH-0077", approve: false, reason: "Kho đã có đơn" }, manager);
+    assert.equal(denyReject.status, 400);
+    assert.match(denyReject.data?.error || "", /đã bỏ/);
+    const denyApprove = await act("DECIDE_RENEWAL", { id: "GH-0208", approve: true }, manager);
+    assert.equal(denyApprove.status, 400);
+    assert.match(denyApprove.data?.error || "", /đã bỏ/);
     assert.equal((await act("ASSIGN", { id: "PC-0147", staff: "NV-02" }, manager)).status, 200, "giao việc bàn giao vừa phân bổ");
     assert.equal((await act("REMIND", { id: "HĐ-0061", note: "Đã gọi điện" }, manager)).status, 200);
     assert.equal((await act("CONFIRM_REFUND", { id: "HĐ-0098" }, manager)).status, 200);

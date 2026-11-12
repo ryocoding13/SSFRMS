@@ -17,6 +17,7 @@ import { slotLabel } from "./FacilityOperationsComponents.jsx";
 
 // Trong câu: "Hẹn hôm nay · 14:00"
 const slot = (iso) => slotLabel(iso).replace(/^Hôm nay/, "hôm nay");
+const dayOnly = (iso) => slot(iso).split(" · ")[0];
 
 // Danh sách việc của nhân viên dạng thẻ, lưới 3x3 (Figma S01 / S09a / S02a / S03a / S04a / S05a).
 export const KINDS = {
@@ -128,7 +129,8 @@ export function staffTasks(ops, me, kind = "all") {
         list.push({
           key: t.id, kind: "support", status: TICKET_STATE[t.status], title: `${t.id} · ${t.title}`,
           // D36/D40: yêu cầu "Nhận chìa khóa" của khách là việc giao chìa lần đầu, ghi rõ để nhân viên chuẩn bị chìa
-          meta: `${t.topic === "KEY_PICKUP" ? "Nhận chìa khóa lần đầu · " : ""}Kho ${t.unit} · ${t.customer}`, when: `Hẹn ${slot(t.schedule)}`,
+          meta: `${t.topic === "KEY_PICKUP" ? "Nhận chìa khóa lần đầu · " : ""}Kho ${t.unit} · ${t.customer}`,
+          when: t.topic === "KEY_PICKUP" ? (t.schedule ? `Ngày nhận: ${dayOnly(t.schedule)}` : "Chưa chọn ngày") : `Hẹn ${slot(t.schedule)}`,
           cta: "Xử lý", to: `staff/support?id=${t.id}`, sort: t.schedule,
         }),
       );
@@ -148,12 +150,12 @@ export function staffTasks(ops, me, kind = "all") {
       .forEach((r) =>
         list.push({
           key: r.id, kind: "return", status: ["Đã lên lịch", "gray"], title: `Kho #${r.unit} · ${r.customer}`,
-          meta: `Cọc đang giữ ${money(r.deposit)}`, when: `Hẹn ${slot(r.appointment)}`,
+          meta: `Cọc đang giữ ${money(r.deposit)}`, when: `Ngày hẹn ${dayOnly(r.appointment)}`,
           cta: "Kiểm tra", outline: true, to: `staff/return?id=${r.id}`, sort: r.appointment,
         }),
       );
     (ops.returns || [])
-      .filter((r) => ["SELF_CLEAN", "SELF_REPLACE", "DISPUTE"].includes(r.deduction_status))
+      .filter((r) => ["SELF_CLEAN", "SELF_REPLACE", "SELF_REMEDY", "DISPUTE"].includes(r.deduction_status))
       .forEach((r) =>
         list.push({
           key: `recheck-${r.id}`, kind: "return", status: ["Chờ kiểm tra lại", "blue"], title: `Kiểm tra lại #${r.unit} · ${r.customer}`,

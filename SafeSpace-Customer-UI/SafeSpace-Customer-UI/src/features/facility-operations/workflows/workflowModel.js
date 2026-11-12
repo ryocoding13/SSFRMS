@@ -4,7 +4,7 @@ import { addDays, today } from "../../../shared/utils/format.js";
 export const POLICY_SECTIONS = [
   ["payment", "Thanh toán và thời hạn sử dụng", "Hợp đồng và quyền mở kho được cấp sau khi hệ thống xác nhận thanh toán hoặc nhân viên xác nhận đã thu đủ tại quầy. Bạn sử dụng kho từ ngày bắt đầu hợp đồng; kiểm tra ngày bắt đầu, ngày hết hạn và trạng thái thanh toán trong Kho của tôi."],
   ["access", "Hiệu lực QR mở kho", "QR chỉ sử dụng trong thời hạn hợp đồng. QR hết hiệu lực ngay khi hết hạn thuê hoặc khi yêu cầu trả kho được ghi nhận thành công. Chuyển hết đồ trước khi xác nhận trả kho; cần hỗ trợ ra vào sau đó thì liên hệ nhân viên cơ sở."],
-  ["renewal", "Gia hạn và thanh toán", "Gửi yêu cầu để cơ sở kiểm tra kỳ thuê tiếp theo. Trong lúc chờ duyệt, ngày hết hạn giữ nguyên. Sau khi duyệt, thanh toán đủ tiền gia hạn qua PayOS hoặc tại quầy để cập nhật kỳ thuê. Không thu lại cọc; yêu cầu bị từ chối hiển thị lý do."],
+  ["renewal", "Gia hạn và thanh toán", "Yêu cầu gia hạn hợp lệ được hệ thống tự động xác nhận và mở thanh toán trực tiếp trong 24 giờ. Trong lúc chờ thanh toán, ngày hết hạn giữ nguyên. Thanh toán đủ tiền gia hạn qua PayOS hoặc tại quầy để cập nhật kỳ thuê. Không thu lại cọc."],
   ["overdue", "Quá hạn và khấu trừ tiền cọc", "Nếu quá hạn mà chưa trả kho, mỗi ngày trừ 5% giá trị cọc ban đầu, tối đa 100% cọc. Sau 20 ngày cọc còn 0 đ, nhân viên kho đưa đồ của khách ra ngoài. Khách hàng tự chịu trách nhiệm theo chính sách."],
   ["return", "Trả kho, đối soát và hoàn cọc", "Chuyển hết đồ trước khi xác nhận trả kho. Cơ sở kiểm tra kho, nhận lại chìa khóa và lập biên bản. Cọc, khoản chưa thanh toán và phí được đối soát; bạn xem được khấu trừ và số tiền hoàn. Không còn cọc thì số tiền hoàn bằng 0 đ."],
   ["cancellation", "Huỷ đặt chỗ và theo dõi hoàn tiền", "Trước khi huỷ, kiểm tra điều kiện, khoản khấu trừ và tiền hoàn trên đơn. Chờ hoàn là cơ sở chưa ghi nhận hoàn thành chuyển tiền; Đã hoàn là giao dịch đã được xác nhận. Chưa nhận tiền thì liên hệ cơ sở kèm mã đơn/khoản hoàn."],
@@ -38,7 +38,7 @@ export function createWorkflowSeed() {
   return {
     policy: defaultRentalPolicy(),
     overdue: [{ id: "QH-0061", facilityId: 1, contractId: "HĐ-0061", unit: "K03", customer: "Trần Quốc Bảo", deposit: 1150000, endDate: addDays(today(), -20), notes: [], status: "PENDING", assignee: "Trần Văn Long" }],
-    depositRefunds: [{ id: "HC-0098", facilityId: 1, ownerId: 3, contractId: "HĐ-0098", unit: "K04", customer: "Nguyễn Văn An", deposit: 1150000, overdue:172500, cleaning:115000, damage:200000, amount:662500, bankName:"Ngân hàng mô phỏng",accountNumber:"0000123456",accountHolder:"NGUYEN VAN AN",version:1,status: "PENDING", inspectedAt: new Date().toISOString() }],
+    depositRefunds: [{ id: "HC-0098", facilityId: 1, ownerId: 3, contractId: "HĐ-0098", unit: "K04", customer: "Nguyễn Văn An", deposit: 1150000, overdue:172500, cleaning:115000, damage:200000, amount:662500, bankName:"Vietcombank",accountNumber:"0000123456",accountHolder:"NGUYEN VAN AN",version:1,status: "PENDING", inspectedAt: new Date().toISOString() }],
     counterRenewals: [{ id: "GHQ-0142", facilityId: 1, contractId: "HĐ-0142", unit: "K01", customer: "Nguyễn Văn An", amount: 3450000, months: 3, status: "PENDING" }],
     inquiries: [{ id: "HT-0091", facilityId: 1, ownerId: 3, customer: "Nguyễn Văn An", title: "Tư vấn đặt kho", description: "Tôi muốn biết loại kho phù hợp trước khi đặt chỗ.", status: "OPEN", responses: [], createdAt: new Date().toISOString() }],
   };

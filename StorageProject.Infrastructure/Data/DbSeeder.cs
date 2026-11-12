@@ -427,8 +427,8 @@ public static partial class DbSeeder
                     PolicyName = "Phí hủy đặt chỗ",
                     PolicyType = "CANCELLATION",
                     CalculationType = "PERCENTAGE",
-                    Value = 5.0m, // D40: phí huỷ 5% tiền cọc trước ngày bắt đầu (số tính trong RefundPolicy.CancelFeeRate)
-                    RuleDescription = "Huỷ trước ngày bắt đầu thuê: phí 5% tiền cọc, hoàn đủ tiền thuê và 95% tiền cọc. Từ 0h ngày bắt đầu, tiền thuê tháng đó tính đủ (D40)",
+                    Value = 0.0m, // D49: miễn phí huỷ trước ngày bắt đầu (0%)
+                    RuleDescription = "Huỷ trước ngày bắt đầu thuê: miễn phí huỷ (0%), hoàn đủ 100% tiền thuê và 100% tiền cọc. Từ 0h ngày bắt đầu, thực hiện theo luồng trả kho (D49)",
                     EffectiveFrom = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30)),
                     Status = "ACTIVE",
                     CreatedAt = DateTime.UtcNow,

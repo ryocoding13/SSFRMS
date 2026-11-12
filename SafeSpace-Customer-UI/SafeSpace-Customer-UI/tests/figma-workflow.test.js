@@ -70,3 +70,14 @@ test('D41/D45: đề xuất đổi kho hiện trong chuông (không email), ID �
   assert.match(a[1].detail,/ô K06/);
   assert.ok(!a.some(n=>/email/i.test(n.title+n.detail)));
 });
+
+test('Task #5 & #6: hỗ trợ không bắt buộc mô tả/ảnh; KEY_PICKUP chỉ lưu ngày chọn, không hiển thị giờ',()=>{
+  const state=createSeedData('2026-10-22');
+  const out=reduce(state,{type:'CREATE_TICKET',payload:{contract_id:state.contracts[0].contract_id,topic:'KEY_PICKUP',preferred_date:'2026-10-25'}},{now});
+  assert.equal(out.error,undefined);
+  assert.equal(out.state.tickets[0].preferred_date,'2026-10-25');
+  assert.equal(out.state.tickets[0].description,'Ngày muốn nhận chìa khóa: 25/10/2026');
+  const accessOut=reduce(state,{type:'CREATE_TICKET',payload:{contract_id:state.contracts[0].contract_id,topic:'ACCESS',access_request:'PIN'}},{now});
+  assert.equal(accessOut.error,undefined);
+  assert.equal(accessOut.state.tickets[0].description,'');
+});
