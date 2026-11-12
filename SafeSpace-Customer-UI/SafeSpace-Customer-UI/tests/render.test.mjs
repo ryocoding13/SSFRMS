@@ -87,20 +87,22 @@ try {
   memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: recordData }));
   window.location.hash = "#/units";
   const endedUnits = renderToStaticMarkup(React.createElement(App));
-  assert.ok(endedUnits.includes("Xem hợp đồng") && !endedUnits.includes("Xem QR &amp; PIN"));
+  assert.ok(endedUnits.includes("Xem hợp đồng") && !endedUnits.includes("Mã QR mở cửa"));
   recordData.contracts[0].status = "ACTIVE";
   recordData.contracts[0].end_date = "2099-12-31";
-  // D35–D36 · L13: trước ngày thuê không mở QR/PIN, chỉ ghi ngày mã hiện
+  // #59 (thay L13): trước ngày thuê vẫn xem được mã, chưa có nút Đóng cửa; mã chỉ mở cửa từ 00:00 ngày bắt đầu
   recordData.contracts[0].start_date = "2099-01-01";
   memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: recordData }));
   const prestartUnits = renderToStaticMarkup(React.createElement(App));
-  assert.match(prestartUnits, /<button[^>]*disabled[^>]*>Mã hiện từ /);
-  assert.ok(!prestartUnits.includes("Xem QR &amp; PIN"));
+  assert.match(prestartUnits, /<button type="button" class="btn btn--outline ">Mã QR mở cửa<\/button>/);
+  assert.ok(prestartUnits.includes("Chưa đến ngày sử dụng"));
+  assert.ok(!prestartUnits.includes(">Đóng cửa<"), "chưa đến ngày thuê thì chưa có nút Đóng cửa");
   recordData.contracts[0].start_date = "2026-01-01";
   recordData.returns = [{ contract_id: recordData.contracts[0].contract_id, status: "PENDING" }];
   memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: recordData }));
   const returningUnits = renderToStaticMarkup(React.createElement(App));
-  assert.match(returningUnits, /<button[^>]*disabled[^>]*>Xem QR &amp; PIN<\/button>/);
+  assert.match(returningUnits, /<button[^>]*disabled[^>]*>Mã QR mở cửa<\/button>/);
+  assert.match(returningUnits, /<button[^>]*disabled[^>]*>Đóng cửa<\/button>/, "đã gửi trả kho thì không điều khiển cửa");
   recordData.contracts = [];
   recordData.reservations = [];
   memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: recordData }));
@@ -147,7 +149,7 @@ try {
   memory.set(STORAGE_KEY, JSON.stringify({version:5,authed:true,data:lifecycleData}));
   window.location.hash = "#/units/HĐ-2026-0086";
   const pendingRenewalHtml = renderToStaticMarkup(React.createElement(App));
-  for (const text of ["Xem yêu cầu", "Huỷ yêu cầu", "GH-0043 chờ quản lý duyệt · huỷ được trước khi duyệt"]) assert.ok(pendingRenewalHtml.includes(text), text);
+  for (const text of ["Xem yêu cầu", "Huỷ yêu cầu", "GH-0043 đang được kiểm tra · huỷ được trước khi xác nhận"]) assert.ok(pendingRenewalHtml.includes(text), text);
   window.location.hash = "#/profile";
   assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Tên đăng nhập"));
   window.location.hash = "#/register";
@@ -238,26 +240,26 @@ try {
   window.location.hash = "#/manager/report";
   const zeroHtml = renderToStaticMarkup(React.createElement(App));
   assert.ok(!zeroHtml.includes("NaN"), "Báo cáo doanh thu 0/0 không được có NaN");
-  assert.ok(zeroHtml.includes("Kho thường") && zeroHtml.includes("0,0 triệu đ · 0%"));
-  assert.ok(zeroHtml.includes("Kho lạnh") && zeroHtml.includes("0,0 triệu đ · 0%"));
+  assert.ok(zeroHtml.includes("Kho thường") && zeroHtml.includes("0 đ · 0%"));
+  assert.ok(zeroHtml.includes("Kho lạnh") && zeroHtml.includes("0 đ · 0%"));
   assert.ok(zeroHtml.includes('style="width:0%"'), "Thanh doanh thu 0% có chiều rộng 0%");
   assert.ok(zeroHtml.includes("Tỷ lệ lấp đầy kho"), "Tỷ lệ lấp đầy kho là chỉ số riêng");
 
   const shareReportOps = {
     ...createOpsData(),
     revenue: {
-      months: [{ month: 9, year: 2026, value: 4, label: "Tháng 9" }],
+      months: [{ month: 9, year: 2026, value: 4_000_000, label: "Tháng 9" }],
       by_type: [
-        { label: "Kho thường", value: 3 },
-        { label: "Kho lạnh", value: 1 },
+        { label: "Kho thường", value: 3_000_000 },
+        { label: "Kho lạnh", value: 1_000_000 },
       ],
     },
   };
   memory.set(OPS_KEY, JSON.stringify(shareReportOps));
   window.location.hash = "#/manager/report";
   const shareHtml = renderToStaticMarkup(React.createElement(App));
-  assert.ok(shareHtml.includes("3,0 triệu đ · 75%"));
-  assert.ok(shareHtml.includes("1,0 triệu đ · 25%"));
+  assert.ok(shareHtml.includes("3.000.000 đ · 75%"));
+  assert.ok(shareHtml.includes("1.000.000 đ · 25%"));
   assert.ok(shareHtml.includes('style="width:75%"'));
   assert.ok(shareHtml.includes('style="width:25%"'));
 
@@ -276,8 +278,8 @@ try {
   seed(true);
   const pages = [
     // D36: chìa khóa vật lý giao theo yêu cầu "Nhận chìa khóa"; D40: hợp đồng chưa tới ngày thuê vẫn gửi hỗ trợ được
-    ["units/HĐ-2026-0142", ["Hợp đồng và mã ra vào đã được cấp", "Đã cấp · mã hiện từ", "Mã hiện từ", "Nhận chìa khóa"]],
-    ["units/HĐ-2026-0086", ["Xem QR &amp; PIN 6 số", "Gia hạn", "Trả kho"]],
+    ["units/HĐ-2026-0142", ["Hợp đồng và mã ra vào đã được cấp", "Đã cấp · mở cửa từ 00:00 ngày", "Có thể mở cửa từ 00:00 ngày", "Nhận chìa khóa"]],
+    ["units/HĐ-2026-0086", ["Mã QR mở cửa", "Đóng cửa", "Gia hạn", "Trả kho"]],
     ["payments", ["Thanh toán", "Gia hạn B-015 · 3 tháng", "Chờ thanh toán"]],
     ["support", ["Phản hồi của nhân viên", "Thẻ cũ bị lỗi từ", "Yêu cầu gần đây", "Lưu ý khi gửi"]],
     ["reservations", ["Huỷ đơn SS-0142", "Thao tác", "miễn phí huỷ"]], // D49
@@ -292,7 +294,7 @@ try {
   window.location.hash = "#/units/HĐ-2026-0142";
   // D26 vẫn cấp mã sau thanh toán; D35–D36 (L13) chỉ mở QR/PIN từ ngày bắt đầu thuê
   const prestartDetail = renderToStaticMarkup(React.createElement(App));
-  assert.ok(prestartDetail.includes("Đã cấp · mã hiện từ") && !prestartDetail.includes("Xem QR &amp; PIN 6 số"), "L13: trước ngày thuê không mở QR/PIN");
+  assert.ok(prestartDetail.includes("Đã cấp · mở cửa từ 00:00 ngày") && prestartDetail.includes("Mã QR mở cửa") && !prestartDetail.includes(">Đóng cửa<"), "#59: trước ngày thuê xem được mã, chỉ mở cửa từ 00:00 ngày bắt đầu");
   seed(true, OPS_ACCOUNTS[0]);
   for (const [r, texts] of [["staff/reconcile", ["Thu tiền tại kho", "Chờ thu khi nhận kho"]], ["staff/reconcile?id=SS-20260914-0142", ["Xác nhận đã thu", "Để sau", "Thuê 3 tháng"]], ["staff", ["Chờ thu tiền tại kho", "THU TIỀN"]]]) {
     window.location.hash = `#/${r}`;

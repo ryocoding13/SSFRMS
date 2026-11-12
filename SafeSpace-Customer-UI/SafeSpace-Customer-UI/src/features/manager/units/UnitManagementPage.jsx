@@ -10,12 +10,14 @@ import React, { useMemo, useState } from "react";
 import { Pagination, Select } from "../../../shared/components/Pickers.jsx";
 import { Button, Field, Icon, Modal, Tag } from "../../../shared/components/UI.jsx";
 import { SIZE_BANDS, UNIT_TYPES, bandOfArea, typeLabel } from "../../../shared/utils/catalog.js";
-import { dateLabel, money } from "../../../shared/utils/format.js";
+import { dateLabel, dateTimeLabel, money } from "../../../shared/utils/format.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { go, qs } from "../../../app/router.js";
 import { UNIT_STATE } from "../../facility-operations/data/facilityOperationsSeed.js";
 import { UNIT_TRANSITIONS } from "../../facility-operations/state/facilityOperationsReducer.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
+import { BOARD_TABS, DOOR, OPERATION, USAGE, incidentLink, unitActions, unitBoardView } from "./unitBoardModel.js";
+import "./unit-board.css";
 
 export const UNIT_TABS = [
   ["", "Tất cả"],
@@ -60,7 +62,7 @@ export function UnitStatusDialog({ unit, onClose }) {
           </label>
         ))}
       </fieldset>
-      <p className="hint">Chỉ hiện các trạng thái được phép chuyển: Trống ↔ Bảo trì. Ô đang có khách thuê không đổi được ở đây.</p>
+      <p className="hint">Chỉ hiện các trạng thái được phép chuyển: Trống ↔ Bảo trì. Ô đang có khách thuê ghi nhận hư hỏng, bảo trì bằng “Ghi nhận sự cố”; trạng thái sử dụng luôn theo hợp đồng.</p>
       <Field label="Lý do (bắt buộc)" error={err}>
         <textarea rows={3} maxLength={255} value={reason} placeholder="Ví dụ: Hỏng khoá cửa, chờ thợ sửa" onChange={(e) => { setReason(e.target.value); setErr(""); }} />
       </Field>
@@ -136,71 +138,82 @@ function UnitFormDialog({ unit, onClose }) {
 
 export const PER_PAGE = 12;
 
+/** Một ô trạng thái trên thẻ: nhãn nhỏ + tag + dòng phụ. */
+function StateCell({ label, value, sub }) {
+  const [text, tone] = value;
+  return <div className="unit-board__state"><span>{label}</span><Tag tone={tone}>{text}</Tag>{sub && <small>{sub}</small>}</div>;
+}
+
 /**
- * Màn hình trực quan hóa sơ đồ mặt bằng ô kho và quản lý tình trạng kỹ thuật từng ô.
+ * M02 · Danh sách kho (#47 · Figma M-KHO): mỗi ô một thẻ, tách Sử dụng / Vận hành / Cửa.
+ * Sử dụng theo hợp đồng; ô đang có khách vẫn ghi nhận sự cố (#22), không đổi tay thành trống.
  */
 export function UnitManagementPage({ query }) {
   const { ops } = useOps();
-  const tab = query.get("tab") || "";
+  const tab = BOARD_TABS.some(([k]) => k === query.get("tab")) ? query.get("tab") : "";
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(null); // { unit } khi sửa, {} khi thêm
   const page = Math.max(1, Number(query.get("page")) || 1);
+  const rows = useMemo(() => ops.units.map((u) => ({ u, v: unitBoardView(u) })), [ops.units]);
+  const test = (k) => (BOARD_TABS.find(([key]) => key === k) || BOARD_TABS[0])[2];
   const list = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return ops.units.filter((u) => (!tab || u.status === tab) && (!q || u.code.toLowerCase().includes(q) || (u.tenant || "").toLowerCase().includes(q)));
-  }, [ops.units, tab, search]);
+    return rows.filter(({ u, v }) => test(tab)(v) && (!q || u.code.toLowerCase().includes(q) || (u.tenant || "").toLowerCase().includes(q) || (v.contract || "").toLowerCase().includes(q)));
+  }, [rows, tab, search]);
   const pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
   const cur = Math.min(page, pages);
   const shown = list.slice((cur - 1) * PER_PAGE, cur * PER_PAGE);
-  const count = (s) => (s ? ops.units.filter((u) => u.status === s).length : ops.units.length);
+  const rented = rows.filter(({ v }) => v.usage === "RENTED").length;
   return (
-    <main className="container page">
-      <header className="page-header page-header--tight"><div><h1>Danh sách kho — {ops.facility.name}</h1></div></header>
+    <main className="container page unit-board">
+      <p className="customer-records__breadcrumb">SafeSpace / Quản lý cơ sở / Danh sách kho</p>
+      <header className="page-header page-header--tight unit-board__head">
+        <div><h1>Danh sách kho — {ops.facility.name}</h1><p className="muted">Sử dụng lấy theo hợp đồng, không đổi tay thành trống. Trạng thái cửa cập nhật theo mô phỏng, chưa kết nối thiết bị thật.</p></div>
+        <Tag tone="blue">{rows.length} ô · {rented} có người thuê</Tag>
+      </header>
       <Button variant="outline" className="btn--sm btn--fit" onClick={() => setForm({})}>+ Thêm ô kho</Button>
       <div className="admin-toolbar">
-        <div className="chips" role="group" aria-label="Lọc theo trạng thái">
-          {UNIT_TABS.map(([k, label]) => (
+        <div className="chips" role="group" aria-label="Lọc ô kho">
+          {BOARD_TABS.map(([k, label]) => (
             <button type="button" key={k || "all"} className={`chip chip--dark${tab === k ? " is-on" : ""}`} aria-pressed={tab === k} onClick={() => go(`manager/units${qs({ tab: k })}`, { replace: true })}>
-              {label} · {count(k)}
+              {label} · {rows.filter(({ v }) => test(k)(v)).length}
             </button>
           ))}
         </div>
         <label className="search-input">
           <Icon name="search" size={18} />
-          <input type="search" placeholder="Tìm mã kho hoặc khách thuê" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Tìm mã kho hoặc khách thuê" />
+          <input type="search" placeholder="Tìm mã kho, khách thuê hoặc hợp đồng" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Tìm mã kho, khách thuê hoặc hợp đồng" />
         </label>
       </div>
-      <div className="panel table-wrap">
-        <table className="table">
-          <thead><tr><th>Mã kho</th><th>Khách thuê</th><th>Loại kho</th><th>Diện tích</th><th>Trạng thái</th><th>Hết hạn</th><th>Thao tác</th></tr></thead>
-          <tbody>
-            {shown.length === 0 && <tr><td colSpan={7} className="table__empty">Không có kho phù hợp.</td></tr>}
-            {shown.map((u) => {
-              const [label, tone] = UNIT_STATE[u.status] || [u.status, "gray"];
-              return (
-                <tr key={u.code}>
-                  <td className="cell-strong">#{u.code}</td>
-                  <td>{u.tenant || "—"}</td>
-                  <td>{typeLabel(u.type)}</td>
-                  <td>{u.area} m² · {floorLabel(u.floor)}</td>
-                  <td><Tag tone={tone}>{label}</Tag></td>
-                  <td>{u.end ? dateLabel(u.end) : "—"}</td>
-                  <td>
-                    {UNIT_TRANSITIONS[u.status] ? (
-                      <span className="row-actions">
-                        <button type="button" className="link-btn" onClick={() => setEditing(u)}>Đổi trạng thái</button>
-                        {u.status === "EMPTY" && <button type="button" className="link-btn" onClick={() => setForm({ unit: u })}>Sửa</button>}
-                      </span>
-                    ) : (
-                      <span className="muted">{u.tenant ? "Đang có khách thuê" : "—"}</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="unit-board__list">
+        {shown.length === 0 && <div className="panel table__empty">Không có kho phù hợp.</div>}
+        {shown.map(({ u, v }) => {
+          const act = unitActions(u, v, UNIT_TRANSITIONS);
+          const who = v.usage === "RENTED"
+            ? [v.contract, u.tenant, u.end ? `đến ${dateLabel(u.end)}` : null].filter(Boolean).join(" · ")
+            : v.bookedFrom ? `Trống · đã đặt từ ${dateLabel(v.bookedFrom)}` : v.waiting ? "Trống · đã có đơn chờ nhận kho" : "Trống";
+          return (
+            <article className="panel unit-board__item" key={u.code}>
+              <div className="unit-board__info">
+                <strong>{u.code} · {typeLabel(u.type)} {u.area} m²</strong>
+                <span className="muted">{who}</span>
+                <small className="muted">{floorLabel(u.floor)}</small>
+              </div>
+              <StateCell label="Sử dụng" value={USAGE[v.usage]} />
+              <StateCell label="Vận hành" value={OPERATION[v.operation]} sub={v.incident ? `Sự cố ${v.incident}` : null} />
+              <StateCell label="Cửa · mô phỏng" value={DOOR[v.door]} sub={v.doorAt ? `Cập nhật ${dateTimeLabel(v.doorAt)}` : "Chưa có lần mở"} />
+              <div className="unit-board__actions">
+                {act.incident && (v.contract
+                  ? <Button variant={act.incident === "VIEW" ? "outline" : "primary"} onClick={() => go(incidentLink(v))}>{act.incident === "VIEW" ? "Xem sự cố" : "Ghi nhận sự cố"}</Button>
+                  : <span className="hint">Chưa có mã hợp đồng để ghi nhận sự cố</span>)}
+                {act.status && <Button variant="outline" onClick={() => setEditing(u)}>Đổi trạng thái</Button>}
+                {act.edit && <button type="button" className="link-btn" onClick={() => setForm({ unit: u })}>Sửa</button>}
+                {!act.incident && !act.status && <span className="hint">{v.waiting ? "Đã có khách đặt · chờ nhận kho" : "Không có thao tác"}</span>}
+              </div>
+            </article>
+          );
+        })}
       </div>
       <Pagination page={cur} pages={pages} total={list.length} from={(cur - 1) * PER_PAGE + 1} to={(cur - 1) * PER_PAGE + shown.length} noun="kho" onPage={(n) => go(`manager/units${qs({ tab, page: n === 1 ? "" : n })}`, { replace: true })} />
       {editing && <UnitStatusDialog unit={editing} onClose={() => setEditing(null)} />}

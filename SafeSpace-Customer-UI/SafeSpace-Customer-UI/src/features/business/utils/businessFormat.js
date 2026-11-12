@@ -3,13 +3,13 @@ import { money, today } from "../../../shared/utils/format.js";
 
 const comma = (n, digits = 1) => Number(n).toFixed(digits).replace(".", ",");
 
-/** Tiền rút gọn cho thẻ số liệu / bảng: 1.080.000.000 → "1,08 tỷ đ", 92.400.000 → "92,4 triệu đ". */
+/**
+ * Tiền cho thẻ số liệu / bảng / biểu đồ (#34): luôn hiển thị đầy đủ, không rút gọn "triệu"/"tỷ".
+ * 28.300.000 → "28.300.000 đ". Thiếu dữ liệu → "Chưa có dữ liệu".
+ */
 export function shortMoney(n) {
   if(n==null||n===""||!Number.isFinite(Number(n)))return "Chưa có dữ liệu";
-  const v = Number(n);
-  if (Math.abs(v) >= 1e9) return `${comma(v / 1e9, 2)} tỷ đ`;
-  if (Math.abs(v) >= 1e6) return `${comma(v / 1e6, 1)} triệu đ`;
-  return money(v);
+  return money(Number(n));
 }
 
 /** Tỷ lệ sử dụng: null = "Không áp dụng" (cơ sở không có kho khai thác được — docs/operations-api.md). */

@@ -2,3 +2,23 @@
 .ops-verification { max-width: 600px; }
 .ops-verification h1 { font-size: 24px; margin: 0; }
 .ops-verification input[readonly] { background: var(--bg); }
+
+/* #16 · Figma M-ĐS: bảng đối soát */
+.settlement-table { display: grid; gap: 10px; }
+.settlement-table__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.settlement-table__head h2 { margin: 0; }
+.settlement-table__row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; font-size: 15px; }
+.settlement-table__row span { color: var(--muted); display: grid; gap: 2px; }
+.settlement-table__row small { font-size: 13px; color: var(--muted); opacity: .85; }
+.settlement-table__row strong { color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.settlement-table__minus { color: #b42318 !important; }
+.settlement-table__label { margin: 4px 0 0; font-size: 14px; font-weight: 600; color: var(--muted); }
+.settlement-table hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; width: 100%; }
+.settlement-table__total { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: #dbf5eb; color: #087f68; border-radius: 10px; padding: 14px 16px; font-weight: 600; }
+.settlement-table__total strong { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* #15 · Figma M-ĐS-DS: bộ lọc trạng thái hồ sơ trả kho */
+.return-cases { display: grid; gap: 14px; margin-bottom: 28px; }
+.return-cases__filters { margin-bottom: 4px; }
+.return-cases__filters > button { border: 0; background: none; cursor: pointer; padding: 8px 14px; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 500; color: var(--text); white-space: nowrap; }
+.return-cases__filters > button:hover, .return-cases__filters > button.is-active { background: var(--soft); }
+.return-cases__filters > button.is-active { color: var(--blue); font-weight: 600; }

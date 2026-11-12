@@ -12,7 +12,7 @@ import SearchBar from "../../../shared/components/SearchBar.jsx";
 import { ViewToggle } from "../../../shared/components/Inline.jsx";
 import { directionsUrl } from "../access/accessApi.js";
 import { Icon, PageHeader } from "../../../shared/components/UI.jsx";
-import { HCMC_CENTER, coordsOf } from "../../../app/config/geo.js";
+import { HCMC_CENTER, coordsOf, hasMapCoords } from "../../../app/config/geo.js";
 import { areaLabel, minRate, offerTypes, searchFacilities, typeLabel } from "../../../shared/utils/catalog.js";
 import { money } from "../../../shared/utils/format.js";
 import { go, href, qs } from "../../../app/router.js";
@@ -33,7 +33,8 @@ const MARKER_HTML = `<span class="map-marker__inner"><svg width="20" height="20"
 export default function FacilityMapPage({ query }) {
   const { data } = useApp();
   const filters = filtersFromQuery(query);
-  const results = useMemo(() => searchFacilities(data.facilities, filters), [data.facilities, filters.type, filters.band, filters.area]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Cơ sở mới chưa nhập toạ độ thì chưa ghim lên bản đồ (vẫn có trong danh sách cơ sở).
+  const results = useMemo(() => searchFacilities(data.facilities, filters).filter(hasMapCoords), [data.facilities, filters.type, filters.band, filters.area]); // eslint-disable-line react-hooks/exhaustive-deps
   const [visible, setVisible] = useState(null); // id các cơ sở trong khung bản đồ; null = chưa có bản đồ
   const [selected, setSelected] = useState(null);
   const [mapError, setMapError] = useState(false);
@@ -120,7 +121,7 @@ export default function FacilityMapPage({ query }) {
     const L = leafletRef.current;
     if (map && L && data.facilities.length) {
       if (filters.type || filters.band || filters.area) go("find/map", { replace: true });
-      else map.fitBounds(L.latLngBounds(data.facilities.map(coordsOf)).pad(0.1));
+      else if (data.facilities.some(hasMapCoords)) map.fitBounds(L.latLngBounds(data.facilities.filter(hasMapCoords).map(coordsOf)).pad(0.1));
     }
   };
   const areaName = filters.area || "TP. Hồ Chí Minh";

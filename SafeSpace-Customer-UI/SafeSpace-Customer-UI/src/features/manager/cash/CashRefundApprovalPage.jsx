@@ -19,7 +19,7 @@ import { CASH_SOURCE, CASH_STATUS, cashPath } from "../../facility-operations/wo
 /**
  * Màn hình quản lý cơ sở phê duyệt yêu cầu chi tiền mặt hoàn cọc hoặc hoàn tiền hủy đơn.
  */
-export function CashRefundApprovalPage() {
+export function CashRefundApprovalPage({ embedded = false } = {}) {
   const { ops, reload: reloadOps } = useOps() || {};
   const load = useOpsEndpoint("/api/ops/cash-refunds");
   const [approve, setApprove] = useState(null), [error, setError] = useState("");
@@ -31,8 +31,9 @@ export function CashRefundApprovalPage() {
     setApprove(null); setError("");
     await reloadOps?.();
   };
-  return <main className="container page workflow-page">
-    <PageHeader title="Hoàn tiền mặt tại quầy" description="Khách chọn nhận tiền mặt khi huỷ đơn, trả kho hoặc kết thúc do sự cố. Duyệt và giao nhân viên chi; quá 30 ngày khách không đến nhận thì mất khoản hoàn." />
+  const Wrap = embedded ? "section" : "main";
+  return <Wrap className={embedded ? "refund-center__section" : "container page workflow-page"}>
+    {embedded ? <h2 className="section-title">Hoàn tiền mặt tại quầy</h2> : <PageHeader title="Hoàn tiền mặt tại quầy" description="Khách chọn nhận tiền mặt khi huỷ đơn, trả kho hoặc kết thúc do sự cố. Duyệt và giao nhân viên chi; quá 30 ngày khách không đến nhận thì mất khoản hoàn." />}
     <WorkflowState load={load}>
       {items.map(r => {
         const [label, tone] = CASH_STATUS[r.status] || [r.status, "amber"];
@@ -55,5 +56,5 @@ export function CashRefundApprovalPage() {
       {error && <Notice tone="error">{error}</Notice>}
       <div className="modal__actions"><Button variant="outline" onClick={() => { setApprove(null); setError(""); }}>Quay lại</Button><Button disabled={load.busy} onClick={save}>Duyệt chi</Button></div>
     </Modal>}
-  </main>;
+  </Wrap>;
 }

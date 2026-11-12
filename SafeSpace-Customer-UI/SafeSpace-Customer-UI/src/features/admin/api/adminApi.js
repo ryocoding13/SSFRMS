@@ -106,4 +106,16 @@ export const adminApi = {
    * Lấy danh sách tất cả cơ sở để Admin chọn khi phân công người dùng phụ trách (không yêu cầu quyền Admin)
    */
   facilities: () => request("/api/facilities", { auth: false }),
+  // Lượt 6 · #45 #54 · Công cụ demo: chỉnh ngày hợp đồng, ngày giao dịch và giá (ghi nhật ký trước/sau)
+  demoContracts: (search) => request(`/api/admin/demo/contracts${q({ search })}`),
+  demoEditContract: (id, body) => request(`/api/admin/demo/contracts/${id}`, { method: "PUT", body }),
+  demoEditPayment: (id, body) => request(`/api/admin/demo/payments/${id}`, { method: "PUT", body }),
+  // #49: nhật ký cửa
+  doorLogs: (filter) => request(`/api/admin/door-logs${q(filter)}`),
+  // Máy quét tại cửa (thiết bị công khai, không gắn tài khoản đăng nhập) · D51
+  facilityUnits: (facilityId) => request(`/api/facilities/${facilityId}/units`, { auth: false }),
+  scan: (code, unitNumber) => request("/api/access/scan", { method: "POST", body: { code, unitNumber }, auth: false }),
+  doorState: (unitNumber, facilityId) => request(`/api/access/door${q({ unitNumber, facilityId })}`, { auth: false }),
+  closeDoor: (unitNumber, facilityId) => request("/api/access/door/close", { method: "POST", body: { unitNumber, facilityId }, auth: false }),
+  doorSupport: (body) => request("/api/access/support", { method: "POST", body, auth: false }),
 };

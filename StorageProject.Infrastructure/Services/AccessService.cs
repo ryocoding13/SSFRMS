@@ -49,11 +49,8 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
             throw new InvalidOperationException("Hợp đồng đã trả kho hoặc hết hiệu lực, mã mở cửa không còn dùng được.");
         }
 
-        // L13 (D35–D36): trước ngày bắt đầu thuê không trả QR/PIN; mã vẫn được cấp sẵn sau thanh toán (D26).
-        if (OpsRules.TodayLocal < contract.StartDate)
-        {
-            throw new InvalidOperationException($"Mã ra vào chỉ hiển thị từ ngày bắt đầu thuê ({contract.StartDate:dd/MM/yyyy}).");
-        }
+        // #59 (thay L13): khách xem được QR/PIN trước ngày thuê, nhưng máy quét chỉ mở từ 00:00 ngày bắt đầu (giờ VN).
+        var usableNow = OpsRules.TodayLocal >= contract.StartDate;
 
         var latestCred = LatestCredential(contract, false);
         if (latestCred == null || latestCred.Status != "ACTIVE")
@@ -73,7 +70,9 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
             contract.Unit.UnitType?.TypeName ?? "Kho tự quản",
             contract.Unit.LocationDescription ?? contract.Unit.Floor ?? contract.Unit.Zone,
             contract.EndDate.ToString("yyyy-MM-dd"),
-            contract.StartDate.ToString("yyyy-MM-dd")
+            contract.StartDate.ToString("yyyy-MM-dd"),
+            usableNow,
+            contract.StartDate.ToString("yyyy-MM-dd") + "T00:00:00"
         );
     }
 
@@ -93,6 +92,7 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
         }
 
         var cleaned = rawCode.Trim();
+        scanMethod = cleaned.StartsWith("SSQR-", StringComparison.OrdinalIgnoreCase) ? "QR" : "PIN";
         RentalContract? contract = null;
         AccessCredential? latestCred = null;
 
@@ -129,6 +129,9 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
         else
         {
             var digitsOnly = Regex.Replace(cleaned, @"\s+", "");
+            // D51: PIN 6 số chỉ dùng 1–9 (bàn phím máy quét không có số 0)
+            if (digitsOnly.Length == 6 && digitsOnly.All(char.IsDigit) && digitsOnly.Contains('0'))
+                return await LogAndDenyAsync(null, unitNumber, null, null, "Mã PIN gồm 6 số từ 1 đến 9.", ipAddress, ct);
             if (digitsOnly.Length == 6 && digitsOnly.All(char.IsDigit) && !string.IsNullOrWhiteSpace(unitNumber))
             {
                 var movingIn = await RenewalUnitMove.ContractsMovingIntoAsync(dbContext, unitNumber, ct);
@@ -198,8 +201,9 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
             return await LogAndDenyAsync(contract.ContractId, scannedUnit, customerName, contractCode, "Hợp đồng không còn hiệu lực.", ipAddress, ct);
         }
 
+        // #59: đúng câu như khách thấy trong Kho của tôi; không ghi "sau ngày …" để tránh hiểu là ngày hôm sau
         if (contract.StartDate > vnToday)
-            return await LogAndDenyAsync(contract.ContractId, scannedUnit, customerName, contractCode, "Chưa đến ngày bắt đầu hợp đồng.", ipAddress, ct);
+            return await LogAndDenyAsync(contract.ContractId, scannedUnit, customerName, contractCode, NotYetMessage(contract.StartDate), ipAddress, ct);
         if (latestCred.Status != "ACTIVE")
             return await LogAndDenyAsync(contract.ContractId, scannedUnit, customerName, contractCode, "Mã không còn hiệu lực.", ipAddress, ct);
 
@@ -217,7 +221,7 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
             Action = "ACCESS_SCANNED",
             EntityType = "CONTRACT",
             EntityId = contract.ContractId,
-            NewValue = JsonSerializer.Serialize(new { result = "OPEN", unit = scannedUnit, reason = (string?)null }),
+            NewValue = JsonSerializer.Serialize(new { result = "OPEN", unit = scannedUnit, reason = (string?)null, method = scanMethod }),
             IpAddress = ipAddress,
             LoggedAt = now
         });
@@ -247,11 +251,18 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
         var hex = Convert.ToHexString(hash)[..8].ToUpperInvariant();
         var code = $"SSQR-{contractId}-{hex}";
 
-        var uintVal = BitConverter.ToUInt32(hash, 0);
-        var backupCode = (uintVal % 1000000).ToString("D6");
+        // D51: PIN 6 số, mỗi số 1–9 (không có 0) để khớp bàn phím máy quét
+        var backupCode = new string(Enumerable.Range(0, 6).Select(i => (char)('1' + hash[4 + i] % 9)).ToArray());
 
         return (code, backupCode);
     }
+
+    /// <summary>Cách mở của lần quét đang xử lý (QR / PIN) — ghi vào nhật ký, không lưu nguyên mã.</summary>
+    private string? scanMethod;
+
+    /// <summary>#59: câu báo khi quét sớm hơn ngày bắt đầu thuê.</summary>
+    public static string NotYetMessage(DateOnly start) =>
+        $"Chưa đến ngày sử dụng. Có thể mở cửa từ 00:00 ngày {start:dd/MM/yyyy}.";
 
     /// <summary>Định dạng mã hợp đồng chuẩn hiển thị (HĐ-yyyy-xxxx).</summary>
     private static string FormatContractCode(RentalContract c) =>
@@ -274,7 +285,7 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
             Action = "ACCESS_SCANNED",
             EntityType = "CONTRACT",
             EntityId = contractId,
-            NewValue = JsonSerializer.Serialize(new { result = "DENIED", unit = scannedUnit, reason }),
+            NewValue = JsonSerializer.Serialize(new { result = "DENIED", unit = scannedUnit, reason, method = scanMethod }),
             IpAddress = ipAddress,
             LoggedAt = now
         });

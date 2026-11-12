@@ -204,6 +204,8 @@ builder.Services.AddSingleton(new AccessQrOptions(
     builder.Configuration["AccessQr:Secret"] ?? jwtSecret,
     !bool.TryParse(builder.Configuration["AccessQr:DenyOverdue"], out var denyOverdue) || denyOverdue));
 builder.Services.AddScoped<IAccessService, AccessService>();
+builder.Services.AddScoped<IDoorService, DoorService>();
+builder.Services.AddScoped<IDemoToolsService, DemoToolsService>();
 builder.Services.AddScoped<IStaffService, StaffService>();
 builder.Services.AddScoped<IManagerService, ManagerService>();
 
@@ -268,6 +270,8 @@ app.MapFacilityOpsEndpoints();
 app.MapStaffEndpoints();
 app.MapManagerEndpoints();
 app.MapAccessEndpoints();
+app.MapDoorEndpoints();
+app.MapDemoToolsEndpoints();
 app.MapEvidenceEndpoints();
 
 // =========================================================================

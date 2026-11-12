@@ -755,8 +755,9 @@ public class AdminService(AppDbContext dbContext) : IAdminService
                 h.User.FullName,
                 h.LoginAt,
                 h.LogoutAt,
-                h.IpAddress,
-                h.DeviceInfo,
+                // Lượt 6b: admin không xem được IP/thiết bị của tài khoản khách hàng
+                h.User.UserRoles.Any(ur => ur.Role.RoleName != "CUSTOMER") ? h.IpAddress : null,
+                h.User.UserRoles.Any(ur => ur.Role.RoleName != "CUSTOMER") ? h.DeviceInfo : null,
                 h.LoginStatus
             ))
             .ToListAsync(ct);
@@ -819,7 +820,8 @@ public class AdminService(AppDbContext dbContext) : IAdminService
                 l.EntityId,
                 l.OldValue,
                 l.NewValue,
-                l.IpAddress,
+                // Lượt 6b: không trả IP của khách hàng (log hệ thống không có user thì giữ nguyên)
+                l.User == null || l.User.UserRoles.Any(ur => ur.Role.RoleName != "CUSTOMER") ? l.IpAddress : null,
                 l.LoggedAt
             ))
             .ToListAsync(ct);
@@ -877,7 +879,8 @@ public class AdminService(AppDbContext dbContext) : IAdminService
                 l.EntityId,
                 l.OldValue,
                 l.NewValue,
-                l.IpAddress,
+                // Lượt 6b: không trả IP của khách hàng (log hệ thống không có user thì giữ nguyên)
+                l.User == null || l.User.UserRoles.Any(ur => ur.Role.RoleName != "CUSTOMER") ? l.IpAddress : null,
                 l.LoggedAt
             ))
             .ToListAsync(ct);

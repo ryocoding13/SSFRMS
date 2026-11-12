@@ -11,6 +11,8 @@ namespace StorageProject.Core.Interfaces;
 public interface IFacilityOpsService
 {
     Task<OpsBoardDto> GetBoardAsync(OpsActor actor, CancellationToken ct = default);
+    /// <summary>#58: doanh thu cơ sở theo khoảng tháng (quản lý).</summary>
+    Task<OpsRevenueDto> GetRevenueAsync(OpsActor actor, DateOnly fromMonth, DateOnly toMonth, CancellationToken ct = default);
 
     // Nhân viên (và quản lý)
     Task ConfirmPaymentAsync(OpsActor actor, string id, CancellationToken ct = default);

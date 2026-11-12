@@ -125,6 +125,10 @@ public static class FacilityOpsEndpoints
             .WithSummary("D41 · Đề xuất đổi kho do khách cũ chưa trả / chưa kiểm tra đạt: OPEN và đã xử lý 30 ngày gần đây");
 
         // ---- D42 · Báo cáo cuối ngày cho quản lý
+        group.MapGet("/revenue", (DateOnly from, DateOnly to, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => Results.Ok(await ops.GetRevenueAsync(Actor(user), from, to, ct))))
+            .WithSummary("#58 · M04: doanh thu cơ sở theo khoảng tháng (from/to là ngày bất kỳ trong tháng), tiền đầy đủ theo đồng");
+
         group.MapGet("/daily-report", (DateOnly? date, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
             Run(async () => Results.Ok(await ops.GetDailyReportAsync(Actor(user), date, ct))))
             .WithSummary("D42 · M04-cuối ngày: tên nhân viên, số việc chưa xong (FIFO), chi tiết và lịch sử việc đã làm trong ngày");

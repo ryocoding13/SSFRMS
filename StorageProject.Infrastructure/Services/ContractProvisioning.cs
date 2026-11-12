@@ -35,10 +35,12 @@ public static class ContractProvisioning
         if (contract == null)
         {
             // D41: Ưu tiên chọn ô trống thật; nếu hết ô trống mới chọn ô sắp hết hạn (trống từ ngày hết hạn + ngày đệm RELET_BUFFER)
-            var today = OpsRules.TodayLocal;
-            var buffer = await UnitAvailability.BufferDaysAsync(db, reservation.FacilityId, reservation.UnitTypeId, today, ct);
-            var slots = await UnitAvailability.SlotsAsync(db, reservation.FacilityId, reservation.UnitTypeId, ct);
-            var unit = UnitAvailability.Pick(slots, reservation.StartDate, reservation.ExpectedEndDate, buffer, today)?.Unit;
+            // #2: dùng đúng ô hệ thống đã bố trí khi tạo đơn nếu còn trống cả kỳ; không thì chọn ô khác, bỏ qua ô đang đề xuất cho đơn khác
+            var proposed = await UnitProposal.OfAsync(db, reservation.ReservationId, ct);
+            var unit = await UnitProposal.ChooseAsync(db, reservation, ct);
+            if (unit != null && proposed != null && proposed.UnitId != unit.UnitId)
+                ReservationSettlement.Audit(db, actor, "UNIT_REPROPOSED", reservation.ReservationId,
+                    new { from = proposed.UnitNumber, to = unit.UnitNumber, system = true });
             if (unit == null)
             {
                 // Tiền thanh toán của khách là thật. Nếu hết ô, tuyệt đối không rollback tiền hay tạo hợp đồng ảo;

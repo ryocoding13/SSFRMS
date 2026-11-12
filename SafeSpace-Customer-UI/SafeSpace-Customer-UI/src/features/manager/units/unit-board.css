@@ -1,0 +1,16 @@
+/* #47 · Figma M-KHO: mỗi ô một thẻ, tách Sử dụng / Vận hành / Cửa */
+.unit-board__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.unit-board__head p { margin: 6px 0 0; max-width: 760px; }
+.unit-board__list { display: grid; gap: 12px; margin: 16px 0; }
+.unit-board__item { display: grid; grid-template-columns: minmax(0, 1fr) 150px 150px 200px 260px; gap: 16px; align-items: center; padding: 18px 20px; transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; animation: unit-board-in .2s ease-out both; }
+.unit-board__item:hover { border-color: var(--blue); box-shadow: 0 6px 18px rgba(37, 99, 235, .08); transform: translateY(-1px); }
+.unit-board__info { display: grid; gap: 4px; min-width: 0; }
+.unit-board__info span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unit-board__state { display: grid; gap: 4px; justify-items: start; }
+.unit-board__state > span { font-size: 12px; color: var(--muted); }
+.unit-board__state small { font-size: 12px; color: var(--muted); }
+.unit-board__actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; }
+.unit-board__actions .btn { min-width: 140px; }
+@media (max-width: 1100px) { .unit-board__item { grid-template-columns: 1fr 1fr 1fr; } .unit-board__info, .unit-board__actions { grid-column: 1 / -1; } .unit-board__actions { justify-content: flex-start; } }
+@keyframes unit-board-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .unit-board__item { animation: none; transition: none; } }

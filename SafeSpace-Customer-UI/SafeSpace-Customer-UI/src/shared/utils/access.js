@@ -1,3 +1,7 @@
+/** #59: thời điểm mở được cửa — ghi "từ 00:00 ngày …", không ghi "sau ngày …" (dễ hiểu là ngày hôm sau). */
+export const usableFromText = (iso) => `Có thể mở cửa từ 00:00 ngày ${String(iso || "").slice(0, 10).split("-").reverse().join("/")}`;
+export const notYetMessage = (iso) => `Chưa đến ngày sử dụng. ${usableFromText(iso)}.`;
+
 // UI-only simulator. Never use this validator as a physical door authorization boundary.
 export function accessError(contract, date) {
   if (!contract) return "Không tìm thấy hợp đồng thuộc tài khoản của bạn.";

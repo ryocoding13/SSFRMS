@@ -17,11 +17,11 @@ export function ManagerResultPage({ query }) {
         <Tag tone="green">Cập nhật thành công</Tag>
         <div className="note-box">
           <strong>Theo dõi bước tiếp theo</strong>
-          <p className="muted">Kiểm tra danh sách kho, lịch phân công và công việc đang chờ nhân viên thực hiện.</p>
+          <p className="muted">Kiểm tra danh sách kho và công việc đang chờ nhân viên thực hiện.</p>
         </div>
         <div className="ops-actions">
           <LinkButton to="manager">Về tổng quan cơ sở</LinkButton>
-          <LinkButton to="manager/assign" variant="outline">Xem lịch phân công</LinkButton>
+          <LinkButton to="manager/units" variant="outline">Xem danh sách kho</LinkButton>
         </div>
       </section>
     </main>

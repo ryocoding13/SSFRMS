@@ -15,6 +15,10 @@ import React from "react";
 import { Empty, LinkButton } from "../../shared/components/UI.jsx";
 import CreateUserPage from "./users/CreateUserPage.jsx";
 import AuditLogPage from "./logs/AuditLogPage.jsx";
+import DemoToolsPage from "./demo/DemoToolsPage.jsx";
+import ContractToolPage from "./demo/ContractToolPage.jsx";
+import DoorScannerTool from "./demo/DoorScannerTool.jsx";
+import DoorLogPage from "./demo/DoorLogPage.jsx";
 import PermissionListPage from "./permissions/PermissionListPage.jsx";
 import AdminLayout from "./AdminLayout.jsx";
 import UserDetailPage from "./users/UserDetailPage.jsx";
@@ -65,6 +69,11 @@ export default function AdminRoutes({ parts }) {
   } else if (a === "logs") {
     tab = "logs";
     body = <AuditLogPage />;
+
+  // Lượt 6b: Công cụ demo — #/admin/demo là trang thẻ chọn; mỗi công cụ một trang con (không có hàng tab)
+  } else if (a === "demo" && (!b || ["scanner", "price", "dates", "door-logs"].includes(b))) {
+    tab = "demo";
+    body = !b ? <DemoToolsPage /> : b === "scanner" ? <DoorScannerTool /> : b === "door-logs" ? <DoorLogPage /> : <ContractToolPage key={b} mode={b} />;
 
   // TRƯỜNG HỢP 6: URL không khớp với chức năng nào.
   // Hiển thị thông báo không tìm thấy trang.

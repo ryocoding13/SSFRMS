@@ -8,6 +8,7 @@
  *   2. Thêm tài khoản mới (admin/new)
  *   3. Cấu hình phân quyền (admin/permissions)
  *   4. Nhật ký hoạt động & đăng nhập (admin/logs)
+ *   5. Công cụ demo (admin/demo): máy quét, chỉnh giá, chỉnh ngày hợp đồng, nhật ký cửa
  * - Menu quản trị (UserMenu): Xem thông tin tài khoản đăng nhập hiện tại và nút đăng xuất.
  */
 
@@ -23,6 +24,7 @@ const TABS = [
   ["new", "Thêm tài khoản"],
   ["permissions", "Quyền truy cập"],
   ["logs", "Nhật ký hoạt động"],
+  ["demo", "Công cụ demo"], // Lượt 6 · trang thẻ chọn: Máy quét, Chỉnh giá, Chỉnh ngày hợp đồng, Nhật ký cửa (Figma A-DEMO)
 ];
 
 function UserMenu() {
@@ -49,11 +51,12 @@ function UserMenu() {
       {/* Menu thả xuống */}
       {open && (
         <div className="usermenu__pop" role="menu">
-          <p>
-            {user?.username}
-            <br />
-            <span>{user?.email}</span>
-          </p>
+          {/* #7: mỗi thông tin một dòng, không gộp tên đăng nhập và email vào cùng một dòng; Vận hành KD không gắn cơ sở nào */}
+          <div className="usermenu__info">
+            <strong>{user?.full_name || user?.username}</strong>
+            <span>Quản trị</span>
+            {user?.email && <span>{user.email}</span>}
+          </div>
           {/* Nút Đăng xuất: gọi logout từ context và điều hướng về trang đăng nhập */}
           <button
             type="button"

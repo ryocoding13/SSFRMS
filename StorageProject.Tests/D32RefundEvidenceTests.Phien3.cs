@@ -321,7 +321,7 @@ public sealed partial class D32RefundEvidenceTests
             new StorageProject.Core.DTOs.Operations.ReportFilter(TodayVn.AddDays(-40), TodayVn.AddDays(40), null, null));
         Assert.Equal(forfeitedPayment.Amount, system.Totals.ForfeitedRefunds);
         var board = await f.Ops.GetBoardAsync(f.ManagerActor);
-        Assert.Equal(Math.Round(forfeitedPayment.Amount / 1_000_000m, 1, MidpointRounding.AwayFromZero), board.Revenue!.ForfeitedRefunds);
+        Assert.Equal(Math.Round(forfeitedPayment.Amount, 0), board.Revenue!.ForfeitedRefunds); // #34: tiền đầy đủ, không rút gọn triệu
     }
 
     [Fact]

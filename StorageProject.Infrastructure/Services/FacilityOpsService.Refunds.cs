@@ -170,6 +170,9 @@ public partial class FacilityOpsService
                 var damage = settled != null ? Number(settled, "damage") : i?.DamageFee ?? 0m;
                 var cleaning = settled != null ? Number(settled, "fixedDeduction") : i?.CleaningFee ?? 0m;
                 var overdue = Number(settled, "overdue");
+                // #16/#19: log chốt ghi rentRefund/depositRefund; khoản cũ chưa có thì coi toàn bộ là hoàn cọc
+                var rentRefund = settled != null ? Number(settled, "rentRefund") : 0m;
+                var depositRefund = settled != null && Read(settled, "depositRefund") != null ? Number(settled, "depositRefund") : p.Amount - rentRefund;
                 var paid = p.Status == "PAID";
                 incidents.TryGetValue(p.PaymentId, out var incident);
                 var account = AccountOf(p, incident);
@@ -181,7 +184,8 @@ public partial class FacilityOpsService
                     incident != null ? $"Kết thúc do sự cố cơ sở ({incident.CaseCode}): {incident.Description}" : i?.Notes,
                     incident != null ? Array.Empty<EvidencePhotoDto>() : PhotosOf(photos, i?.InspectionId),
                     p.PaymentMethod == CashMethod ? CashMethod : "BANK_TRANSFER",
-                    p.PaymentMethod == CashMethod ? CashRefundCode(p.PaymentId) : null);
+                    p.PaymentMethod == CashMethod ? CashRefundCode(p.PaymentId) : null,
+                    depositRefund, rentRefund);
             })
             .ToList();
     }

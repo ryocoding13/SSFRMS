@@ -93,6 +93,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .lead { color: var(--muted); font-size: 17px; }
 .hint { color: var(--muted); font-size: 13.5px; line-height: 1.5; }
 .hint--tight { margin-top: -6px; }
+/* Ghi chú cần khách chú ý (ví dụ: cách xử lý cọc khi đặt kho) — chữ đỏ */
+.hint--alert { color: var(--red); font-weight: 500; }
 .h-sub { font-size: 20px; font-weight: 700; color: var(--ink); margin: 14px 0 6px; }
 h2, h3 { color: var(--ink); }
 h3 { font-size: 17px; font-weight: 700; }
@@ -926,3 +928,41 @@ label.search-input input { border: 0; outline: 0; flex: 1; font-size: 14px; back
 .home-footer__cols a.home-footer__hotline { color: var(--blue); font-weight: 600; transition: color var(--ss-fast, .15s) ease; }
 .home-footer__cols a.home-footer__hotline:hover { color: var(--navy, #1e3a8a); }
 .home-footer__note { font-size: 12px !important; line-height: 1.5; }
+
+/* #33 Thẻ tổng quan đồng đều: cùng chiều cao; nhãn ở trên (tối đa 2 dòng, giữ chỗ để giá trị thẳng hàng giữa các thẻ),
+   giá trị không xuống dòng, dòng tăng trưởng luôn nằm sát đáy thẻ. Áp dụng cho Quản lý cơ sở và Vận hành KD. */
+.stats { align-items: stretch; }
+.stat { display: flex; flex-direction: column; justify-content: flex-start; gap: 6px; min-height: 132px; min-width: 0; }
+.stat span { order: -1; line-height: 1.35; min-height: 2.7em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.stat strong { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: clamp(20px, 1.9vw, 28px); }
+.stat small { margin-top: auto; line-height: 1.35; }
+
+/* #7 · Figma G2: menu tài khoản — mỗi thông tin một dòng, chữ dài xuống dòng trong khung 300 px, không dính chữ */
+.usermenu__pop { width: 300px; max-width: calc(100vw - 32px); padding: 16px 0 8px; gap: 0; }
+.usermenu__info { display: grid; gap: 2px; padding: 0 18px 12px; border-bottom: 1px solid var(--line); text-align: left; }
+.usermenu__info strong { font-size: 15px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.usermenu__info span { font-size: 13px; color: var(--muted); line-height: 1.4; overflow-wrap: anywhere; }
+.usermenu__pop > button { margin: 8px 18px 0; }
+
+/* #7 · Figma G2: tab trong trang thay cho dãy nút phụ dưới navbar */
+.page-tabs { margin-top: 20px; }
+.page-tabs__inner { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: #fff; border: 1px solid var(--line); border-radius: 10px; max-width: 100%; }
+.page-tabs__inner > a { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--text); white-space: nowrap; transition: background-color .15s ease, color .15s ease; }
+.page-tabs__inner > a:hover { background: var(--soft); }
+.page-tabs__inner > a.is-active { background: var(--soft); color: var(--blue); font-weight: 600; }
+
+/* #34: trục và nhãn cột hiện số tiền đầy đủ → trục rộng hơn, không xuống dòng (biểu đồ vẽ lại ở lượt báo cáo #35–#37) */
+.bars { grid-template-columns: 96px 1fr; }
+.bars__axis span, .bars__col b { white-space: nowrap; }
+.bars__axis { font-size: 11.5px; }
+.bars__col b { font-size: 12px; }
+/* #7 · Figma G2: mục điều hướng chính chưa mở dùng chữ xám, mục đang mở chữ xanh trên nền nhạt */
+.subnav a { color: #475569; font-weight: 500; transition: background-color .15s ease, color .15s ease; }
+.subnav a:hover { background: var(--soft); }
+.subnav a.is-active { color: var(--blue); font-weight: 600; }
+
+/* #2 · C03b-không ô: không có ô trống cả kỳ */
+.booking__none { display: grid; gap: 6px; padding: 14px 16px; border: 1px solid #f5c2bd; border-radius: 12px; background: #fdf1f0; color: #7a1d14; animation: booking-none-in .2s ease-out both; }
+.booking__none p { margin: 0; font-size: 14px; line-height: 1.5; }
+@keyframes booking-none-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .booking__none { animation: none; } }

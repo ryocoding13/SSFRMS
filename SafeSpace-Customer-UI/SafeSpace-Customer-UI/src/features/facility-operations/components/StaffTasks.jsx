@@ -164,12 +164,13 @@ export function staffTasks(ops, me, kind = "all") {
         }),
       );
   }
-  if (kind === "all")
+  // #7: "Đồ quá hạn" hiện trong trang Kiểm tra trả kho (không còn tab riêng)
+  if (kind === "all" || kind === "return")
     (ops.overdue_cases || [])
       .filter((c) => c.status !== "DONE" && (!c.assignee || c.assignee === me?.full_name || c.assignee === me?.staff_id))
       .forEach((c) =>
         list.push({
-          key: `overdue-${c.id || c.overdueCaseId}`, kind: "reconcile", status: ["Quá hạn", "red"], title: `Đồ quá hạn · Kho ${c.unit || c.unitNumber}`,
+          key: `overdue-${c.id || c.overdueCaseId}`, kind: "return", status: ["Quá hạn", "red"], title: `Đồ quá hạn · Kho ${c.unit || c.unitNumber}`,
           meta: `${c.customer} · Hết hạn thuê`, when: "Cần xử lý đồ trong kho",
           cta: "Xử lý", to: "staff/overdue", sort: c.endDate || "",
         }),
