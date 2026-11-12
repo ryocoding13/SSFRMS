@@ -51,7 +51,7 @@ export function RentedUnitDetailPage({ id }) {
   return (
     <main className="container page customer-records customer-detail">
       <p className="customer-records__breadcrumb">SafeSpace / Khách hàng / Kho của tôi / {id}</p>
-      <PageHeader title={`Kho ${c.unit_number} · Hợp đồng thuê`} description={`${c.contract_id} · ${f.name}`}>{prestart && !ended ? <Tag tone="blue">Chưa đến ngày sử dụng</Tag> : status === "EXPIRING" ? <Tag tone="amber">Sắp hết hạn · còn {daysBetween(today(), c.end_date)} ngày</Tag> : <StatusTag map={CONTRACT_STATUS} status={status} />}</PageHeader>
+      <PageHeader title={`Kho ${c.unit_number} · Hợp đồng thuê`} description={`${c.contract_id} · ${f.name}`}>{prestart && !ended ? <Tag tone="blue">Chưa đến ngày sử dụng</Tag> : status === "EXPIRING" && !ret ? <Tag tone="amber">Sắp hết hạn · còn {daysBetween(today(), c.end_date)} ngày</Tag> : <StatusTag map={CONTRACT_STATUS} status={ret && !ended ? "RETURN_PENDING" : status} />}</PageHeader>
       <div className="customer-detail__grid">
         <div className="customer-detail__column">
           {/* D46 · Figma C07b-D46: đang chuyển sang ô mới sau gia hạn sang ô khác */}

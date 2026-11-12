@@ -60,9 +60,18 @@ export const ASSIGNMENT_STATUS = {
   ENDED: ["Đã kết thúc", "gray"],
 };
 
+// #40: ba nhóm nhật ký rõ nghĩa. Chuyển cơ sở phụ trách là "Phân công nhân sự", không phải đổi vai trò.
 export const ACTION_GROUPS = {
-  data: ["USER_CREATE", "USER_UPDATE", "USER_RESET_PASSWORD", "FACILITY_SCOPE_ASSIGN", "FACILITY_SCOPE_STATUS_CHANGE"],
-  access: ["ROLE_ASSIGN", "ROLE_REVOKE", "PERMISSION_ASSIGN", "PERMISSION_REVOKE"],
+  // Thay đổi dữ liệu: tài khoản, cơ sở, loại kho, giá, chính sách, chỉnh số liệu bằng Công cụ demo
+  data: ["USER_CREATE", "USER_UPDATE", "USER_RESET_PASSWORD",
+    "FACILITY_CREATE", "FACILITY_UPDATE", "FACILITY_STATUS_CHANGE",
+    "RATE_SET", "RATE_SUPERSEDE",
+    "POLICY_CREATE", "POLICY_UPDATE", "POLICY_ACTIVATE", "POLICY_DEACTIVATE", "POLICY_SUPERSEDE", "POLICY_DELETE_DRAFT", "RENTAL_POLICY_PUBLISHED",
+    "DEMO_CONTRACT_EDITED", "DEMO_PAYMENT_EDITED"],
+  // Phân công nhân sự: gán / đổi cơ sở phụ trách và trạng thái phân công
+  staffing: ["FACILITY_SCOPE_ASSIGN", "FACILITY_SCOPE_STATUS_CHANGE"],
+  // Phân quyền: cấp, đổi, thu hồi vai trò / quyền
+  access: ["ROLE_ASSIGN", "ROLE_CHANGE", "ROLE_REVOKE", "PERMISSION_ASSIGN", "PERMISSION_REVOKE"],
 };
 export const ACTION_LABELS = {
   USER_CREATE: "Tạo tài khoản mới",
@@ -74,8 +83,44 @@ export const ACTION_LABELS = {
   PERMISSION_REVOKE: "Thu hồi quyền của vai trò",
   FACILITY_SCOPE_ASSIGN: "Phân công cơ sở",
   FACILITY_SCOPE_STATUS_CHANGE: "Đổi trạng thái phân công cơ sở",
+  ROLE_CHANGE: "Đổi vai trò",
+  FACILITY_CREATE: "Thêm cơ sở",
+  FACILITY_UPDATE: "Sửa thông tin cơ sở",
+  FACILITY_STATUS_CHANGE: "Đổi trạng thái cơ sở",
+  RATE_SET: "Đặt giá thuê",
+  RATE_SUPERSEDE: "Kết thúc giá thuê cũ",
+  POLICY_CREATE: "Tạo chính sách",
+  POLICY_UPDATE: "Sửa chính sách",
+  POLICY_ACTIVATE: "Áp dụng chính sách",
+  POLICY_DEACTIVATE: "Ngừng áp dụng chính sách",
+  POLICY_SUPERSEDE: "Thay chính sách cũ",
+  POLICY_DELETE_DRAFT: "Xoá bản nháp chính sách",
+  RENTAL_POLICY_PUBLISHED: "Công bố chính sách thuê",
+  DEMO_CONTRACT_EDITED: "Công cụ demo · chỉnh",
+  DEMO_PAYMENT_EDITED: "Công cụ demo · chỉnh",
+  ACCESS_SCANNED: "Quét mã mở cửa",
+  DOOR_CLOSED: "Đóng cửa kho",
+  DOOR_SUPPORT_REQUESTED: "Gọi hỗ trợ tại cửa",
+  MOVE_OUT_REQUESTED: "Khách gửi trả kho",
+  KEY_PICKUP_REQUESTED: "Khách yêu cầu nhận chìa khoá",
+  PAYMENT_CONFIRMED: "Xác nhận thanh toán",
+  RENEWAL_PAID: "Thanh toán gia hạn",
+  RENEWAL_APPROVED: "Xác nhận gia hạn",
+  RENEWAL_CANCELLED: "Huỷ gia hạn",
+  RENEWAL_EXPIRED: "Gia hạn hết hạn thanh toán",
+  CONTRACT_AUTO_ISSUED: "Hệ thống cấp hợp đồng",
+  UNIT_PROPOSED: "Hệ thống bố trí ô",
+  UNIT_REPROPOSED: "Hệ thống bố trí lại ô",
+  UNIT_ALLOCATED: "Phân bổ ô",
+  OVERDUE_CASE_OPENED: "Mở hồ sơ quá hạn",
+  OVERDUE_CASE_ESCALATED: "Quá hạn tới mốc xử lý đồ",
+  CONFIRM_DEPOSIT_REFUND: "Xác nhận hoàn cọc",
+  CREDENTIAL_REISSUED: "Cấp lại mã ra vào",
+  REPORT_EXPORT: "Xuất báo cáo",
+  PASSWORD_RESET_COMPLETED: "Đặt lại mật khẩu (khách tự làm)",
 };
-export const actionLabel = (a) => ACTION_LABELS[a] || a;
+// #39: hành động chưa có tên tiếng Việt thì không hiện mã kỹ thuật thô
+export const actionLabel = (a) => ACTION_LABELS[a] || "Hoạt động hệ thống";
 
 // Đọc vai trò từ JWT của backend (ClaimTypes.Role)
 const ROLE_CLAIMS = ["http://schemas.microsoft.com/ws/2008/06/identity/claims/role", "role", "roles"];

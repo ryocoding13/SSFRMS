@@ -106,6 +106,7 @@ export const adminApi = {
    * Lấy danh sách tất cả cơ sở để Admin chọn khi phân công người dùng phụ trách (không yêu cầu quyền Admin)
    */
   facilities: () => request("/api/facilities", { auth: false }),
+  unitTypes: () => request("/api/unit-types", { auth: false }),
   // Lượt 6 · #45 #54 · Công cụ demo: chỉnh ngày hợp đồng, ngày giao dịch và giá (ghi nhật ký trước/sau)
   demoContracts: (search) => request(`/api/admin/demo/contracts${q({ search })}`),
   demoEditContract: (id, body) => request(`/api/admin/demo/contracts/${id}`, { method: "PUT", body }),

@@ -4,13 +4,14 @@
  * Chức năng chính:
  * 1. Cho phép Quản trị viên (Admin) theo dõi toàn bộ hoạt động kiểm toán trong hệ thống:
  *    - Lịch sử đăng nhập: Thời gian, người dùng, IP, thiết bị, trạng thái (thành công / thất bại), giờ đăng xuất.
- *    - Thay đổi dữ liệu: Tạo, sửa, khóa, mở khóa tài khoản, phân công cơ sở.
- *    - Phân quyền: Gán hoặc thu hồi vai trò của người dùng, cấp hoặc gỡ quyền hạn của vai trò.
+ *    - Thay đổi dữ liệu: tài khoản, cơ sở, giá, chính sách, chỉnh số liệu bằng Công cụ demo (có trước → sau).
+ *    - Phân công nhân sự (#40): gán / đổi cơ sở phụ trách và trạng thái phân công — không coi là đổi vai trò.
+ *    - Phân quyền: cấp, đổi, thu hồi vai trò / quyền.
+ *    - #39: hiện tên người, tên cơ sở, loại kho, mã hợp đồng/giao dịch thay vì ID thô.
  * 2. Phân loại theo Tab:
  *    - "Tất cả" (all): Gộp cả lịch sử đăng nhập và nhật ký hành động, sắp xếp mới nhất lên đầu.
  *    - "Đăng nhập" (login): Chỉ xem lịch sử đăng nhập (phân trang phía server).
- *    - "Thay đổi dữ liệu" (data): Nhật ký thay đổi người dùng, cơ sở.
- *    - "Phân quyền" (access): Nhật ký thay đổi vai trò và quyền hạn.
+ *    - "Thay đổi dữ liệu" (data), "Phân công nhân sự" (staffing), "Phân quyền" (access).
  * 3. Bộ lọc thời gian: Lọc nhật ký từ ngày đến ngày (DatePicker).
  * 4. Phân trang: Hiển thị 10 bản ghi mỗi trang.
  */
@@ -29,6 +30,7 @@ const TABS = [
   ["all", "Tất cả"],
   ["login", "Đăng nhập"],
   ["data", "Thay đổi dữ liệu"],
+  ["staffing", "Phân công nhân sự"],
   ["access", "Phân quyền"],
 ];
 
@@ -81,6 +83,16 @@ export default function AuditLogPage() {
     return { login, activity };
   }, [tab, from, to, tab === "login" ? page : 0], onApiError);
 
+  // #39: tên cơ sở và loại kho để nhật ký không hiện mã số
+  const catalog = useLoad(async () => {
+    const [facilities, unitTypes] = await Promise.all([adminApi.facilities().catch(() => []), adminApi.unitTypes().catch(() => [])]);
+    return {
+      facilities: new Map((facilities || []).map((f) => [f.facilityId, f.name])),
+      unitTypes: new Map((unitTypes || []).map((t) => [t.unitTypeId, t.typeName])),
+    };
+  }, [], onApiError);
+  const ctx = { facilityName: (id) => catalog.data?.facilities.get(Number(id)), unitTypeName: (id) => catalog.data?.unitTypes.get(Number(id)) };
+
   const userMap = users.data || new Map();
   // Hàm lấy tên người dùng từ map
   const nameOf = (id) => userMap.get(id)?.fullName;
@@ -120,14 +132,14 @@ export default function AuditLogPage() {
         id: `A${a.logId}`,
         at: a.loggedAt,
         userId: a.userId,
-        user: a.userId ? nameOf(a.userId) || a.username || `#${a.userId}` : "Hệ thống",
-        action: describeActivity(a, nameOf),
+        user: a.userId ? nameOf(a.userId) || a.username || "Tài khoản không còn trong danh sách" : "Hệ thống",
+        action: describeActivity(a, nameOf, ctx),
         ip: a.ipAddress || "—",
       }));
 
     // Gộp và sắp xếp theo thời gian mới nhất
     return [...loginRows, ...actRows].sort((x, y) => (parseUtc(y.at)?.getTime() || 0) - (parseUtc(x.at)?.getTime() || 0));
-  }, [logs.data, tab, userMap]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [logs.data, tab, userMap, catalog.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /*
    * TÍNH TOÁN PHÂN TRANG
@@ -153,7 +165,7 @@ export default function AuditLogPage() {
       <header className="page-header">
         <div>
           <h1>Lịch sử đăng nhập & nhật ký hoạt động</h1>
-          <p>Theo dõi đăng nhập, thay đổi dữ liệu tài khoản và phân quyền trong hệ thống.</p>
+          <p>Theo dõi đăng nhập, thay đổi dữ liệu, phân công nhân sự và phân quyền trong hệ thống.</p>
         </div>
       </header>
 

@@ -14,6 +14,8 @@ export const CONTRACT_STATUS = {
   ACTIVE: ["Đang thuê", "green"],
   EXPIRING: ["Sắp hết hạn", "amber"],
   OVERDUE: ["Quá hạn", "red"],
+  // Khách đã gửi trả kho: mã QR/PIN hết hiệu lực, chờ nhân viên kiểm tra (không còn hiện "Đang thuê")
+  RETURN_PENDING: ["Chờ trả kho", "blue"],
   ENDED: ["Đã kết thúc", "gray"],
 };
 

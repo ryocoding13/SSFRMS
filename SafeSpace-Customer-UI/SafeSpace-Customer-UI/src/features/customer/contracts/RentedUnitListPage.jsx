@@ -47,7 +47,7 @@ export function RentedUnitListPage() {
               (a.contract_id === c.contract_id || (c.reservation_id && a.reservation_id === c.reservation_id)));
             return (
               <RecordSummaryCard key={c.contract_id} title={`${c.unit_number} · ${typeLabel(c.type)}`}
-                status={prestart ? <Tag tone="blue">Chưa đến ngày sử dụng</Tag> : <StatusTag map={CONTRACT_STATUS} status={status} />}
+                status={prestart ? <Tag tone="blue">Chưa đến ngày sử dụng</Tag> : <StatusTag map={CONTRACT_STATUS} status={pendingReturn(data, c.contract_id) && !ended ? "RETURN_PENDING" : status} />}
                 actions={<>
                   {/* #25: khoản gia hạn đã xác nhận, chưa trả (không chọn tại quầy) → nút "Thanh toán"; còn lại vẫn là "Gia hạn" */}
                   {(() => { const r = pendingRenewal(data, c.contract_id); return r && r.status === "APPROVED" && !r.at_counter ? <LinkButton to={`units/${c.contract_id}/renewal-status`}>Thanh toán</LinkButton> : null; })()}
