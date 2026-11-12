@@ -14,7 +14,8 @@ public record AccessQrDto(
     string? UsableFrom = null
 );
 
-public record ScanAccessRequest(string? Code, string? UnitNumber = null);
+// FacilityId: cơ sở của máy quét — mã ô (K01…) trùng giữa các cơ sở nên phải khớp cả cơ sở
+public record ScanAccessRequest(string? Code, string? UnitNumber = null, long? FacilityId = null);
 
 public record ScanResultDto(
     string Result, // "OPEN" | "DENIED"

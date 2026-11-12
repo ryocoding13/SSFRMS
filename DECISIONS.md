@@ -617,3 +617,21 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
   - Xử lý quá hạn mở từ nút trên từng hợp đồng. Danh sách sự cố xem trong Danh sách kho. Báo cáo cuối ngày nằm trong Báo cáo.
 - **Nhân viên:** "Kiểm tra ô cũ" nằm trong "Kiểm tra trả kho".
 - **Vận hành KD — Thêm cơ sở:** chưa bắt buộc kinh độ/vĩ độ; cơ sở chưa có toạ độ không hiện trên bản đồ.
+
+## D53 — 13/11/2026: Máy quét chỉ mở đúng ô của đúng cơ sở; phím 0 bấm được — Đã chốt
+
+> Người dùng chốt ngày 13/11/2026 khi thử máy quét (#48, #51). Thay ý "Bàn phím máy quét khoá phím 0" của D51; giữ D48 (không đổi database).
+
+- **Mã ô trùng giữa các cơ sở (K01…):** máy quét gửi kèm cơ sở đang đặt máy; QR/PIN chỉ mở ô của đúng hợp đồng **tại đúng cơ sở đó**. Sai cơ sở → từ chối "Mã không thuộc kho của cơ sở này." và ghi nhật ký cửa.
+- **Phím 0:** hiện và bấm được như các phím khác. PIN vẫn chỉ gồm 1–9 (D51): có số 0 thì bấm OK báo "Mã PIN gồm 6 số từ 1 đến 9." ngay trên máy quét, không gửi lên máy chủ, không mở cửa.
+- **Quét QR bằng camera:** luôn xin quyền camera trước; trình duyệt không có BarcodeDetector (Chrome/Edge trên Windows) thì đọc mã bằng thư viện jsQR.
+
+## D54 — 13/11/2026: Nhật ký admin 3 nhóm, popup phủ kín, nhãn "Chờ trả kho", dữ liệu demo theo cơ sở — Đã chốt
+
+> Người dùng chốt ngày 13/11/2026 khi làm #29, #39, #40, #60 (Google Doc "Tổng hợp yêu cầu và lỗi"). Giữ D48 (không đổi bảng/cột).
+
+- **#29 Popup:** lớp phủ popup luôn phủ kín màn hình, không chừa dải phía trên (lớp phủ không nhận lề của khối trang).
+- **#39 Nhật ký:** hiện tên người, tên cơ sở, loại kho, mã hợp đồng/giao dịch thay cho ID thô; hành động chưa có tên tiếng Việt hiện "Hoạt động hệ thống", không hiện mã kỹ thuật. IP khách vẫn ẩn (D51).
+- **#40 Nhóm nhật ký:** Thay đổi dữ liệu (tài khoản, cơ sở, giá, chính sách, Công cụ demo), **Phân công nhân sự** (gán/đổi cơ sở phụ trách, trạng thái phân công), Phân quyền (cấp/đổi/thu hồi vai trò, quyền). Chuyển cơ sở không tính là đổi vai trò. Thể hiện trước → sau khi bản ghi có đủ giá trị.
+- **Kho của tôi:** khách đã gửi trả kho thì nhãn hợp đồng là "Chờ trả kho" (không còn "Đang thuê"), khớp với việc QR/PIN đã hết hiệu lực (D32).
+- **#60 Dữ liệu demo:** mỗi cơ sở có `Staff_<MÃ>`, `Manager_<MÃ>` (đúng 1 cơ sở), `Customer<MÃ>01` (hợp đồng đang thuê đã thanh toán, có QR/PIN) và `Customer<MÃ>02` (đơn chờ thu tại quầy). Mã cơ sở: NLB, HL, PX, TT, PMH, BTH, NB, BC, TD, GV, TB, BTA. Mật khẩu demo: `Staff@123`, `Manager@123`, `Customer@123`. Chạy lại seed không tạo trùng, không ghi đè; ô được chọn phải trống, không chồng kỳ thuê.

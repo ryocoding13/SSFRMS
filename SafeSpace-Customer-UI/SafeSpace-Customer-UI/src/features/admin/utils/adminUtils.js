@@ -101,67 +101,126 @@ const parse = (v) => {
  */
 const get = (o, key) => o[key] ?? o[key[0].toLowerCase() + key.slice(1)];
 
-/*
- * describeActivity - Diễn giải nhật ký hoạt động sang tiếng Việt
- *
- * Backend AdminService ghi log oldValue và newValue dạng JSON PascalCase.
- * Hàm này đọc log.action và các giá trị trước/sau để tạo câu mô tả tự nhiên bằng tiếng Việt cho Admin đọc.
- *
- * Tham số:
- * - log: bản ghi log chứa action, entityId, oldValue, newValue
- * - nameOf: hàm tra cứu tên người dùng theo userId
+/** #39: tên đối tượng thay cho "CONTRACT #12". Mã hiển thị theo quy ước của giao diện (HĐ-…, TT-…, GH-…). */
+const pad4 = (id) => String(id ?? "").padStart(4, "0");
+const ENTITY = {
+  // Mã hợp đồng đầy đủ cần năm bắt đầu (HĐ-2026-0012); không có năm thì ghi số hợp đồng
+  CONTRACT: (id, year) => (year ? `hợp đồng HĐ-${year}-${pad4(id)}` : `hợp đồng số ${Number(id)}`),
+  RESERVATION: (id) => `đơn đặt kho số ${Number(id)}`,
+  PAYMENT: (id) => `giao dịch TT-${pad4(id)}`,
+  RENEWAL: (id) => `yêu cầu gia hạn GH-${pad4(id)}`,
+  RENTAL_RATE: () => "bảng giá thuê",
+  POLICY: () => "chính sách",
+  RENTAL_POLICY: () => "chính sách thuê",
+  SUPPORT_TICKET: (id) => `yêu cầu hỗ trợ HT-${pad4(id)}`,
+};
+const money = (v) => (v == null || v === "" ? "" : `${Number(v).toLocaleString("vi-VN")} đ`);
+const ymd = (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10).split("-").reverse().join("/") : v);
+const CONTRACT_STATE = { DRAFT: "Chưa kích hoạt", ACTIVE: "Đang thuê", EXPIRING: "Sắp hết hạn", OVERDUE: "Quá hạn", RETURN_PENDING: "Chờ trả kho", COMPLETED: "Đã kết thúc", TERMINATED: "Đã chấm dứt", CANCELLED: "Đã huỷ" };
+const FACILITY_STATUS = { ACTIVE: "Đang hoạt động", INACTIVE: "Tạm ngừng", MAINTENANCE: "Bảo trì", CLOSED: "Đóng cửa" };
+
+/** Trước → sau của các trường đã đổi (bỏ trường không đổi), ví dụ "Giờ mở cửa 07:00 → 06:00". */
+function changes(ov, nv, fields) {
+  return fields
+    .map(([key, label, fmt = (x) => x]) => {
+      const a = get(ov, key), b = get(nv, key);
+      // Bản ghi cũ không lưu trường này ở một phía → không đoán giá trị
+      if (a === undefined || b === undefined) return null;
+      if (String(a ?? "") === String(b ?? "")) return null;
+      return `${label ? `${label} ` : ""}${a == null || a === "" ? "trống" : fmt(a)} → ${b == null || b === "" ? "trống" : fmt(b)}`;
+    })
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/**
+ * describeActivity - Diễn giải nhật ký hoạt động sang câu tiếng Việt, ưu tiên tên người / tên đối tượng (#39)
+ * và giá trị trước → sau (#40).
+ * ctx (không bắt buộc): facilityName(id), unitTypeName(id) để đổi mã cơ sở / loại kho thành tên.
  */
-export function describeActivity(log, nameOf) {
+export function describeActivity(log, nameOf, ctx = {}) {
   const nv = parse(log.newValue);
   const ov = parse(log.oldValue);
-  const who = (id) => nameOf(id) || (id ? `#${id}` : "");
+  const who = (id) => nameOf(id) || (id ? "tài khoản không còn trong danh sách" : "");
   const status = (s) => USER_STATUS[s]?.[0] || s;
   const scope = (s) => ASSIGNMENT_STATUS[s]?.[0] || s;
+  const fac = (id, name) => name || ctx.facilityName?.(id) || (id ? "cơ sở không còn trong danh sách" : "");
+  const type = (id) => ctx.unitTypeName?.(id) || "loại kho";
+  const tail = (text) => (text ? ` · ${text}` : "");
 
   switch (log.action) {
-    // 1. Tạo tài khoản người dùng mới
     case "USER_CREATE":
       return `Tạo tài khoản mới — ${get(nv, "FullName") || who(log.entityId)}`;
-
-    // 2. Cập nhật thông tin hoặc trạng thái tài khoản
-    case "USER_UPDATE": {
-      const from = get(ov, "Status");
-      const to = get(nv, "Status");
-      const change = from && to && from !== to ? ` · ${status(from)} → ${status(to)}` : "";
-      return `Cập nhật tài khoản — ${get(nv, "FullName") || who(log.entityId)}${change}`;
-    }
-
-    // 3. Đặt lại mật khẩu
+    case "USER_UPDATE":
+      return `Cập nhật tài khoản — ${get(nv, "FullName") || who(log.entityId)}${tail(changes(ov, nv, [["FullName", "Họ tên"], ["Email", "Email"], ["Phone", "Số điện thoại"], ["Status", "", status]]))}`;
     case "USER_RESET_PASSWORD":
       return `Đặt lại mật khẩu — ${who(log.entityId)}`;
 
-    // 4. Gán vai trò cho người dùng
+    // Phân quyền
     case "ROLE_ASSIGN":
       return `Gán vai trò ${roleLabel(get(nv, "RoleName") || "")} — ${who(get(nv, "UserId") || log.entityId)}`;
-
-    // 5. Thu hồi vai trò khỏi người dùng
     case "ROLE_REVOKE":
       return `Thu hồi vai trò ${roleLabel(get(ov, "RoleName") || "")} — ${who(get(ov, "UserId") || log.entityId)}`;
-
-    // 6. Gán quyền cho vai trò
+    case "ROLE_CHANGE":
+      return `Đổi vai trò ${roleLabel(get(ov, "RoleName") || "")} → ${roleLabel(get(nv, "RoleName") || "")} — ${who(get(nv, "UserId") || log.entityId)}`;
     case "PERMISSION_ASSIGN":
       return `Gán quyền ${get(nv, "PermissionCode") || ""} cho ${roleLabel(get(nv, "RoleName") || "")}`;
-
-    // 7. Thu hồi quyền khỏi vai trò
     case "PERMISSION_REVOKE":
       return `Thu hồi quyền ${get(ov, "PermissionCode") || ""} của ${roleLabel(get(ov, "RoleName") || "")}`;
 
-    // 8. Phân công cơ sở cho nhân viên/quản lý
+    // Phân công nhân sự
     case "FACILITY_SCOPE_ASSIGN":
-      return `Phân công ${get(nv, "FacilityName") || "cơ sở"} — ${who(get(nv, "UserId") || log.entityId)}`;
+      return `Phân công ${fac(get(nv, "FacilityId"), get(nv, "FacilityName"))} — ${who(get(nv, "UserId") || log.entityId)}`;
+    case "FACILITY_SCOPE_STATUS_CHANGE": {
+      const user = get(nv, "UserId") || get(ov, "UserId");
+      const facility = fac(get(nv, "FacilityId") || get(ov, "FacilityId"), get(nv, "FacilityName") || get(ov, "FacilityName"));
+      return `Đổi trạng thái phân công cơ sở${facility ? ` tại ${facility}` : ""}${user ? ` — ${who(user)}` : ""} · ${scope(get(ov, "Status"))} → ${scope(get(nv, "Status"))}`;
+    }
 
-    // 9. Thay đổi trạng thái phân công cơ sở (ví dụ: đang phụ trách -> kết thúc)
-    case "FACILITY_SCOPE_STATUS_CHANGE":
-      return `Đổi trạng thái phân công cơ sở · ${scope(get(ov, "Status"))} → ${scope(get(nv, "Status"))}`;
+    // Thay đổi dữ liệu: cơ sở, giá, chính sách
+    case "FACILITY_CREATE":
+      return `Thêm cơ sở ${get(nv, "Name") || fac(log.entityId)}`;
+    case "FACILITY_UPDATE":
+      return `Sửa cơ sở ${get(nv, "Name") || fac(log.entityId)}${tail(changes(ov, nv, [["Name", "Tên"], ["Address", "Địa chỉ"], ["ContactPhone", "Hotline"], ["OpeningTime", "Giờ mở cửa"], ["ClosingTime", "Giờ đóng cửa"], ["Latitude", "Vĩ độ"], ["Longitude", "Kinh độ"]]))}`;
+    case "FACILITY_STATUS_CHANGE":
+      return `Đổi trạng thái cơ sở ${get(nv, "Name") || get(ov, "Name") || fac(log.entityId)} · ${FACILITY_STATUS[get(ov, "Status")] || get(ov, "Status") || "—"} → ${FACILITY_STATUS[get(nv, "Status")] || get(nv, "Status") || "—"}`;
+    case "RATE_SET":
+      return `Đặt giá thuê ${fac(get(nv, "FacilityId"))} · ${type(get(nv, "UnitTypeId"))}: ${money(get(nv, "MonthlyRate"))}/tháng từ ${ymd(get(nv, "EffectiveFrom"))}`;
+    case "RATE_SUPERSEDE":
+      return `Kết thúc giá thuê cũ ${fac(get(nv, "FacilityId") || get(ov, "FacilityId"))} · ${type(get(nv, "UnitTypeId") || get(ov, "UnitTypeId"))}: ${money(get(ov, "MonthlyRate") || get(nv, "MonthlyRate"))}/tháng${get(nv, "EffectiveTo") ? `, áp dụng đến ${ymd(get(nv, "EffectiveTo"))}` : ""}`;
+    case "POLICY_CREATE":
+    case "POLICY_UPDATE":
+    case "POLICY_ACTIVATE":
+    case "POLICY_DEACTIVATE":
+    case "POLICY_SUPERSEDE":
+    case "POLICY_DELETE_DRAFT": {
+      const name = get(nv, "PolicyName") || get(ov, "PolicyName") || "chính sách";
+      const where = get(nv, "FacilityName") || get(ov, "FacilityName");
+      return `${actionLabel(log.action)} — ${name}${where ? ` (${where})` : ""}${tail(changes(ov, nv, [["Value", "Giá trị"], ["MinValue", "Tối thiểu"], ["MaxValue", "Tối đa"], ["Status", "Trạng thái"]]))}`;
+    }
 
-    // Mặc định: hiển thị nhãn hành động và mã đối tượng
-    default:
-      return `${actionLabel(log.action)}${log.entityType ? ` (${log.entityType}${log.entityId ? ` #${log.entityId}` : ""})` : ""}`;
+    // Công cụ demo: giá trị trước/sau và lý do
+    case "DEMO_CONTRACT_EDITED": {
+      const after = get(nv, "After") || nv; // BE ghi { after, reason }; bản ghi phẳng thì đọc thẳng
+      const diff = changes(ov, after, [["StartDate", "Ngày bắt đầu", ymd], ["EndDate", "Ngày hết hạn", ymd], ["AgreedMonthlyRate", "Giá thuê/tháng", money], ["Status", "Trạng thái", (x) => CONTRACT_STATE[x] || x]]);
+      return `${actionLabel(log.action)} ${ENTITY.CONTRACT(log.entityId, String(get(ov, "StartDate") || "").slice(0, 4))}${tail(diff)}${get(nv, "Reason") ? ` · Lý do: ${get(nv, "Reason")}` : ""}`;
+    }
+    case "DEMO_PAYMENT_EDITED": {
+      const after = get(nv, "After") || nv; // BE ghi { after, reason }; bản ghi phẳng thì đọc thẳng
+      const diff = changes(ov, after, [["PaidAt", "Ngày thanh toán", ymd], ["Amount", "Số tiền", money]]);
+      return `${actionLabel(log.action)} ${ENTITY.PAYMENT(log.entityId)}${tail(diff)}${get(nv, "Reason") ? ` · Lý do: ${get(nv, "Reason")}` : ""}`;
+    }
+
+    // Mặc định: tên hành động + tên đối tượng, không hiện mã kỹ thuật kiểu "CONTRACT #12"
+    default: {
+      const kind = String(log.entityType || "").toUpperCase();
+      let target = "";
+      if (kind === "USER" || kind === "USERS") target = who(log.entityId);
+      else if (kind === "FACILITY") target = fac(log.entityId);
+      else if (ENTITY[kind] && log.entityId) target = ENTITY[kind](log.entityId);
+      const unit = get(nv, "unit") || get(nv, "Unit");
+      return `${actionLabel(log.action)}${target ? ` — ${target}` : ""}${unit ? ` · ô ${unit}` : ""}`;
+    }
   }
 }
 

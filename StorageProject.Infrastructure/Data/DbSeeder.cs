@@ -267,6 +267,9 @@ public static partial class DbSeeder
             await context.SaveChangesAsync();
         }
         await context.SaveChangesAsync();
+
+        // 6. #60: mỗi cơ sở có Staff_<MÃ>, Manager_<MÃ>, Customer<MÃ>01 (đang thuê) và Customer<MÃ>02 (chờ thu tại quầy)
+        await EnsureDemoFacilityDataAsync(context, catalog, admin.UserId);
     }
 
     /// <summary>
