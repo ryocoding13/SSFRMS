@@ -5,7 +5,7 @@ using Xunit;
 
 namespace StorageProject.Tests;
 
-// #60: dữ liệu demo theo từng cơ sở — đủ tài khoản, đúng phân công, có hợp đồng đang thuê và đơn chờ thu tại quầy; chạy lại không trùng.
+// #60: dữ liệu demo theo từng cơ sở — đủ tài khoản, đúng phân công, 1 khách với 1–6 hợp đồng đang thuê (khác nhau giữa các cơ sở); chạy lại không trùng.
 public sealed class DemoFacilitySeedTests
 {
     private sealed class TestDb(DbContextOptions<AppDbContext> options) : AppDbContext(options)
@@ -19,7 +19,7 @@ public sealed class DemoFacilitySeedTests
     }
 
     [Fact]
-    public async Task Each_facility_gets_staff_manager_customers_and_seed_is_idempotent()
+    public async Task Each_facility_gets_staff_manager_one_customer_with_contracts_and_seed_is_idempotent()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
@@ -29,7 +29,9 @@ public sealed class DemoFacilitySeedTests
         await DbSeeder.SeedAsync(db);
         var users = await db.Users.CountAsync();
         var reservations = await db.Reservations.CountAsync();
-        var contracts = await db.RentalContracts.CountAsync();
+        var contractCount = await db.RentalContracts.CountAsync();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var countsSeen = new List<int>();
 
         foreach (var (name, code) in DbSeeder.DemoFacilityCodes)
         {
@@ -42,19 +44,23 @@ public sealed class DemoFacilitySeedTests
                 Assert.Equal(facility.FacilityId, scopes[0].FacilityId);
             }
             var renter = await db.Users.SingleAsync(u => u.Username == $"Customer{code}01");
-            var contract = await db.RentalContracts.Include(c => c.Unit).SingleAsync(c => c.CustomerId == renter.UserId);
-            Assert.Equal("ACTIVE", contract.Status);
-            Assert.Equal(facility.FacilityId, contract.Unit.FacilityId);
-            Assert.Equal("OCCUPIED", contract.Unit.Status);
-            Assert.Equal(contract.AgreedMonthlyRate, contract.DepositAmount); // cọc = 1 tháng (D27)
-            Assert.Equal(2, await db.AccessCredentials.CountAsync(a => a.ContractId == contract.ContractId && a.CredentialType == "ACCESS_CODE"));
-
-            var payer = await db.Users.SingleAsync(u => u.Username == $"Customer{code}02");
-            var pending = await db.Reservations.SingleAsync(r => r.CustomerId == payer.UserId);
-            Assert.Equal("PENDING_AT_FACILITY", pending.Status);
-            Assert.Equal("AT_FACILITY", pending.PaymentMethod);
-            Assert.Equal(facility.FacilityId, pending.FacilityId);
+            Assert.False(await db.Users.AnyAsync(u => u.Username == $"Customer{code}02")); // mỗi cơ sở 1 khách demo
+            var contracts = await db.RentalContracts.Include(c => c.Unit).Where(c => c.CustomerId == renter.UserId).ToListAsync();
+            Assert.Equal(DbSeeder.DemoFacilityOrderCounts[code], contracts.Count);
+            Assert.InRange(contracts.Count, 1, 6); // để lại ít nhất 6/12 ô cho người dùng tự demo
+            Assert.False(await db.Reservations.AnyAsync(r => r.CustomerId == renter.UserId && r.Status != "UNIT_ASSIGNED"));
+            foreach (var contract in contracts)
+            {
+                Assert.Equal("ACTIVE", contract.Status);
+                Assert.Equal(facility.FacilityId, contract.Unit.FacilityId);
+                Assert.Equal("OCCUPIED", contract.Unit.Status);
+                Assert.True(contract.StartDate <= today && contract.EndDate > today); // còn trong hạn
+                Assert.Equal(contract.AgreedMonthlyRate, contract.DepositAmount); // cọc = 1 tháng (D27)
+                Assert.Equal(2, await db.AccessCredentials.CountAsync(a => a.ContractId == contract.ContractId && a.CredentialType == "ACCESS_CODE"));
+            }
+            countsSeen.Add(contracts.Count);
         }
+        Assert.True(countsSeen.Distinct().Count() > 1); // các cơ sở có số đơn khác nhau
 
         // Các kỳ thuê của cùng một ô không chồng nhau
         var running = await db.RentalContracts.Where(c => c.Status == "ACTIVE").ToListAsync();
@@ -63,6 +69,6 @@ public sealed class DemoFacilitySeedTests
         await DbSeeder.SeedAsync(db); // chạy lại
         Assert.Equal(users, await db.Users.CountAsync());
         Assert.Equal(reservations, await db.Reservations.CountAsync());
-        Assert.Equal(contracts, await db.RentalContracts.CountAsync());
+        Assert.Equal(contractCount, await db.RentalContracts.CountAsync());
     }
 }

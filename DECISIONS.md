@@ -635,3 +635,13 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - **#40 Nhóm nhật ký:** Thay đổi dữ liệu (tài khoản, cơ sở, giá, chính sách, Công cụ demo), **Phân công nhân sự** (gán/đổi cơ sở phụ trách, trạng thái phân công), Phân quyền (cấp/đổi/thu hồi vai trò, quyền). Chuyển cơ sở không tính là đổi vai trò. Thể hiện trước → sau khi bản ghi có đủ giá trị.
 - **Kho của tôi:** khách đã gửi trả kho thì nhãn hợp đồng là "Chờ trả kho" (không còn "Đang thuê"), khớp với việc QR/PIN đã hết hiệu lực (D32).
 - **#60 Dữ liệu demo:** mỗi cơ sở có `Staff_<MÃ>`, `Manager_<MÃ>` (đúng 1 cơ sở), `Customer<MÃ>01` (hợp đồng đang thuê đã thanh toán, có QR/PIN) và `Customer<MÃ>02` (đơn chờ thu tại quầy). Mã cơ sở: NLB, HL, PX, TT, PMH, BTH, NB, BC, TD, GV, TB, BTA. Mật khẩu demo: `Staff@123`, `Manager@123`, `Customer@123`. Chạy lại seed không tạo trùng, không ghi đè; ô được chọn phải trống, không chồng kỳ thuê.
+
+## D55 — 13/11/2026: Dữ liệu demo #60 — mỗi cơ sở 1 khách, số đơn khác nhau — Đã chốt
+
+> Người dùng chốt ngày 13/11/2026, thay phần #60 của D54. Giữ D48 (chỉ thêm dữ liệu, không đổi bảng/cột).
+
+- Mỗi cơ sở chỉ có **1 khách demo** `Customer<MÃ>01`; không tạo `Customer<MÃ>02` và không tạo đơn chờ thu tại quầy nữa.
+- Khách có **1–6 hợp đồng đang thuê**, số lượng khác nhau giữa các cơ sở để báo cáo Vận hành KD thấy chênh lệch: NLB 1, HL 6, PX 5, TT 2, PMH 6, BTH 4, NB 1, BC 3, TD 5, GV 2, TB 4, BTA 3. NLB chỉ 1 vì cơ sở gốc đã có bộ dữ liệu vận hành của customer01–06.
+- Các hợp đồng khác loại kho và thời hạn (3–12 tháng), ngày bắt đầu rải qua 6 tháng gần nhất (thanh toán trước cả kỳ) để biểu đồ doanh thu không trống; **tất cả còn trong hạn**, 1 hợp đồng sắp hết hạn (~12 ngày) để thử mốc 14 ngày. Không có hồ sơ quá hạn.
+- Mỗi cơ sở dùng tối đa 6/12 ô cho dữ liệu này; các ô còn lại để người dùng tự demo.
+- Chạy lại seed không tạo thêm: đếm số hợp đồng khách đã có tại cơ sở. Database đã chạy seed cũ thì giữ nguyên dữ liệu cũ (kể cả `Customer<MÃ>02`); muốn đúng hoàn toàn thì tạo lại database.
