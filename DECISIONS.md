@@ -617,3 +617,11 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
   - Xử lý quá hạn mở từ nút trên từng hợp đồng. Danh sách sự cố xem trong Danh sách kho. Báo cáo cuối ngày nằm trong Báo cáo.
 - **Nhân viên:** "Kiểm tra ô cũ" nằm trong "Kiểm tra trả kho".
 - **Vận hành KD — Thêm cơ sở:** chưa bắt buộc kinh độ/vĩ độ; cơ sở chưa có toạ độ không hiện trên bản đồ.
+
+## D53 — 13/11/2026: Máy quét chỉ mở đúng ô của đúng cơ sở; phím 0 bấm được — Đã chốt
+
+> Người dùng chốt ngày 13/11/2026 khi thử máy quét (#48, #51). Thay ý "Bàn phím máy quét khoá phím 0" của D51; giữ D48 (không đổi database).
+
+- **Mã ô trùng giữa các cơ sở (K01…):** máy quét gửi kèm cơ sở đang đặt máy; QR/PIN chỉ mở ô của đúng hợp đồng **tại đúng cơ sở đó**. Sai cơ sở → từ chối "Mã không thuộc kho của cơ sở này." và ghi nhật ký cửa.
+- **Phím 0:** hiện và bấm được như các phím khác. PIN vẫn chỉ gồm 1–9 (D51): có số 0 thì bấm OK báo "Mã PIN gồm 6 số từ 1 đến 9." ngay trên máy quét, không gửi lên máy chủ, không mở cửa.
+- **Quét QR bằng camera:** luôn xin quyền camera trước; trình duyệt không có BarcodeDetector (Chrome/Edge trên Windows) thì đọc mã bằng thư viện jsQR.

@@ -83,8 +83,9 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
     /// <param name="ipAddress">Địa chỉ IP của thiết bị quét.</param>
     /// <param name="ct">Token hủy bất đồng bộ.</param>
     /// <param name="unitNumber">Số ô kho (bắt buộc khi quét bằng mã PIN dự phòng để tránh trùng giữa các ô).</param>
+    /// <param name="facilityId">Cơ sở đặt máy quét. Mã ô trùng giữa các cơ sở (K01…) nên có cơ sở thì mã chỉ mở ô của đúng cơ sở đó.</param>
     /// <returns>Kết quả xác thực: OPEN (mở cửa thành công) hoặc DENIED kèm lý do từ chối cụ thể.</returns>
-    public async Task<ScanResultDto> ScanAsync(string? rawCode, string? ipAddress, CancellationToken ct = default, string? unitNumber = null)
+    public async Task<ScanResultDto> ScanAsync(string? rawCode, string? ipAddress, CancellationToken ct = default, string? unitNumber = null, long? facilityId = null)
     {
         if (string.IsNullOrWhiteSpace(rawCode))
         {
@@ -142,6 +143,7 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
                     .Include(c => c.AccessCredentials)
                     // D46: hợp đồng đang chuyển sang ô này (3 ngày cuối kỳ cũ) dùng PIN hiện tại mở được ô mới.
                     .Where(c => (c.Unit.UnitNumber == unitNumber || movingIn.Contains(c.ContractId))
+                                && (facilityId == null || c.Unit.FacilityId == facilityId) // chỉ xét hợp đồng của cơ sở có máy quét
                                 && c.AccessCredentials.Any(a => a.Status == "ACTIVE" && a.CredentialType != "KEY"))
                     .OrderByDescending(c => c.ContractId)
                     .ToListAsync(ct);
@@ -171,6 +173,10 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
                 return await LogAndDenyAsync(null, null, null, null, "Mã không đúng. Kiểm tra lại mã trên ứng dụng hoặc mã dự phòng.", ipAddress, ct);
             }
         }
+
+        // Mã ô trùng giữa các cơ sở (K01…): máy quét ở cơ sở khác thì từ chối, dù cùng mã ô.
+        if (facilityId != null && contract.Unit.FacilityId != facilityId)
+            return await LogAndDenyAsync(null, unitNumber, null, null, "Mã không thuộc kho của cơ sở này.", ipAddress, ct);
 
         // D46: trong 3 ngày cuối kỳ cũ, mã hiện tại mở được cả ô mới khách đã trả tiền gia hạn sang.
         var movingTarget = !string.IsNullOrWhiteSpace(unitNumber) && contract.Unit.UnitNumber != unitNumber

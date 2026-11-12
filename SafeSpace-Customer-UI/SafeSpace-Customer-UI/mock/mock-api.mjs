@@ -423,6 +423,7 @@ export function startMockApi(
       if (method === "PIN" && /^\d{6}$/.test(clean) && clean.includes("0")) return out("DENIED", "Mã PIN gồm 6 số từ 1 đến 9.", null);
       const c = S.contracts.find((x) => { const a = accessCode(x); return a.code === code || a.backup.replace(/\s/g, "") === clean; });
       if (!c) return out("DENIED", "Mã không đúng. Kiểm tra lại mã trên ứng dụng hoặc mã dự phòng.", null);
+      if (body?.facilityId && Number(unit(c.unitId).facilityId) !== Number(body.facilityId)) return out("DENIED", "Mã không thuộc kho của cơ sở này.", null);
       if (at && unit(c.unitId).unitNumber !== at) return out("DENIED", `Mã không thuộc ô ${at}. QR và PIN chỉ mở đúng kho của hợp đồng.`, c);
       if (c.status !== "ACTIVE") return out("DENIED", "Mã đã hết hiệu lực — hợp đồng đã trả kho.", c);
       if (c.startDate > dateOnly(now)) return out("DENIED", `Chưa đến ngày sử dụng. Có thể mở cửa từ 00:00 ngày ${c.startDate.split("-").reverse().join("/")}.`, c);

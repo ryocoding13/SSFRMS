@@ -61,7 +61,7 @@ public static class AccessEndpoints
             CancellationToken ct) =>
         {
             var ip = context.Connection.RemoteIpAddress?.ToString();
-            var result = await accessService.ScanAsync(request.Code, ip, ct, request.UnitNumber);
+            var result = await accessService.ScanAsync(request.Code, ip, ct, request.UnitNumber, request.FacilityId);
             return Results.Ok(result);
         }).AllowAnonymous().RequireRateLimiting("access-scan");
 

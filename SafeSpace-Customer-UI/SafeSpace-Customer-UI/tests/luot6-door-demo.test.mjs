@@ -102,6 +102,10 @@ test("mock máy quét theo ô: sai ô bị từ chối, đóng cửa từ thiế
     const qr = (await c2("GET", `/api/contracts/${id}/access-qr`, undefined, cus)).data;
     const wrong = await c2("POST", "/api/access/scan", { code: qr.backupCode, unitNumber: "KHONG-CO" });
     assert.equal(wrong.data.result, "DENIED");
+    // Đúng mã, đúng số ô nhưng máy quét ở cơ sở khác → từ chối (mã ô trùng giữa các cơ sở)
+    const otherFacility = await c2("POST", "/api/access/scan", { code: qr.code, unitNumber: qr.unitNumber, facilityId: 999 });
+    assert.equal(otherFacility.data.result, "DENIED");
+    assert.match(otherFacility.data.reason, /cơ sở này/);
     const ok = await c2("POST", "/api/access/scan", { code: qr.backupCode, unitNumber: qr.unitNumber });
     if (ok.data.result === "OPEN") {
       assert.equal((await c2("GET", `/api/access/door?unitNumber=${qr.unitNumber}`)).data.door, "OPEN");

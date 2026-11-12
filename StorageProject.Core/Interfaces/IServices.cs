@@ -67,7 +67,7 @@ public interface IContractService
 public interface IAccessService
 {
     Task<AccessQrDto> GetQrAsync(long customerId, long contractId, CancellationToken ct = default);
-    Task<ScanResultDto> ScanAsync(string? code, string? ipAddress, CancellationToken ct = default, string? unitNumber = null);
+    Task<ScanResultDto> ScanAsync(string? code, string? ipAddress, CancellationToken ct = default, string? unitNumber = null, long? facilityId = null);
 }
 
 /// <summary>

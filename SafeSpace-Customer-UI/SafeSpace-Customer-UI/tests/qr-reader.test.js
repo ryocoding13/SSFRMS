@@ -38,4 +38,6 @@ test("chỉ báo không có camera khi thật sự không mở được, không 
   const src = readFileSync(new URL("../src/features/admin/demo/DoorScannerTool.jsx", import.meta.url), "utf8");
   assert.doesNotMatch(src, /typeof window\.BarcodeDetector !== "function"\) return setState/, "không bỏ qua bước xin quyền camera");
   assert.match(src, /createQrReader/);
+  assert.match(src, /pressDigit\("0"\)/, "phím 0 bấm được (D53)");
+  assert.match(src, /adminApi\.scan\(code, unit, facilityId\)/, "máy quét gửi kèm cơ sở");
 });

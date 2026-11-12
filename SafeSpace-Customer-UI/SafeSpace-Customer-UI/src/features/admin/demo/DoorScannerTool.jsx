@@ -112,7 +112,7 @@ export default function DoorScannerTool() {
   };
   const doScan = (code, method) => run(async () => {
     try {
-      const res = await adminApi.scan(code, unit);
+      const res = await adminApi.scan(code, unit, facilityId); // gửi kèm cơ sở: mã ô K01… trùng giữa các cơ sở
       const s = { ...res, method, at: res.scannedAt || new Date().toISOString() };
       setScan(s); setPin("");
       setPopup({ kind: scanScreen(s), scan: s });
@@ -175,7 +175,7 @@ export default function DoorScannerTool() {
                 <div className="demo-scan__keys">
                   {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => <button type="button" key={d} disabled={busy} onClick={() => pressDigit(d)}>{d}</button>)}
                   <button type="button" className="is-clear" disabled={busy} onClick={() => { setPin(""); setPinMsg(""); setScan(null); }}>C</button>
-                  <button type="button" disabled title="Mã PIN chỉ gồm số 1–9">0</button>
+                  <button type="button" disabled={busy} onClick={() => pressDigit("0")}>0</button>{/* Phím 0 bấm được như máy thật; PIN không có số 0 nên bấm OK sẽ báo lỗi (D53) */}
                   <button type="button" className="is-ok" disabled={busy} onClick={submitPin}>OK</button>
                 </div>
                 <button type="button" className="demo-scan__qr" disabled={busy || !unit} onClick={() => setPopup({ kind: "QR" })}><Icon name="qr" size={18} /> Mở cửa bằng QR</button>

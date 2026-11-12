@@ -239,6 +239,10 @@ public sealed partial class CheckoutTests
         Assert.Equal("OPEN", (await access.ScanAsync(qr.BackupCode, "test", unitNumber: "K01")).Result);
         Assert.Equal("DENIED", (await access.ScanAsync(qr.BackupCode, "test")).Result);
         Assert.Equal("DENIED", (await access.ScanAsync(qr.Code, "test", unitNumber: "OTHER")).Result);
+        // Mã ô K01 có ở mọi cơ sở: máy quét ở cơ sở khác không được mở, kể cả QR hay PIN
+        Assert.Equal("OPEN", (await access.ScanAsync(qr.Code, "test", unitNumber: "K01", facilityId: f.Order.FacilityId)).Result);
+        Assert.Equal("DENIED", (await access.ScanAsync(qr.Code, "test", unitNumber: "K01", facilityId: f.Order.FacilityId + 999)).Result);
+        Assert.Equal("DENIED", (await access.ScanAsync(qr.BackupCode, "test", unitNumber: "K01", facilityId: f.Order.FacilityId + 999)).Result);
         await Assert.ThrowsAsync<KeyNotFoundException>(() => access.GetQrAsync(1, c.ContractId));
     }
 
