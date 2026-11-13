@@ -210,10 +210,28 @@ export default function FacilityDetailPage({ id, query }) {
     setError("");
     if (!offer) return setError("Cơ sở này chưa có loại kho phù hợp.");
     if (unitHasNoPrice) return setError("Ô kho này hiện chưa có giá thuê được cấu hình.");
+
+    // D56: Kiểm tra nếu khách đang chọn ô đích danh trên sơ đồ
+    if (view === "map" && unit) {
+      if (!unit.bookable_for_period) {
+        return setError(
+          unit.period_unavailable_reason ||
+            "Ô đã chọn không khả dụng trong kỳ thuê này. Vui lòng chọn ô khác hoặc bỏ chọn để hệ thống tự bố trí."
+        );
+      }
+    }
+
     if (!authed)
       return go(`login?next=${encodeURIComponent(`find/${facility.facility_id}${qs({ offer: offer.key, months, start, view: unit ? "map" : "", unit: unit?.code })}`)}`);
     setBusy(true);
-    const res = await dispatch("CREATE_RESERVATION", { facility_id: facility.facility_id, offer_key: offer.key, months, start_date: start });
+    const res = await dispatch("CREATE_RESERVATION", {
+      facility_id: facility.facility_id,
+      offer_key: offer.key,
+      months,
+      start_date: start,
+      selected_unit_id: view === "map" && unit?.unit_id ? unit.unit_id : null,
+      unit_code: view === "map" && unit?.code ? unit.code : null,
+    });
     setBusy(false);
     if (!res.ok) return setError(res.error);
     go(`checkout/${res.reservation_id}/confirm`);
@@ -288,9 +306,19 @@ export default function FacilityDetailPage({ id, query }) {
         )}
 
         <aside className="panel booking">
-          {unit && (
+          {unit ? (
             <div className="booking__unit">
-              <p className="booking__eyebrow">Ô ĐANG CHỌN</p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <p className="booking__eyebrow">Ô ĐANG CHỌN (ĐÍCH DANH)</p>
+                <button
+                  type="button"
+                  className="biz-link"
+                  style={{ fontSize: "12px", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                  onClick={() => { setUnitCode(""); setError(""); }}
+                >
+                  Bỏ chọn ô (để tự chọn)
+                </button>
+              </div>
               <h2>Ô kho {unit.code} · {unit.position}</h2>
               <p className={`unit-badge unit-badge--${UNIT_STATUS[unit.status].tone}`}>
                 Hiện tại: {UNIT_STATUS[unit.status].label}
@@ -303,7 +331,7 @@ export default function FacilityDetailPage({ id, query }) {
                   Khả dụng trong kỳ ({dateLabel(start)} – {dateLabel(q?.end_date)})
                 </p>
               ) : (
-                <p className="hint">
+                <p className="hint" style={{ color: "var(--color-error, #b91c1c)" }}>
                   {unit.period_unavailable_reason || (unit.overdue ? "Ô đang quá hạn trả, chưa nhận đặt trước." : unit.free_from ? `Trống từ ${dateLabel(unit.free_from)} · đặt trước được từ ngày này.` : "Không khả dụng trong khoảng ngày đang tìm.")}
                 </p>
               )}
@@ -311,7 +339,12 @@ export default function FacilityDetailPage({ id, query }) {
                 <p className="hint">Trống từ {dateLabel(unit.free_from)} · đặt trước được từ ngày bạn chọn.</p>
               )}
             </div>
-          )}
+          ) : view === "map" ? (
+            <div className="booking__unit booking__unit--auto">
+              <p className="booking__eyebrow">CHẾ ĐỘ TỰ BỐ TRÍ</p>
+              <p className="hint">Chưa chọn ô cụ thể trên sơ đồ. Hệ thống sẽ tự động bố trí ô phù hợp khi đặt, hoặc bạn có thể nhấp chọn một ô trên sơ đồ.</p>
+            </div>
+          ) : null}
           {offer ? (
             <>
               {unitHasNoPrice ? (
@@ -320,7 +353,9 @@ export default function FacilityDetailPage({ id, query }) {
                 <p className="price price--xl">{money(q.monthly_rate)} / tháng</p>
               )}
               <p className="hint">
-                Giá theo loại kho, diện tích và gói thuê. Hệ thống tự bố trí ô trống cả kỳ ở bước tiếp theo{unit ? "; sơ đồ chỉ để xem tình trạng" : ""}.
+                {view === "map" && unit
+                  ? `Đặt đúng ô ${unit.code} bạn đã chọn. Hệ thống giữ chính xác ô này cho bạn trong toàn bộ kỳ thuê.`
+                  : "Giá theo loại kho, diện tích và gói thuê. Hệ thống tự động bố trí ô phù hợp trong toàn bộ kỳ thuê."}
               </p>
               <Field label="Loại kho">
                 <Select value={offer.type} onChange={(e) => changeType(e.target.value)}>
@@ -365,11 +400,11 @@ export default function FacilityDetailPage({ id, query }) {
             {offer && (
               <Button
                 onClick={proceed}
-                disabled={busy || soldOut || unitHasNoPrice}
+                disabled={busy || soldOut || unitHasNoPrice || Boolean(view === "map" && unit && !unit.bookable_for_period)}
                 className={unitHasNoPrice ? "btn--muted" : ""}
-                title={soldOut ? "Chưa có ô trống cả kỳ cho lựa chọn này" : undefined}
+                title={soldOut ? "Chưa có ô trống cả kỳ cho lựa chọn này" : (view === "map" && unit && !unit.bookable_for_period ? "Ô đã chọn không khả dụng trong kỳ này" : undefined)}
               >
-                {unitHasNoPrice ? "Chưa có giá phù hợp" : busy ? "Đang bố trí ô…" : "Tiếp tục đặt chỗ"}
+                {unitHasNoPrice ? "Chưa có giá phù hợp" : busy ? "Đang xử lý…" : (view === "map" && unit ? `Đặt ô ${unit.code}` : "Tiếp tục đặt chỗ")}
               </Button>
             )}
             <a className="btn btn--outline" href={href(`find${qs({ type: query.get("type"), band: query.get("band") })}`)}>Chọn cơ sở khác</a>

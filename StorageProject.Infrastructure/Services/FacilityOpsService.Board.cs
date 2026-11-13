@@ -154,7 +154,8 @@ public partial class FacilityOpsService
                 Door: door.Open ? "OPEN" : "LOCKED", DoorAt: Local(door.At),
                 Contract: shown != null ? ContractCode(shown) : null,
                 BookedFrom: current == null ? next?.StartDate : null,
-                Incident: incident?.CaseCode);
+                Incident: incident?.CaseCode,
+                Zone: u.Zone, LocationDescription: u.LocationDescription, UnitTypeId: u.UnitTypeId);
         }).ToList();
 
         // ---- S09 · Đối soát chuyển khoản

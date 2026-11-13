@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createFacilities } from "../src/app/data/appSeed.js";
-import { countBy, unitsFor } from "../src/shared/utils/units.js";
+import { countBy, floorLabel, positionLabel, unitsFor, zoneLabel } from "../src/shared/utils/units.js";
 
 const kinds = (units) => units.map((u) => `${u.row}:${u.type}`);
 
@@ -189,5 +189,58 @@ test("MAP-01: ô kho không có gói giá phù hợp thì has_pricing = false, m
   assert.equal(units[0].has_pricing, false);
   assert.equal(units[0].monthly_rate, 0);
   assert.equal(units[0].status, "FREE");
+});
+
+test("LOC-04: zoneLabel và floorLabel chuẩn hóa nhãn thông minh, tránh nhân đôi tiền tố", () => {
+  assert.equal(zoneLabel("A"), "Dãy A");
+  assert.equal(zoneLabel("Dãy A"), "Dãy A");
+  assert.equal(zoneLabel("Dãy B"), "Dãy B");
+  assert.equal(zoneLabel("Khu A"), "Khu A");
+  assert.equal(zoneLabel("Khu trung tâm"), "Khu trung tâm");
+  assert.equal(zoneLabel(""), "Chưa phân khu");
+  assert.equal(zoneLabel(null), "Chưa phân khu");
+
+  assert.equal(floorLabel("1"), "Tầng 1");
+  assert.equal(floorLabel("Tầng 1"), "Tầng 1");
+  assert.equal(floorLabel("Tầng trệt"), "Tầng trệt");
+  assert.equal(floorLabel(""), "Chưa xác định tầng");
+  assert.equal(floorLabel(null), "Chưa xác định tầng");
+});
+
+test("LOC-04: positionLabel ghép tầng, khu vực và mô tả chi tiết chính xác", () => {
+  assert.equal(
+    positionLabel({ floor: "Tầng trệt", zone: "Dãy A", locationDescription: "Cạnh thang máy" }),
+    "Tầng trệt · Dãy A (Cạnh thang máy)",
+  );
+  assert.equal(positionLabel({ floor: "Tầng 1", zone: "Khu B" }), "Tầng 1 · Khu B");
+  assert.equal(positionLabel({ locationDescription: "Cạnh cửa số 1" }), "Cạnh cửa số 1");
+  assert.equal(positionLabel({}), "Chưa phân khu");
+
+  // Kiểm tra unitsFor trong chế độ API không nhân đôi tiền tố
+  const f = createFacilities()[0];
+  const realUnits = [
+    {
+      unitId: 101,
+      unitNumber: "K99",
+      floor: "Tầng 1",
+      zone: "Dãy A",
+      locationDescription: "Cạnh cửa số 2",
+      status: "AVAILABLE",
+      sizeM2: 15,
+      climateControlled: false,
+    },
+    {
+      unitId: 102,
+      unitNumber: "K98",
+      floor: "Tầng 2",
+      zone: "Khu B",
+      status: "AVAILABLE",
+      sizeM2: 30,
+      climateControlled: true,
+    },
+  ];
+  const units = unitsFor(f, null, realUnits);
+  assert.equal(units[0].position, "Tầng 1 · Dãy A (Cạnh cửa số 2)");
+  assert.equal(units[1].position, "Tầng 2 · Khu B");
 });
 

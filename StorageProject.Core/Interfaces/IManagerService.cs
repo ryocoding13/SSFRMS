@@ -1,3 +1,4 @@
+using StorageProject.Core.DTOs.Facility;
 using StorageProject.Core.DTOs.Ops;
 
 namespace StorageProject.Core.Interfaces;
@@ -26,6 +27,9 @@ public interface IManagerService
     Task AddContractReminderAsync(long userId, string id, AddReminderRequest request, CancellationToken ct = default);
 
     // Facility storage unit management (UC13)
+    /// <summary>Lấy danh mục sơ đồ tầng và khu vực (Floor / Zone) hợp lệ của cơ sở.</summary>
+    Task<FacilityLocationLayoutDto> GetLocationLayoutAsync(long userId, long? facilityId = null, CancellationToken ct = default);
+
     /// <summary>Lấy danh sách các ô kho thuộc cơ sở mình quản lý.</summary>
     Task<IReadOnlyList<OpsUnitDto>> GetFacilityUnitsAsync(long userId, CancellationToken ct = default);
 

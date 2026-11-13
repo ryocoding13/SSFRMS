@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using StorageProject.Core.DTOs.Facility;
 using StorageProject.Core.DTOs.Ops;
 using StorageProject.Core.Entities;
 using StorageProject.Core.Interfaces;
@@ -303,6 +304,93 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService, 
     }
 
     /// <summary>
+    /// Lấy danh mục sơ đồ tầng và khu vực (Floor / Zone) hợp lệ của cơ sở.
+    /// </summary>
+    public async Task<FacilityLocationLayoutDto> GetLocationLayoutAsync(long userId, long? facilityId = null, CancellationToken ct = default)
+    {
+        Facility fac;
+        if (facilityId.HasValue && facilityId.Value > 0)
+        {
+            fac = await dbContext.Facilities.AsNoTracking().FirstOrDefaultAsync(f => f.FacilityId == facilityId.Value, ct)
+                ?? throw new InvalidOperationException($"Không tìm thấy cơ sở với ID {facilityId.Value}.");
+        }
+        else
+        {
+            var userFac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
+            fac = await dbContext.Facilities.AsNoTracking().FirstOrDefaultAsync(f => f.FacilityId == userFac.FacilityId, ct)
+                ?? throw new InvalidOperationException("Không tìm thấy cơ sở của quản lý.");
+        }
+
+        return await BuildFacilityLayoutAsync(fac.FacilityId, fac.Name, ct);
+    }
+
+    private async Task<FacilityLocationLayoutDto> BuildFacilityLayoutAsync(long facilityId, string facilityName, CancellationToken ct)
+    {
+        // Danh mục cấu hình chuẩn cho các cơ sở của SafeSpace
+        var standardLayout = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Tầng trệt"] = new() { "Dãy A", "Dãy B" },
+            ["Tầng 1"] = new() { "Dãy A", "Dãy B", "Dãy C" },
+            ["Tầng 2"] = new() { "Dãy A", "Dãy B" }
+        };
+
+        // Bổ sung các tầng/khu vực thực tế đã có trong database của cơ sở này (nếu có)
+        var existingUnits = await dbContext.StorageUnits
+            .AsNoTracking()
+            .Where(u => u.FacilityId == facilityId)
+            .Select(u => new { u.Floor, u.Zone })
+            .ToListAsync(ct);
+
+        foreach (var u in existingUnits)
+        {
+            if (string.IsNullOrWhiteSpace(u.Floor)) continue;
+            var floorKey = u.Floor.Trim();
+            if (!standardLayout.TryGetValue(floorKey, out var zones))
+            {
+                zones = new List<string>();
+                standardLayout[floorKey] = zones;
+            }
+            if (!string.IsNullOrWhiteSpace(u.Zone))
+            {
+                var zoneVal = u.Zone.Trim();
+                if (!zones.Any(z => string.Equals(z, zoneVal, StringComparison.OrdinalIgnoreCase)))
+                {
+                    zones.Add(zoneVal);
+                }
+            }
+        }
+
+        var floors = standardLayout.Select(kv => new FloorZoneOption(kv.Key, kv.Value.AsReadOnly())).ToList();
+        return new FacilityLocationLayoutDto(facilityId, facilityName, floors);
+    }
+
+    private async Task ValidateFloorAndZoneAsync(long facilityId, string? floor, string? zone, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(floor))
+            throw new ArgumentException("Vui lòng chọn tầng (Floor).");
+        if (string.IsNullOrWhiteSpace(zone))
+            throw new ArgumentException("Vui lòng chọn khu vực/dãy (Zone).");
+
+        if (floor.Length > 20)
+            throw new ArgumentException("Tên tầng tối đa 20 ký tự.");
+        if (zone.Length > 50)
+            throw new ArgumentException("Tên khu vực/dãy tối đa 50 ký tự.");
+
+        var layout = await BuildFacilityLayoutAsync(facilityId, string.Empty, ct);
+        var floorOption = layout.Floors.FirstOrDefault(f => string.Equals(f.Value, floor.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (floorOption == null)
+        {
+            throw new InvalidOperationException($"Tầng '{floor}' không thuộc danh mục vị trí hợp lệ của cơ sở.");
+        }
+
+        var hasZone = floorOption.Zones.Any(z => string.Equals(z, zone.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (!hasZone)
+        {
+            throw new InvalidOperationException($"Khu vực/dãy '{zone}' không thuộc danh mục hợp lệ của {floorOption.Value}.");
+        }
+    }
+
+    /// <summary>
     /// Lấy danh sách toàn bộ ô kho trong cơ sở phụ trách kèm trạng thái vận hành.
     /// </summary>
     /// <param name="userId">ID Quản lý.</param>
@@ -332,7 +420,11 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService, 
                 "MAINTENANCE" => "MAINTENANCE",
                 "LOCKED" => "LOCKED",
                 _ => u.Status
-            }
+            },
+            FloorName = u.Floor,
+            Zone = u.Zone,
+            LocationDescription = u.LocationDescription,
+            UnitTypeId = u.UnitTypeId
         }).ToList();
     }
 
@@ -340,29 +432,68 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService, 
     /// Tạo mới một ô kho trong cơ sở quản lý.
     /// </summary>
     /// <param name="userId">ID Quản lý thực hiện.</param>
-    /// <param name="request">Thông tin ô kho mới gồm mã số và tầng.</param>
+    /// <param name="request">Thông tin ô kho mới gồm mã số, tầng, khu vực, mô tả chi tiết, loại kho.</param>
     /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     /// <returns>Thông tin ô kho vừa tạo.</returns>
     public async Task<OpsUnitDto> CreateUnitAsync(long userId, CreateStorageUnitRequest request, CancellationToken ct = default)
     {
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
+
+        if (string.IsNullOrWhiteSpace(request.UnitNumber))
+            throw new ArgumentException("Vui lòng nhập mã ô kho.");
+        var unitNumber = request.UnitNumber.Trim().ToUpperInvariant();
+        if (unitNumber.Length > 30)
+            throw new ArgumentException("Mã ô kho tối đa 30 ký tự.");
+
         var existing = await dbContext.StorageUnits
-            .AnyAsync(u => u.FacilityId == fac.FacilityId && u.UnitNumber == request.UnitNumber, ct);
+            .AnyAsync(u => u.FacilityId == fac.FacilityId && u.UnitNumber == unitNumber, ct);
         if (existing)
         {
-            throw new InvalidOperationException($"Mã ô kho {request.UnitNumber} đã tồn tại trong cơ sở.");
+            throw new InvalidOperationException($"Mã ô kho {unitNumber} đã tồn tại trong cơ sở.");
         }
 
-        var defaultType = await dbContext.UnitTypes.FirstOrDefaultAsync(ct)
-            ?? throw new InvalidOperationException("Chưa có loại phòng kho nào trong hệ thống.");
+        // Validate Floor & Zone
+        await ValidateFloorAndZoneAsync(fac.FacilityId, request.Floor, request.Zone, ct);
+        var validFloor = request.Floor!.Trim();
+        var validZone = request.Zone!.Trim();
+
+        // Validate LocationDescription
+        string? validDesc = null;
+        if (request.LocationDescription != null)
+        {
+            var trimmed = request.LocationDescription.Trim();
+            if (trimmed.Length > 255)
+                throw new ArgumentException("Mô tả vị trí chi tiết tối đa 255 ký tự.");
+            if (trimmed.Length > 0) validDesc = trimmed;
+        }
+
+        // Resolve UnitType
+        UnitType? unitType = null;
+        if (request.UnitTypeId > 0)
+        {
+            unitType = await dbContext.UnitTypes.FirstOrDefaultAsync(t => t.UnitTypeId == request.UnitTypeId && t.Status == "ACTIVE", ct);
+        }
+
+        if (unitType == null && (!string.IsNullOrWhiteSpace(request.UnitTypeCode) || request.Area.HasValue))
+        {
+            var isClimate = string.Equals(request.UnitTypeCode, "climate", StringComparison.OrdinalIgnoreCase);
+            var area = request.Area ?? 15m;
+            unitType = await dbContext.UnitTypes.FirstOrDefaultAsync(t => t.Status == "ACTIVE" && t.ClimateControlled == isClimate && t.Area == area, ct);
+        }
+
+        if (unitType == null)
+        {
+            throw new InvalidOperationException("Vui lòng chọn loại phòng kho hợp lệ.");
+        }
 
         var newUnit = new StorageUnit
         {
             FacilityId = fac.FacilityId,
-            UnitTypeId = defaultType.UnitTypeId,
-            UnitNumber = request.UnitNumber,
-            Floor = request.Floor ?? "Tầng 1",
-            Zone = "Khu A",
+            UnitTypeId = unitType.UnitTypeId,
+            UnitNumber = unitNumber,
+            Floor = validFloor,
+            Zone = validZone,
+            LocationDescription = validDesc,
             Status = "AVAILABLE",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -373,15 +504,19 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService, 
         return new OpsUnitDto
         {
             Code = newUnit.UnitNumber,
-            Area = defaultType.Area,
+            Area = unitType.Area,
             Floor = int.TryParse(newUnit.Floor?.Replace("Tầng", "").Trim(), out var fl) ? fl : 1,
-            Type = defaultType.ClimateControlled ? "climate" : "normal",
-            Status = "EMPTY"
+            Type = unitType.ClimateControlled ? "climate" : "normal",
+            Status = "EMPTY",
+            FloorName = newUnit.Floor,
+            Zone = newUnit.Zone,
+            LocationDescription = newUnit.LocationDescription,
+            UnitTypeId = unitType.UnitTypeId
         };
     }
 
     /// <summary>
-    /// Cập nhật thông tin ô kho (mã số, tầng).
+    /// Cập nhật thông tin ô kho (mã số, tầng, khu vực, mô tả chi tiết, loại kho).
     /// </summary>
     /// <param name="userId">ID Quản lý thực hiện.</param>
     /// <param name="id">Mã ô kho cần cập nhật.</param>
@@ -393,16 +528,87 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService, 
         var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
         var unit = await dbContext.StorageUnits
             .Include(u => u.UnitType)
-            .FirstOrDefaultAsync(u => u.FacilityId == fac.FacilityId && u.UnitNumber == id, ct);
-        if (unit == null)
+            .FirstOrDefaultAsync(u => u.FacilityId == fac.FacilityId && u.UnitNumber == id, ct)
+            ?? throw new InvalidOperationException($"Không tìm thấy ô kho {id}.");
+
+        // Đổi mã ô kho
+        if (!string.IsNullOrWhiteSpace(request.UnitNumber))
         {
-            throw new InvalidOperationException($"Không tìm thấy ô kho {id}.");
+            var newCode = request.UnitNumber.Trim().ToUpperInvariant();
+            if (newCode != unit.UnitNumber)
+            {
+                if (newCode.Length > 30) throw new ArgumentException("Mã ô kho tối đa 30 ký tự.");
+                var exists = await dbContext.StorageUnits.AnyAsync(u => u.FacilityId == fac.FacilityId && u.UnitNumber == newCode, ct);
+                if (exists) throw new InvalidOperationException($"Mã ô kho {newCode} đã tồn tại trong cơ sở.");
+                unit.UnitNumber = newCode;
+            }
         }
 
-        if (!string.IsNullOrWhiteSpace(request.UnitNumber)) unit.UnitNumber = request.UnitNumber;
-        if (!string.IsNullOrWhiteSpace(request.Floor)) unit.Floor = request.Floor;
+        // Đổi Floor & Zone (khi có thay đổi tầng hoặc khu vực thì bắt buộc phải chọn cặp hợp lệ mới)
+        var floorChanged = !string.IsNullOrWhiteSpace(request.Floor) && !string.Equals(request.Floor.Trim(), unit.Floor, StringComparison.OrdinalIgnoreCase);
+        var zoneChanged = !string.IsNullOrWhiteSpace(request.Zone) && !string.Equals(request.Zone.Trim(), unit.Zone, StringComparison.OrdinalIgnoreCase);
+
+        if (floorChanged || zoneChanged)
+        {
+            var targetFloor = !string.IsNullOrWhiteSpace(request.Floor) ? request.Floor.Trim() : unit.Floor;
+            var targetZone = !string.IsNullOrWhiteSpace(request.Zone) ? request.Zone.Trim() : unit.Zone;
+            await ValidateFloorAndZoneAsync(fac.FacilityId, targetFloor, targetZone, ct);
+            unit.Floor = targetFloor;
+            unit.Zone = targetZone;
+        }
+
+        // Đổi LocationDescription: chuỗi rỗng -> null (xóa mô tả)
+        if (request.LocationDescription != null)
+        {
+            var trimmed = request.LocationDescription.Trim();
+            if (trimmed.Length > 255)
+                throw new ArgumentException("Mô tả vị trí chi tiết tối đa 255 ký tự.");
+            unit.LocationDescription = trimmed.Length == 0 ? null : trimmed;
+        }
+
+        // Đổi UnitTypeId: nếu có yêu cầu đổi loại kho, kiểm tra ràng buộc hợp đồng và giữ chỗ
+        UnitType? newType = null;
+        if (request.UnitTypeId.HasValue && request.UnitTypeId.Value > 0 && request.UnitTypeId.Value != unit.UnitTypeId)
+        {
+            newType = await dbContext.UnitTypes.FirstOrDefaultAsync(t => t.UnitTypeId == request.UnitTypeId.Value && t.Status == "ACTIVE", ct)
+                ?? throw new InvalidOperationException("Loại phòng kho không hợp lệ.");
+        }
+        else if ((!string.IsNullOrWhiteSpace(request.UnitTypeCode) || request.Area.HasValue) && (!request.UnitTypeId.HasValue || request.UnitTypeId.Value == 0))
+        {
+            var isClimate = string.Equals(request.UnitTypeCode, "climate", StringComparison.OrdinalIgnoreCase);
+            var area = request.Area ?? unit.UnitType.Area;
+            if (isClimate != unit.UnitType.ClimateControlled || area != unit.UnitType.Area)
+            {
+                newType = await dbContext.UnitTypes.FirstOrDefaultAsync(t => t.Status == "ACTIVE" && t.ClimateControlled == isClimate && t.Area == area, ct)
+                    ?? throw new InvalidOperationException("Loại phòng kho không hợp lệ.");
+            }
+        }
+
+        if (newType != null && newType.UnitTypeId != unit.UnitTypeId)
+        {
+            // Kiểm tra xem ô kho có hợp đồng đang hiệu lực không
+            var hasActiveContract = await dbContext.RentalContracts
+                .AnyAsync(c => c.UnitId == unit.UnitId && (c.Status == "ACTIVE" || c.Status == "EXPIRING" || c.Status == "OVERDUE" || c.Status == "RETURN_PENDING"), ct);
+            if (hasActiveContract)
+            {
+                throw new InvalidOperationException("Ô đang có khách thuê thì không đổi được loại kho và cỡ.");
+            }
+
+            // Kiểm tra xem có đơn giữ chỗ hoặc phân bổ đang hiệu lực không
+            var hasActiveAssignment = await dbContext.UnitAssignments
+                .AnyAsync(ua => ua.UnitId == unit.UnitId && ua.Status == "ACTIVE", ct);
+            if (hasActiveAssignment)
+            {
+                throw new InvalidOperationException("Ô đang có đơn giữ chỗ thì không đổi được loại kho và cỡ.");
+            }
+
+            unit.UnitTypeId = newType.UnitTypeId;
+            unit.UnitType = newType;
+        }
+
         if (!string.IsNullOrWhiteSpace(request.Status) && UnitStatusRules.Normalize(request.Status) != unit.Status)
             throw new InvalidOperationException("Đổi trạng thái bằng thao tác trạng thái riêng và nhập lý do.");
+
         unit.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync(ct);
 
@@ -420,7 +626,11 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService, 
                 "MAINTENANCE" => "MAINTENANCE",
                 "LOCKED" => "LOCKED",
                 _ => unit.Status
-            }
+            },
+            FloorName = unit.Floor,
+            Zone = unit.Zone,
+            LocationDescription = unit.LocationDescription,
+            UnitTypeId = unit.UnitTypeId
         };
     }
 

@@ -264,9 +264,11 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       timeout_seconds,
       transfer_confirmed_at: overlay.transfers[id] ? new Date(overlay.transfers[id]).toISOString() : null,
       contract_api_id: remote.reservationDetails?.[id]?.contractId ?? null,
-      // #2: ô hệ thống bố trí khi tạo đơn (chưa phân bổ chính thức) hoặc ô đã phân bổ
+      // #2 & D56: ô hệ thống bố trí hoặc ô khách chọn (chưa phân bổ chính thức) hoặc ô đã phân bổ
       unit_code: resDetail?.assignedUnitNumber || resDetail?.proposedUnitNumber || null,
+      proposed_unit_id: resDetail?.proposedUnitId ?? null,
       unit_assigned: Boolean(resDetail?.assignedUnitNumber),
+      allocation_mode: resDetail?.allocationMode || (resDetail?.assignedUnitNumber ? "ASSIGNED" : "AUTO"),
     };
   });
 

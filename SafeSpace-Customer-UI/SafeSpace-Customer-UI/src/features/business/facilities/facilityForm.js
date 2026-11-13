@@ -96,3 +96,40 @@ export function formToRequest(form) {
 
 export const coordinateLabel = (f) =>
   f?.latitude != null && f?.longitude != null ? `${Number(f.latitude).toFixed(6)}, ${Number(f.longitude).toFixed(6)}` : "Chưa có";
+
+/**
+ * Định dạng nhãn hiển thị Quản lý cơ sở cho Business Operator:
+ * - Có tên hợp lệ (managerName / manager_name): trả về họ tên.
+ * - Có danh sách managers: ghép tên (hoặc "Quản lý #{id}" nếu thiếu họ tên) cách nhau bởi dấu phẩy.
+ * - Có managerId / manager_id nhưng không có tên: trả về "Quản lý #{id}".
+ * - Không có phân công: trả về "Chưa phân công".
+ * - Tuyệt đối không trả về "Chưa có thông tin".
+ *
+ * @param {Object} facility - Đối tượng cơ sở từ backend hoặc null/undefined
+ * @returns {string} Nhãn hiển thị
+ */
+export function managerLabel(facility) {
+  if (!facility) return "Chưa phân công";
+  const name = (facility.managerName || facility.manager_name || "").trim();
+  if (name) return name;
+
+  const managers = facility.managers;
+  if (Array.isArray(managers) && managers.length > 0) {
+    const names = managers
+      .map((m) => {
+        const n = (m.fullName || m.full_name || "").trim();
+        if (n) return n;
+        const id = m.userId || m.user_id;
+        return id ? `Quản lý #${id}` : "";
+      })
+      .filter(Boolean);
+    if (names.length > 0) return names.join(", ");
+  }
+
+  const id = facility.managerId || facility.manager_id;
+  if (id) {
+    return `Quản lý #${id}`;
+  }
+
+  return "Chưa phân công";
+}

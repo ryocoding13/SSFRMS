@@ -21,7 +21,8 @@ public record OpsStaffDto(string StaffId, string FullName, string Shift);
 /// </summary>
 public record OpsUnitDto(string Code, string? Tenant, decimal Area, string Floor, string Type, string Status, DateOnly? End,
     string? Usage = null, string? Operation = null, string? Door = null, string? DoorAt = null,
-    string? Contract = null, DateOnly? BookedFrom = null, string? Incident = null);
+    string? Contract = null, DateOnly? BookedFrom = null, string? Incident = null,
+    string? Zone = null, string? LocationDescription = null, long? UnitTypeId = null);
 
 public record OpsPaymentDto(
     string Id, string Customer, decimal Amount, string Method, string ReportedAt, string Memo, string Offer,

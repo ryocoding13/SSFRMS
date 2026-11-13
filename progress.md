@@ -1,3 +1,125 @@
+## 2026-11-13 — Cập nhật quy trình skill /resetdb: Reset và tự động nạp trạng thái hoạt động thực tế (D55 / #60)
+
+- **Mục tiêu:**
+  - Hoàn thiện skill `/resetdb` (`.agents/skills/resetdb`) để mỗi khi người dùng gọi lệnh `/resetdb`, hệ thống thực hiện trọn vẹn quy trình:
+    1. **Dọn dẹp bảng giao dịch:** Chạy `reset_db.sql` làm sạch các giao dịch rác, đơn test vãng lai, tài khoản không thuộc seed, dọn các ô kho ngoài danh mục, reset identities.
+    2. **Tự động nạp dữ liệu hoạt động thực tế (Development Seed D55 / #60):** Tích hợp bước gọi tự động `DatabaseSeedIntegrationTests` kết nối vào SQL Server `SSFRMS` để nạp 42 hợp đồng thuê mẫu đang hoạt động (`ACTIVE`) phân bổ trên 12 cơ sở, tạo 84 dòng thanh toán tiền thuê (358M+ VNĐ) và tiền cọc (60M+ VNĐ) rải đều qua 6 tháng gần nhất cho Business Ops, cấp 84 mã mở khoá QR và PIN.
+    3. **Kiểm tra và xác minh trạng thái hoàn tất:** Xác nhận 42 ô `OCCUPIED`, 102 ô `AVAILABLE` (chuẩn vị trí LOC-04), 12/12 cơ sở có Manager và Staff phân công `ACTIVE`.
+    4. **Cập nhật tài liệu skill:** Cập nhật `SKILL.md` và `references/credentials.md` phản ánh chính xác cấu trúc dữ liệu demo mới nhất và tài khoản sẵn sàng sử dụng.
+- **Kiểm chứng:**
+  - `reset-db.ps1`: Chạy full pipeline thành công 100%, tự động cleanup và nạp 42 hợp đồng, 84 giao dịch thanh toán (358.89M VNĐ tiền thuê), 12/12 cơ sở có Manager.
+  - Backend Tests: `dotnet test StorageProject.Tests -c Release` PASS 342/342 tests (bao gồm `DatabaseSeedIntegrationTests`).
+  - Frontend Tests: `npm test` PASS 213/213 tests.
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-13 — Nạp dữ liệu hợp đồng thuê mẫu và doanh thu Business Ops (D55 / #60)
+
+- **Mục tiêu:**
+  - Theo yêu cầu người dùng, đưa cơ sở dữ liệu SQL Server (`SSFRMS`) từ trạng thái zero activity sang trạng thái hoạt động thực tế có sẵn các hợp đồng thuê mẫu và doanh thu phục vụ kiểm thử phân hệ Quản lý cơ sở và Báo cáo Vận hành kinh doanh (Business Ops) theo quyết định **D55 / #60**:
+    1. **Khởi tạo dữ liệu hợp đồng thuê:**
+       - Nạp 42 hợp đồng thuê đang hoạt động (`ACTIVE`) phân bổ trên toàn bộ 12 cơ sở (HL 6, PX 5, TT 2, PMH 6, BTH 4, NB 1, BC 3, TD 5, GV 2, TB 4, BTA 3, NLB 1).
+       - Khách hàng mẫu `Customer<MÃ>01` tại từng cơ sở sở hữu các hợp đồng thuê với đầy đủ mã mở khóa QR và PIN (`AccessCredential`).
+    2. **Doanh thu và thanh toán cho Business Ops:**
+       - Tạo 42 khoản thanh toán tiền thuê (`RENT`) với tổng giá trị **358.890.000 VNĐ** rải qua 6 tháng gần nhất (từ 06/2026 đến 11/2026) để báo cáo doanh thu và biểu đồ của Quản lý vận hành KD không bị trống.
+       - Tạo 42 khoản tiền cọc (`DEPOSIT`) với tổng giá trị **60.760.000 VNĐ**.
+       - Toàn bộ giao dịch đều ở trạng thái `PAID`, có mã tham chiếu duy nhất `TransactionReference`.
+    3. **Trạng thái ô kho vật lý:**
+       - 42 ô có hợp đồng thuê chuyển trạng thái `OCCUPIED`.
+       - 102 ô còn lại duy trì trạng thái `AVAILABLE` để người dùng tiếp tục kiểm thử luồng đặt kho và xem sơ đồ.
+    4. **Phân công cơ sở:**
+       - Duy trì 100% phân công quản lý `ACTIVE` cho toàn bộ 12 cơ sở.
+- **Kiểm chứng:**
+  - SQL Server Query: `rental_contracts` ACTIVE: 42; `payments` RENT: 42 (358.89M VNĐ), DEPOSIT: 42 (60.76M VNĐ); `storage_units` AVAILABLE: 102, OCCUPIED: 42.
+  - Backend Tests: `dotnet test StorageProject.Tests -c Release` PASS 341/341 tests.
+  - Frontend Tests: `npm test` PASS 213/213 tests.
+
+## 2026-11-13 — Giữ đúng ô khách chọn khi đặt kho theo kỳ tương lai (D60 / EXACT vs AUTO)
+
+- **Mục tiêu:**
+  - Triển khai theo kế hoạch `SSFRMS-Selected-Unit-Future-Booking-Fix-Plan.md`:
+    1. **Quyết định nghiệp vụ (D60):**
+       - Phân biệt 2 chế độ:
+         - `AUTO` (màn ảnh / đặt theo loại, `SelectedUnitId == null`): Hệ thống tự chọn ô phù hợp cả kỳ, được phép hoán đổi ô khả dụng khác cùng loại nếu cần.
+         - `EXACT` (màn sơ đồ, `SelectedUnitId != null`): Giữ đúng ô khách chọn nếu khả dụng cả kỳ `[StartDate, ExpectedEndDate)` (tính cả đệm `RELET_BUFFER`), kể cả hiện tại ô đang có người thuê (`OCCUPIED`) nhưng kỳ tương lai sẽ trống. Tuyệt đối không tự ý hoán đổi (`UNIT_REPROPOSED`) sang ô `AVAILABLE` khác. Nếu ô không khả dụng hoặc bị hold, báo lỗi từ chối để khách chọn lại.
+       - Lưu thông tin `mode: "EXACT" | "AUTO"` và `selectedUnitId` vào payload JSON của hành động `UNIT_PROPOSED` tại bảng `activity_logs`, tuân thủ quy tắc D48/D60 không thay đổi schema database.
+    2. **Backend Engine & Provisioning:**
+       - Mở rộng DTO: `CreateReservationRequest` thêm `long? SelectedUnitId = null`, `ReservationDto` và `ReservationDetailDto` thêm `ProposedUnitId` và `AllocationMode`.
+       - `UnitProposal.cs`: Cập nhật `Proposed` record, an toàn khi parse JSON null-check number, `HeldByOthersAsync` hỗ trợ lọc toàn cơ sở. Phương thức `ChooseAsync` chặn hoán đổi sang ô khác khi `current.Mode == "EXACT"`.
+       - `ReservationService.cs`: Xử lý phân nhánh `request.SelectedUnitId.HasValue` (kiểm tra tồn tại, cơ sở, loại kho, trạng thái bảo trì, `UnitAvailability.Bookable`, `HeldByOthersAsync` $\rightarrow$ gán `mode = "EXACT"`).
+       - `ContractProvisioning.cs`: Không hoán đổi ô cho đơn `EXACT` (`unit = null` khi ô bị lệch, ghi log `AUTO_ALLOCATION_PENDING` và persist `SaveChangesAsync` để quản lý xử lý thủ công).
+       - `FacilityService.cs`: Đồng bộ danh sách `held` từ `UnitProposal.HeldByOthersAsync` khi lấy danh sách ô kho có tham số khoảng ngày để sơ đồ kho phản ánh chính xác trạng thái giữ chỗ.
+    3. **Frontend Booking & Review Flow:**
+       - `FacilityDetailPage.jsx`: Gửi `selected_unit_id: view === "map" && unit?.unit_id ? unit.unit_id : null`, kiểm tra tính khả dụng cả kỳ trước khi dispatch `CREATE_RESERVATION`, thêm nút "Bỏ chọn ô (để tự chọn)".
+       - `ReservationReviewPage.jsx`: Nhận diện `allocation_mode` từ đơn đặt chỗ; hiển thị nhãn "Ô bạn đã chọn" (kèm huy hiệu "Chính xác ô đã chọn") cho mode `EXACT` và "Ô hệ thống bố trí cho bạn" cho mode `AUTO`.
+       - `AppProvider.jsx`, `apiMappers.js`, `appReducer.js`, `mock-api.mjs`: Cập nhật đồng bộ trường `selectedUnitId`, `selected_unit_id`, `allocation_mode`, `proposed_unit_id`.
+    4. **Kiểm thử:**
+       - Backend unit test `StorageProject.Tests/SelectedUnitFutureBookingTests.cs` (6/6 tests PASS bao phủ toàn diện 6 ca kiểm thử nghiệp vụ: EXACT giữ ô đang thuê nhưng tương lai trống; từ chối khi ô trùng lịch; từ chối khi ô đang có người khác giữ chỗ; AUTO tự gán ô tối ưu; Provisioning cấp đúng ô đã chọn; Provisioning rơi vào AUTO_ALLOCATION_PENDING thay vì tự ý hoán đổi khi ô bất ngờ gặp sự cố).
+       - Frontend unit test `SafeSpace-Customer-UI/SafeSpace-Customer-UI/tests/luot4-units.test.js` (bổ sung test case kiểm thử dispatch `CREATE_RESERVATION` nhận `selected_unit_id` và `ReservationReviewPage` hiển thị nhãn "Ô bạn đã chọn").
+- **Kiểm chứng:**
+  - Frontend Test Suite: `npm test` PASS 213/213 tests.
+  - Frontend Business Tests: `npm run test:business` PASS 15/15 tests.
+  - Frontend Workflows & Structure: `npm run test:workflows` PASS 12/12 tests, `npm run check:structure` PASS.
+  - Frontend Render & Build: `npm run test:render` PASS 178 routes, `npm run build` PASS 296 modules transformed.
+  - Backend Unit Tests: `dotnet test StorageProject.Tests -c Release` PASS 341/341 tests (bao gồm 6 tests mới trong `SelectedUnitFutureBookingTests.cs`).
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-13 — Sửa hiển thị quản lý cơ sở trên màn Business Operator (FM-01..03)
+
+- **Mục tiêu:**
+  - Triển khai theo kế hoạch `SSFRMS-Business-Facility-Manager-Display-Fix-Plan.md`:
+    1. **FM-01 (Backend Contract & Batch Query):**
+       - Mở rộng `OpsFacilityDto` trong `StorageProject.Core/DTOs/Operations/OperationsDtos.cs` để hỗ trợ `ManagerName`, `ManagerId` và danh sách `Managers` (`IReadOnlyList<OpsFacilityManagerDto>`).
+       - Thêm `OpsFacilityManagerDto(long UserId, string FullName)` tối thiểu.
+       - Trong `OperationsService.ToFacilityDtosAsync`: query theo lô từ `UserFacilities` join `User` và `UserRoles` theo danh sách `facilityIds` đang xử lý, lọc phân công còn hiệu lực (`uf.Status == "ACTIVE"`, `uf.AssignedFrom <= today`, `uf.AssignedTo == null || uf.AssignedTo >= today`), tài khoản người dùng hoạt động (`user.Status == "ACTIVE"`) và vai trò `MANAGER`.
+       - Deduplicate theo `(FacilityId, UserId)` tránh trùng khi người dùng có nhiều vai trò, gán đầy đủ `ManagerName`, `ManagerId`, `Managers` vào `OpsFacilityDto` cho tất cả các caller (danh sách cơ sở, chi tiết cơ sở, tạo mới/cập nhật cơ sở, đổi trạng thái cơ sở).
+    2. **FM-02 (Frontend Display & Format):**
+       - Bổ sung hàm tiện ích `managerLabel(facility)` trong `facilityForm.js` và re-export tại `FacilityManagementPage.jsx`:
+         - Cơ sở có Manager hợp lệ: hiển thị họ tên đầy đủ.
+         - Cơ sở có nhiều Manager: hiển thị danh sách tên phân tách bởi dấu phẩy.
+         - Phân công có `UserId` nhưng `FullName` rỗng: fallback `"Quản lý #{UserId}"` (không coi là chưa phân công).
+         - Không có phân công hoặc đối tượng rỗng: hiển thị **"Chưa phân công"**.
+         - Tuyệt đối loại bỏ chuỗi fallback `"Chưa có thông tin"`.
+       - Áp dụng nhất quán `managerLabel` tại bảng danh sách và card chi tiết cơ sở trong `FacilityManagementPage.jsx`.
+       - Không che giấu lỗi API (giữ nguyên cơ chế `LoadState` báo lỗi và nút thử lại).
+    3. **FM-03 (Kiểm thử):**
+       - Backend unit test trong `StorageProject.Tests/OperationsFacilityManagerTests.cs` (4 test cases kiểm thử đầy đủ các kịch bản: Manager hợp lệ; cơ sở chỉ có Staff; phân công hết hạn/chưa tới hạn/tài khoản bị khóa; trùng vai trò/FullName rỗng).
+       - Frontend unit test trong `SafeSpace-Customer-UI/SafeSpace-Customer-UI/tests/business-frontend.test.mjs` (test `managerLabel` bao phủ 5 khía cạnh nghiệp vụ).
+- **Kiểm chứng:**
+  - Frontend Business Tests: `npm run test:business` PASS 15/15 tests (thêm 1 test cho FM-02).
+  - Frontend Test Suite: `npm test` PASS 212/212 tests.
+  - Frontend Workflows & Structure: `npm run test:workflows` PASS 12/12 tests, `npm run check:structure` PASS.
+  - Frontend Render & Build: `npm run test:render` PASS 178 routes, `npm run build` PASS 296 modules transformed.
+  - Backend Unit Tests: `dotnet test StorageProject.Tests -c Release` PASS 335/335 tests (4 test mới trong `OperationsFacilityManagerTests.cs`).
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-13 — Chuẩn hóa vị trí ô kho: Floor, Zone và LocationDescription (LOC-01..04)
+
+- **Mục tiêu:**
+  - Triển khai theo kế hoạch `SSFRMS-Unit-Location-Floor-Zone-Implementation-Plan.md`:
+    1. **LOC-01 (Kiểm kê và chốt API):** Thêm DTO layout `FacilityLocationLayoutDto` và `FloorZoneOption`, mở rộng `CreateStorageUnitRequest` / `UpdateStorageUnitRequest` và các `OpsUnitDto` của Manager/Staff/Board để hỗ trợ đầy đủ `Floor`, `FloorName`, `Zone`, `LocationDescription`, `UnitTypeId`.
+    2. **LOC-02 (Backend lưu và trả đủ trường):**
+       - Thêm phương thức `GetLocationLayoutAsync` trong `IManagerService` và `ManagerService` trả về cây `Floors -> Zones` chuẩn của SafeSpace cộng các tầng/khu vực thực tế đã có trong cơ sở.
+       - Thêm route `GET /api/manager/location-layout` và `GET /api/manager/facilities/{id:long}/location-layout`.
+       - Trong `CreateUnitAsync`: bỏ gán cứng "Tầng 1" / "Khu A" / defaultType; validate Floor/Zone theo cấu hình layout cơ sở; kiểm tra trùng mã ô; map chính xác `UnitTypeId` (hoặc `unitTypeCode` + `area`); validate `LocationDescription` tối đa 255 ký tự (chuỗi rỗng lưu `NULL`).
+       - Trong `UpdateUnitAsync`: cập nhật Floor, Zone khi thay đổi (bắt buộc cặp hợp lệ mới); cập nhật `LocationDescription` (chuỗi rỗng lưu `NULL`); kiểm tra ràng buộc không được đổi loại kho `UnitTypeId` khi ô đang có hợp đồng hoạt động (`ACTIVE`, `EXPIRING`, `OVERDUE`, `RETURN_PENDING`) hoặc đơn giữ chỗ (`ACTIVE`).
+       - Trong `GetFacilityUnitsAsync` và `FacilityOpsService.Board.cs`: nạp đầy đủ `FloorName`, `Zone`, `LocationDescription`, `UnitTypeId`.
+    3. **LOC-03 (Form tạo và sửa ô kho phía Manager):**
+       - Thay input vị trí gộp tự do bằng 2 Select: **Tầng (Floor)** và **Khu vực / Dãy (Zone)** nạp động từ `fetchLocationLayout(facilityId)`; zone được lọc tự động theo floor đang chọn.
+       - Thêm textarea **Vị trí chi tiết (LocationDescription)** tùy chọn (tối đa 255 ký tự).
+       - Nhận biết vị trí cũ ngoài danh mục (legacy floor/zone) kèm nhãn cảnh báo để không làm mất dữ liệu của ô cũ khi chỉ sửa mô tả.
+       - Gửi đúng `unitTypeId` từ bảng giá/catalog cơ sở.
+    4. **LOC-04 (Sơ đồ và hiển thị thống nhất):**
+       - Bổ sung helper `zoneLabel`, `floorLabel`, `positionLabel` trong `units.js`: chuẩn hóa thông minh nhãn hiển thị, chống nhân đôi tiền tố "Dãy Dãy A" hoặc "Dãy Khu A".
+       - Cập nhật `UnitMap.jsx` dùng `zoneLabel(zg.zone)` và `floorLabel(fg.floor)`.
+       - Cập nhật thẻ ô kho Manager `UnitManagementPage.jsx` hiển thị `positionLabel`.
+- **Kiểm chứng:**
+  - Frontend Test Suite: `npm test` PASS 212/212 tests (3 test mới cho LOC-03, LOC-04).
+  - Frontend Business Tests: `npm run test:business` PASS 14/14 tests.
+  - Frontend Workflows & Structure: `npm run test:workflows` PASS 12/12 tests, `npm run check:structure` PASS.
+  - Frontend Render & Build: `npm run test:render` PASS 178 routes, `npm run build` PASS 296 modules transformed.
+  - Backend Unit Tests: `dotnet test StorageProject.Tests -c Release` PASS 331/331 tests (6 test mới trong `UnitLocationFloorZoneTests.cs`).
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
 ## 2026-11-13 — Gửi hợp đồng ngay sau thanh toán và nhắc gia hạn
 
 - Bản nền `main@ce2f4e0` và ZIP Ngọc Mai đã có sửa CORS tải hợp đồng.

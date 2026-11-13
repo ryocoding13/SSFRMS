@@ -68,7 +68,10 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
 
         var assignedUnit = r.UnitAssignments.OrderByDescending(a => a.AssignedAt).FirstOrDefault()?.Unit?.UnitNumber;
         // #2: ô hệ thống đã bố trí (chưa phân bổ chính thức) để khách thấy trước khi xác nhận
-        var proposedUnit = assignedUnit == null ? (await UnitProposal.OfAsync(dbContext, r.ReservationId, ct))?.UnitNumber : null;
+        var proposed = assignedUnit == null ? await UnitProposal.OfAsync(dbContext, r.ReservationId, ct) : null;
+        var proposedUnit = proposed?.UnitNumber;
+        var proposedUnitId = proposed?.UnitId;
+        var allocationMode = proposed?.Mode ?? (assignedUnit != null ? "ASSIGNED" : "AUTO");
         var contract = r.RentalContract;
 
         var consent = await dbContext.PolicyConsents
@@ -111,7 +114,9 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             consent?.PolicyVersion?.Version,
             consent?.AcceptedAt,
             consentDto,
-            proposedUnit
+            proposedUnit,
+            proposedUnitId,
+            allocationMode
         );
     }
 
@@ -162,13 +167,68 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
 
         // Check availability
         var expectedEndDate = request.StartDate.AddMonths(request.RentalPeriodMonths);
-        // D41: ô trống theo ngày + ngày đệm; ô đang quá hạn không đặt trước được
-        var bookable = await UnitAvailability.CountBookableAsync(dbContext, request.FacilityId, request.UnitTypeId,
-            request.StartDate, expectedEndDate, ct);
+        var buffer = await UnitAvailability.BufferDaysAsync(dbContext, request.FacilityId, request.UnitTypeId, today, ct);
+        var slots = await UnitAvailability.SlotsAsync(dbContext, request.FacilityId, request.UnitTypeId, ct);
 
-        if (bookable <= 0)
+        StorageUnit proposed;
+        string mode;
+
+        if (request.SelectedUnitId.HasValue)
         {
-            throw new InvalidOperationException("Hiện tại đã hết kho trống cho loại kho và khoảng thời gian yêu cầu.");
+            var targetUnitId = request.SelectedUnitId.Value;
+            var targetSlot = slots.FirstOrDefault(s => s.Unit.UnitId == targetUnitId);
+            if (targetSlot == null)
+            {
+                var existingUnit = await dbContext.StorageUnits.AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.UnitId == targetUnitId, ct);
+                if (existingUnit == null)
+                    throw new InvalidOperationException("Không tìm thấy ô kho đã chọn.");
+                if (existingUnit.FacilityId != request.FacilityId)
+                    throw new InvalidOperationException("Ô kho không thuộc cơ sở đã chọn.");
+                if (existingUnit.UnitTypeId != request.UnitTypeId)
+                    throw new InvalidOperationException("Ô kho không thuộc loại kho đã chọn.");
+                throw new InvalidOperationException("Ô kho đang trong trạng thái bảo trì hoặc ngừng hoạt động.");
+            }
+
+            var isBookable = UnitAvailability.Bookable(targetSlot, request.StartDate, expectedEndDate, buffer, today);
+            if (!isBookable)
+            {
+                var reason = UnitAvailability.UnavailableReason(targetSlot, request.StartDate, expectedEndDate, buffer, today)
+                    ?? "Ô kho đã chọn không khả dụng trong khoảng thời gian yêu cầu.";
+                throw new InvalidOperationException(reason);
+            }
+
+            var held = await UnitProposal.HeldByOthersAsync(dbContext, request.FacilityId, request.UnitTypeId,
+                request.StartDate, expectedEndDate, 0, ct, buffer);
+            if (held.Contains(targetUnitId))
+            {
+                throw new InvalidOperationException("Ô kho đã chọn vừa có người khác giữ chỗ. Vui lòng chọn ô khác.");
+            }
+
+            proposed = targetSlot.Unit;
+            mode = "EXACT";
+        }
+        else
+        {
+            // D41: ô trống theo ngày + ngày đệm; ô đang quá hạn không đặt trước được
+            var bookable = await UnitAvailability.CountBookableAsync(dbContext, request.FacilityId, request.UnitTypeId,
+                request.StartDate, expectedEndDate, ct);
+
+            if (bookable <= 0)
+            {
+                throw new InvalidOperationException("Hiện tại đã hết kho trống cho loại kho và khoảng thời gian yêu cầu.");
+            }
+
+            var held = await UnitProposal.HeldByOthersAsync(dbContext, request.FacilityId, request.UnitTypeId,
+                request.StartDate, expectedEndDate, 0, ct, buffer);
+            var pickSlot = UnitAvailability.Pick(slots.Where(s => !held.Contains(s.Unit.UnitId)),
+                request.StartDate, expectedEndDate, buffer, today);
+            if (pickSlot == null)
+            {
+                throw new InvalidOperationException("Hiện tại đã hết kho trống cho loại kho và khoảng thời gian yêu cầu.");
+            }
+            proposed = pickSlot.Unit;
+            mode = "AUTO";
         }
 
         // Chỉ chính sách đang áp dụng, chọn theo thứ tự ưu tiên BR20 (bản nháp của Vận hành KD không ảnh hưởng)
@@ -198,10 +258,10 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         dbContext.Reservations.Add(reservation);
         await dbContext.SaveChangesAsync(ct);
 
-        // #2: hệ thống tự bố trí ô khả dụng cả kỳ, không trùng hợp đồng hay đơn khác; khách thấy ô trước khi xác nhận.
-        var proposed = await UnitProposal.ChooseAsync(dbContext, reservation, ct)
-            ?? throw new InvalidOperationException("Hiện tại đã hết kho trống cho loại kho và khoảng thời gian yêu cầu.");
-        UnitProposal.Record(dbContext, customerId, reservation, proposed, "Hệ thống bố trí khi tạo đơn");
+        // #2 & D56: ghi nhận đề xuất theo mode EXACT hoặc AUTO; khách thấy ô trước khi xác nhận.
+        UnitProposal.Record(dbContext, customerId, reservation, proposed,
+            mode == "EXACT" ? "Khách chọn đích danh khi tạo đơn" : "Hệ thống bố trí khi tạo đơn",
+            mode: mode, selectedUnitId: mode == "EXACT" ? proposed.UnitId : null);
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
@@ -223,7 +283,9 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             reservation.CancellationReason,
             reservation.CreatedAt,
             reservation.PaymentMethod,
-            ProposedUnitNumber: proposed.UnitNumber
+            ProposedUnitNumber: proposed.UnitNumber,
+            ProposedUnitId: proposed.UnitId,
+            AllocationMode: mode
         );
     }
 

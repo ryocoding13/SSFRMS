@@ -111,7 +111,11 @@ public class StaffService(AppDbContext dbContext, CustomerEmailWakeup? customerE
                 Floor = floor,
                 Type = u.UnitType.ClimateControlled ? "climate" : "normal",
                 Status = uiStatus,
-                End = end
+                End = end,
+                FloorName = u.Floor,
+                Zone = u.Zone,
+                LocationDescription = u.LocationDescription,
+                UnitTypeId = u.UnitTypeId
             };
         }).ToList();
 

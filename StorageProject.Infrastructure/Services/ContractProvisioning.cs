@@ -39,16 +39,29 @@ public static class ContractProvisioning
             var proposed = await UnitProposal.OfAsync(db, reservation.ReservationId, ct);
             var unit = await UnitProposal.ChooseAsync(db, reservation, ct);
             if (unit != null && proposed != null && proposed.UnitId != unit.UnitId)
-                ReservationSettlement.Audit(db, actor, "UNIT_REPROPOSED", reservation.ReservationId,
-                    new { from = proposed.UnitNumber, to = unit.UnitNumber, system = true });
+            {
+                if (proposed.Mode == "EXACT")
+                {
+                    // D56: Khách chọn đích danh, tuyệt đối không tự ý hoán đổi sang ô khác khi cấp hợp đồng
+                    unit = null;
+                }
+                else
+                {
+                    ReservationSettlement.Audit(db, actor, "UNIT_REPROPOSED", reservation.ReservationId,
+                        new { from = proposed.UnitNumber, to = unit.UnitNumber, system = true });
+                }
+            }
             if (unit == null)
             {
                 // Tiền thanh toán của khách là thật. Nếu hết ô, tuyệt đối không rollback tiền hay tạo hợp đồng ảo;
                 // ghi nhận log AUTO_ALLOCATION_PENDING để Quản lý cơ sở xử lý thủ công (M05).
                 if (!await db.ActivityLogs.AnyAsync(l => l.Action == "AUTO_ALLOCATION_PENDING" &&
                     l.EntityType == "RESERVATION" && l.EntityId == reservation.ReservationId, ct))
+                {
                     ReservationSettlement.Audit(db, actor, "AUTO_ALLOCATION_PENDING", reservation.ReservationId,
                         new { reason = "Không còn ô kho phù hợp; quản lý cần xử lý", system = true });
+                    await db.SaveChangesAsync(ct);
+                }
                 return false;
             }
             contract = new RentalContract { Reservation = reservation, CustomerId = reservation.CustomerId,

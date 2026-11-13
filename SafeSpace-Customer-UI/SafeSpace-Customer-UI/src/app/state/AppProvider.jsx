@@ -618,7 +618,13 @@ function ApiProvider({ children }) {
             const months = Number(p.months);
             if (!RENTAL_PLANS.includes(months)) return fail("Gói thuê chỉ gồm 1, 3 hoặc 6 tháng.");
             if (!p.start_date || p.start_date < localDate(new Date())) return fail("Ngày bắt đầu không được ở quá khứ.");
-            const dto = await api.createReservation({ facilityId: facility.facility_id, unitTypeId: offer.unit_type_id, startDate: p.start_date, rentalPeriodMonths: months });
+            const dto = await api.createReservation({
+              facilityId: facility.facility_id,
+              unitTypeId: offer.unit_type_id,
+              startDate: p.start_date,
+              rentalPeriodMonths: months,
+              selectedUnitId: p.selected_unit_id ?? null,
+            });
             updateOverlay((o) => ({ ...o, holds: { ...o.holds, [dto.reservationId]: Date.now() } }));
             await loadCustomer();
             return { ok: true, reservation_id: reservationCode(dto) };

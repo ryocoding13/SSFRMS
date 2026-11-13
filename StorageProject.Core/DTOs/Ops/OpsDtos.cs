@@ -52,6 +52,10 @@ public class OpsUnitDto
     public string Type { get; set; } = "normal";
     public string Status { get; set; } = "EMPTY";
     public string? End { get; set; }
+    public string? FloorName { get; set; }
+    public string? Zone { get; set; }
+    public string? LocationDescription { get; set; }
+    public long UnitTypeId { get; set; }
 }
 
 public class OpsPaymentDto
@@ -290,6 +294,8 @@ public class CreateStorageUnitRequest
 {
     public string UnitNumber { get; set; } = null!;
     public long UnitTypeId { get; set; }
+    public string? UnitTypeCode { get; set; }
+    public decimal? Area { get; set; }
     public string? Floor { get; set; }
     public string? Zone { get; set; }
     public string? LocationDescription { get; set; }
@@ -299,6 +305,8 @@ public class UpdateStorageUnitRequest
 {
     public string? UnitNumber { get; set; }
     public long? UnitTypeId { get; set; }
+    public string? UnitTypeCode { get; set; }
+    public decimal? Area { get; set; }
     public string? Floor { get; set; }
     public string? Zone { get; set; }
     public string? LocationDescription { get; set; }

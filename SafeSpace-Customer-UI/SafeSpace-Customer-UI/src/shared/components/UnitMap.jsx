@@ -1,7 +1,7 @@
 import React from "react";
 import { typeLabel } from "../utils/catalog.js";
 import { dateLabel } from "../utils/format.js";
-import { LEGEND, UNIT_STATUS, bookableCount, countBy, freeCount } from "../utils/units.js";
+import { LEGEND, UNIT_STATUS, bookableCount, countBy, floorLabel, freeCount, zoneLabel } from "../utils/units.js";
 
 // Sơ đồ ô kho của cơ sở: chú giải, các dãy theo tầng/khu vực động, ô đang chọn có viền sáng.
 export default function UnitMap({
@@ -129,13 +129,13 @@ export default function UnitMap({
       {floorGroups.map((fg) => (
         <div key={fg.floor} style={{ display: "grid", gap: "12px", marginBottom: "16px" }}>
           {floorGroups.length > 1 && (
-            <h3 style={{ fontSize: "16px", fontWeight: 700, margin: "8px 0 0" }}>{fg.floor}</h3>
+            <h3 style={{ fontSize: "16px", fontWeight: 700, margin: "8px 0 0" }}>{floorLabel(fg.floor)}</h3>
           )}
           <div className="unit-plan">
             {fg.zones.map((zg, zIdx) => (
               <React.Fragment key={zg.zone}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", fontWeight: 600, color: "var(--muted)", padding: "2px 4px" }}>
-                  <span>{zg.zone === "Chưa phân khu" ? zg.zone : `Dãy ${zg.zone}`}</span>
+                  <span>{zoneLabel(zg.zone)}</span>
                   <span className="muted">{zg.units.length} ô</span>
                 </div>
                 <div className={`unit-row${zg.zone === "B" ? " unit-row--tall" : ""}`}>

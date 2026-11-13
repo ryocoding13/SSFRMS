@@ -6,13 +6,15 @@
  * - Quản lý trạng thái: Trống (AVAILABLE), Đang thuê (OCCUPIED), Bảo trì (MAINTENANCE), v.v.
  * - Chuyển trạng thái bảo trì ô kho theo quy định D21 / SRS 8.1.
  */
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Pagination, Select } from "../../../shared/components/Pickers.jsx";
 import { Button, Field, Icon, Modal, Tag } from "../../../shared/components/UI.jsx";
 import { SIZE_BANDS, UNIT_TYPES, bandOfArea, typeLabel } from "../../../shared/utils/catalog.js";
 import { dateLabel, dateTimeLabel, money } from "../../../shared/utils/format.js";
+import { floorLabel, positionLabel, zoneLabel } from "../../../shared/utils/units.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { go, qs } from "../../../app/router.js";
+import { fetchLocationLayout } from "../../facility-operations/api/facilityOperationsApi.js";
 import { UNIT_STATE } from "../../facility-operations/data/facilityOperationsSeed.js";
 import { UNIT_TRANSITIONS } from "../../facility-operations/state/facilityOperationsReducer.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
@@ -76,38 +78,178 @@ export function UnitStatusDialog({ unit, onClose }) {
 }
 
 // M02b Thêm ô kho / M02c Sửa ô kho (Figma 634:8938, 634:8978). Giá thuê lấy theo bảng giá cơ sở, không nhập tay.
-export const floorLabel = (floor) => (/tầng|dãy/i.test(String(floor)) ? floor : `Tầng ${floor}`);
 function UnitFormDialog({ unit, onClose }) {
   const { ops, run } = useOps();
   const { data } = useApp();
   const editing = Boolean(unit);
-  const [form, setForm] = useState({ code: unit?.code || "", location: unit && /dãy|tầng/i.test(unit.floor) ? unit.floor : "", type: unit?.type || "normal", band: unit ? bandOfArea(unit.area) : "M" });
+
+  const initialFloor = unit?.floor_name || unit?.floorName || (unit?.floor ? (/^tầng/i.test(unit.floor) ? unit.floor : `Tầng ${unit.floor}`) : "");
+  const initialZone = unit?.zone || "";
+  const initialDesc = unit?.location_description || unit?.locationDescription || "";
+
+  const [form, setForm] = useState({
+    code: unit?.code || "",
+    floor: initialFloor,
+    zone: initialZone,
+    locationDescription: initialDesc,
+    type: unit?.type || "normal",
+    band: unit ? bandOfArea(unit.area) : "M",
+  });
+
+  const [layout, setLayout] = useState(null);
+  const [layoutLoading, setLayoutLoading] = useState(true);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const set = (k) => (e) => { setForm({ ...form, [k]: e.target.value }); setErr(""); };
+
+  useEffect(() => {
+    let active = true;
+    setLayoutLoading(true);
+    fetchLocationLayout(ops.facility?.facility_id)
+      .then((res) => {
+        if (!active) return;
+        setLayout(res);
+        setLayoutLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        // Fallback layout chuẩn nếu API chưa sẵn sàng hoặc offline
+        setLayout({
+          facilityId: ops.facility?.facility_id,
+          facilityName: ops.facility?.name,
+          floors: [
+            { value: "Tầng trệt", zones: ["Dãy A", "Dãy B"] },
+            { value: "Tầng 1", zones: ["Dãy A", "Dãy B", "Dãy C"] },
+            { value: "Tầng 2", zones: ["Dãy A", "Dãy B"] },
+          ],
+        });
+        setLayoutLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [ops.facility?.facility_id]);
+
+  const availableFloors = layout?.floors || [];
+  const selectedFloorObj = availableFloors.find(
+    (f) => f.value.toLowerCase() === form.floor.trim().toLowerCase(),
+  );
+  const availableZones = selectedFloorObj?.zones || [];
+
+  // Nhận biết vị trí cũ ngoài danh mục (khi đang sửa ô có vị trí legacy)
+  const isLegacyFloor =
+    editing &&
+    Boolean(form.floor) &&
+    !availableFloors.some((f) => f.value.toLowerCase() === form.floor.trim().toLowerCase());
+  const isLegacyZone =
+    editing &&
+    Boolean(form.zone) &&
+    !availableZones.some((z) => z.toLowerCase() === form.zone.trim().toLowerCase());
+
+  const onFloorChange = (e) => {
+    const nextFloor = e.target.value;
+    const nextFloorObj = availableFloors.find(
+      (f) => f.value.toLowerCase() === nextFloor.trim().toLowerCase(),
+    );
+    const nextZones = nextFloorObj?.zones || [];
+    const keepZone = nextZones.some((z) => z.toLowerCase() === form.zone.trim().toLowerCase())
+      ? form.zone
+      : "";
+    setForm({ ...form, floor: nextFloor, zone: keepZone });
+    setErr("");
+  };
+
+  const set = (k) => (e) => {
+    setForm({ ...form, [k]: e.target.value });
+    setErr("");
+  };
+
   const facility = (data?.facilities || []).find((f) => f.facility_id === ops.facility?.facility_id);
   const offer = facility?.offers?.find((o) => o.type === form.type && o.band === form.band);
   const locked = Boolean(unit?.tenant);
   const [label] = unit ? UNIT_STATE[unit.status] || [unit.status] : [];
+
   const submit = async () => {
     if (!form.code.trim()) return setErr("Nhập mã ô.");
+    if (!form.floor.trim()) return setErr("Vui lòng chọn Tầng.");
+    if (!form.zone.trim()) return setErr("Vui lòng chọn Khu vực / Dãy.");
+    if (form.locationDescription.trim().length > 255) return setErr("Mô tả vị trí chi tiết tối đa 255 ký tự.");
+
     const area = SIZE_BANDS.find((b) => b.id === form.band)?.area;
     setBusy(true);
-    const payload = { code: form.code.trim().toUpperCase(), location: form.location.trim(), type: form.type, area };
-    const r = await run(editing ? "UPDATE_UNIT" : "CREATE_UNIT", editing ? { id: unit.code, ...payload } : payload, editing ? `Đã lưu ô kho ${payload.code}` : `Đã thêm ô kho ${payload.code}`);
+    const payload = {
+      code: form.code.trim().toUpperCase(),
+      floor: form.floor.trim(),
+      zone: form.zone.trim(),
+      locationDescription: form.locationDescription.trim() || "",
+      type: form.type,
+      area,
+      unitTypeId: offer?.unit_type_id || unit?.unitTypeId || undefined,
+    };
+    const r = await run(
+      editing ? "UPDATE_UNIT" : "CREATE_UNIT",
+      editing ? { id: unit.code, ...payload } : payload,
+      editing ? `Đã lưu ô kho ${payload.code}` : `Đã thêm ô kho ${payload.code}`,
+    );
     setBusy(false);
     if (r.ok || r.shown) onClose();
     else if (!r.cancelled) setErr(r.error);
   };
+
   return (
     <Modal title={editing ? `Sửa ô kho #${unit.code}` : "Thêm ô kho"} size="md" onClose={busy ? undefined : onClose}>
-      <p className="modal__text modal__text--sub">{editing ? `Hiện tại: ${label} · ${unit.area} m² · ${typeLabel(unit.type)}` : `${ops.facility.name} · ô mới ở trạng thái Trống`}</p>
+      <p className="modal__text modal__text--sub">
+        {editing ? `Hiện tại: ${label} · ${unit.area} m² · ${typeLabel(unit.type)}` : `${ops.facility.name} · ô mới ở trạng thái Trống`}
+      </p>
       <Field label="Mã ô" error={err}>
         <input maxLength={20} value={form.code} placeholder="Ví dụ: K13" onChange={set("code")} />
       </Field>
-      <Field label="Vị trí (dãy · tầng)">
-        <input maxLength={60} value={form.location} placeholder="Ví dụ: Dãy B · Tầng 1" onChange={set("location")} />
+
+      <div className="form-pair">
+        <Field label="Tầng" error={isLegacyFloor ? "Vị trí cũ ngoài danh mục cấu hình; chọn lại tầng hợp lệ nếu muốn đổi" : undefined}>
+          <Select value={form.floor} onChange={onFloorChange} disabled={layoutLoading}>
+            <option value="">-- Chọn tầng --</option>
+            {isLegacyFloor && (
+              <option value={form.floor} disabled>
+                {form.floor} (Vị trí cũ ngoài danh mục)
+              </option>
+            )}
+            {availableFloors.map((f) => (
+              <option key={f.value} value={f.value}>
+                {f.value}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Khu vực / Dãy" error={isLegacyZone ? "Vị trí cũ ngoài danh mục cấu hình; chọn lại khu vực hợp lệ nếu muốn đổi" : undefined}>
+          <Select value={form.zone} onChange={set("zone")} disabled={layoutLoading || !form.floor}>
+            <option value="">-- Chọn khu vực / dãy --</option>
+            {isLegacyZone && (
+              <option value={form.zone} disabled>
+                {form.zone} (Vị trí cũ ngoài danh mục)
+              </option>
+            )}
+            {availableZones.map((z) => (
+              <option key={z} value={z}>
+                {z}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+
+      <Field label="Vị trí chi tiết (tùy chọn)">
+        <textarea
+          rows={2}
+          maxLength={255}
+          value={form.locationDescription}
+          placeholder="Ví dụ: Cuối hành lang, bên trái cửa thoát hiểm số 2"
+          onChange={set("locationDescription")}
+        />
+        <small className="muted" style={{ display: "block", marginTop: "4px" }}>
+          Mô tả thực tế tùy chọn (tối đa 255 ký tự). Để trống nếu muốn xóa mô tả.
+        </small>
       </Field>
+
       <div className="form-pair">
         <Field label="Loại kho">
           <Select value={form.type} onChange={set("type")} disabled={locked}>
@@ -198,7 +340,7 @@ export function UnitManagementPage({ query }) {
               <div className="unit-board__info">
                 <strong>{u.code} · {typeLabel(u.type)} {u.area} m²</strong>
                 <span className="muted">{who}</span>
-                <small className="muted">{floorLabel(u.floor)}</small>
+                <small className="muted">{positionLabel({ floor: u.floor_name || u.floorName || u.floor, zone: u.zone, locationDescription: u.location_description || u.locationDescription })}</small>
               </div>
               <StateCell label="Sử dụng" value={USAGE[v.usage]} />
               <StateCell label="Vận hành" value={OPERATION[v.operation]} sub={v.incident ? `Sự cố ${v.incident}` : null} />
