@@ -143,6 +143,9 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("DefaultCorsPolicy", policy =>
     {
+        // The customer download checks that the API returned an attachment.
+        policy.WithExposedHeaders("Content-Disposition");
+
         if (builder.Environment.IsDevelopment())
         {
             policy.AllowAnyOrigin()
@@ -170,6 +173,9 @@ builder.Services.AddCors(options =>
 // =========================================================================
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IPasswordResetEmailSender, SmtpPasswordResetEmailSender>();
+builder.Services.AddScoped<ISmtpMailTransport, SmtpMailTransport>();
+builder.Services.AddScoped<CustomerEmailDelivery>();
+builder.Services.AddSingleton<CustomerEmailWakeup>();
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 builder.Services.AddScoped<ISupportInquiryService, SupportInquiryService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -190,6 +196,8 @@ if (builder.Configuration.GetValue<bool>("Worker:EnableExpiredCashHold", true))
 {
     builder.Services.AddHostedService<ExpiredCashHoldWorker>();
 }
+if (builder.Configuration.GetValue<bool>("Worker:EnableCustomerEmail", !builder.Environment.IsEnvironment("Testing")))
+    builder.Services.AddHostedService<CustomerEmailWorker>();
 if (builder.Configuration.GetValue<bool>("Worker:EnableOverdue", true))
 {
     builder.Services.AddHostedService<OverdueWorker>();

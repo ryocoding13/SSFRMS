@@ -33,15 +33,15 @@
   - Backend Tests: `dotnet test StorageProject.Tests -c Release` PASS 341/341 tests.
   - Frontend Tests: `npm test` PASS 213/213 tests.
 
-## 2026-11-13 — Giữ đúng ô khách chọn khi đặt kho theo kỳ tương lai (D56 / EXACT vs AUTO)
+## 2026-11-13 — Giữ đúng ô khách chọn khi đặt kho theo kỳ tương lai (D60 / EXACT vs AUTO)
 
 - **Mục tiêu:**
   - Triển khai theo kế hoạch `SSFRMS-Selected-Unit-Future-Booking-Fix-Plan.md`:
-    1. **Quyết định nghiệp vụ (D56):**
+    1. **Quyết định nghiệp vụ (D60):**
        - Phân biệt 2 chế độ:
          - `AUTO` (màn ảnh / đặt theo loại, `SelectedUnitId == null`): Hệ thống tự chọn ô phù hợp cả kỳ, được phép hoán đổi ô khả dụng khác cùng loại nếu cần.
          - `EXACT` (màn sơ đồ, `SelectedUnitId != null`): Giữ đúng ô khách chọn nếu khả dụng cả kỳ `[StartDate, ExpectedEndDate)` (tính cả đệm `RELET_BUFFER`), kể cả hiện tại ô đang có người thuê (`OCCUPIED`) nhưng kỳ tương lai sẽ trống. Tuyệt đối không tự ý hoán đổi (`UNIT_REPROPOSED`) sang ô `AVAILABLE` khác. Nếu ô không khả dụng hoặc bị hold, báo lỗi từ chối để khách chọn lại.
-       - Lưu thông tin `mode: "EXACT" | "AUTO"` và `selectedUnitId` vào payload JSON của hành động `UNIT_PROPOSED` tại bảng `activity_logs`, tuân thủ quy tắc D48/D56 không thay đổi schema database.
+       - Lưu thông tin `mode: "EXACT" | "AUTO"` và `selectedUnitId` vào payload JSON của hành động `UNIT_PROPOSED` tại bảng `activity_logs`, tuân thủ quy tắc D48/D60 không thay đổi schema database.
     2. **Backend Engine & Provisioning:**
        - Mở rộng DTO: `CreateReservationRequest` thêm `long? SelectedUnitId = null`, `ReservationDto` và `ReservationDetailDto` thêm `ProposedUnitId` và `AllocationMode`.
        - `UnitProposal.cs`: Cập nhật `Proposed` record, an toàn khi parse JSON null-check number, `HeldByOthersAsync` hỗ trợ lọc toàn cơ sở. Phương thức `ChooseAsync` chặn hoán đổi sang ô khác khi `current.Mode == "EXACT"`.
@@ -119,6 +119,23 @@
   - Frontend Render & Build: `npm run test:render` PASS 178 routes, `npm run build` PASS 296 modules transformed.
   - Backend Unit Tests: `dotnet test StorageProject.Tests -c Release` PASS 331/331 tests (6 test mới trong `UnitLocationFloorZoneTests.cs`).
   - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-13 — Gửi hợp đồng ngay sau thanh toán và nhắc gia hạn
+
+- Bản nền `main@ce2f4e0` và ZIP Ngọc Mai đã có sửa CORS tải hợp đồng.
+- Khi PayOS xác nhận hoặc nhân viên xác nhận thu, lưu khoản thu và sự kiện email trong giao dịch rồi đánh thức worker sau commit. Màn xác nhận có nút tải ngay khi hợp đồng được cấp. Nếu chưa có ô, gửi xác nhận khoản thu trước và gửi hợp đồng khi phân bổ thành công.
+- Nhắc gia hạn một lần mỗi kỳ trong ba ngày trước hạn theo giờ Việt Nam. Kiểm lại trạng thái, ngày hết hạn và yêu cầu gia hạn/trả kho trước khi gửi.
+- Build .NET Release đạt (0 lỗi, 8 cảnh báo ở tệp ngoài phạm vi), 329/329 test backend qua SQLite và bộ gửi thử. Frontend đạt 212/212 test, 14/14 test nghiệp vụ, 12/12 test workflow, render 178 route, kiểm cấu trúc và build. Có test nút tải trên màn xác nhận, chống gửi lặp ở PayOS/thu tại quầy, đơn chờ ô và mốc nhắc gia hạn.
+- Chưa nghiệm thu webhook PayOS, hộp thư SMTP và SQL Server thật của nhóm.
+
+## 2026-11-13 — Ngọc Mai · Mục 30, 42, 52 và 53
+
+- Rà hai ZIP cũ, kiểm SHA-256 và áp dụng bản mới hơn từ `038cb185` lên clone mới `main@ce2f4e0`. Giữ các cập nhật kho, gia hạn và công cụ demo đã có trên main.
+- Mục 30 căn form, chặn email trống/sai định dạng trước khi gọi API và hiển thị đúng phản hồi nghiệp vụ. Cấu hình SMTP hiện có được dùng cho OTP và thư khách hàng.
+- Mục 42 dùng cùng trạng thái với màn theo dõi gia hạn để chỉ hiện nút Thanh toán trên danh sách/chi tiết khi có khoản đủ điều kiện.
+- Mục 52 thêm tải HTML đúng chủ và gửi hợp đồng khi phát hành. CORS cho frontend đọc `Content-Disposition` từ API chạy khác cổng. Build API đạt; kiểm tra header trên Kestrel với origin `http://localhost:5173`, preflight Authorization và 6 bài test frontend liên quan đều đạt. Mục 53 bổ sung chuông và gửi một email mỗi kỳ. Kiểm đường quá hạn bằng cách chỉnh ngày qua dịch vụ Công cụ demo, chạy worker lặp và đọc lại số tiền cùng kết quả gửi.
+- Build .NET Release đạt (0 lỗi, 8 cảnh báo ngoài patch). Backend đạt 326/326 test. Frontend đạt 212/212 test, 14/14 test nghiệp vụ, 12/12 test workflow, render 178 route, kiểm cấu trúc và build. Chromium qua luồng OTP với mock và Kestrel/JWT/SQLite/mailbox thử; màn 390 px không tràn.
+- Chưa nghiệm thu bản vẽ Figma mới cho mục 30, cấu hình SMTP thật của nhóm hoặc SQL Server của nhóm.
 
 ## 2026-11-13 — Sửa sơ đồ kho Customer không nhận ô kho mới (Dynamic Unit Map Fix)
 
@@ -2128,3 +2145,12 @@
 - Giữ nội dung main và các thay đổi đã phục hồi; không sửa appsettings, migration cũ hoặc quy định D32/D35–D36. Không đổi trạng thái feature.
 - Công cụ đóng gói chạy build API, unit tests BE và bộ FE; kết quả thực tế, SHA nền và danh sách file nằm trong verification.json/manifest.json của ZIP được tạo tại máy đóng gói.
 - Chưa có kết quả SQL Integration đầy đủ, nâng cấp database dùng chung hoặc nghiệm thu toàn bộ các luồng T05/T06/T19 trong lần đóng gói này. Không tự commit/push/PR/merge.
+
+## 2026-11-13 — Rà soát FE/BE/API và sửa validate ngày (D59)
+
+- Đối chiếu tự động 170 route BE với lời gọi API của FE: mọi đường FE gọi đều có route BE (kể cả các `.../actions`); không thấy trang gọi endpoint không tồn tại.
+- Sửa validate: ngày trả kho và ngày nhận chìa khóa giới hạn từ hôm nay đến trước ngày hết hạn (BE + FE, D59); `DatePicker` thêm `max`. Dời ngày nhận kho (D41) FE khớp BE (sau ngày cũ, ≤ 90 ngày). Ngày hẹn chi tiền mặt FE chặn quá hạn nhận và hiện hạn dạng dd/MM/yyyy. Lọc nhật ký admin và báo cáo cuối ngày không chọn được ngày tương lai / "Từ ngày" sau "Đến ngày".
+- BE: đăng ký kiểm tra email đúng định dạng (≤ 150), họ tên 2–100, mật khẩu ≥ 8 ký tự (≤ 72 byte), số điện thoại; sửa hồ sơ kiểm tra số điện thoại. Đặt kho dùng ngày Việt Nam thay ngày UTC.
+- Kiểm chứng: FE `npm test` 219/219 (TZ Asia/Ho_Chi_Minh), test:business 14/14, test:workflows 12/12, test:render 178 route PASS, check:structure PASS, build PASS. **Chưa build/chạy `dotnet test`** (môi trường không tải được .NET SDK/NuGet) — cần CI hoặc máy thành viên. Chưa xem màn bằng trình duyệt (không tải được Chromium). Chưa kiểm SQL Server.
+- Bổ sung cùng ngày: ngày nhận chìa khóa không được trước ngày bắt đầu thuê (BE + FE + chế độ trình duyệt). Công cụ demo thêm kịch bản quá hạn 12/21 ngày, bỏ hồ sơ quá hạn mở theo ngày cũ và chạy ngay tiến trình quá hạn sau khi chỉnh. FE `npm test` 220/220, render 178 route, build PASS; BE vẫn chưa build được trong môi trường AI.
+- Còn treo: cách hiểu `EndDate` (xem D59). Không commit/push/PR/merge; không đổi trạng thái tính năng.

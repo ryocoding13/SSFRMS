@@ -14,7 +14,7 @@ namespace StorageProject.Infrastructure.Services;
 /// Mọi truy vấn và thao tác chỉ trong phạm vi cơ sở đang được phân công cho tài khoản nhân viên/quản lý (SRS A06).
 /// Phần dùng chung: xác định cơ sở, mã hiển thị, định dạng giờ Việt Nam, ghi nhật ký hoạt động.
 /// </summary>
-public partial class FacilityOpsService(AppDbContext dbContext) : IFacilityOpsService
+public partial class FacilityOpsService(AppDbContext dbContext, CustomerEmailWakeup? customerEmails = null) : IFacilityOpsService
 {
     /// <summary>Độ lệch múi giờ Việt Nam (UTC+7).</summary>
     private static readonly TimeSpan VnOffset = TimeSpan.FromHours(7);

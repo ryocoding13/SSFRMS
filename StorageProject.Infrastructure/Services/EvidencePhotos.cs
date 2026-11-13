@@ -44,11 +44,11 @@ public static class EvidencePhotos
     public sealed record Decoded(string FileName, string ContentType, byte[] Data);
 
     /// <summary>Kiểm toàn bộ ảnh trước khi ghi bất cứ thứ gì; lỗi → ArgumentException (400).</summary>
-    public static List<Decoded> Decode(IReadOnlyList<EvidencePhotoUpload>? uploads, bool required, string what)
+    public static List<Decoded> Decode(IReadOnlyList<EvidencePhotoUpload>? uploads, bool required, string what, int maxPhotos = MaxPhotos)
     {
         var list = uploads ?? [];
         if (required && list.Count == 0) throw new ArgumentException($"Vui lòng tải ít nhất một ảnh {what}.");
-        if (list.Count > MaxPhotos) throw new ArgumentException($"Chỉ được tải tối đa {MaxPhotos} ảnh {what}.");
+        if (list.Count > maxPhotos) throw new ArgumentException($"Chỉ được tải tối đa {maxPhotos} ảnh {what}.");
 
         // Độ dài base64 tối đa của 5 MiB (kèm padding) — chặn trước khi cấp phát bộ nhớ giải mã.
         const int maxEncoded = (MaxBytes + 2) / 3 * 4;

@@ -173,6 +173,11 @@ public class SupportTicketService(AppDbContext dbContext) : ISupportTicketServic
         var chosenDate = preferredDate ?? (preferredLocal.HasValue ? DateOnly.FromDateTime(preferredLocal.Value) : (DateOnly?)null);
         if (chosenDate.HasValue && chosenDate.Value < todayVn)
             throw new ArgumentException("Ngày muốn nhận chìa khóa phải từ hôm nay trở đi.");
+        if (chosenDate.HasValue && chosenDate.Value < contract.StartDate)
+            throw new ArgumentException($"Ngày muốn nhận chìa khóa phải từ ngày bắt đầu thuê {contract.StartDate:dd/MM/yyyy}.");
+        var lastKeyDay = OpsRules.LastVisitDay(contract.EndDate, todayVn);
+        if (chosenDate.HasValue && chosenDate.Value > lastKeyDay)
+            throw new ArgumentException($"Ngày muốn nhận chìa khóa phải trước ngày hết hạn hợp đồng (chậm nhất {lastKeyDay:dd/MM/yyyy}).");
     }
 
     private async Task ScheduleKeyPickupAsync(long contractId, long ticketId, DateOnly? preferredDate, DateTime? preferredLocal, DateTime now, CancellationToken ct)

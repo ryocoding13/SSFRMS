@@ -500,6 +500,19 @@ export function startMockApi(
       const running = (c) => { const t = dateOnly(new Date()); if (c.status !== "ACTIVE") return c.status; if (c.endDate <= t) return "OVERDUE"; return (new Date(c.endDate) - new Date(t)) / 864e5 <= 14 ? "EXPIRING" : "ACTIVE"; };
       const overdueDays = (c) => { const t = dateOnly(new Date()); return c.status === "ACTIVE" && c.endDate <= t ? Math.round((new Date(t) - new Date(c.endDate)) / 864e5) : 0; };
       const demoDto = (c) => { const u = unit(c.unitId); return { contractId: c.contractId, contractCode: `HĐ-${c.startDate.slice(0, 4)}-${String(c.contractId).padStart(4, "0")}`, customerName: S.users.find((x) => x.userId === c.customerId)?.fullName, unitNumber: u.unitNumber, facilityName: fac(u.facilityId)?.name, startDate: c.startDate, endDate: c.endDate, agreedMonthlyRate: c.agreedMonthlyRate ?? c.monthlyRate ?? 0, depositAmount: c.depositAmount ?? 0, status: running(c), overdueDays: overdueDays(c), payments: S.payments.filter((p) => p.contractId === c.contractId).map((p) => ({ paymentId: p.paymentId, paymentType: p.paymentType, status: p.status, amount: p.amount, paidAt: p.paidAt ? dbTime(p.paidAt) : null, dueDate: p.dueDate || null })) }; };
+      // D57 · Chỉnh giá theo cơ sở (demo): giá 4 loại kho của một cơ sở
+      if (req.method === "GET" && path === "/api/admin/demo/rates") {
+        const fid = +url.searchParams.get("facilityId");
+        return send(200, S.rates.filter((r) => r.facilityId === fid).map((r) => ({ ...r, status: "ACTIVE", isCurrent: true })));
+      }
+      if (req.method === "POST" && path === "/api/admin/demo/rates") {
+        const r = S.rates.find((x) => x.facilityId === body.facilityId && x.unitTypeId === body.unitTypeId);
+        if (!r) return msg(400, "Cơ sở chưa có giá cho loại kho này.");
+        if (!(body.monthlyRate > 0) || body.monthlyRate % 1000) return msg(400, "Giá thuê tháng phải lớn hơn 0 và là bội số của 1.000 VND.");
+        const before = r.monthlyRate; r.monthlyRate = body.monthlyRate; r.effectiveFrom = dateOnly(new Date());
+        log("RATE_SET", "RENTAL_RATE", r.rateId, { monthlyRate: before }, { monthlyRate: r.monthlyRate, facilityId: r.facilityId, unitTypeId: r.unitTypeId });
+        return send(200, { ...r, status: "ACTIVE", isCurrent: true });
+      }
       if (req.method === "GET" && path === "/api/admin/demo/contracts") {
         const q = (url.searchParams.get("search") || "").toLowerCase();
         return send(200, S.contracts.map(demoDto).filter((d) => !q || [d.contractCode, d.customerName, d.unitNumber].some((x) => String(x).toLowerCase().includes(q))));
@@ -790,6 +803,23 @@ export function startMockApi(
       if (!c) return send(404, { error: "Không tìm thấy hợp đồng." });
       const h = S.handovers.find((x) => x.contractId === c.contractId);
       return send(200, { ...contractSummary(c), terminationReason: null, createdAt: dbTime(c.createdAt), completedAt: null, handover: h ? { handoverId: h.handoverId, status: h.status, scheduledAt: dbTime(h.scheduledAt), handoverAt: dbTime(h.handoverAt), customerConfirmed: h.customerConfirmed, staffConfirmed: h.staffConfirmed } : null, payments: S.payments.filter((p) => p.contractId === c.contractId).map(payDto), renewals: S.renewals.filter((r) => r.contractId === c.contractId).map(renDto) });
+    }
+    if (req.method === "GET" && (m = path.match(/^\/api\/contracts\/(\d+)\/document$/))) {
+      // Mô phỏng hợp đồng giấy (bản thật do backend dựng ở ContractDocuments.cs)
+      const c = S.contracts.find((x) => x.contractId === +m[1] && x.customerId === me && x.status !== "DRAFT");
+      if (!c) return send(404, { error: "Không tìm thấy hợp đồng đã phát hành." });
+      const sum = contractSummary(c);
+      const code = `HĐ-${String(c.startDate).slice(0, 4)}-${String(c.contractId).padStart(4, "0")}`;
+      const vnd = (n) => `${Number(n).toLocaleString("vi-VN")} đ`;
+      const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+      const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Hợp đồng ${esc(code)} | SafeSpace</title>`
+        + `<style>body{margin:0;padding:32px 16px;background:#eef2f7;font:15px/1.5 "Times New Roman",serif;color:#1a2233}.sheet{max-width:210mm;margin:0 auto;background:#fff;padding:18mm 20mm}h1{text-align:center;font-size:22px}.c{text-align:center;font-weight:700}</style></head>`
+        + `<body><main class="sheet"><p class="c">CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</p><p class="c">Độc lập – Tự do – Hạnh phúc</p>`
+        + `<h1>HỢP ĐỒNG THUÊ KHO LƯU TRỮ TỰ PHỤC VỤ</h1><p>Số: ${esc(code)}</p>`
+        + `<p>Ô kho ${esc(sum.unitNumber)} · ${esc(sum.unitTypeName)} tại ${esc(sum.facilityName)}, từ ${esc(c.startDate)} đến ${esc(c.endDate)}.</p>`
+        + `<p>Giá thuê ${vnd(c.agreedMonthlyRate)} / tháng · Tiền cọc ${vnd(c.depositAmount)}.</p></main></body></html>`;
+      res.writeHead(200, { ...cors, "Content-Type": "text/html; charset=utf-8", ...(url.searchParams.get("inline") === "true" ? {} : { "Content-Disposition": `attachment; filename="SafeSpace-${encodeURIComponent(code)}.html"` }) });
+      return res.end(html);
     }
     if (req.method === "POST" && (m = path.match(/^\/api\/renewals\/(\d+)\/counter-payment$/))) {
       const renewal = S.renewals.find(x => x.renewalId === Number(m[1]) && S.contracts.some(c => c.contractId === x.contractId && c.customerId === me));

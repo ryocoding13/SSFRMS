@@ -36,6 +36,8 @@ public static class OverdueProcessor
             .ExecuteUpdateAsync(u => u.SetProperty(c => c.Status, "EXPIRING"), ct);
         dbContext.ChangeTracker.Clear(); // ExecuteUpdate không qua tracker; đọc lại từ DB sau bước này
 
+        await CustomerEmailDelivery.QueueRenewalRemindersAsync(dbContext, today, nowUtc, ct);
+
         // 2. Hợp đồng quá hạn (EndDate < today) chưa kết thúc
         var overdueIds = await dbContext.RentalContracts.AsNoTracking()
             .Where(c => c.EndDate < today
@@ -93,6 +95,10 @@ public static class OverdueProcessor
                 await tx.CommitAsync(ct);
                 continue;
             }
+
+            if (contract.Status == "OVERDUE")
+                await CustomerEmailDelivery.QueueOverdueAsync(dbContext, contract.ContractId,
+                    new OverdueEmailDetails(contract.EndDate, overdueDays, overdueFee), nowUtc, ct);
 
             // Tìm hồ sơ quá hạn đang mở
             var activeCase = contract.OverdueCases

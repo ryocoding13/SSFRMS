@@ -1,4 +1,5 @@
 import { contractCode } from "../../../shared/api/apiMappers.js";
+import { dateLabel, money } from "../../../shared/utils/format.js";
 
 // Stable event IDs preserve MARK_READ across refreshes. No credentials are stored in notices.
 const ddmm = value => { const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/.exec(String(value || "")); return m ? `${m[3]}/${m[2]}${m[4] ? ` · ${m[4]}:${m[5]}` : ""}` : ""; };
@@ -14,6 +15,11 @@ export function customerNotifications({ contracts = [], tickets = [], reservatio
   for (const c of contracts) {
     const to = `units/${contractCode(c)}`;
     if (["ACTIVE", "EXPIRING", "OVERDUE"].includes(c.status)) add(`CONTRACT-${c.contractId}`, "Đã cấp hợp đồng và mã ra vào", `Kho ${c.unitNumber} · QR/PIN có hiệu lực theo kỳ thuê. Chìa khóa nhận tại quầy.`, to, c.activatedAt || c.createdAt);
+    if (["ACTIVE", "EXPIRING", "OVERDUE"].includes(c.status) && c.overdue?.overdueDays > 0 && !c.overdue.isSettled) {
+      add(`OVERDUE-${c.contractId}-${c.endDate}`, "Hợp đồng đã quá hạn",
+        `${contractCode(c)} · Kho ${c.unitNumber} · Hạn thuê ${dateLabel(c.endDate)} · Quá hạn ${c.overdue.overdueDays} ngày · Khấu trừ tạm tính ${money(c.overdue.overdueFee)}. Gia hạn nếu đủ điều kiện, gửi yêu cầu trả kho hoặc liên hệ cơ sở.`,
+        to, vnIso(`${c.overdue.asOfDate}T00:00:00`));
+    }
     if (c.accessUpdatedAt) add(`ACCESS-${c.contractId}-${c.accessUpdatedAt}`, "Mã ra vào đã được cấp lại", `Kho ${c.unitNumber} · Xem QR/PIN mới trong hợp đồng. Mã cũ cùng loại đã bị vô hiệu hóa.`, to, c.accessUpdatedAt);
     if (c.handover?.handoverAt) add(`KEY-${c.contractId}-${c.handover.handoverAt}`, "Đã ghi nhận nhận chìa khóa", `Kho ${c.unitNumber} · Chìa khóa vật lý đã được nhận tại quầy.`, to, c.handover.handoverAt);
     if (["RETURN_PENDING", "COMPLETED", "TERMINATED", "CANCELLED"].includes(c.status)) add(`CONTRACT-STATUS-${c.contractId}-${c.status}`, "Hợp đồng có cập nhật", `Kho ${c.unitNumber} · Xem trạng thái và thông tin xử lý.`, to, c.completedAt || c.createdAt);

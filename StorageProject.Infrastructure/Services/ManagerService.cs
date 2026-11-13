@@ -12,7 +12,7 @@ namespace StorageProject.Infrastructure.Services;
 /// Triển khai các chức năng của Quản lý cơ sở (Figma M01–M08):
 /// bảng điều hành Quản lý (Board), phân bổ ô kho, phân công nhân viên, duyệt/từ chối gia hạn, nhắc nhở quá hạn và quản trị ô kho.
 /// </summary>
-public class ManagerService(AppDbContext dbContext, IStaffService staffService) : IManagerService
+public class ManagerService(AppDbContext dbContext, IStaffService staffService, CustomerEmailWakeup? customerEmails = null) : IManagerService
 {
     /// <summary>
     /// Lấy toàn bộ dữ liệu bảng vận hành cơ sở (Board) dành riêng cho vai trò Quản lý cơ sở.
@@ -214,6 +214,7 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
         var r = await FacilityOpsStateStore.FindReservationByIdAsync(dbContext, id, fac.FacilityId, ct)
             ?? throw new InvalidOperationException("Không tìm thấy đơn phân bổ.");
         await ReservationAllocation.AllocateAsync(dbContext, userId, fac.FacilityId, r.ReservationId, request.UnitCode, ct);
+        customerEmails?.Notify();
     }
 
     /// <summary>

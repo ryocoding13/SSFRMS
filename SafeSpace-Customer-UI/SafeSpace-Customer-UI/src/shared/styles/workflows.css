@@ -39,3 +39,12 @@
   .workflow-tiles dd, .facts dd { font-size: 16px; }
 }
 @media(max-width: 380px) { .workflow-tiles, .facts { grid-template-columns: 1fr; } }
+
+/* D56 · Biên bản xử lý đồ quá hạn (Figma D30-11 · 13/11): các mục cách đều 20px */
+.overdue-removal__form { display: grid; gap: 20px; margin-top: 16px; }
+.overdue-removal__form h3 { font-size: 17px; font-weight: 600; color: var(--ink); }
+.overdue-removal__form .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.overdue-removal__form .field { gap: 8px; }
+.overdue-removal__form input[readonly] { background: var(--soft); color: var(--text); }
+.overdue-removal__actions { display: flex; justify-content: flex-end; }
+@media (max-width: 720px) { .overdue-removal__form .form-row { grid-template-columns: 1fr; } }

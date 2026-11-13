@@ -16,10 +16,13 @@ import { go, href } from "../../../app/router.js";
 import { contractStatus } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { typeLabel } from "../../../shared/utils/catalog.js";
+import { contractVisitRange, visitDateError } from "../../../shared/utils/returnPolicy.js";
 import "../../../shared/styles/customer-detail.css";
 
 // Task #6: Nhận chìa khóa chỉ chọn ngày (DatePicker), bỏ khung giờ Sáng/Chiều và bỏ "Ngày khác · ghi trong mô tả"
-const defaultKeyDate = (c) => (c?.start_date && c.start_date > today() ? c.start_date : today());
+// Nhận chìa khóa trong kỳ thuê: từ hôm nay (hoặc ngày bắt đầu nếu chưa tới) đến trước ngày hết hạn.
+const keyRange = (c) => contractVisitRange(c?.end_date, today(), c?.start_date);
+const defaultKeyDate = (c) => keyRange(c).min;
 
 // Figma C12 · "Yêu cầu gần đây": mã · tiêu đề, trạng thái · thời gian, nút Xem
 // Thắng chốt 06/11 (D43): hỗ trợ là cuộc trò chuyện, khách không huỷ yêu cầu — chỉ có nút Xem.
@@ -76,7 +79,11 @@ export default function SupportPage({ query }) {
     e.preventDefault();
     if (blockedContract || (mode === "api" && !form.contract_id)) return setErrors({ form: "Chưa có kho đang thuê để gắn yêu cầu. Vui lòng dùng hỗ trợ khi chưa có hợp đồng." });
     if (form.topic === "OTHER" && !form.subject.trim()) return setErrors({ subject: "Vui lòng nhập tiêu đề." });
-    if (form.topic === "KEY_PICKUP" && (!form.key_date || form.key_date < today())) return setErrors({ key_date: "Vui lòng chọn ngày muốn nhận chìa khóa từ hôm nay trở đi." });
+    if (form.topic === "KEY_PICKUP") {
+      const keyContract = supportable.find((x) => x.contract_id === form.contract_id);
+      const keyError = visitDateError(form.key_date, keyContract?.end_date, today(), "nhận chìa khóa", keyContract?.start_date);
+      if (keyError) return setErrors({ key_date: keyError });
+    }
     setBusy(true);
     // Task #5: bỏ mục mô tả & ảnh đính kèm; Task #6: KEY_PICKUP chỉ gửi ngày muốn nhận chìa khóa
     const res = await dispatch("CREATE_TICKET", {
@@ -132,7 +139,7 @@ export default function SupportPage({ query }) {
             </div>}
             {form.topic === "KEY_PICKUP" && (
               <>
-                <DatePicker label="Ngày muốn nhận chìa khóa *" value={form.key_date} min={today()} error={errors.key_date} onChange={(v) => set("key_date", v)} />
+                <DatePicker label="Ngày muốn nhận chìa khóa *" value={form.key_date} min={keyRange(supportable.find((x) => x.contract_id === form.contract_id)).min} max={keyRange(supportable.find((x) => x.contract_id === form.contract_id)).max} error={errors.key_date} onChange={(v) => set("key_date", v)} />
                 <p className="hint">Ngày khách chọn: <strong>{form.key_date ? dateLabel(form.key_date) : "Chưa chọn"}</strong>. Nhân viên xác minh giấy tờ và giao chìa trong ngày hẹn; mã QR/PIN mở khóa từ ngày bắt đầu thuê.</p>
               </>
             )}

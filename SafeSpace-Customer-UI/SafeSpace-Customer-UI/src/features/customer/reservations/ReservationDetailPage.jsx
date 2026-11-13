@@ -6,7 +6,7 @@
  * - Đếm ngược thời gian giữ chỗ thanh toán.
  * - Trạng thái: Chờ thanh toán, Chờ đối soát, Đã phân bổ kho, Đã hoàn tất, Đã hủy.
  */
-import React from "react";
+import React, { useEffect } from "react";
 import { Button, DetailList, Icon, LinkButton, Notice } from "../../../shared/components/UI.jsx";
 import { bandLabel, typeLabel } from "../../../shared/utils/catalog.js";
 import { money, rangeLabel } from "../../../shared/utils/format.js";
@@ -22,14 +22,28 @@ import { canCancel } from "./ReservationListPage.jsx";
  * @param {{ id: string|number }} props
  */
 export function ReservationDetailPage({ id, mode = "confirmation" }) {
-  const { data, retry } = useApp();
+  const { data, retry, services, mode: appMode } = useApp();
   const now = useNow(1000);
-  const r = data.reservations.find((x) => x.reservation_id === id);
+  const r = data.reservations.find(x => x.reservation_id === id || (x.api_id != null && String(x.api_id) === String(id)));
+  const pending = r?.status === "PENDING_PAYMENT" || r?.status === "PENDING_VERIFICATION";
+  const apiId = r?.api_id;
+  useEffect(() => {
+    if (appMode !== "api" || !pending || apiId == null || !services) return;
+    let disposed = false;
+    let timer;
+    async function check() {
+      await services.checkPaid({ kind: "reservation", item: { api_id: apiId } });
+      if (!disposed) timer = setTimeout(check, 2000);
+    }
+    check();
+    return () => { disposed = true; clearTimeout(timer); };
+  }, [apiId, appMode, pending, services]);
   if (!r) return <NotFound />;
   const facility = facilityOf(data, r.facility_id, r.facility_name);
   const isDetail = mode === "detail";
   const waiting = r.status === "PENDING_PAYMENT" && r.expires_at && new Date(r.expires_at) > now;
-  const contract = data.contracts.find(c => c.reservation_id === r.reservation_id);
+  const contract = data.contracts.find(c => c.reservation_id === r.reservation_id
+    && c.status !== "DRAFT" && c.api_status !== "DRAFT");
   const paid = ["CONFIRMED", "CHECKED_IN"].includes(r.status);
   const atStore = r.status === "PENDING_VERIFICATION";
   // Figma C05-chờ ô (847:10686): đã nhận tiền nhưng hệ thống chưa cấp được ô / hợp đồng
@@ -77,6 +91,7 @@ export function ReservationDetailPage({ id, mode = "confirmation" }) {
         {atStore && (
           <Notice>Vui lòng đến cơ sở và thanh toán bằng tiền mặt hoặc thẻ tại quầy trong thời gian giữ chỗ. Quá hạn, đơn đặt chỗ sẽ tự huỷ.</Notice>
         )}
+        {atStore && <Button variant="outline" block onClick={() => retry?.()}>Kiểm tra thanh toán</Button>}
         {allocating ? (
           <>
             <p className="muted">Khoản thanh toán đã được ghi nhận. Hệ thống đang cấp ô phù hợp; nếu chưa có ô khả dụng, quản lý sẽ xử lý. Bạn không cần thanh toán lại.</p>

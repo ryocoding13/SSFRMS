@@ -15,7 +15,7 @@ const login = async (u, p) => (await call("POST", "/api/auth/login", { username:
 
 test("kịch bản demo cho đúng trạng thái dự kiến", () => {
   const t = "2026-11-12";
-  const want = { NOT_YET: "Chưa tới ngày thuê", ACTIVE: "Đang thuê", EXPIRING: "Sắp hết hạn", OVERDUE: "Quá hạn 3 ngày" };
+  const want = { NOT_YET: "Chưa tới ngày thuê", ACTIVE: "Đang thuê", EXPIRING: "Sắp hết hạn", OVERDUE: "Quá hạn 3 ngày", OVERDUE_REMIND: "Quá hạn 12 ngày", OVERDUE_REMOVAL: "Quá hạn 21 ngày" };
   for (const [key, , make] of SCENARIOS) { const d = make(t); assert.equal(expectedState(d.start, d.end, t), want[key], key); }
   assert.equal(expectedState("2026-10-01", t, t), "Quá hạn 0 ngày");
 });

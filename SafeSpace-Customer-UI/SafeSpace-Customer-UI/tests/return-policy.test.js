@@ -149,3 +149,28 @@ test("badge khách hàng: nút Thanh toán & lịch hẹn hiển thị số kho�
   assert.equal(unpaidCount(dataWithPayable), 1);
   assert.equal(dataWithPayable.reservations.filter((r) => r.status === "PENDING_PAYMENT").length, 1);
 });
+
+// Hẹn trả kho / nhận chìa khóa: từ hôm nay đến trước ngày hết hạn; đã tới/quá hạn thì chỉ hôm nay.
+test("contractVisitRange và visitDateError giới hạn ngày hẹn trong kỳ thuê", async () => {
+  const { contractVisitRange, visitDateError } = await import("../src/shared/utils/returnPolicy.js");
+  assert.deepEqual(contractVisitRange("2026-12-13", "2026-11-13"), { min: "2026-11-13", max: "2026-12-12" });
+  assert.deepEqual(contractVisitRange("2026-11-14", "2026-11-13"), { min: "2026-11-13", max: "2026-11-13" });
+  assert.deepEqual(contractVisitRange("2026-11-13", "2026-11-13"), { min: "2026-11-13", max: "2026-11-13" });
+  assert.deepEqual(contractVisitRange("2026-11-01", "2026-11-13"), { min: "2026-11-13", max: "2026-11-13" });
+  assert.deepEqual(contractVisitRange("2027-01-01", "2026-12-31"), { min: "2026-12-31", max: "2026-12-31" });
+  assert.equal(contractVisitRange(undefined, "2026-11-13").max, "");
+  assert.equal(visitDateError("2026-12-12", "2026-12-13", "2026-11-13"), "");
+  assert.match(visitDateError("2026-12-13", "2026-12-13", "2026-11-13"), /trước ngày hết hạn.*12\/12\/2026/);
+  assert.match(visitDateError("2026-11-12", "2026-12-13", "2026-11-13"), /quá khứ/);
+  assert.match(visitDateError("2026-11-14", "2026-11-01", "2026-11-13"), /chỉ hẹn trả kho trong hôm nay/);
+  assert.equal(visitDateError("2026-11-13", "2026-11-01", "2026-11-13"), "");
+  assert.match(visitDateError("", "2026-12-13", "2026-11-13", "nhận chìa khóa"), /chọn ngày nhận chìa khóa/);
+});
+
+test("D59 · ngày hẹn không được trước ngày bắt đầu thuê (đơn 11/11–12/12)", async () => {
+  const { contractVisitRange, visitDateError } = await import("../src/shared/utils/returnPolicy.js");
+  assert.deepEqual(contractVisitRange("2026-12-12", "2026-11-05", "2026-11-11"), { min: "2026-11-11", max: "2026-12-11" });
+  assert.match(visitDateError("2026-11-10", "2026-12-12", "2026-11-05", "nhận chìa khóa", "2026-11-11"), /từ ngày bắt đầu thuê 11\/11\/2026/);
+  assert.equal(visitDateError("2026-11-11", "2026-12-12", "2026-11-05", "nhận chìa khóa", "2026-11-11"), "");
+  assert.match(visitDateError("2026-12-12", "2026-12-12", "2026-11-13", "nhận chìa khóa", "2026-11-11"), /chậm nhất 11\/12\/2026/);
+});

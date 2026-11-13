@@ -12,7 +12,7 @@ import { DatePicker } from "../../../shared/components/Pickers.jsx";
 import { Button, DetailList, Empty, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
 import RefundMethodFields from "../../../shared/components/RefundMethodFields.jsx";
-import { money } from "../../../shared/utils/format.js";
+import { addDays, money, today } from "../../../shared/utils/format.js";
 import { emptyRefundBank, isCashRefund, validateRefundChoice } from "../../../shared/utils/refundRequest.js";
 import { vnDate, vnMillis, vnStamp } from "../../../shared/utils/vnTime.js";
 import { typeLabel } from "../../../shared/utils/catalog.js";
@@ -45,11 +45,16 @@ export function UnitChangePage({ id }) {
   const guard = useRef(false);
   if (!c) return <NotFound />;
   const item = (Array.isArray(load.data) ? load.data : []).find(x => x.contractId === c.contract_id);
+  // Máy chủ: ngày mới phải sau ngày nhận cũ và trong 90 ngày (FacilityOpsService.Conflicts.RescheduleAsync).
+  const oldStart = String(item?.startDate || c.start_date || "").slice(0, 10);
+  const rescheduleMin = [oldStart ? addDays(oldStart, 1) : "", String(item?.earliestFreeDate || "").slice(0, 10), today()].filter(Boolean).sort().at(-1);
+  const rescheduleMax = oldStart ? addDays(oldStart, 90) : undefined;
   const paid = Number(c.deposit) + Number(c.monthly_rate) * Number(c.months || 1);
   const submit = e => {
     e.preventDefault();
     if (!choice) return setError("Chọn một phương án.");
     if (choice === "RESCHEDULE" && !date) return setError("Chọn ngày nhận kho mới.");
+    if (choice === "RESCHEDULE" && (date < rescheduleMin || (rescheduleMax && date > rescheduleMax))) return setError(`Chọn ngày nhận kho mới từ ${vnDate(rescheduleMin)}${rescheduleMax ? ` đến ${vnDate(rescheduleMax)} (dời tối đa 90 ngày)` : ""}.`);
     if (choice === "CANCEL") { const invalid = validateRefundChoice(bank, c.customer_name || data.user?.full_name); if (invalid) return setError(invalid); }
     setError(""); setConfirm(true);
   };
@@ -88,7 +93,7 @@ export function UnitChangePage({ id }) {
             <fieldset className="choice-list" disabled={busy}>
               {choices.map(([k, text]) => <label key={k} className="choice-list__item"><input type="radio" name="unit-change" checked={choice === k} onChange={() => { setChoice(k); setError(""); }} /><span>{text}</span></label>)}
             </fieldset>
-            {choice === "RESCHEDULE" && <DatePicker label="Ngày nhận kho mới" value={date} min={item.earliestFreeDate || item.startDate} onChange={setDate} />}
+            {choice === "RESCHEDULE" && <DatePicker label="Ngày nhận kho mới" value={date} min={rescheduleMin} max={rescheduleMax} onChange={setDate} />}
             {choice === "CANCEL" && <RefundMethodFields value={bank} onChange={setBank} disabled={busy} expectedName={c.customer_name || data.user?.full_name} facility={facility} />}
             <p className="hint">{item.option !== "NONE" ? `Ô đề xuất được giữ riêng cho bạn đến ${vnStamp(item.expiresAt)}. Quá 48 giờ chưa chọn, hệ thống tự ${item.option === "SWAP" ? "đổi ngang" : "nâng cấp miễn phí"}. ` : "Hiện không còn ô cùng loại hoặc lớn hơn đang trống. "}Đã chọn thì không đổi lại ô {item.oldUnit}, kể cả khi khách thuê trước trả kho sau đó.</p>
             {error && <Notice tone="error">{error}</Notice>}

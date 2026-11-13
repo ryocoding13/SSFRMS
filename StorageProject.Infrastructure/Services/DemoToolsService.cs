@@ -100,12 +100,33 @@ public class DemoToolsService(AppDbContext dbContext) : IDemoToolsService
                 c.Unit.UpdatedAt = DateTime.UtcNow;
             }
             Track("Số ngày quá hạn", OverdueDays(before.EndDate, today).ToString(CultureInfo.InvariantCulture), OverdueDays(request.EndDate, today).ToString(CultureInfo.InvariantCulture));
+            // Đổi ngày hết hạn: bỏ hồ sơ quá hạn đang mở theo ngày cũ (chưa có biên bản xử lý đồ) để tiến trình quá hạn
+            // mở lại đúng mốc ngày mới; hồ sơ đã lập biên bản giữ nguyên làm lịch sử.
+            if (before.EndDate != request.EndDate)
+            {
+                var stale = await dbContext.OverdueCases
+                    .Where(o => o.ContractId == c.ContractId && o.Status != "RESOLVED" && (o.Notes == null || !o.Notes.Contains("\"Staff\"")))
+                    .ToListAsync(ct);
+                if (stale.Count > 0)
+                {
+                    dbContext.OverdueCases.RemoveRange(stale);
+                    Track("Hồ sơ quá hạn theo ngày cũ", $"{stale.Count} hồ sơ", "Đã bỏ, tạo lại theo ngày mới");
+                }
+            }
         }
         if (changes.Count == 0) throw new ArgumentException("Chưa có thay đổi nào so với hiện tại.");
         Log(adminId, ContractEdited, "CONTRACT", c.ContractId, before,
             new { c.StartDate, c.EndDate, c.AgreedMonthlyRate, c.Status, Unit = c.Unit.Status }, request.Reason);
         await dbContext.SaveChangesAsync(ct);
-        return new DemoEditResultDto(Code(c), changes, Dto(c));
+        var result = new DemoEditResultDto(Code(c), changes, Dto(c));
+        // Chạy ngay tiến trình quá hạn (bình thường 5 phút/lần) để quản lý, nhân viên và khách thấy hồ sơ quá hạn,
+        // mốc nhắc ngày 10–14 và mốc xử lý đồ ngày 20 ngay sau khi chỉnh. Lỗi ở bước này không huỷ lần chỉnh: worker sẽ chạy lại.
+        if (Running.Contains(before.Status) && request.EndDate < today)
+        {
+            try { await OverdueProcessor.ProcessDailyOverdueAsync(dbContext, null, ct); }
+            catch (Exception) when (!ct.IsCancellationRequested) { dbContext.ChangeTracker.Clear(); }
+        }
+        return result;
     }
 
     public async Task<DemoEditResultDto> EditPaymentAsync(long adminId, long paymentId, DemoPaymentEditRequest request, CancellationToken ct = default)

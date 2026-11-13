@@ -1,5 +1,8 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using MimeKit;
+using StorageProject.Core.DTOs.Demo;
 using StorageProject.Core.DTOs.FacilityOps;
 using StorageProject.Core.Entities;
 using StorageProject.Infrastructure.Data;
@@ -55,7 +58,7 @@ public sealed class OverdueP1UnifiedPolicyTests : IAsyncDisposable
             FacilityId = facility.FacilityId,
             UnitTypeId = unitType.UnitTypeId,
             StartDate = today.AddDays(-32),
-            ExpectedEndDate = today.AddDays(-2),
+            ExpectedEndDate = today.AddDays(2),
             RentalPeriodMonths = 1,
             EstimatedAmount = 1_000_000m,
             RequiredDeposit = 1_000_000m,
@@ -81,7 +84,7 @@ public sealed class OverdueP1UnifiedPolicyTests : IAsyncDisposable
             CustomerId = customer.UserId,
             UnitId = unit.UnitId,
             StartDate = today.AddDays(-32),
-            EndDate = today.AddDays(-2), // Quá hạn đúng 2 ngày
+            EndDate = today.AddDays(2),
             AgreedMonthlyRate = 1_000_000m,
             DepositAmount = 1_000_000m, // Cọc 1.000.000 đ
             Status = "ACTIVE"
@@ -102,6 +105,12 @@ public sealed class OverdueP1UnifiedPolicyTests : IAsyncDisposable
             CreatedBy = manager.UserId
         });
         await _db.SaveChangesAsync();
+
+        // Mục 45/53: dùng cùng dịch vụ với công cụ admin để đưa hợp đồng sang quá hạn.
+        var demo = new DemoToolsService(_db);
+        await demo.EditContractAsync(manager.UserId, contract.ContractId,
+            new DemoContractEditRequest(contract.StartDate, today.AddDays(-2), null, "Kiểm tra thư quá hạn"));
+        Assert.Equal("OVERDUE", contract.Status);
 
         // 1. Kiểm tra tính toán thống nhất qua OpsRules.CalculateContractOverdueAsync
         var calc = await OpsRules.CalculateContractOverdueAsync(_db, contract, today, isSettled: false);
@@ -151,5 +160,65 @@ public sealed class OverdueP1UnifiedPolicyTests : IAsyncDisposable
         Assert.Equal(880_000m, caseItem.RemainingDeposit);
         Assert.Equal(17, caseItem.DepletionDay);
         Assert.Equal(20, caseItem.RemovalDay);
+
+        // Mục 53: chạy lại worker và bộ gửi, email quá hạn chỉ được gửi một lần trong kỳ.
+        await OverdueProcessor.ProcessDailyOverdueAsync(_db);
+        Assert.Equal(1, await _db.ActivityLogs.CountAsync(x => x.Action == CustomerEmailDelivery.OverdueQueued));
+        var mailbox = new TestMailbox();
+        var delivery = new CustomerEmailDelivery(_db, mailbox, NullLogger<CustomerEmailDelivery>.Instance);
+        await delivery.DeliverPendingAsync(default);
+        await delivery.DeliverPendingAsync(default);
+        Assert.Equal(1, mailbox.Attempts);
+        Assert.Contains("Quá hạn", mailbox.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("120.000", mailbox.Body);
+        Assert.Equal(1, await _db.ActivityLogs.CountAsync(x => x.Action == CustomerEmailDelivery.Sent));
+
+        // Mục 52: chỉ chủ hợp đồng tải được. SMTP lỗi phải lưu FAILED và giữ nguyên số SENT.
+        Assert.Null(await ContractDocuments.LoadAsync(_db, manager.UserId, contract.ContractId, default));
+        var document = await ContractDocuments.LoadAsync(_db, customer.UserId, contract.ContractId, default);
+        Assert.NotNull(document);
+        Assert.Contains("K01", document.ToHtml());
+        mailbox.Reject = true;
+        CustomerEmailDelivery.QueueContract(_db, contract.ContractId, DateTime.UtcNow);
+        await _db.SaveChangesAsync();
+        await delivery.DeliverPendingAsync(default);
+        await delivery.DeliverPendingAsync(default);
+        Assert.Equal(2, mailbox.Attempts);
+        Assert.Equal(1, await _db.ActivityLogs.CountAsync(x => x.Action == CustomerEmailDelivery.Sent));
+        Assert.Equal(1, await _db.ActivityLogs.CountAsync(x => x.Action == CustomerEmailDelivery.Failed));
+    }
+
+    [Fact]
+    public void ContractDocumentEscapesUserAndPolicyHtml()
+    {
+        var document = new ContractDocument(42, "<script>name</script>", "Cơ sở", "A02", "Kho M",
+            new DateOnly(2026, 10, 1), new DateOnly(2026, 11, 1), 700000m, 350000m, "v2",
+            new Dictionary<string, string> { ["payment"] = "<script>policy</script>" });
+        var html = document.ToHtml();
+        Assert.DoesNotContain("<script>", html);
+        Assert.Contains("&lt;script&gt;policy&lt;/script&gt;", html);
+        Assert.Contains("v2", html);
+    }
+
+    private static string PlainText(MimeEntity body) => body switch
+    {
+        TextPart text when text.IsPlain => text.Text,
+        Multipart multipart => multipart.Select(PlainText).FirstOrDefault(text => text.Length > 0) ?? "",
+        _ => ""
+    };
+
+    private sealed class TestMailbox : ISmtpMailTransport
+    {
+        public int Attempts { get; private set; }
+        public string Body { get; private set; } = "";
+        public bool Reject { get; set; }
+
+        public Task SendAsync(string email, string subject, MimeEntity body, CancellationToken ct)
+        {
+            Attempts++;
+            if (Reject) throw new InvalidOperationException("SMTP test rejected the message.");
+            Body = PlainText(body);
+            return Task.CompletedTask;
+        }
     }
 }

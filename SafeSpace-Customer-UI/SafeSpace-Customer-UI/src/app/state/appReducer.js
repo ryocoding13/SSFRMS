@@ -9,7 +9,7 @@
  */
 import { requireRentalPolicy } from "../../shared/utils/rentalPolicy.js";
 import { storedRefundChoice, validateRefundChoice } from "../../shared/utils/refundRequest.js";
-import { isReturnFee, NO_RETURN_COLLECTION } from "../../shared/utils/returnPolicy.js";
+import { isReturnFee, NO_RETURN_COLLECTION, visitDateError } from "../../shared/utils/returnPolicy.js";
 import { RENTAL_PLANS, SIZE_BANDS, offerByKey, quote } from "../../shared/utils/catalog.js";
 import { unitsFor } from "../../shared/utils/units.js";
 import {
@@ -393,8 +393,8 @@ const handlers = {
     const pending = hasPending(state, c.contract_id);
     if (state.returns.some(r => r.contract_id === c.contract_id && !["CANCELLED", "REJECTED"].includes(r.status))) fail("Đã có yêu cầu trả kho đang chờ xử lý.");
     if (pending.renewal) fail("Hợp đồng đang có yêu cầu gia hạn chờ duyệt.");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(p.date || "") || p.date < localDate(ctx.now))
-      fail("Ngày trả kho không được ở quá khứ.");
+    const dateError = visitDateError(p.date, c.end_date, localDate(ctx.now), "trả kho", c.start_date);
+    if (dateError) fail(dateError);
     const invalid = validateRefundChoice(p.bank, c.customer_name || state.user?.full_name);
     if (invalid) fail(invalid);
     if (p.emptied !== true) fail("Vui lòng xác nhận đã chuyển hết đồ ra khỏi kho.");
@@ -437,6 +437,7 @@ const handlers = {
     if (p.contract_id && !contractOf(state, p.contract_id)) fail("Vui lòng chọn kho / hợp đồng của bạn.");
     const keyDate = p.topic === "KEY_PICKUP" ? (p.preferred_date || "") : "";
     if (p.topic === "KEY_PICKUP" && keyDate && !/^\d{4}-\d{2}-\d{2}$/.test(keyDate)) fail("Ngày muốn nhận chìa khóa không hợp lệ.");
+    if (p.topic === "KEY_PICKUP" && keyDate && p.contract_id) { const kc = contractOf(state, p.contract_id), keyError = visitDateError(keyDate, kc.end_date, localDate(ctx.now), "nhận chìa khóa", kc.start_date); if (keyError) fail(keyError); }
     const description = rawDesc || (keyDate ? `Ngày muốn nhận chìa khóa: ${keyDate.split("-").reverse().join("/")}` : "");
     const attachments = (p.attachments || []).slice(0, 3);
     const ticket = {

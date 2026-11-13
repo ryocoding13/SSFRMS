@@ -646,7 +646,57 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Mỗi cơ sở dùng tối đa 6/12 ô cho dữ liệu này; các ô còn lại để người dùng tự demo.
 - Chạy lại seed không tạo thêm: đếm số hợp đồng khách đã có tại cơ sở. Database đã chạy seed cũ thì giữ nguyên dữ liệu cũ (kể cả `Customer<MÃ>02`); muốn đúng hoàn toàn thì tạo lại database.
 
-## D56 — 13/11/2026: Giữ đúng ô khách chọn khi đặt kho theo kỳ tương lai (EXACT vs AUTO) — Đã chốt
+## D56 — 13/11/2026: Biên bản xử lý đồ quá hạn — 1 ô ảnh, nơi lưu giữ tự điền — Đã chốt
+
+> Người dùng chốt ngày 13/11/2026 (Figma D30-11 vẽ lại 13/11). Không đổi bảng/cột (D48).
+
+- Nhân viên chỉ gửi **một bộ ảnh hiện trạng**: tối thiểu 1, tối đa 10 ảnh, JPG/PNG, mỗi ảnh ≤ 5 MB (thay hai ô "ảnh trước" / "ảnh sau"). API nhận trường `photos`; bản cũ gửi `beforePhotos` + `afterPhotos` vẫn được nhận.
+- Nơi lưu giữ đồ tự điền **"Khu tạm giữ đồ quá hạn"**, chỉ hiển thị, không nhập tay. Máy chủ tự điền khi trường trống.
+- Một nút "Lưu biên bản" (bỏ nút "Kiểm tra & lưu biên bản"); các mục trên biểu mẫu cách đều nhau.
+
+## D57 — 13/11/2026: Công cụ demo · Chỉnh giá theo cơ sở — Đã chốt
+
+> Người dùng chốt ngày 13/11/2026 (Figma A-DEMO-GIÁ vẽ lại 13/11). Thay phần "chỉnh giá" của #54.
+
+- Admin chọn cơ sở rồi sửa giá thuê tháng của từng loại kho, giống Bảng giá thuê của Vận hành KD (`GET/POST /api/admin/demo/rates`, dùng lại kiểm tra của `SetRateAsync`: > 0, bội số 1.000, trong khung giá, ghi `RATE_SET`).
+- Giá mới áp dụng từ hôm nay cho báo giá và đơn đặt mới; hợp đồng đang thuê giữ giá đã chốt; cọc đơn mới = 1 tháng theo giá mới.
+- Bỏ phần sửa số tiền từng giao dịch khỏi màn Chỉnh giá. Chỉnh ngày hợp đồng / ngày giao dịch vẫn ở màn Chỉnh ngày.
+
+## 2026-11-12 — Yêu cầu 30, 52 và 53: đặt lại mật khẩu, gửi hợp đồng và báo quá hạn
+
+- Mục 30. Biểu mẫu đặt lại mật khẩu kiểm tra dữ liệu trống trước khi gọi API. Giữ lỗi `EMAIL_NOT_REGISTERED` từ backend. D37/D40 tiếp tục quy định nghiệp vụ OTP.
+- Mục 52. Khách hàng xem hợp đồng trong Kho của tôi và tải bản HTML của hợp đồng đã phát hành. Bản tải lấy điều khoản theo bằng chứng khách đã chấp thuận lúc đặt kho. Hồ sơ cũ thiếu điều khoản hiển thị rõ tình trạng dữ liệu. Xác nhận phát hành theo D26 tạo sự kiện gửi email trong cùng giao dịch.
+- Mục 53. Thông báo quá hạn hiển thị trên chuông và gửi email khi tiến trình quá hạn nhận diện hợp đồng. Số ngày và khoản khấu trừ dùng phép tính hiện hành của D32/P1. Mỗi kỳ thuê chỉ tạo một sự kiện email theo mã hợp đồng và ngày hết hạn.
+- Dùng cấu hình SMTP hiện có cho thư hợp đồng và thư quá hạn. Chỉ ghi `CUSTOMER_EMAIL_SENT` khi máy chủ SMTP xác nhận nhận thư. Ghi nhận lần thử trước khi gửi để một yêu cầu không được tự động gửi lại nếu trạng thái SMTP chưa rõ. Đọc trang hợp đồng và tải tệp không kích hoạt gửi email.
+
+## 2026-11-13 — Xác nhận thanh toán, gửi hợp đồng và nhắc gia hạn
+
+- Sau khi PayOS được xác nhận hoặc nhân viên xác nhận thu tại quầy, đơn và hợp đồng được lưu theo D26. Nếu đã cấp hợp đồng, gửi một email xác nhận thanh toán kèm hợp đồng HTML và cho tải ngay trên màn xác nhận. Nếu còn chờ ô, gửi xác nhận đã nhận tiền, rồi gửi hợp đồng khi phân bổ thành công.
+- Sự kiện email được lưu cùng giao dịch. Đánh thức worker sau khi commit để gửi ngay; quét định kỳ để phục hồi sau khi backend khởi động lại. SMTP không giữ giao dịch thanh toán mở.
+- Gửi một email nhắc hạn kèm lời mời gia hạn mỗi kỳ, từ 3 ngày trước EndDate theo giờ Việt Nam và trước ngày hết hạn. Chỉ áp dụng cho hợp đồng đang hiệu lực chưa yêu cầu trả kho và chưa có yêu cầu gia hạn đang xử lý. Quy tắc quá hạn D32 và gia hạn D50 tiếp tục áp dụng.
+
+## D58 — 13/11/2026: Hợp đồng giấy và email hợp đồng — Đã chốt
+
+> Người dùng duyệt Figma C07g (Hợp đồng giấy) và nút "Xem hợp đồng giấy" trên C07b ngày 13/11/2026. Hoàn thiện phần gửi hợp đồng qua email (mục 52) của Ngọc Mai. Không đổi bảng/cột (D48).
+
+- **Một mẫu hợp đồng duy nhất** do máy chủ dựng (`ContractDocuments.cs`), dùng cho màn "Hợp đồng giấy" (và tệp PDF khách tải), theo format hợp đồng Việt Nam trên Figma C07g: quốc hiệu, số hợp đồng, căn cứ (BLDS 2015, Luật Thương mại 2005, Luật Giao dịch điện tử 2023, phiên bản chính sách), Bên A/Bên B, 10 điều khoản theo D27/D32/D49/D50/D56, ô ký "đã đồng ý điện tử" và phụ lục chính sách khách đã chấp thuận.
+- **Bên A giả lập:** CÔNG TY TNHH SAFESPACE VIỆT NAM, MST 0318 246 802, hotline 0825123676; đại diện là quản lý đang phụ trách cơ sở, địa chỉ là địa chỉ cơ sở. Bên B lấy họ tên, điện thoại, email từ tài khoản khách. Tỷ lệ quá hạn lấy theo chính sách OVERDUE của cơ sở/loại kho.
+- **Chỉ khách xem được** hợp đồng giấy của mình: Kho của tôi → chi tiết hợp đồng → "Xem hợp đồng giấy" (`#/units/{mã}/contract`). Nút "Tải PDF" tạo và tải ngay tệp PDF khổ A4 trên trình duyệt (html2canvas + jsPDF, ngắt trang ở cuối đoạn, phụ lục sang trang mới, chân trang "HĐ-… · Trang x/y"). Bỏ nút "Tải hợp đồng" (tệp HTML) ở màn xác nhận và chi tiết hợp đồng.
+- **Email** sau thanh toán/phát hành hợp đồng, nhắc gia hạn, quá hạn và xác nhận đã nhận tiền dùng chung bố cục SafeSpace (HTML + bản chữ thường), có nút mở đúng màn trong ứng dụng; khi `AppSettings:FrontendUrl` là localhost (chạy trên máy) thì không hiện nút vì mở thư ở máy khác không vào được, thư hướng dẫn khách vào Kho của tôi → Xem hợp đồng giấy. Lên server thì đặt `FrontendUrl` là tên miền thật để nút hiện lại. Email hợp đồng **không đính kèm tệp** (người dùng chốt 13/11): khách xem và tải PDF hợp đồng giấy trong ứng dụng.
+- **Hộp thư gửi:** Gmail `safespace.swp391@gmail.com` (mật khẩu ứng dụng) cấu hình sẵn trong `appsettings.json` mục `Smtp`, dùng chung cho OTP quên mật khẩu, email hợp đồng, nhắc gia hạn và quá hạn; kèm `PasswordReset:HashKey` chung cho cả nhóm. user-secrets / biến môi trường trên từng máy vẫn ghi đè được.
+- **Gửi lại khi SMTP chắc chắn chưa nhận thư** (sai cấu hình, không kết nối/đăng nhập được, máy chủ từ chối): ghi `CUSTOMER_EMAIL_DEFERRED`, thử lại sau 5 phút, tối đa 5 lần rồi ghi `CUSTOMER_EMAIL_FAILED`. Lỗi giữa chừng khi đang truyền thư (không rõ đã gửi chưa) vẫn **không** tự gửi lại để tránh trùng thư.
+
+## D59 — 13/11/2026: Ngày hẹn trả kho và nhận chìa khóa nằm trong kỳ thuê — Đã chốt
+
+> Thắng chốt ngày 13/11/2026 khi rà soát repo: "hẹn trả kho phải từ ngày hiện tại cho đến trước ngày hết hạn". Bổ sung D50 (#8, chỉ chọn ngày); không đổi database (D48).
+
+- **Trả kho:** ngày mong muốn từ **hôm nay** đến **trước ngày hết hạn** (`EndDate − 1`), theo giờ Việt Nam; khớp với QR/PIN chỉ mở cửa trong `[StartDate, EndDate)` (D26). Hợp đồng đã tới/quá ngày hết hạn (gồm `OVERDUE`) chỉ hẹn được **hôm nay**. Mặc định chọn sẵn ngày cuối hợp lệ.
+- **Nhận chìa khóa** (chủ đề `KEY_PICKUP`) cũng nằm trong kỳ thuê: từ **ngày bắt đầu thuê** (hoặc hôm nay nếu đã qua) đến trước ngày hết hạn. Ví dụ đơn 11/11–12/12: mọi ngày hẹn chỉ trong 11/11–11/12. Đây là ngày hẹn duy nhất trong biểu mẫu hỗ trợ.
+- **Công cụ demo · Chỉnh ngày hợp đồng (bổ sung D51):** thêm kịch bản quá hạn 12 ngày (mốc nhắc 10–14) và 21 ngày (mốc xử lý đồ ngày 20). Đổi ngày hết hạn thì bỏ hồ sơ quá hạn đang mở theo ngày cũ (chưa có biên bản), và chạy ngay tiến trình quá hạn khi ngày mới đã quá hạn để hồ sơ hiện ngay, không chờ 5 phút. Hồ sơ đã lập biên bản xử lý đồ giữ nguyên.
+- Máy chủ (`OpsRules.LastVisitDay`, `ContractService.RegisterMoveOutAsync`, `SupportTicketService`) và giao diện (`contractVisitRange` / `visitDateError` trong `returnPolicy.js`, lịch `DatePicker` có `max`) cùng kiểm tra.
+- **Còn treo, cần nhóm chốt:** `EndDate` đang được hiểu hai cách — mở cửa, gia hạn, đặt kho (`AddMonths`) và Công cụ demo coi `EndDate` là ngày **không còn dùng**; còn tiến trình quá hạn, board, phí quá hạn (D32 "từ 00:00 ngày sau EndDate") và màn khách ("Dùng đến hết dd/MM · 23:59") coi `EndDate` là **ngày dùng cuối**. Hệ quả: đúng ngày `EndDate` khách không mở được cửa, không gia hạn được nhưng chưa tính quá hạn.
+
+## D60 — 13/11/2026: Giữ đúng ô khách chọn khi đặt kho theo kỳ tương lai (EXACT vs AUTO) — Đã chốt
 
 > Người dùng chốt ngày 13/11/2026 theo kế hoạch `SSFRMS-Selected-Unit-Future-Booking-Fix-Plan.md`. Bổ sung và điều chỉnh phần cơ chế tự động bố trí ô của D48 / #2; giữ nguyên toàn bộ lịch sử ở trên.
 

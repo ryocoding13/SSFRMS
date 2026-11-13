@@ -1,5 +1,8 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using MimeKit;
 using StorageProject.Core.Entities;
 using StorageProject.Infrastructure.Data;
 using StorageProject.Infrastructure.Services;
@@ -97,6 +100,166 @@ public sealed class OverdueProcessorTests : IAsyncDisposable
         await _db.SaveChangesAsync();
 
         return (customer, facility, unit, reservation);
+    }
+
+    [Fact]
+    public async Task RenewalReminderWaitsForThreeDaysAndSendsOncePerRentalPeriod()
+    {
+        var (customer, _, unit, reservation) = await SetupBaseAsync();
+        var today = OpsRules.TodayLocal;
+        var contract = new RentalContract
+        {
+            ReservationId = reservation.ReservationId, CustomerId = customer.UserId, UnitId = unit.UnitId,
+            StartDate = today.AddDays(-25), EndDate = today.AddDays(4), DepositAmount = 1_000_000m,
+            AgreedMonthlyRate = 1_000_000m, Status = "ACTIVE", CreatedAt = DateTime.UtcNow
+        };
+        _db.RentalContracts.Add(contract);
+        await _db.SaveChangesAsync();
+        await OverdueProcessor.ProcessDailyOverdueAsync(_db);
+        Assert.False(await _db.ActivityLogs.AnyAsync(l => l.Action == CustomerEmailDelivery.RenewalReminderQueued));
+
+        var mailbox = new ReminderMailbox();
+        var site = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["AppSettings:FrontendUrl"] = "https://safespace.vn" }).Build();
+        var delivery = new CustomerEmailDelivery(_db, mailbox, NullLogger<CustomerEmailDelivery>.Instance, site);
+        contract = await _db.RentalContracts.SingleAsync();
+        contract.EndDate = today.AddDays(3);
+        await _db.SaveChangesAsync();
+        await OverdueProcessor.ProcessDailyOverdueAsync(_db);
+        await OverdueProcessor.ProcessDailyOverdueAsync(_db);
+        await delivery.DeliverPendingAsync(default);
+        await delivery.DeliverPendingAsync(default);
+        var message = Assert.Single(mailbox.Texts);
+        Assert.Contains("còn 3 ngày", message);
+        Assert.Contains("chọn Gia hạn", message);
+        Assert.Contains("https://safespace.vn/#/units/", message);
+
+        contract = await _db.RentalContracts.SingleAsync();
+        contract.EndDate = today.AddDays(2);
+        await _db.SaveChangesAsync();
+        await OverdueProcessor.ProcessDailyOverdueAsync(_db);
+        contract = await _db.RentalContracts.SingleAsync();
+        contract.Status = "RETURN_PENDING";
+        await _db.SaveChangesAsync();
+        await delivery.DeliverPendingAsync(default);
+        Assert.Single(mailbox.Texts);
+        Assert.Equal(2, await _db.ActivityLogs.CountAsync(l => l.Action == CustomerEmailDelivery.RenewalReminderQueued));
+        Assert.Equal(1, await _db.ActivityLogs.CountAsync(l => l.Action == CustomerEmailDelivery.Skipped));
+    }
+
+    [Fact]
+    public async Task ContractEmail_RetriesOnlyWhenSmtpSurelyRejected_AndPaperContractIsComplete()
+    {
+        var (customer, _, unit, reservation) = await SetupBaseAsync();
+        var today = OpsRules.TodayLocal;
+        var contract = new RentalContract
+        {
+            ReservationId = reservation.ReservationId, CustomerId = customer.UserId, UnitId = unit.UnitId,
+            StartDate = today, EndDate = today.AddMonths(1), DepositAmount = 1_000_000m,
+            AgreedMonthlyRate = 1_000_000m, Status = "ACTIVE", CreatedAt = DateTime.UtcNow
+        };
+        _db.RentalContracts.Add(contract);
+        await _db.SaveChangesAsync();
+        CustomerEmailDelivery.QueueContract(_db, contract.ContractId, DateTime.UtcNow);
+        await _db.SaveChangesAsync();
+
+        var mailbox = new FlakyMailbox { RejectFirst = 1 };
+        var delivery = new CustomerEmailDelivery(_db, mailbox, NullLogger<CustomerEmailDelivery>.Instance);
+        await delivery.DeliverPendingAsync(default);
+        Assert.Equal(1, mailbox.Calls);
+        Assert.Equal(1, await _db.ActivityLogs.CountAsync(l => l.Action == CustomerEmailDelivery.Deferred));
+        Assert.False(await _db.ActivityLogs.AnyAsync(l => l.Action == CustomerEmailDelivery.Sent));
+
+        await delivery.DeliverPendingAsync(default); // chưa hết thời gian chờ thì chưa gửi lại
+        Assert.Equal(1, mailbox.Calls);
+
+        foreach (var log in await _db.ActivityLogs.Where(l => l.Action == CustomerEmailDelivery.Deferred).ToListAsync())
+            log.LoggedAt = DateTime.UtcNow - CustomerEmailDelivery.RetryDelay - TimeSpan.FromMinutes(1);
+        await _db.SaveChangesAsync();
+        await delivery.DeliverPendingAsync(default);
+        await delivery.DeliverPendingAsync(default);
+        Assert.Equal(2, mailbox.Calls);
+        Assert.Single(await _db.ActivityLogs.Where(l => l.Action == CustomerEmailDelivery.Sent).ToListAsync());
+
+        Assert.Empty(mailbox.Attachments); // D58: thư không đính kèm tệp
+        var document = await ContractDocuments.LoadAsync(_db, customer.UserId, contract.ContractId, default);
+        var html = Assert.IsType<ContractDocument>(document).ToHtml();
+        Assert.Contains("HỢP ĐỒNG THUÊ KHO LƯU TRỮ TỰ PHỤC VỤ", html);
+        Assert.Contains("KHÁCH HÀNG TEST", html);
+        Assert.Contains("A-101", html);
+        Assert.Contains("1.000.000 đ", html);
+        Assert.Contains("Điều 10. Điều khoản chung", html);
+        Assert.Contains("trừ 5% tiền cọc ban đầu", html);
+        Assert.DoesNotContain("localhost", mailbox.LastText);
+        Assert.Contains("Xem hợp đồng giấy", mailbox.LastText);
+    }
+
+    [Fact]
+    public async Task ContractEmail_UnknownSmtpOutcome_IsNeverResent()
+    {
+        var (customer, _, unit, reservation) = await SetupBaseAsync();
+        var today = OpsRules.TodayLocal;
+        var contract = new RentalContract
+        {
+            ReservationId = reservation.ReservationId, CustomerId = customer.UserId, UnitId = unit.UnitId,
+            StartDate = today, EndDate = today.AddMonths(1), DepositAmount = 1_000_000m,
+            AgreedMonthlyRate = 1_000_000m, Status = "ACTIVE", CreatedAt = DateTime.UtcNow
+        };
+        _db.RentalContracts.Add(contract);
+        await _db.SaveChangesAsync();
+        CustomerEmailDelivery.QueueContract(_db, contract.ContractId, DateTime.UtcNow);
+        await _db.SaveChangesAsync();
+
+        var mailbox = new FlakyMailbox { BreakMidway = true };
+        var delivery = new CustomerEmailDelivery(_db, mailbox, NullLogger<CustomerEmailDelivery>.Instance);
+        await delivery.DeliverPendingAsync(default);
+        await delivery.DeliverPendingAsync(default);
+        Assert.Equal(1, mailbox.Calls);
+        Assert.Single(await _db.ActivityLogs.Where(l => l.Action == CustomerEmailDelivery.Failed).ToListAsync());
+        Assert.False(await _db.ActivityLogs.AnyAsync(l => l.Action == CustomerEmailDelivery.Deferred));
+    }
+
+    private sealed class FlakyMailbox : ISmtpMailTransport
+    {
+        public int RejectFirst { get; init; }
+        public bool BreakMidway { get; init; }
+        public int Calls { get; private set; }
+        public List<string> Attachments { get; } = [];
+        public string LastText { get; private set; } = "";
+
+        public Task SendAsync(string email, string subject, MimeEntity body, CancellationToken ct)
+        {
+            Calls++;
+            if (Calls <= RejectFirst) throw new SmtpNotSentException("SMTP_CONNECT_FAILED");
+            if (BreakMidway) throw new IOException("Mất kết nối khi đang truyền thư.");
+            LastText = PlainText(body);
+            if (body is Multipart multipart)
+                foreach (var part in multipart.OfType<MimePart>().Where(part => part.IsAttachment))
+                {
+                    using var content = new MemoryStream();
+                    part.Content!.DecodeTo(content);
+                    Attachments.Add(System.Text.Encoding.UTF8.GetString(content.ToArray()));
+                }
+            return Task.CompletedTask;
+        }
+    }
+
+    private static string PlainText(MimeEntity body) => body switch
+    {
+        TextPart text when text.IsPlain => text.Text,
+        Multipart multipart => multipart.Select(PlainText).FirstOrDefault(text => text.Length > 0) ?? "",
+        _ => ""
+    };
+
+    private sealed class ReminderMailbox : ISmtpMailTransport
+    {
+        public List<string> Texts { get; } = [];
+
+        public Task SendAsync(string email, string subject, MimeEntity body, CancellationToken ct)
+        {
+            Texts.Add(PlainText(body));
+            return Task.CompletedTask;
+        }
     }
 
     [Fact]

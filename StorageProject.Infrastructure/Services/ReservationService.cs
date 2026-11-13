@@ -139,7 +139,7 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         var unitType = await dbContext.UnitTypes.FindAsync([request.UnitTypeId], ct)
             ?? throw new InvalidOperationException("Không tìm thấy loại phòng kho.");
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = OpsRules.TodayLocal; // giờ Việt Nam (D10), tránh 00:00–07:00 bị lệch một ngày theo UTC
         if (request.StartDate < today)
         {
             throw new ArgumentException("Ngày bắt đầu thuê không thể ở quá khứ.");

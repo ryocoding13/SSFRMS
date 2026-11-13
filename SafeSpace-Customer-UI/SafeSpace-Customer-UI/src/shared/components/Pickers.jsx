@@ -16,8 +16,8 @@ function monthGrid(year, month) {
   });
 }
 
-/** Ô chọn ngày với lịch popup: ngày quá khứ (trước `min`) bị khóa. */
-export function DatePicker({ value, onChange, min = today(), label, error, id: idProp, className = "" }) {
+/** Ô chọn ngày với lịch popup: ngày trước `min` hoặc sau `max` (nếu có) bị khóa. */
+export function DatePicker({ value, onChange, min = today(), max, label, error, id: idProp, className = "" }) {
   const autoId = useId();
   const id = idProp || autoId;
   const [open, setOpen] = useState(false);
@@ -79,7 +79,7 @@ export function DatePicker({ value, onChange, min = today(), label, error, id: i
                 <span key={w} className="datepicker__dow">{w}</span>
               ))}
               {cells.map((c) => {
-                const disabled = c.iso < min;
+                const disabled = c.iso < min || (max ? c.iso > max : false);
                 const selected = c.iso === value;
                 return (
                   <button

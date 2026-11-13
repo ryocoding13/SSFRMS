@@ -262,6 +262,14 @@ public class ContractService(AppDbContext dbContext) : IContractService
                 : $"Không thể đăng ký trả kho với hợp đồng ở trạng thái {contract.Status}.");
         }
         if (contract.StartDate > today) throw new InvalidOperationException("Hợp đồng chưa đến ngày bắt đầu thuê. Vui lòng huỷ đơn thay vì trả kho.");
+        // Ngày hẹn trả kho: từ hôm nay đến trước ngày hết hạn (QR/PIN mở cửa trong [StartDate, EndDate)); đã tới/quá hạn thì chỉ hôm nay.
+        var lastReturnDay = OpsRules.LastVisitDay(contract.EndDate, today);
+        if (request.Date > lastReturnDay)
+        {
+            throw new ArgumentException(lastReturnDay == today
+                ? "Hợp đồng đã đến ngày hết hạn: chỉ hẹn trả kho trong hôm nay."
+                : $"Ngày trả kho phải trước ngày hết hạn hợp đồng (chậm nhất {lastReturnDay:dd/MM/yyyy}).");
+        }
         if (contract.ReturnInspections.Any(i => i.Status is "SCHEDULED" or "IN_PROGRESS"))
         {
             throw new InvalidOperationException("Hợp đồng đã có yêu cầu trả kho. Không gửi lại được.");

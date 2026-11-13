@@ -1,6 +1,9 @@
 using System.Security.Claims;
+using System.Text;
 using StorageProject.Api.Extensions;
 using StorageProject.Core.Interfaces;
+using StorageProject.Infrastructure.Data;
+using StorageProject.Infrastructure.Services;
 
 namespace StorageProject.Api.Endpoints;
 
@@ -35,6 +38,19 @@ public static class ContractEndpoints
             var customerId = user.GetUserId();
             var detail = await contractService.GetContractDetailAsync(customerId, id, ct);
             return detail is not null ? Results.Ok(detail) : Results.NotFound(new { error = "Không tìm thấy hợp đồng." });
+        });
+
+        // GET /api/contracts/{id}/document: hợp đồng giấy (Figma C07g) của chính khách.
+        // ?inline=true trả HTML để hiển thị trong màn "Hợp đồng giấy"; mặc định trả tệp tải về (giống tệp đính kèm email).
+        group.MapGet("/contracts/{id:long}/document", async (long id, bool? inline, ClaimsPrincipal user, AppDbContext db,
+            HttpContext context, CancellationToken ct) =>
+        {
+            var document = await ContractDocuments.LoadAsync(db, user.GetUserId(), id, ct);
+            if (document is null) return Results.NotFound(new { error = "Không tìm thấy hợp đồng đã phát hành." });
+            context.Response.Headers.CacheControl = "no-store";
+            return inline == true
+                ? Results.Content(document.ToHtml(), "text/html; charset=utf-8", Encoding.UTF8)
+                : Results.File(Encoding.UTF8.GetBytes(document.ToHtml()), "text/html; charset=utf-8", document.FileName);
         });
 
         // POST /api/handovers/{id}/confirm: Khách hàng xác nhận đã nhận bàn giao kho

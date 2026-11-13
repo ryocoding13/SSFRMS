@@ -72,6 +72,7 @@ import { RenewalRequestPage } from "../features/customer/contracts/RenewalReques
 import { ReturnRequestPage } from "../features/customer/contracts/ReturnRequestPage.jsx";
 import { RequestSentPage } from "../features/customer/requests/RequestSentPage.jsx";
 import { RentedUnitDetailPage } from "../features/customer/contracts/RentedUnitDetailPage.jsx";
+import { ContractPaperPage } from "../features/customer/contracts/ContractPaperPage.jsx";
 import { RentedUnitListPage } from "../features/customer/contracts/RentedUnitListPage.jsx";
 import { AppProvider, useApp } from "./state/AppProvider.jsx";
 
@@ -122,6 +123,7 @@ function renderPage({ page, parts, query }) {
       if (a && b === "incident") return <IncidentChoicePage key={`${a}:${query.get("incident") || ""}`} id={a} query={query} />;
       if (a && b === "deduction") return <ReturnDeductionPage key={a} id={a} />;
       if (a && b === "unit-change") return <UnitChangePage key={a} id={a} />;
+      if (a && b === "contract") return <ContractPaperPage key={a} id={a} />;
       if (a && b === "renewal-status") return <RenewalStatusPage id={a} />;
       if (a && b === "deposit") return <DepositLedgerPage id={a} />;
       if (a && b === "progress") return <ReturnProgressPage id={a} />;

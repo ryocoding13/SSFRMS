@@ -57,7 +57,7 @@ try {
   window.location.hash = "#/units/HĐ-2026-0142/return";
   const returnHtml = renderToStaticMarkup(React.createElement(App));
   // D42 + Task #8/#9: trả kho chỉ chọn ngày, không bắt ảnh hay khung giờ; chọn cách nhận hoàn (chuyển khoản / tiền mặt tại quầy)
-  for (const text of ["Lịch trả kho", "Ngày mong muốn trả kho", "Nhận tiền hoàn", "Nhận hoàn qua", "Tiền mặt tại quầy", "Số tài khoản", "Không thể huỷ yêu cầu", "QR/PIN khoá ngay", "48 giờ"]) assert.ok(returnHtml.includes(text), text);
+  for (const text of ["Thông tin trả kho", "Ngày mong muốn trả kho", "Nhận tiền hoàn", "Nhận hoàn qua", "Tiền mặt tại quầy", "Số tài khoản", "Không thể huỷ yêu cầu", "QR/PIN khoá ngay", "48 giờ"]) assert.ok(returnHtml.includes(text), text);
   for (const text of ["Tải ảnh kho trống", "Khung giờ"]) assert.ok(!returnHtml.includes(text), text);
   window.location.hash = "#/reservations/SS-20260914-0142/cancel";
   const cancelHtml = renderToStaticMarkup(React.createElement(App));
@@ -103,6 +103,29 @@ try {
   const returningUnits = renderToStaticMarkup(React.createElement(App));
   assert.match(returningUnits, /<button[^>]*disabled[^>]*>Mã QR mở cửa<\/button>/);
   assert.match(returningUnits, /<button[^>]*disabled[^>]*>Đóng cửa<\/button>/, "đã gửi trả kho thì không điều khiển cửa");
+  const renewalData = createSeedData();
+  const renewal = renewalData.renewals[0];
+  const renewalPayment = renewalData.ledger.find(row => row.kind === "RENEWAL" && row.contract_id === renewal.contract_id);
+  const fullLedger = renewalData.ledger;
+  for (const route of ["units", `units/${renewal.contract_id}`]) {
+    window.location.hash = `#/${route}`;
+    for (const [status, payable, deadline, expected] of [
+      [null, false, undefined, false],
+      ["UNPAID", true, "2000-01-01T00:00:00Z", false],
+      ["AT_COUNTER", false, undefined, false],
+      ["UNPAID", false, undefined, false],
+      ["UNPAID", true, undefined, true],
+    ]) {
+      renewal.payment_deadline_at = deadline;
+      renewalPayment.status = status;
+      renewalPayment.payable = payable;
+      renewalData.ledger = status ? fullLedger : fullLedger.filter(row => row !== renewalPayment);
+      memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: renewalData }));
+      const html = renderToStaticMarkup(React.createElement(App));
+      assert.equal(/renewal-status"[^>]*>Thanh toán<\/a>/.test(html), expected, `#42: ${route} / ${status} / ${deadline} / ${payable}`);
+    }
+  }
+  window.location.hash = "#/units";
   recordData.contracts = [];
   recordData.reservations = [];
   memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: recordData }));
@@ -173,6 +196,31 @@ try {
   const contractPolicyHtml = renderToStaticMarkup(React.createElement(App));
   assert.ok(contractPolicyHtml.includes("Chưa có bằng chứng đồng ý"));
   assert.ok(!contractPolicyHtml.includes("100% tiền thuê và 90% cọc"));
+  const confirmationData = createSeedData();
+  const confirmationContract = confirmationData.contracts.find(c => confirmationData.reservations.some(r => r.reservation_id === c.reservation_id));
+  const confirmedReservation = confirmationData.reservations.find(r => r.reservation_id === confirmationContract.reservation_id);
+  confirmedReservation.api_id = 987;
+  confirmedReservation.status = "CONFIRMED";
+  confirmationContract.api_id = 654;
+  window.location.hash = "#/confirmation/987";
+  for (const [status, downloadable] of [["DRAFT", false], ["ACTIVE", true]]) {
+    confirmationContract.api_status = status;
+    memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: confirmationData }));
+    const receiptHtml = renderToStaticMarkup(React.createElement(App));
+    assert.equal(receiptHtml.includes("Thanh toán thành công"), downloadable, status);
+  }
+  // D58 · Figma C07b/C07g: chi tiết hợp đồng có nút "Xem hợp đồng giấy"; màn hợp đồng giấy có 2 nút và báo khi chưa nối máy chủ
+  const paperContract = confirmationData.contracts.find(c => c.status !== "DRAFT");
+  window.location.hash = `#/units/${encodeURIComponent(paperContract.contract_id)}`;
+  memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: confirmationData }));
+  assert.match(renderToStaticMarkup(React.createElement(App)), /contract"[^>]*>Xem hợp đồng giấy<\/a>/);
+  window.location.hash = `#/units/${encodeURIComponent(paperContract.contract_id)}/contract`;
+  const paperHtml = renderToStaticMarkup(React.createElement(App));
+  assert.ok(paperHtml.includes(`Hợp đồng giấy · ${paperContract.contract_id}`));
+  assert.ok(paperHtml.includes("Quay lại hợp đồng") && paperHtml.includes("Tải PDF"));
+  assert.ok(paperHtml.includes("chưa kết nối máy chủ"));
+  window.location.hash = "#/units";
+  memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: reviewData }));
   // Exercise actual LocalProvider services: guards also apply to direct calls, not only disabled buttons.
   const { AppProvider, useApp } = await vite.ssrLoadModule("/src/app/state/AppProvider.jsx");
   const { defaultRentalPolicy } = await vite.ssrLoadModule("/src/features/facility-operations/workflows/workflowModel.js");

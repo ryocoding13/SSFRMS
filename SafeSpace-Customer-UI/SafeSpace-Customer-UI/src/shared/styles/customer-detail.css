@@ -198,3 +198,20 @@
 /* Lượt 6 · #59: trạng thái mã mở cửa */
 .access-qr__state { display: grid; gap: 4px; justify-items: start; padding: 12px 14px; border-radius: 10px; background: var(--soft, #f1f5f9); margin-bottom: 12px; animation: renewal-in .2s ease-out both; }
 .access-qr__state span { font-size: 13px; color: var(--muted); }
+
+/* 13/11 · Khoản hoàn dự kiến: nhãn tổng 2 tầng, số tiền không xuống dòng (Figma thẻ 432 / 340) */
+.return-refund__total { align-items: center; }
+.return-refund__label { display: grid; gap: 2px; min-width: 0; }
+.return-refund__label small { font-size: 13px; font-weight: 400; color: var(--muted); }
+.return-refund__total strong { white-space: nowrap; font-size: clamp(22px, 2.2vw, 26px); }
+.return-refund .detail-list > div { gap: 12px; }
+.return-refund .detail-list dd { white-space: nowrap; text-align: right; }
+
+/* 13/11 · Thu tiền tại kho (Figma S09): 2 cột cân đối */
+.payment-collect .money-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 15px; }
+.payment-collect .money-row span { color: var(--muted); min-width: 0; }
+.payment-collect .money-row strong { white-space: nowrap; color: var(--ink); }
+.payment-collect .money-total { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 14px; border-top: 1px solid var(--line); color: inherit; }
+.payment-collect .money-total span { font-weight: 600; }
+.payment-collect .money-total strong { color: var(--money-total); font-size: 26px; font-weight: 700; white-space: nowrap; }
+.payment-collect .hint { margin: 0; }

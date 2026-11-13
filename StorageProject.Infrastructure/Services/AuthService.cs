@@ -19,6 +19,15 @@ namespace StorageProject.Infrastructure.Services;
 public class AuthService(AppDbContext dbContext, IConfiguration configuration) : IAuthService
 {
     private static readonly Regex EmailPattern = new(@"\A[^\s@]+@[^\s@]+\.[^\s@]+\z");
+    // Cùng quy tắc với FE (appReducer validateRegister / C13): 0 + 9 số hoặc +84 + 9 số, bỏ khoảng trắng, dấu chấm, gạch.
+    private static readonly Regex PhonePattern = new(@"\A(0\d{9}|\+84\d{9})\z");
+    private static string? NormalizePhone(string? phone)
+    {
+        var value = Regex.Replace(phone ?? "", @"[\s.\-]", "");
+        if (value.Length == 0) return null;
+        if (!PhonePattern.IsMatch(value)) throw new ArgumentException("Số điện thoại chưa đúng định dạng (VD: 0901234567).");
+        return value;
+    }
     /// <summary>
     /// Đăng ký tài khoản khách hàng mới vào hệ thống (mặc định gán vai trò CUSTOMER và trạng thái ACTIVE).
     /// </summary>
@@ -42,10 +51,20 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
         }
 
         var email = request.Email?.Trim() ?? "";
-        if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
+        if (email.Length == 0 || email.Length > 150 || !EmailPattern.IsMatch(email))
         {
             throw new ArgumentException("Email không hợp lệ.");
         }
+        var fullName = request.FullName?.Trim() ?? "";
+        if (fullName.Length < 2 || fullName.Length > 100)
+        {
+            throw new ArgumentException("Họ và tên phải từ 2 đến 100 ký tự.");
+        }
+        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 8 || Encoding.UTF8.GetByteCount(request.Password) > 72)
+        {
+            throw new ArgumentException("Mật khẩu cần ít nhất 8 ký tự và tối đa 72 byte UTF-8.");
+        }
+        var phone = NormalizePhone(request.Phone);
 
         var normalizedEmail = email.ToUpperInvariant();
         var existingUser = await dbContext.Users
@@ -63,8 +82,8 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
             Username = username,
             Email = email,
             PasswordHash = passwordHash,
-            FullName = request.FullName?.Trim() ?? "",
-            Phone = request.Phone?.Trim(),
+            FullName = fullName,
+            Phone = phone,
             Status = "ACTIVE",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -282,7 +301,7 @@ public class AuthService(AppDbContext dbContext, IConfiguration configuration) :
 
         if (request.Phone != null)
         {
-            user.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
+            user.Phone = NormalizePhone(request.Phone);
         }
 
         if (request.Email != null)

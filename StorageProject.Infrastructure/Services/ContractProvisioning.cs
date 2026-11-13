@@ -117,6 +117,11 @@ public static class ContractProvisioning
         if (changed) ReservationSettlement.Audit(db, actor, "CONTRACT_AUTO_ISSUED", reservation.ReservationId,
             new { unit = contract.Unit.UnitNumber, system = true, access = "QR_PIN6", physicalKey = "AT_COUNTER" });
         await db.SaveChangesAsync(ct);
+        if (changed)
+        {
+            CustomerEmailDelivery.QueueContract(db, contract.ContractId, now);
+            await db.SaveChangesAsync(ct);
+        }
         return true;
     }
 }

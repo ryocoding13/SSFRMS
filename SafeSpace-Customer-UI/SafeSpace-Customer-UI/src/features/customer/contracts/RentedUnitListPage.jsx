@@ -17,6 +17,7 @@ import { contractStatus, facilityOf, pendingRenewal, pendingReturn } from "../..
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { AccessQrModal } from "../access/AccessQrModal.jsx";
 import { DoorCloseButton } from "../access/DoorCloseButton.jsx";
+import { renewalView } from "./renewalStatusModel.js";
 
 /**
  * Màn hình danh sách các ô kho lưu trữ khách hàng đang thuê trong hệ thống.
@@ -42,7 +43,10 @@ export function RentedUnitListPage() {
             const ended = status === "ENDED";
             const prestart = c.start_date > now && !ended;
             const issued = c.access_issued ?? c.status !== "DRAFT";
-            const busy = Boolean(pendingRenewal(data, c.contract_id) || pendingReturn(data, c.contract_id));
+            const renewal = pendingRenewal(data, c.contract_id);
+            const returnRequest = pendingReturn(data, c.contract_id);
+            const busy = Boolean(renewal || returnRequest);
+            const renewalPayment = renewal ? renewalView(data, renewal).ledger : null;
             const pickup = data.appointments.find((a) => a.kind === "CHECK_IN" && a.status !== "CANCELLED" &&
               (a.contract_id === c.contract_id || (c.reservation_id && a.reservation_id === c.reservation_id)));
             return (
@@ -50,7 +54,7 @@ export function RentedUnitListPage() {
                 status={prestart ? <Tag tone="blue">Chưa đến ngày sử dụng</Tag> : <StatusTag map={CONTRACT_STATUS} status={pendingReturn(data, c.contract_id) && !ended ? "RETURN_PENDING" : status} />}
                 actions={<>
                   {/* #25: khoản gia hạn đã xác nhận, chưa trả (không chọn tại quầy) → nút "Thanh toán"; còn lại vẫn là "Gia hạn" */}
-                  {(() => { const r = pendingRenewal(data, c.contract_id); return r && r.status === "APPROVED" && !r.at_counter ? <LinkButton to={`units/${c.contract_id}/renewal-status`}>Thanh toán</LinkButton> : null; })()}
+                  {renewalPayment && !ended && !returnRequest && <LinkButton to={`units/${c.contract_id}/renewal-status`}>Thanh toán</LinkButton>}
                   {issued && !ended && (status === "EXPIRING" && c.end_date > now && !busy
                     ? <LinkButton to={`units/${c.contract_id}/renew`} variant="outline">Gia hạn</LinkButton>
                     : <>
