@@ -11,6 +11,7 @@ import React, { useState } from "react";
 import { Button, Field, Modal, Notice, PageHeader } from "../../../shared/components/UI.jsx";
 import { DatePicker } from "../../../shared/components/Pickers.jsx";
 import { money, today } from "../../../shared/utils/format.js";
+import { vnDate } from "../../../shared/utils/vnTime.js";
 import { RecordCard, WorkflowEmpty, WorkflowState } from "../../facility-operations/workflows/WorkflowComponents.jsx";
 import { useOpsEndpoint } from "../../facility-operations/workflows/useOpsEndpoint.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
@@ -46,6 +47,8 @@ export function CashRefundCounterPage() {
   const close = () => { setCall(null); setPay(null); setError(""); };
   const saveCall = async () => {
     if (call.result === "APPOINTMENT" && !call.appointmentDate) return setError("Chọn ngày khách hẹn đến quầy.");
+    const deadline = String(call.item?.deadlineDate || "").slice(0, 10);
+    if (call.result === "APPOINTMENT" && (call.appointmentDate < today() || (deadline && call.appointmentDate > deadline))) return setError(`Ngày hẹn phải từ hôm nay${deadline ? ` đến hạn nhận ${vnDate(deadline)}` : ""}.`);
     const res = await load.post(cashPath(call.item.id, "calls"), { result: call.result, appointmentDate: call.result === "APPOINTMENT" ? call.appointmentDate : null, note: call.note.trim() || null });
     if (res.ok) { close(); await reloadOps?.(); } else setError(res.error);
   };
@@ -67,14 +70,14 @@ export function CashRefundCounterPage() {
           actions={isOther ? <span className="hint">Đã giao cho {staffName || staffCode}</span> : <><Button variant="outline" disabled={load.busy} onClick={() => setCall({ item: r, result: "APPOINTMENT", appointmentDate: "", note: "" })}>Ghi cuộc gọi</Button>
             <Button disabled={load.busy} onClick={() => setPay({ item: r })}>Chi tiền</Button></>}>
           <strong className="price money-total">{money(r.amount)}</strong>
-          <p className="muted">Hạn nhận {r.deadlineDate}{staffName ? ` · nhân viên: ${staffName}` : staffCode ? ` · nhân viên: ${staffCode}` : ""}{r.daysSinceApproved != null ? ` · ngày ${r.daysSinceApproved} sau khi duyệt` : ""}{r.appointmentDate ? ` · khách hẹn ${r.appointmentDate}` : ""}{r.lastCall ? ` · lần gọi trước: ${r.lastCall}` : ""}</p>
+          <p className="muted">Hạn nhận {r.deadlineDate ? vnDate(r.deadlineDate) : "Chưa có thông tin"}{staffName ? ` · nhân viên: ${staffName}` : staffCode ? ` · nhân viên: ${staffCode}` : ""}{r.daysSinceApproved != null ? ` · ngày ${r.daysSinceApproved} sau khi duyệt` : ""}{r.appointmentDate ? ` · khách hẹn ${r.appointmentDate}` : ""}{r.lastCall ? ` · lần gọi trước: ${r.lastCall}` : ""}</p>
         </RecordCard>;
       })}
       {!items.length && <WorkflowEmpty title="Không có khoản chờ chi" text="Khoản tiền mặt quản lý đã duyệt và phân công cho bạn sẽ hiện ở đây." />}
     </WorkflowState>
     {call && <Modal title={`Kết quả cuộc gọi · ${call.item.id}`} onClose={close}>
       <fieldset className="choice-list">{Object.entries(CALL_RESULTS).map(([k, label]) => <label key={k} className="choice-list__item"><input type="radio" name="call" checked={call.result === k} onChange={() => setCall({ ...call, result: k })} /><span>{label}</span></label>)}</fieldset>
-      {call.result === "APPOINTMENT" && <DatePicker label="Ngày khách hẹn đến quầy *" value={call.appointmentDate} min={today()} onChange={v => setCall({ ...call, appointmentDate: v })} />}
+      {call.result === "APPOINTMENT" && <DatePicker label="Ngày khách hẹn đến quầy *" value={call.appointmentDate} min={today()} max={String(call.item?.deadlineDate || "").slice(0, 10) || undefined} onChange={v => setCall({ ...call, appointmentDate: v })} />}
       <Field label="Ghi chú (không bắt buộc)"><textarea rows={2} maxLength={500} value={call.note} onChange={e => setCall({ ...call, note: e.target.value })} /></Field>
       <p className="hint">Có ngày hẹn thì hệ thống tạm dừng gọi nhắc. Khách muốn đổi sang chuyển khoản tự đổi trong tài khoản trong thời hạn 30 ngày.</p>
       {error && <Notice tone="error">{error}</Notice>}

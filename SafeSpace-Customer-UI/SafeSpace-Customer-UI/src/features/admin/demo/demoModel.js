@@ -6,6 +6,9 @@ export const SCENARIOS = [
   ["ACTIVE", "Đang thuê", (t) => ({ start: addDays(t, -30), end: addDays(t, 60) })],
   ["EXPIRING", "Sắp hết hạn", (t) => ({ start: addDays(t, -85), end: addDays(t, 5) })],
   ["OVERDUE", "Quá hạn", (t) => ({ start: addDays(t, -95), end: addDays(t, -3) })],
+  // D32: ngày 10–14 nhắc khách, ngày 20 nhân viên lập biên bản xử lý đồ quá hạn (D56).
+  ["OVERDUE_REMIND", "Quá hạn 12 ngày · nhắc khách", (t) => ({ start: addDays(t, -104), end: addDays(t, -12) })],
+  ["OVERDUE_REMOVAL", "Quá hạn 21 ngày · xử lý đồ", (t) => ({ start: addDays(t, -113), end: addDays(t, -21) })],
 ];
 
 /** Trạng thái dự kiến sau khi lưu (giống BE DemoToolsService.RunningStatus; hết hạn tính từ 00:00 ngày hết hạn). */
@@ -34,7 +37,7 @@ export function paymentFormError({ paidAt, amount }, nowLocal) {
 export const TOOLS = [
   ["scanner", "QR", "Máy quét", "Mô phỏng máy quét ở cửa kho: nhập PIN 6 số hoặc quét mã QR để mở cửa, bấm Đóng cửa, gọi hỗ trợ cho cơ sở.", "Chọn cơ sở và ô kho trước khi quét", "Mở máy quét →"],
   ["price", "₫", "Chỉnh giá", "Đổi giá thuê tháng của 4 loại kho trong từng cơ sở, giống Bảng giá thuê của Vận hành KD.", "Hợp đồng đang thuê giữ giá đã chốt", "Chỉnh giá →"],
-  ["dates", "31", "Chỉnh ngày hợp đồng", "Đổi ngày bắt đầu, ngày hết hạn và ngày giao dịch. Có sẵn 4 kịch bản: chưa tới ngày thuê, đang thuê, sắp hết hạn, quá hạn.", "Trạng thái hợp đồng và ô kho tự tính lại", "Chỉnh ngày →"],
+  ["dates", "31", "Chỉnh ngày hợp đồng", "Đổi ngày bắt đầu, ngày hết hạn và ngày giao dịch. Có sẵn kịch bản: chưa tới ngày thuê, đang thuê, sắp hết hạn, quá hạn (3, 12 và 21 ngày để thử nhắc khách và xử lý đồ).", "Trạng thái hợp đồng và ô kho tự tính lại", "Chỉnh ngày →"],
   ["door-logs", "≡", "Nhật ký cửa", "Xem các lần mở, đóng và từ chối ở từng ô; lọc theo cơ sở, ô kho, kết quả và ngày. Không hiện nguyên mã QR hay PIN.", "Mỗi lần mở, đóng, từ chối là một dòng", "Xem nhật ký →"],
 ];
 export const toolTitle = (key) => TOOLS.find((t) => t[0] === key)?.[2] || "";

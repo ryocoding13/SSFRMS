@@ -10,7 +10,7 @@
 import { requireRentalPolicy, hasReservationConsent, POLICY_REQUIRED } from "../../shared/utils/rentalPolicy.js";
 import { recordReservationConsent } from "../../shared/api/reservationConsentApi.js";
 import { defaultRentalPolicy } from "../../features/facility-operations/workflows/workflowModel.js";
-import { isReturnFee, NO_RETURN_COLLECTION } from "../../shared/utils/returnPolicy.js";
+import { isReturnFee, NO_RETURN_COLLECTION, visitDateError } from "../../shared/utils/returnPolicy.js";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { customerNotifications } from "../../features/customer/notifications/customerNotifications.js";
 import { submitCancellation, submitReturnRequest } from "../../shared/api/refundRequestApi.js";
@@ -718,6 +718,7 @@ function ApiProvider({ children }) {
             for (const file of files) await verifyPhotoFile(file);
             const photos = await Promise.all(files.map(readPhotoData));
             const keyDate = p.topic === "KEY_PICKUP" ? (p.preferred_date || "") : "";
+            if (keyDate) { const keyError = visitDateError(keyDate, c.end_date, localDate(new Date()), "nhận chìa khóa", c.start_date); if (keyError) return fail(keyError); }
             const dto = await api.createTicket({
               contractId: c.api_id,
               unitId: null,
@@ -767,7 +768,8 @@ function ApiProvider({ children }) {
             if (pendingRenewal(d, c.contract_id)) return fail("Hợp đồng đang có yêu cầu gia hạn.");
             if (["ENDED", "RETURN_PENDING"].includes(c.status) || c.start_date > localDate(new Date())) return fail("Hợp đồng chưa thể đăng ký trả kho.");
             if (pendingReturn(d, c.contract_id)) return fail("Đã có yêu cầu trả kho.");
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(p.date || "") || p.date < localDate(new Date())) return fail("Ngày hẹn không được ở quá khứ.");
+            const dateError = visitDateError(p.date, c.end_date, localDate(new Date()), "trả kho", c.start_date);
+            if (dateError) return fail(dateError);
             const res = await submitReturnRequest(api, c.api_id, p, c.customer_name);
             remember("Đã đặt lịch trả kho", `Kho ${c.unit_number} · ngày ${p.date}`, `units/${c.contract_id}`, `Yêu cầu trả kho ${c.unit_number} đã được ghi nhận`);
             try {

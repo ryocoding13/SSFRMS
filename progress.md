@@ -2023,3 +2023,12 @@
 - Giữ nội dung main và các thay đổi đã phục hồi; không sửa appsettings, migration cũ hoặc quy định D32/D35–D36. Không đổi trạng thái feature.
 - Công cụ đóng gói chạy build API, unit tests BE và bộ FE; kết quả thực tế, SHA nền và danh sách file nằm trong verification.json/manifest.json của ZIP được tạo tại máy đóng gói.
 - Chưa có kết quả SQL Integration đầy đủ, nâng cấp database dùng chung hoặc nghiệm thu toàn bộ các luồng T05/T06/T19 trong lần đóng gói này. Không tự commit/push/PR/merge.
+
+## 2026-11-13 — Rà soát FE/BE/API và sửa validate ngày (D59)
+
+- Đối chiếu tự động 170 route BE với lời gọi API của FE: mọi đường FE gọi đều có route BE (kể cả các `.../actions`); không thấy trang gọi endpoint không tồn tại.
+- Sửa validate: ngày trả kho và ngày nhận chìa khóa giới hạn từ hôm nay đến trước ngày hết hạn (BE + FE, D59); `DatePicker` thêm `max`. Dời ngày nhận kho (D41) FE khớp BE (sau ngày cũ, ≤ 90 ngày). Ngày hẹn chi tiền mặt FE chặn quá hạn nhận và hiện hạn dạng dd/MM/yyyy. Lọc nhật ký admin và báo cáo cuối ngày không chọn được ngày tương lai / "Từ ngày" sau "Đến ngày".
+- BE: đăng ký kiểm tra email đúng định dạng (≤ 150), họ tên 2–100, mật khẩu ≥ 8 ký tự (≤ 72 byte), số điện thoại; sửa hồ sơ kiểm tra số điện thoại. Đặt kho dùng ngày Việt Nam thay ngày UTC.
+- Kiểm chứng: FE `npm test` 219/219 (TZ Asia/Ho_Chi_Minh), test:business 14/14, test:workflows 12/12, test:render 178 route PASS, check:structure PASS, build PASS. **Chưa build/chạy `dotnet test`** (môi trường không tải được .NET SDK/NuGet) — cần CI hoặc máy thành viên. Chưa xem màn bằng trình duyệt (không tải được Chromium). Chưa kiểm SQL Server.
+- Bổ sung cùng ngày: ngày nhận chìa khóa không được trước ngày bắt đầu thuê (BE + FE + chế độ trình duyệt). Công cụ demo thêm kịch bản quá hạn 12/21 ngày, bỏ hồ sơ quá hạn mở theo ngày cũ và chạy ngay tiến trình quá hạn sau khi chỉnh. FE `npm test` 220/220, render 178 route, build PASS; BE vẫn chưa build được trong môi trường AI.
+- Còn treo: cách hiểu `EndDate` (xem D59). Không commit/push/PR/merge; không đổi trạng thái tính năng.

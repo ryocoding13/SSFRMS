@@ -13,9 +13,9 @@ import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
 import RefundMethodFields from "../../../shared/components/RefundMethodFields.jsx";
 import { useRefundSupport } from "../../../shared/hooks/useRefundSupport.js";
 import { emptyRefundBank, isCashRefund, validateRefundChoice } from "../../../shared/utils/refundRequest.js";
-import { addDays, dateLabel, daysBetween, money, today } from "../../../shared/utils/format.js";
+import { dateLabel, daysBetween, money, today } from "../../../shared/utils/format.js";
 import { typeLabel } from "../../../shared/utils/catalog.js";
-import { earlyStopKeep, isEarlyStop, unusedRent } from "../../../shared/utils/returnPolicy.js";
+import { contractVisitRange, earlyStopKeep, isEarlyStop, unusedRent, visitDateError } from "../../../shared/utils/returnPolicy.js";
 import { go } from "../../../app/router.js";
 import { contractOf, facilityOf, pendingRenewal, pendingReturn } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
@@ -45,7 +45,7 @@ export function ReturnRequestPage({ id }) {
   const { data, dispatch, mode } = useApp();
   const support = useRefundSupport("returnRequestSupported");
   const c = contractOf(data, id);
-  const [date, setDate] = useState(() => c && c.end_date >= today() ? c.end_date : addDays(today(), 1));
+  const [date, setDate] = useState(() => c ? contractVisitRange(c.end_date, today(), c.start_date).max : today());
   const [notes, setNotes] = useState("");
   const [bank, setBank] = useState(emptyRefundBank), [emptied, setEmptied] = useState(false);
   const [error, setError] = useState(""), [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false);
@@ -53,10 +53,10 @@ export function ReturnRequestPage({ id }) {
   if (!c) return <NotFound />;
   const expectedName = c.customer_name || (mode === "local" ? data.user?.full_name : null);
   const facility = facilityOf(data, c.facility_id, c.facility_name);
-  const left = daysBetween(today(), c.end_date);
+  const left = daysBetween(today(), c.end_date), visit = contractVisitRange(c.end_date, today(), c.start_date);
   const hasReturn = Boolean(pendingReturn(data, id));
   const blocked = ["ENDED", "RETURN_PENDING"].includes(c.status) || c.start_date > today() || hasReturn || Boolean(pendingRenewal(data, id));
-  const validate = () => validateRefundChoice(bank, expectedName) || (!emptied ? "Vui lòng xác nhận đã chuyển hết đồ ra khỏi kho." : "") || (!date || date < today() ? "Ngày trả kho không được ở quá khứ." : "");
+  const validate = () => validateRefundChoice(bank, expectedName) || (!emptied ? "Vui lòng xác nhận đã chuyển hết đồ ra khỏi kho." : "") || visitDateError(date, c.end_date, today(), "trả kho", c.start_date);
   const submit = e => { e.preventDefault(); if (busy || blocked || !support.ready) return; const invalid = validate(); setError(invalid); if (!invalid) setConfirm(true); };
   const send = async () => {
     if (guard.current || blocked || !support.ready) return;
@@ -77,7 +77,7 @@ export function ReturnRequestPage({ id }) {
         <fieldset className="panel customer-detail__card return-request__fields" disabled={busy || blocked}>
           <h2>1 · Thông tin trả kho</h2>
           <p className="hint">Bạn không cần chụp ảnh. Nhân viên cơ sở sẽ kiểm tra kho, chụp ảnh hiện trạng và gửi biên bản cho bạn.</p>
-          <DatePicker label="Ngày mong muốn trả kho *" value={date} min={today()} onChange={setDate} />
+          <DatePicker label="Ngày mong muốn trả kho *" value={date} min={visit.min} max={visit.max} onChange={setDate} />
           <Field label="Ghi chú cho nhân viên (không bắt buộc)"><input maxLength={300} value={notes} onChange={e => setNotes(e.target.value)} /></Field>
           <label className="customer-detail__choice"><input type="checkbox" checked={emptied} onChange={e => setEmptied(e.target.checked)} /><span>Tôi xác nhận đã chuyển hết đồ ra khỏi kho</span></label>
         </fieldset>

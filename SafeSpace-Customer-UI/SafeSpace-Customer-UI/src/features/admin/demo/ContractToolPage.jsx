@@ -1,7 +1,7 @@
 /**
  * CONTRACT TOOL PAGE - CHỈNH NGÀY HỢP ĐỒNG / CHỈNH GIÁ (Lượt 6b · #45 #54 · Figma A-DEMO-NGÀY, A-DEMO-GIÁ)
  *
- * mode="dates": ngày bắt đầu, ngày hết hạn (4 kịch bản nhanh) và ngày của giao dịch đã phát sinh.
+ * mode="dates": ngày bắt đầu, ngày hết hạn (kịch bản nhanh, gồm quá hạn 12 và 21 ngày) và ngày của giao dịch đã phát sinh.
  * mode="price": giá thuê tháng (tiền cọc chỉ xem) và số tiền của giao dịch đã phát sinh.
  * Mỗi lần lưu: popup xác nhận (trước → sau) → popup kết quả; lỗi giữ nguyên dữ liệu đã nhập.
  * Máy chủ tính lại trạng thái hợp đồng, ô kho, số ngày quá hạn và ghi nhật ký kèm admin thực hiện.
