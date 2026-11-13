@@ -25,7 +25,7 @@ test("#7: mọi chức năng con còn lối vào trong trang", () => {
   assert.match(src("features/manager/reports/FacilityReportPage.jsx"), /<DailyStaffReportPage embedded \/>/);
   assert.match(src("features/manager/dashboard/ManagerDashboardPage.jsx"), /manager\/unit-conflicts/);
   assert.match(src("features/manager/dashboard/ManagerDashboardPage.jsx"), /manager\/allocate/);
-  assert.match(src("features/facility-operations/components/StaffTasks.jsx"), /kind === "all" \|\| kind === "return"\)\n\s+\(ops\.overdue_cases/);
+  assert.match(src("features/facility-operations/components/StaffTasks.jsx"), /kind === "all" \|\| kind === "return"\)\r?\n\s+\(ops\.overdue_cases/);
 });
 
 test("#7: Hoàn tiền gộp đơn huỷ, hoàn cọc và tiền mặt", () => {
