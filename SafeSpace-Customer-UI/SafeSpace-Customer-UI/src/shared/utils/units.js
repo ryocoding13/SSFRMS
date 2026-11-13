@@ -209,6 +209,16 @@ export function unitsFor(facility, stock = null, realUnits = null) {
   });
 }
 
+/**
+ * Ngày sớm nhất khách được chọn làm ngày bắt đầu khi đặt đúng ô này (D62).
+ * Ô đang thuê / đang giữ: từ ngày ô trống lại (free_from = hết hạn đơn trước + ngày đệm), trước đó làm mờ trên lịch.
+ * Ô trống hoặc chưa biết ngày trống: từ hôm nay.
+ */
+export const unitBookableFrom = (unit, todayIso) => {
+  const from = unit && unit.status !== "FREE" ? unit.free_from : null;
+  return from && from > todayIso ? from : todayIso;
+};
+
 export const freeCount = (units) => units.filter((u) => u.status === "FREE").length;
 export const bookableCount = (units) => units.filter((u) => u.bookable_for_period).length;
 export const countBy = (units) =>

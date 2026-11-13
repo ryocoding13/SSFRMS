@@ -83,7 +83,7 @@ public sealed class PaymentConcurrencyAndLockTests(SqlServerFixture fixture) : I
         await using var setupDb = fixture.CreateContext();
 
         var customer = await setupDb.Users.FirstAsync(u => u.Username == "customer01");
-        var manager = await setupDb.Users.FirstAsync(u => u.Username == "manager01");
+        var manager = await setupDb.Users.FirstAsync(u => u.Username == "Manager_NLB");
         var facility = await setupDb.Facilities.FirstAsync();
         var unitType = await setupDb.UnitTypes.FirstAsync();
 

@@ -14,7 +14,7 @@ public sealed class SupportInquirySqlServerTests(SqlServerFixture fixture) : ICl
         await using(var db=fixture.CreateContext())
         {
             customerId=await db.Users.Where(x=>x.Username=="customer01").Select(x=>x.UserId).SingleAsync();
-            staffId=await db.Users.Where(x=>x.Username=="staff01").Select(x=>x.UserId).SingleAsync();
+            staffId=await db.Users.Where(x=>x.Username=="Staff_NLB").Select(x=>x.UserId).SingleAsync();
             facilityId=await db.UserFacilities.Where(x=>x.UserId==staffId&&x.Status=="ACTIVE").Select(x=>x.FacilityId).FirstAsync();
         }
         var create=new InquiryActionRequest("CREATE_INQUIRY",FacilityId:facilityId,Title:"Kiểm tra đồng thời",Description:"Tư vấn trước hợp đồng",ClientRequestId:Guid.NewGuid());

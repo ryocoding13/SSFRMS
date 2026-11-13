@@ -13,8 +13,8 @@ public sealed class AuthAndRbacIntegrationTests(SqlServerFixture fixture) : ICla
     private static readonly (string Username, string Password, string ExpectedRole)[] TestAccounts =
     [
         ("customer01", "Customer@123", "CUSTOMER"),
-        ("staff01", "Staff@123", "STAFF"),
-        ("manager01", "Manager@123", "MANAGER"),
+        ("Staff_NLB", "Staff@123", "STAFF"),
+        ("Manager_NLB", "Manager@123", "MANAGER"),
         ("ops01", "Ops@123", "OPERATIONS"),
         ("admin", "Admin@123", "ADMIN")
     ];
@@ -83,8 +83,8 @@ public sealed class AuthAndRbacIntegrationTests(SqlServerFixture fixture) : ICla
         var forbiddenCustomerResp = await customerClient.GetAsync("/api/ops/board");
         Assert.Equal(HttpStatusCode.Forbidden, forbiddenCustomerResp.StatusCode);
 
-        // Đăng nhập tài khoản staff01
-        var staffToken = await LoginAsync(client, "staff01", "Staff@123");
+        // Đăng nhập tài khoản Staff_NLB
+        var staffToken = await LoginAsync(client, "Staff_NLB", "Staff@123");
         var staffClient = factory.CreateClient();
         staffClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", staffToken);
 

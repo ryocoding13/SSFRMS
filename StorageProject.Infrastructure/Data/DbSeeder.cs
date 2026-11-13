@@ -198,9 +198,8 @@ public static partial class DbSeeder
 
         var customerRole = await context.Roles.FirstAsync(r => r.RoleName == "CUSTOMER");
         var adminRole = await context.Roles.FirstAsync(r => r.RoleName == "ADMIN");
-        var staffRole = await context.Roles.FirstAsync(r => r.RoleName == "STAFF");
 
-        // 2. Users (Đảm bảo các tài khoản admin, staff, manager, operator, customer mẫu)
+        // 2. Users: admin, customer01 (khách duy nhất) — nhân viên / quản lý là Staff_<MÃ>, Manager_<MÃ> ở bước 6 (D61)
         async Task<User> EnsureUserAsync(string username, string email, string fullName, string phone, string plainPassword, Role role)
         {
             var u = await context.Users.FirstOrDefaultAsync(x => x.Username == username);
@@ -230,14 +229,13 @@ public static partial class DbSeeder
         }
 
         var admin = await EnsureUserAsync("admin", "admin@storage.vn", "Hệ Thống Admin", "0900000001", "Admin@123", adminRole);
-        var staff = await EnsureUserAsync("staff01", "staff01@storage.vn", "Trần Nhân Viên", "0900000002", "Staff@123", staffRole);
-        var cust1 = await EnsureUserAsync("customer01", "an.nguyen@example.com", "Nguyễn Văn An", "0901234567", "Customer@123", customerRole);
-        var cust2 = await EnsureUserAsync("customer02", "mai.tran@example.com", "Trần Thị Mai", "0912345678", "Customer@123", customerRole);
+        // Chỉ một khách hàng demo (customer01) — đứng tên mọi hợp đồng demo ở 12 cơ sở (xem DbSeeder.DemoFacilities)
+        await EnsureUserAsync(DemoCustomerUsername, "an.nguyen@example.com", "Nguyễn Văn An", "0901234567", "Customer@123", customerRole);
 
         // 2b. Vai trò Quản lý vận hành KD (OPERATIONS, L7 đã gộp BUSINESS_OPERATOR) + tài khoản ops01
         await EnsureOperationsRoleAsync(context);
 
-        // 2c. Quyền của STAFF / MANAGER + tài khoản manager01, staff02 (BACKEND-TODO A1)
+        // 2c. Quyền của STAFF / MANAGER (BACKEND-TODO A1)
         await EnsureFacilityRolesAsync(context);
 
         // 3. Danh mục kho theo D17: 4 loại kho, 12 cơ sở, mỗi cơ sở 12 ô + bảng giá
@@ -246,9 +244,6 @@ public static partial class DbSeeder
         // 4. Policies
         await EnsurePoliciesAsync(context, admin.UserId);
         await EnsureRentalPolicyVersionsAsync(context, admin.UserId);
-
-        // 5. Phân công cơ sở (SRS A06: mỗi nhân viên / quản lý 1 cơ sở)
-        await EnsureFacilityAssignmentsAsync(context, catalog.Home.FacilityId, admin.UserId);
 
         // Phân công cơ sở cho ops01
         var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
@@ -268,7 +263,7 @@ public static partial class DbSeeder
         }
         await context.SaveChangesAsync();
 
-        // 6. #60: mỗi cơ sở có Staff_<MÃ>, Manager_<MÃ>, Customer<MÃ>01 (đang thuê) và Customer<MÃ>02 (chờ thu tại quầy)
+        // 6. #60: mỗi cơ sở có Staff_<MÃ>, Manager_<MÃ> (họ tên thật); customer01 thuê 1–6 ô đang hiệu lực ở mỗi cơ sở
         await EnsureDemoFacilityDataAsync(context, catalog, admin.UserId);
     }
 
@@ -386,7 +381,7 @@ public static partial class DbSeeder
                 Username = "ops01",
                 Email = "ops01@storage.vn",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Ops@123"),
-                FullName = "Lê Vận Hành",
+                FullName = "Lê Hoàng Vy",
                 Phone = "0900000004",
                 Status = "ACTIVE",
                 CreatedAt = DateTime.UtcNow,
@@ -395,11 +390,13 @@ public static partial class DbSeeder
             context.Users.Add(opsUser);
             await context.SaveChangesAsync();
         }
+        RenamePlaceholder(opsUser, "Lê Vận Hành", "Lê Hoàng Vy");
         if (!await context.UserRoles.AnyAsync(ur => ur.UserId == opsUser.UserId && ur.RoleId == opsRole.RoleId))
         {
             context.UserRoles.Add(new UserRole { UserId = opsUser.UserId, RoleId = opsRole.RoleId, AssignedAt = DateTime.UtcNow });
             await context.SaveChangesAsync();
         }
+        await context.SaveChangesAsync();
     }
 
     /// <summary>
