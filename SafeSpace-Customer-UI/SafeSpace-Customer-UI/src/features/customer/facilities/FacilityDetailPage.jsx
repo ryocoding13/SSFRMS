@@ -37,6 +37,10 @@ export default function FacilityDetailPage({ id, query }) {
   // Số ô trống thật theo từng loại kho (POST /api/availability/check) cho sơ đồ, chỉ khi nối backend
   const [unitStock, setUnitStock] = useState(null);
   const [realUnits, setRealUnits] = useState(null);
+  const [loadingUnits, setLoadingUnits] = useState(false);
+  const [unitsError, setUnitsError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+
   const units = useMemo(() => unitsFor(facility, unitStock, realUnits), [facility, unitStock, realUnits]);
   const [unitCode, setUnitCode] = useState(() => {
     const want = query.get("unit");
@@ -44,19 +48,59 @@ export default function FacilityDetailPage({ id, query }) {
   });
   const unit = view === "map" ? units.find((u) => u.code === unitCode) || null : null;
 
+  // Reset dữ liệu ô khi đổi cơ sở để chống race condition và không giữ ô của cơ sở cũ
+  useEffect(() => {
+    setRealUnits(null);
+    setUnitsError("");
+  }, [facility?.facility_id]);
+
+  // Tải danh sách ô kho thực tế từ backend khi mở sơ đồ
   useEffect(() => {
     if (!getFacilityUnits || !facility || view !== "map") return undefined;
     let alive = true;
+    setLoadingUnits(true);
+    setUnitsError("");
     (async () => {
-      const list = await getFacilityUnits(facility.facility_id);
-      if (alive && Array.isArray(list)) {
-        setRealUnits(list);
+      try {
+        const list = await getFacilityUnits(facility.facility_id);
+        if (alive) {
+          if (Array.isArray(list)) {
+            setRealUnits(list);
+          } else {
+            setRealUnits([]);
+          }
+          setLoadingUnits(false);
+        }
+      } catch (err) {
+        if (alive) {
+          setUnitsError(err?.message || "Không thể tải sơ đồ ô kho. Vui lòng thử lại sau.");
+          setLoadingUnits(false);
+        }
       }
     })();
     return () => {
       alive = false;
     };
-  }, [getFacilityUnits, facility?.facility_id, view]);
+  }, [getFacilityUnits, facility?.facility_id, view, reloadKey]);
+
+  const reloadUnits = () => {
+    setReloadKey((k) => k + 1);
+  };
+
+  // Tự động đồng bộ ô đang chọn khi danh sách units thực tế được cập nhật
+  useEffect(() => {
+    if (view !== "map" || !units || units.length === 0) return;
+    const currentHit = units.find((u) => u.code === unitCode);
+    if (!currentHit) {
+      const nextUnit = units.find((u) => u.status === "FREE") || units[0];
+      if (nextUnit) {
+        setUnitCode(nextUnit.code);
+        if (nextUnit.offer_key) setOfferKey(nextUnit.offer_key);
+      } else {
+        setUnitCode(null);
+      }
+    }
+  }, [units, view, unitCode]);
 
 
   // Giữ trạng thái xem trên URL (không cuộn lên đầu trang như khi đổi hash)
@@ -143,6 +187,7 @@ export default function FacilityDetailPage({ id, query }) {
   const sizes = facility.offers.filter((o) => o.type === offer?.type);
   const q = quote({ offer, months, start_date: start });
   const unitBlocked = Boolean(unit && unit.status !== "FREE");
+  const unitHasNoPrice = Boolean(view === "map" && unit && !unit.has_pricing && (!unit.monthly_rate || unit.monthly_rate <= 0));
   const soldOut = stock && !stock.available;
 
   // Ở chế độ sơ đồ, đổi loại kho / diện tích sẽ chọn ô còn trống khớp lựa chọn (nếu có)
@@ -162,6 +207,7 @@ export default function FacilityDetailPage({ id, query }) {
   const proceed = async () => {
     setError("");
     if (!offer) return setError("Cơ sở này chưa có loại kho phù hợp.");
+    if (unitHasNoPrice) return setError("Ô kho này hiện chưa có giá thuê được cấu hình.");
     if (unitBlocked) return setError("Ô này hiện không khả dụng. Vui lòng chọn một ô còn trống (màu xanh) trên sơ đồ.");
     if (!authed)
       return go(`login?next=${encodeURIComponent(`find/${facility.facility_id}${qs({ offer: offer.key, months, start, view: unit ? "map" : "", unit: unit?.code })}`)}`);
@@ -197,7 +243,15 @@ export default function FacilityDetailPage({ id, query }) {
 
       <div className="detail-grid">
         {view === "map" ? (
-          <UnitMap units={units} selected={unitCode} onSelect={selectUnit} />
+          <UnitMap
+            units={units}
+            selected={unitCode}
+            onSelect={selectUnit}
+            loading={loadingUnits}
+            error={unitsError}
+            onRetry={reloadUnits}
+            onReload={getFacilityUnits ? reloadUnits : undefined}
+          />
         ) : (
         <div>
           <button type="button" className="photo-button" onClick={() => setPhoto(0)} aria-label="Xem thư viện ảnh cơ sở">
@@ -243,7 +297,11 @@ export default function FacilityDetailPage({ id, query }) {
           )}
           {offer ? (
             <>
-              <p className="price price--xl">{money(q.monthly_rate)} / tháng</p>
+              {unitHasNoPrice ? (
+                <p className="price price--xl">Chưa có giá phù hợp</p>
+              ) : (
+                <p className="price price--xl">{money(q.monthly_rate)} / tháng</p>
+              )}
               <p className="hint">
                 {unit ? `Giá của ô ${unit.code}. Chọn ô khác trên sơ đồ để xem giá tương ứng.` : "Giá thay đổi theo loại kho, diện tích và gói thuê bạn chọn."}
               </p>
@@ -292,8 +350,8 @@ export default function FacilityDetailPage({ id, query }) {
           )}
           <div className="booking__actions">
             {offer && (
-              <Button onClick={proceed} disabled={busy || soldOut || unitBlocked} className={unitBlocked ? "btn--muted" : ""}>
-                {unitBlocked ? "Ô này hiện không khả dụng" : busy ? "Đang tạo đơn…" : "Tiếp tục đặt chỗ"}
+              <Button onClick={proceed} disabled={busy || soldOut || unitBlocked || unitHasNoPrice} className={unitBlocked || unitHasNoPrice ? "btn--muted" : ""}>
+                {unitBlocked ? "Ô này hiện không khả dụng" : unitHasNoPrice ? "Chưa có giá phù hợp" : busy ? "Đang tạo đơn…" : "Tiếp tục đặt chỗ"}
               </Button>
             )}
             <a className="btn btn--outline" href={href(`find${qs({ type: query.get("type"), band: query.get("band") })}`)}>Chọn cơ sở khác</a>

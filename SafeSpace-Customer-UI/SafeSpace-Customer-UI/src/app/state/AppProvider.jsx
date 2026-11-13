@@ -790,12 +790,8 @@ function ApiProvider({ children }) {
     }
   }, []);
 
-  const getFacilityUnits = useCallback(async (facilityId) => {
-    try {
-      return await api.facilityUnits(facilityId);
-    } catch {
-      return null;
-    }
+  const getFacilityUnits = useCallback(async (facilityId, params) => {
+    return await api.facilityUnits(facilityId, params);
   }, []);
 
 
