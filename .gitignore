@@ -65,6 +65,8 @@ yarn-debug.log*
 yarn-error.log*
 
 # ─── Deployment & Runtime ────────────────────────────────────
+# deploy/.env chứa SA_PASSWORD, JWT_SECRET của máy chạy demo — không commit (mẫu: deploy/.env.example)
+deploy/.env
 deploy/backups/
 deploy/releases/
 deploy/release-*.json

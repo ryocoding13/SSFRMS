@@ -1,0 +1,6 @@
+# Override cho demo tren may ca nhan (dung kem compose.yml boi deploy/demo-tunnel.ps1).
+# Khong mo cong 1433 ra host: may dev thuong da co SQL Server chay o 1433 nen container khong bind duoc.
+# API va migrator van noi toi "sqlserver:1433" trong mang noi bo cua compose.
+services:
+  sqlserver:
+    ports: !reset []
