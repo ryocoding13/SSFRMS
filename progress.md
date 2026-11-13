@@ -1,3 +1,33 @@
+## 2026-11-13 — Giữ đúng ô khách chọn khi đặt kho theo kỳ tương lai (D56 / EXACT vs AUTO)
+
+- **Mục tiêu:**
+  - Triển khai theo kế hoạch `SSFRMS-Selected-Unit-Future-Booking-Fix-Plan.md`:
+    1. **Quyết định nghiệp vụ (D56):**
+       - Phân biệt 2 chế độ:
+         - `AUTO` (màn ảnh / đặt theo loại, `SelectedUnitId == null`): Hệ thống tự chọn ô phù hợp cả kỳ, được phép hoán đổi ô khả dụng khác cùng loại nếu cần.
+         - `EXACT` (màn sơ đồ, `SelectedUnitId != null`): Giữ đúng ô khách chọn nếu khả dụng cả kỳ `[StartDate, ExpectedEndDate)` (tính cả đệm `RELET_BUFFER`), kể cả hiện tại ô đang có người thuê (`OCCUPIED`) nhưng kỳ tương lai sẽ trống. Tuyệt đối không tự ý hoán đổi (`UNIT_REPROPOSED`) sang ô `AVAILABLE` khác. Nếu ô không khả dụng hoặc bị hold, báo lỗi từ chối để khách chọn lại.
+       - Lưu thông tin `mode: "EXACT" | "AUTO"` và `selectedUnitId` vào payload JSON của hành động `UNIT_PROPOSED` tại bảng `activity_logs`, tuân thủ quy tắc D48/D56 không thay đổi schema database.
+    2. **Backend Engine & Provisioning:**
+       - Mở rộng DTO: `CreateReservationRequest` thêm `long? SelectedUnitId = null`, `ReservationDto` và `ReservationDetailDto` thêm `ProposedUnitId` và `AllocationMode`.
+       - `UnitProposal.cs`: Cập nhật `Proposed` record, an toàn khi parse JSON null-check number, `HeldByOthersAsync` hỗ trợ lọc toàn cơ sở. Phương thức `ChooseAsync` chặn hoán đổi sang ô khác khi `current.Mode == "EXACT"`.
+       - `ReservationService.cs`: Xử lý phân nhánh `request.SelectedUnitId.HasValue` (kiểm tra tồn tại, cơ sở, loại kho, trạng thái bảo trì, `UnitAvailability.Bookable`, `HeldByOthersAsync` $\rightarrow$ gán `mode = "EXACT"`).
+       - `ContractProvisioning.cs`: Không hoán đổi ô cho đơn `EXACT` (`unit = null` khi ô bị lệch, ghi log `AUTO_ALLOCATION_PENDING` và persist `SaveChangesAsync` để quản lý xử lý thủ công).
+       - `FacilityService.cs`: Đồng bộ danh sách `held` từ `UnitProposal.HeldByOthersAsync` khi lấy danh sách ô kho có tham số khoảng ngày để sơ đồ kho phản ánh chính xác trạng thái giữ chỗ.
+    3. **Frontend Booking & Review Flow:**
+       - `FacilityDetailPage.jsx`: Gửi `selected_unit_id: view === "map" && unit?.unit_id ? unit.unit_id : null`, kiểm tra tính khả dụng cả kỳ trước khi dispatch `CREATE_RESERVATION`, thêm nút "Bỏ chọn ô (để tự chọn)".
+       - `ReservationReviewPage.jsx`: Nhận diện `allocation_mode` từ đơn đặt chỗ; hiển thị nhãn "Ô bạn đã chọn" (kèm huy hiệu "Chính xác ô đã chọn") cho mode `EXACT` và "Ô hệ thống bố trí cho bạn" cho mode `AUTO`.
+       - `AppProvider.jsx`, `apiMappers.js`, `appReducer.js`, `mock-api.mjs`: Cập nhật đồng bộ trường `selectedUnitId`, `selected_unit_id`, `allocation_mode`, `proposed_unit_id`.
+    4. **Kiểm thử:**
+       - Backend unit test `StorageProject.Tests/SelectedUnitFutureBookingTests.cs` (6/6 tests PASS bao phủ toàn diện 6 ca kiểm thử nghiệp vụ: EXACT giữ ô đang thuê nhưng tương lai trống; từ chối khi ô trùng lịch; từ chối khi ô đang có người khác giữ chỗ; AUTO tự gán ô tối ưu; Provisioning cấp đúng ô đã chọn; Provisioning rơi vào AUTO_ALLOCATION_PENDING thay vì tự ý hoán đổi khi ô bất ngờ gặp sự cố).
+       - Frontend unit test `SafeSpace-Customer-UI/SafeSpace-Customer-UI/tests/luot4-units.test.js` (bổ sung test case kiểm thử dispatch `CREATE_RESERVATION` nhận `selected_unit_id` và `ReservationReviewPage` hiển thị nhãn "Ô bạn đã chọn").
+- **Kiểm chứng:**
+  - Frontend Test Suite: `npm test` PASS 213/213 tests.
+  - Frontend Business Tests: `npm run test:business` PASS 15/15 tests.
+  - Frontend Workflows & Structure: `npm run test:workflows` PASS 12/12 tests, `npm run check:structure` PASS.
+  - Frontend Render & Build: `npm run test:render` PASS 178 routes, `npm run build` PASS 296 modules transformed.
+  - Backend Unit Tests: `dotnet test StorageProject.Tests -c Release` PASS 341/341 tests (bao gồm 6 tests mới trong `SelectedUnitFutureBookingTests.cs`).
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
 ## 2026-11-13 — Sửa hiển thị quản lý cơ sở trên màn Business Operator (FM-01..03)
 
 - **Mục tiêu:**

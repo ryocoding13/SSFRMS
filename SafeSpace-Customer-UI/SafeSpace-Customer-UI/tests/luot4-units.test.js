@@ -75,3 +75,30 @@ test("#22/#47: ô có người thuê không đổi tay thành trống, vẫn ghi
   assert.deepEqual(unitActions(empty, unitBoardView(empty), UNIT_TRANSITIONS), { incident: null, status: true, edit: true });
   assert.ok(!UNIT_TRANSITIONS.ACTIVE && !UNIT_TRANSITIONS.EXPIRING, "không có chuyển tay cho ô đang thuê");
 });
+
+test("D56: chế độ EXACT giữ đúng ô khách chọn từ sơ đồ, bước 2 hiện 'Ô bạn đã chọn'", () => {
+  let state = createSeedData();
+  const f = state.facilities[0];
+  const offer = f.offers[0];
+  const targetUnit = unitsFor(f).find(u => u.offer_key === offer.key && u.bookable_for_period);
+  assert.ok(targetUnit, "tìm được ô khả dụng để chọn");
+
+  const action = run(state, {
+    facility_id: f.facility_id,
+    offer_key: offer.key,
+    months: 1,
+    start_date: "2026-11-20",
+    selected_unit_id: targetUnit.unit_id || 101,
+    unit_code: targetUnit.code
+  });
+
+  assert.ifError(action.error);
+  const created = action.state.reservations.find(r => r.reservation_id === action.result.reservation_id);
+  assert.equal(created.unit_code, targetUnit.code);
+  assert.equal(created.allocation_mode, "EXACT");
+
+  // Kiểm tra file ReservationReviewPage phân biệt nhãn EXACT và AUTO
+  const review = readFileSync(new URL("../src/features/customer/payments/ReservationReviewPage.jsx", import.meta.url), "utf8");
+  assert.match(review, /Ô bạn đã chọn/);
+  assert.match(review, /Ô hệ thống bố trí cho bạn/);
+});

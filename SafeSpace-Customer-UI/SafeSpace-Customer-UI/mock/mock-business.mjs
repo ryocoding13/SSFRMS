@@ -90,7 +90,13 @@ export function handleBusiness({ req, res, path, url, body, S, me, send }) {
       facilityId: f.facilityId, name: f.name, address: f.address, contactPhone: f.contactPhone, openingTime: f.openingTime, closingTime: f.closingTime,
       status: f.status, totalUnits: units.length, unitsInUse: mm.unitsInUse, operableUnits: mm.operableUnits, occupancyRate: mm.occupancyRate,
       pricedUnitTypes: new Set(S.rates.filter((r) => r.facilityId === f.facilityId && (r.status ?? "ACTIVE") === "ACTIVE").map((r) => r.unitTypeId)).size,
-      assignedStaff: f.facilityId === 1 ? 2 : 0, managerName: f.facilityId === 1 ? "Phạm Thu Hà" : null,
+      assignedStaff: f.facilityId === 1 ? 2 : 1,
+      managerName: f.facilityId === 3 || f.facilityId === 1 ? "Phạm Thu Hà" : `Quản lý ${f.name.replace(/^SafeSpace\s*/, "")}`,
+      managerId: f.facilityId === 3 || f.facilityId === 1 ? 7 : (20 + f.facilityId),
+      managers: [{
+        userId: f.facilityId === 3 || f.facilityId === 1 ? 7 : (20 + f.facilityId),
+        fullName: f.facilityId === 3 || f.facilityId === 1 ? "Phạm Thu Hà" : `Quản lý ${f.name.replace(/^SafeSpace\s*/, "")}`,
+      }],
       createdAt: "2026-09-15T12:40:41", updatedAt: "2026-09-15T12:40:41",
       latitude: f.latitude ?? null, longitude: f.longitude ?? null,
     };

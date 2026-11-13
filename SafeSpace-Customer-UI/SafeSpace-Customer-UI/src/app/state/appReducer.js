@@ -140,8 +140,11 @@ const handlers = {
     if (dup) return { state, result: { reservation_id: dup.reservation_id } };
 
     const q = quote({ offer, months, start_date: p.start_date });
-    // #2: hệ thống tự bố trí ô khả dụng cả kỳ, không trùng ô đã bố trí cho đơn khác còn hiệu lực cùng kỳ.
-    const unit_code = proposeUnit(state, facility, offer, p.start_date, q.end_date);
+    // #2 & D56: nếu khách chọn ô cụ thể thì giữ EXACT; nếu không, hệ thống tự bố trí ô trống cả kỳ
+    const allocation_mode = (p.selected_unit_id || p.unit_code) ? "EXACT" : "AUTO";
+    const unit_code = (p.selected_unit_id || p.unit_code)
+      ? (p.unit_code || proposeUnit(state, facility, offer, p.start_date, q.end_date))
+      : proposeUnit(state, facility, offer, p.start_date, q.end_date);
     if (!unit_code) fail("Không có ô phù hợp nào trống trong toàn bộ kỳ thuê tại cơ sở này. Đổi ngày bắt đầu, diện tích hoặc cơ sở để hệ thống tìm lại.", "NO_UNIT");
     const reservation_id = newReservationId(state, ctx.now);
     const timeout = ctx.timeoutSeconds;
@@ -152,7 +155,8 @@ const handlers = {
       band: offer.band,
       offer_key: offer.key,
       size_label: offer.size_label,
-      unit_code, // #2: ô hệ thống bố trí; khách không phải chọn trên sơ đồ
+      unit_code, // #2 & D56: ô được giữ theo EXACT hoặc AUTO
+      allocation_mode,
       unit_assigned: false,
       months,
       start_date: p.start_date,

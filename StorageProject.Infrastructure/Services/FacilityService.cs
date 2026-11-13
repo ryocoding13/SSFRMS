@@ -237,6 +237,10 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
         var periodStart = startDate ?? today;
         var periodEnd = hasPeriod ? periodStart.AddMonths(months!.Value) : periodStart.AddMonths(1);
 
+        var held = hasPeriod
+            ? await UnitProposal.HeldByOthersAsync(dbContext, facilityId, null, periodStart, periodEnd, 0, ct)
+            : [];
+
         var units = await dbContext.StorageUnits
             .AsNoTracking()
             .Include(u => u.UnitType)
@@ -261,8 +265,9 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
             var free = UnitAvailability.FreeFrom(slot, buffer, today);
             var overdue = slot.Holds.Any(h => h.Status == "OVERDUE");
             var currentEnd = UnitAvailability.CurrentContractEndDate(slot, today);
+            var isHeld = held.Contains(u.UnitId);
             var reason = hasPeriod
-                ? UnitAvailability.UnavailableReason(slot, periodStart, periodEnd, buffer, today)
+                ? (isHeld ? "Ô vừa có người đặt giữ chỗ trước." : UnitAvailability.UnavailableReason(slot, periodStart, periodEnd, buffer, today))
                 : (overdue ? "Ô đang quá hạn trả, chưa nhận đặt trước."
                     : (slot.Holds.Count == 0 && u.Status == "RESERVED" ? "Ô đang được giữ cho đề xuất đổi kho." : null));
             return new FacilityUnitDto(

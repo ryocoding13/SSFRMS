@@ -193,6 +193,7 @@ export function startMockApi(
     estimatedAmount: r.estimatedAmount, requiredDeposit: r.requiredDeposit, status: r.status, expiresAt: r.expiresAt ? dbTime(r.expiresAt) : null,
     cancelledAt: r.cancelledAt ? dbTime(r.cancelledAt) : null, cancellationReason: r.cancellationReason, createdAt: dbTime(r.createdAt),
     paymentMethod: r.paymentMethod || null, refundAmount: r.refundAmount ?? null, refundStatus: r.refundStatus || null,
+    proposedUnitId: r.proposedUnitId ?? null, allocationMode: r.allocationMode || "AUTO",
   });
   const payDto = (p) => ({ ...p, paidAt: p.paidAt ? dbTime(p.paidAt) : null, createdAt: dbTime(p.createdAt) });
   const renDto = (r) => ({ ...r, requestedAt: dbTime(r.requestedAt), approvedAt: null });
@@ -693,14 +694,26 @@ export function startMockApi(
       const rate = S.rates.find((r) => r.facilityId === body.facilityId && r.unitTypeId === body.unitTypeId);
       if (!rate) return bad("Chưa có bảng giá áp dụng cho cơ sở và loại kho này.");
       if (availability(body.facilityId, body.unitTypeId, body.startDate, body.rentalPeriodMonths) <= 0) return bad("Hiện tại đã hết kho trống cho loại kho và khoảng thời gian yêu cầu.");
-      // #2: giống BE UnitProposal — ô AVAILABLE đầu tiên theo mã, bỏ qua ô đã bố trí cho đơn khác còn hiệu lực trùng kỳ
+      // #2 & D56: giống BE UnitProposal — nếu có selectedUnitId thì kiểm tra và giữ đúng ô (EXACT); nếu không chọn thì AUTO
       const endDate = addMonths(body.startDate, body.rentalPeriodMonths);
       const heldUnits = new Set(S.reservations.filter((x) => x.facilityId === body.facilityId && x.unitTypeId === body.unitTypeId && x.proposedUnitId && ["PENDING_PAYMENT", "PENDING_VERIFICATION", "CONFIRMED"].includes(x.status) && x.startDate < endDate && x.expectedEndDate > body.startDate).map((x) => x.proposedUnitId));
-      const proposed = S.units.filter((u) => u.facilityId === body.facilityId && u.unitTypeId === body.unitTypeId && u.status === "AVAILABLE" && !heldUnits.has(u.unitId)).sort((a, b) => a.unitNumber.localeCompare(b.unitNumber))[0];
+      let proposed;
+      let allocationMode = "AUTO";
+      if (body.selectedUnitId) {
+        const target = S.units.find((u) => u.unitId === Number(body.selectedUnitId));
+        if (!target || target.facilityId !== body.facilityId || target.unitTypeId !== body.unitTypeId)
+          return bad("Ô kho không thuộc cơ sở hoặc loại kho đã chọn.");
+        if (heldUnits.has(target.unitId))
+          return bad("Ô kho đã chọn vừa có người khác giữ chỗ. Vui lòng chọn ô khác.");
+        proposed = target;
+        allocationMode = "EXACT";
+      } else {
+        proposed = S.units.filter((u) => u.facilityId === body.facilityId && u.unitTypeId === body.unitTypeId && u.status === "AVAILABLE" && !heldUnits.has(u.unitId)).sort((a, b) => a.unitNumber.localeCompare(b.unitNumber))[0];
+      }
       if (!proposed) return bad("Hiện tại đã hết kho trống cho loại kho và khoảng thời gian yêu cầu.");
-      const r = { reservationId: S.reservations.length + 1, proposedUnitId: proposed.unitId, customerId: me, facilityId: body.facilityId, unitTypeId: body.unitTypeId, startDate: body.startDate, expectedEndDate: endDate, rentalPeriodMonths: body.rentalPeriodMonths, quotedMonthlyRate: rate.monthlyRate, estimatedAmount: rate.monthlyRate * body.rentalPeriodMonths, requiredDeposit: rate.monthlyRate, status: "PENDING_PAYMENT", createdAt: new Date(), expiresAt: new Date(Date.now() + 24 * 3600000), cancelledAt: null, cancellationReason: null };
+      const r = { reservationId: S.reservations.length + 1, proposedUnitId: proposed.unitId, allocationMode, customerId: me, facilityId: body.facilityId, unitTypeId: body.unitTypeId, startDate: body.startDate, expectedEndDate: endDate, rentalPeriodMonths: body.rentalPeriodMonths, quotedMonthlyRate: rate.monthlyRate, estimatedAmount: rate.monthlyRate * body.rentalPeriodMonths, requiredDeposit: rate.monthlyRate, status: "PENDING_PAYMENT", createdAt: new Date(), expiresAt: new Date(Date.now() + 24 * 3600000), cancelledAt: null, cancellationReason: null };
       S.reservations.push(r);
-      return send(201, { ...resDto(r), createdAt: iso(r.createdAt), expiresAt: iso(r.expiresAt), proposedUnitNumber: proposed.unitNumber });
+      return send(201, { ...resDto(r), createdAt: iso(r.createdAt), expiresAt: iso(r.expiresAt), proposedUnitNumber: proposed.unitNumber, allocationMode });
     }
     if (req.method === "POST" && (m = path.match(/^\/api\/reservations\/(\d+)\/confirm-transfer$/))) {
       // Giống ReservationService.ConfirmTransferAsync: PENDING_PAYMENT → PENDING_VERIFICATION; quá hạn giữ chỗ → 400 code EXPIRED

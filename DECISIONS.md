@@ -645,3 +645,13 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Các hợp đồng khác loại kho và thời hạn (3–12 tháng), ngày bắt đầu rải qua 6 tháng gần nhất (thanh toán trước cả kỳ) để biểu đồ doanh thu không trống; **tất cả còn trong hạn**, 1 hợp đồng sắp hết hạn (~12 ngày) để thử mốc 14 ngày. Không có hồ sơ quá hạn.
 - Mỗi cơ sở dùng tối đa 6/12 ô cho dữ liệu này; các ô còn lại để người dùng tự demo.
 - Chạy lại seed không tạo thêm: đếm số hợp đồng khách đã có tại cơ sở. Database đã chạy seed cũ thì giữ nguyên dữ liệu cũ (kể cả `Customer<MÃ>02`); muốn đúng hoàn toàn thì tạo lại database.
+
+## D56 — 13/11/2026: Giữ đúng ô khách chọn khi đặt kho theo kỳ tương lai (EXACT vs AUTO) — Đã chốt
+
+> Người dùng chốt ngày 13/11/2026 theo kế hoạch `SSFRMS-Selected-Unit-Future-Booking-Fix-Plan.md`. Bổ sung và điều chỉnh phần cơ chế tự động bố trí ô của D48 / #2; giữ nguyên toàn bộ lịch sử ở trên.
+
+- **Tách bạch hai chế độ đặt chỗ:**
+  - **Màn sơ đồ / khách chọn ô cụ thể (`SelectedUnitId != null`):** chế độ `EXACT`. Hệ thống kiểm tra khả dụng của chính ô này trong khoảng thời gian `[StartDate, ExpectedEndDate)` (tính cả ngày đệm `RELET_BUFFER`), không trùng hợp đồng khác và không trùng với ô đang được giữ cho đơn đặt chỗ khác còn hiệu lực. Giữ đúng chính xác ô này, kể cả hiện tại ô đang có người thuê nhưng kỳ tương lai sẽ trống. Khi thanh toán thành công, hợp đồng chỉ được cấp đúng ô này, tuyệt đối không tự ý hoán đổi (`UNIT_REPROPOSED`) sang ô khác. Nếu không giữ được (xung đột/bị người khác giữ trước), API trả lỗi từ chối rõ ràng để khách chọn lại, không âm thầm chuyển sang `AUTO`.
+  - **Màn xem ảnh / đặt theo loại kho (`SelectedUnitId == null`):** chế độ `AUTO`. Hệ thống tự bố trí ô phù hợp theo thứ tự ưu tiên hiện hành. Giao diện ghi rõ “Hệ thống tự động bố trí ô phù hợp”.
+- **Lưu trữ dữ liệu bền vững:** Giữ quy định không sửa schema database của D48; thông tin `mode: "EXACT" | "AUTO"` và `selectedUnitId` được lưu trong payload của hành động `UNIT_PROPOSED` tại `activity_logs`. Các bản ghi cũ không có trường `mode` mặc định là `AUTO` để đảm bảo tương thích ngược.
+- **Đồng bộ sơ đồ mặt bằng:** Endpoint `GET /api/facilities/{id}/units` khi có tham số khoảng ngày sẽ tính cả các ô đang được giữ bởi các đơn đặt chỗ chưa thanh toán (`UNIT_PROPOSED` còn hạn), đảm bảo sơ đồ phản ánh chính xác khả năng đặt của từng ô.

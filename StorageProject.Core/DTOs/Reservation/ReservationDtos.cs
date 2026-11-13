@@ -6,7 +6,8 @@ public record CreateReservationRequest(
     long FacilityId,
     long UnitTypeId,
     DateOnly StartDate,
-    int RentalPeriodMonths
+    int RentalPeriodMonths,
+    long? SelectedUnitId = null
 );
 
 public record ReservationDto(
@@ -29,7 +30,9 @@ public record ReservationDto(
     string PaymentMethod = "PAYOS",
     decimal? RefundAmount = null,
     string? RefundStatus = null, // PENDING (chờ quản lý chuyển khoản) | COMPLETED
-    string? ProposedUnitNumber = null // #2: ô hệ thống bố trí khi tạo đơn (activity_logs UNIT_PROPOSED)
+    string? ProposedUnitNumber = null, // #2: ô hệ thống bố trí khi tạo đơn (activity_logs UNIT_PROPOSED)
+    long? ProposedUnitId = null,
+    string? AllocationMode = null // D56: "EXACT" | "AUTO"
 );
 
 /// <summary>C14a · Ước tính khi huỷ đơn đã thanh toán trước ngày bắt đầu (D27).</summary>
@@ -63,5 +66,7 @@ public record ReservationDetailDto(
     int? PolicyVersion = null,
     DateTime? PolicyAcceptedAt = null,
     PolicyConsentDto? PolicyConsent = null,
-    string? ProposedUnitNumber = null // #2: ô hệ thống đã bố trí, hiện cho khách trước khi xác nhận
+    string? ProposedUnitNumber = null, // #2: ô hệ thống đã bố trí, hiện cho khách trước khi xác nhận
+    long? ProposedUnitId = null,
+    string? AllocationMode = null // D56: "EXACT" | "AUTO"
 );

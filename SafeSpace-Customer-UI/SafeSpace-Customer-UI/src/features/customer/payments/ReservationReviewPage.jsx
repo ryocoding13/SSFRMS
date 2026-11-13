@@ -44,13 +44,20 @@ export function ReservationReviewPage({ id }) {
     <PageHeader title={facility.name} description={[facility.district, facility.city].filter(Boolean).join(", ") || facility.address}><Tag tone="blue">Bước 2/3 · Xác nhận &amp; chính sách</Tag></PageHeader>
     <div className="policy-review__grid">
       <div className="policy-review__gallery">
-        {/* #2 · Figma C04a-ô: ô hệ thống bố trí hiện rõ trước khi khách xác nhận */}
+        {/* #2 & D56: ô khách chọn hoặc hệ thống bố trí hiện rõ trước khi khách xác nhận */}
         <section className="panel policy-review__card policy-review__unit" aria-live="polite">
-          <div className="policy-review__unit-head"><h2>Ô hệ thống bố trí cho bạn</h2>{reservation.unit_code && <Tag tone="green">Khả dụng cả kỳ</Tag>}</div>
+          <div className="policy-review__unit-head">
+            <h2>{reservation.allocation_mode === "EXACT" ? "Ô bạn đã chọn" : "Ô hệ thống bố trí cho bạn"}</h2>
+            {reservation.unit_code && <Tag tone="green">Khả dụng cả kỳ</Tag>}
+          </div>
           {reservation.unit_code ? <>
             <p className="policy-review__unit-code">{reservation.unit_code}</p>
             <p className="muted">{typeLabel(reservation.type)} · {reservation.size_label || bandLabel(reservation.band)} · {facility.name}</p>
-            <p className="hint">Trống trong toàn bộ kỳ {dateLabel(reservation.start_date)} – {dateLabel(reservation.end_date)} · không trùng hợp đồng hoặc lượt đặt khác. Bạn không cần chọn ô trên sơ đồ.</p>
+            <p className="hint">
+              {reservation.allocation_mode === "EXACT"
+                ? `Hệ thống giữ chính xác ô ${reservation.unit_code} cho bạn trong toàn bộ kỳ ${dateLabel(reservation.start_date)} – ${dateLabel(reservation.end_date)}.`
+                : `Trống trong toàn bộ kỳ ${dateLabel(reservation.start_date)} – ${dateLabel(reservation.end_date)} · không trùng hợp đồng hoặc lượt đặt khác. Bạn không cần chọn ô trên sơ đồ.`}
+            </p>
             <a className="policy-review__read" href={`#/find/${reservation.facility_id}?view=map&unit=${encodeURIComponent(reservation.unit_code)}&offer=${encodeURIComponent(reservation.offer_key || "")}`}>Xem vị trí ô trên sơ đồ →</a>
           </> : <p className="muted">Hệ thống bố trí ô trống cả kỳ theo loại kho và diện tích bạn chọn; mã ô hiện ở đây ngay khi có.</p>}
         </section>
