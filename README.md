@@ -107,14 +107,10 @@ Hệ thống đã tạo sẵn các tài khoản để kiểm thử quy trình:
 
 | Quyền hạn | Tên đăng nhập (Username) | Mật khẩu (Password) | Mô tả |
 |-----------|--------------------------|---------------------|-------|
-| **CUSTOMER** | `customer01` | `Customer@123` | Khách hàng mẫu (Nguyễn Văn An) |
-| **CUSTOMER** | `customer02` | `Customer@123` | Khách hàng mẫu (Trần Thị Mai) |
-| **CUSTOMER** | `customer03` … `customer06` | `Customer@123` | Khách đang thuê / chờ bàn giao / quá hạn tại cơ sở mẫu |
-| **STAFF** | `staff01`, `staff02` | `Staff@123` | Nhân viên cơ sở SafeSpace Nguyễn Lương Bằng (`#/staff`) |
-| **MANAGER** | `manager01` | `Manager@123` | Quản lý cơ sở SafeSpace Nguyễn Lương Bằng (`#/manager`) |
+| **CUSTOMER** | `customer01` | `Customer@123` | Khách hàng duy nhất (Nguyễn Văn An) — đứng tên 45 hợp đồng đang thuê ở cả 12 cơ sở |
 | **OPERATIONS** | `ops01` | `Ops@123` | Quản lý vận hành kinh doanh |
 | **ADMIN** | `admin` | `Admin@123` | Quản trị viên hệ thống |
-| **Theo cơ sở (#60)** | `Staff_NLB`, `Manager_NLB`, `CustomerNLB01` | `Staff@123` / `Manager@123` / `Customer@123` | Mỗi cơ sở một bộ, thay `NLB` bằng mã: HL, PX, TT, PMH, BTH, NB, BC, TD, GV, TB, BTA. `Customer…01` là khách duy nhất, có 1–6 hợp đồng đang thuê tuỳ cơ sở (D55) |
+| **Theo cơ sở (#60)** | `Staff_NLB`, `Manager_NLB` | `Staff@123` / `Manager@123` | Mỗi cơ sở một nhân viên (`#/staff`) + một quản lý (`#/manager`), họ tên thật, thay `NLB` bằng mã: HL, PX, TT, PMH, BTH, NB, BC, TD, GV, TB, BTA. Danh sách họ tên: `.agents/skills/resetdb/references/credentials.md` |
 
 *(Bạn cũng có thể bấm nút **"Đăng ký"** trực tiếp trên giao diện để tạo tài khoản mới)*.
 

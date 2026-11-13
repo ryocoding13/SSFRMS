@@ -7,9 +7,9 @@
 -- - System roles, permissions, unit types, rental rates, and policies preserved
 -- - All default seed accounts preserved:
 --   * admin, ops01
---   * staff01, staff02, manager01 (Nguyen Luong Bang)
 --   * Manager_<CODE> and Staff_<CODE> across all 12 facilities (NLB, HL, PX, TT, PMH, BTH, NB, BC, TD, GV, TB, BTA)
---   * customer01..customer06, Customer<CODE>01
+--   * customer01 — the ONLY customer; the seeder gives it 1–6 active contracts at every facility
+--   * staff01, staff02, manager01, customer02..06 and Customer<CODE>01 are deleted (D61)
 -- - All temporary non-seeded accounts and logs deleted
 -- =========================================================================
 
@@ -67,29 +67,40 @@ IF OBJECT_ID('login_history') IS NOT NULL DBCC CHECKIDENT ('login_history', RESE
 IF OBJECT_ID('unit_status_history') IS NOT NULL DBCC CHECKIDENT ('unit_status_history', RESEED, 0);
 
 -- 4. Delete non-seeded test users (keep system seed accounts & per-facility seed accounts)
+-- 4a. Rows kept by this reset that may point at users about to be deleted -> hand them over to admin
+DECLARE @AdminId BIGINT = (SELECT TOP 1 UserId FROM [users] WHERE Username = 'admin');
+IF OBJECT_ID('tempdb..#gone') IS NOT NULL DROP TABLE #gone;
+SELECT UserId INTO #gone FROM [users]
+WHERE Username NOT IN ('admin', 'ops01', 'customer01')
+  AND Username NOT LIKE 'Staff[_]%'
+  AND Username NOT LIKE 'Manager[_]%';
+UPDATE [rental_rates] SET [SetBy] = @AdminId WHERE [SetBy] IN (SELECT UserId FROM #gone);
+UPDATE [policies] SET [CreatedBy] = @AdminId WHERE [CreatedBy] IN (SELECT UserId FROM #gone);
+UPDATE [rental_policy_versions] SET [PublishedBy] = @AdminId WHERE [PublishedBy] IN (SELECT UserId FROM #gone);
+UPDATE [user_roles] SET [AssignedBy] = NULL WHERE [AssignedBy] IN (SELECT UserId FROM #gone);
+UPDATE [user_facilities] SET [AssignedBy] = NULL WHERE [AssignedBy] IN (SELECT UserId FROM #gone);
+DROP TABLE #gone;
+
 DELETE FROM [user_roles] 
 WHERE UserId IN (
     SELECT UserId FROM [users] 
-    WHERE Username NOT IN ('admin', 'staff01', 'staff02', 'manager01', 'ops01', 'customer01', 'customer02', 'customer03', 'customer04', 'customer05', 'customer06')
+    WHERE Username NOT IN ('admin', 'ops01', 'customer01')
       AND Username NOT LIKE 'Staff[_]%'
       AND Username NOT LIKE 'Manager[_]%'
-      AND Username NOT LIKE 'Customer%01'
 );
 
 DELETE FROM [user_facilities] 
 WHERE UserId IN (
     SELECT UserId FROM [users] 
-    WHERE Username NOT IN ('admin', 'staff01', 'staff02', 'manager01', 'ops01', 'customer01', 'customer02', 'customer03', 'customer04', 'customer05', 'customer06')
+    WHERE Username NOT IN ('admin', 'ops01', 'customer01')
       AND Username NOT LIKE 'Staff[_]%'
       AND Username NOT LIKE 'Manager[_]%'
-      AND Username NOT LIKE 'Customer%01'
 );
 
 DELETE FROM [users] 
-WHERE Username NOT IN ('admin', 'staff01', 'staff02', 'manager01', 'ops01', 'customer01', 'customer02', 'customer03', 'customer04', 'customer05', 'customer06')
+WHERE Username NOT IN ('admin', 'ops01', 'customer01')
   AND Username NOT LIKE 'Staff[_]%'
-  AND Username NOT LIKE 'Manager[_]%'
-  AND Username NOT LIKE 'Customer%01';
+  AND Username NOT LIKE 'Manager[_]%';
 
 -- 5. Delete decommissioned legacy units or non-standard test units (keep strictly K01–K12)
 DELETE FROM [storage_units]

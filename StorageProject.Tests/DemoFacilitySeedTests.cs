@@ -5,7 +5,8 @@ using Xunit;
 
 namespace StorageProject.Tests;
 
-// #60: dữ liệu demo theo từng cơ sở — đủ tài khoản, đúng phân công, 1 khách với 1–6 hợp đồng đang thuê (khác nhau giữa các cơ sở); chạy lại không trùng.
+// #60: dữ liệu demo theo từng cơ sở — đủ tài khoản (họ tên thật), đúng phân công; customer01 là khách duy nhất,
+// thuê 1–6 hợp đồng đang hiệu lực ở mỗi cơ sở (khác nhau giữa các cơ sở); chạy lại không trùng.
 public sealed class DemoFacilitySeedTests
 {
     private sealed class TestDb(DbContextOptions<AppDbContext> options) : AppDbContext(options)
@@ -32,6 +33,11 @@ public sealed class DemoFacilitySeedTests
         var contractCount = await db.RentalContracts.CountAsync();
         var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
         var countsSeen = new List<int>();
+        var renter = await db.Users.SingleAsync(u => u.Username == DbSeeder.DemoCustomerUsername);
+        var customerIds = await db.UserRoles.Where(ur => ur.Role.RoleName == "CUSTOMER").Select(ur => ur.UserId).Distinct().ToListAsync();
+        Assert.Equal(new[] { renter.UserId }, customerIds); // cả hệ thống chỉ 1 khách hàng
+        foreach (var gone in new[] { "staff01", "staff02", "manager01", "customer02" })
+            Assert.False(await db.Users.AnyAsync(u => u.Username == gone)); // D61: bỏ tài khoản cũ
 
         foreach (var (name, code) in DbSeeder.DemoFacilityCodes)
         {
@@ -39,16 +45,16 @@ public sealed class DemoFacilitySeedTests
             foreach (var username in new[] { $"Staff_{code}", $"Manager_{code}" })
             {
                 var user = await db.Users.SingleAsync(u => u.Username == username);
+                Assert.Equal(username.StartsWith("Staff_") ? DbSeeder.DemoStaffNames[code].Staff : DbSeeder.DemoStaffNames[code].Manager, user.FullName);
                 var scopes = await db.UserFacilities.Where(uf => uf.UserId == user.UserId && uf.Status == "ACTIVE").ToListAsync();
                 Assert.Single(scopes); // mỗi quản lý / nhân viên demo phụ trách đúng 1 cơ sở
                 Assert.Equal(facility.FacilityId, scopes[0].FacilityId);
             }
-            var renter = await db.Users.SingleAsync(u => u.Username == $"Customer{code}01");
-            Assert.False(await db.Users.AnyAsync(u => u.Username == $"Customer{code}02")); // mỗi cơ sở 1 khách demo
-            var contracts = await db.RentalContracts.Include(c => c.Unit).Where(c => c.CustomerId == renter.UserId).ToListAsync();
+            Assert.False(await db.Users.AnyAsync(u => u.Username == $"Customer{code}01")); // bỏ khách riêng từng cơ sở
+            var contracts = await db.RentalContracts.Include(c => c.Unit)
+                .Where(c => c.CustomerId == renter.UserId && c.Unit.FacilityId == facility.FacilityId).ToListAsync();
             Assert.Equal(DbSeeder.DemoFacilityOrderCounts[code], contracts.Count);
             Assert.InRange(contracts.Count, 1, 6); // để lại ít nhất 6/12 ô cho người dùng tự demo
-            Assert.False(await db.Reservations.AnyAsync(r => r.CustomerId == renter.UserId && r.Status != "UNIT_ASSIGNED"));
             foreach (var contract in contracts)
             {
                 Assert.Equal("ACTIVE", contract.Status);
@@ -61,6 +67,8 @@ public sealed class DemoFacilitySeedTests
             countsSeen.Add(contracts.Count);
         }
         Assert.True(countsSeen.Distinct().Count() > 1); // các cơ sở có số đơn khác nhau
+        Assert.False(await db.Reservations.AnyAsync(r => r.CustomerId == renter.UserId && r.Status != "UNIT_ASSIGNED"));
+        Assert.Equal(DbSeeder.DemoFacilityOrderCounts.Values.Sum(), contractCount);
 
         // Các kỳ thuê của cùng một ô không chồng nhau
         var running = await db.RentalContracts.Where(c => c.Status == "ACTIVE").ToListAsync();

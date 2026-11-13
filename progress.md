@@ -1,3 +1,12 @@
+## 2026-11-13 — D61: dữ liệu demo chỉ còn customer01, nhân sự có họ tên thật
+
+- `DbSeeder.DemoFacilities.cs`: hợp đồng demo ở 12 cơ sở đứng tên `customer01`; thêm `DemoCustomerUsername`, `DemoStaffNames`, `RenamePlaceholder` (đổi tên tạm cũ, không đè tên admin đã sửa).
+- `DbSeeder.cs`, `DbSeeder.FacilityOps.cs`: bỏ tạo `customer02`, `staff01`, `staff02`, `manager01` (và phân công cơ sở của họ); `ops01` → Lê Hoàng Vy. NLB tăng lên 4 hợp đồng (tổng 45).
+- Integration test SQL Server dùng `Staff_NLB` / `Manager_NLB` thay `staff01` / `manager01`.
+- `/resetdb`: `reset_db.sql` chỉ giữ `admin`, `ops01`, `customer01`, `Staff_*`, `Manager_*` (xoá `staff01/02`, `manager01`, `customer02`–`06`, `Customer<MÃ>01`; bảng giá/chính sách do họ tạo chuyển sang `admin`); cập nhật `SKILL.md`, `references/credentials.md`, `README.md`.
+- `DemoFacilitySeedTests`: kiểm tra chỉ 1 khách, không còn tài khoản cũ, tổng 45 hợp đồng, đúng số hợp đồng từng cơ sở, họ tên nhân sự.
+- **Giới hạn:** chưa build/chạy test được ở môi trường soạn patch (không có .NET SDK). Cần chạy `dotnet test StorageProject.Tests -c Release` và `/resetdb` trên máy nhóm.
+
 ## 2026-11-13 — Cập nhật quy trình skill /resetdb: Reset và tự động nạp trạng thái hoạt động thực tế (D55 / #60)
 
 - **Mục tiêu:**

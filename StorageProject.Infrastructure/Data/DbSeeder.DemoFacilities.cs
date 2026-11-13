@@ -8,9 +8,10 @@ namespace StorageProject.Infrastructure.Data;
 /// #60 · Dữ liệu demo theo từng cơ sở (D48: chỉ thêm dữ liệu, không đổi bảng/cột).
 /// Mỗi cơ sở đang hoạt động có:
 /// - 1 nhân viên Staff_&lt;MÃ&gt; và 1 quản lý Manager_&lt;MÃ&gt; được phân công đúng cơ sở (mỗi quản lý 1 cơ sở).
-/// - Customer&lt;MÃ&gt;01 là khách duy nhất: 1–6 hợp đồng đang thuê (số lượng khác nhau giữa các cơ sở để báo cáo
-///   vận hành thấy chênh lệch), ngày bắt đầu rải qua 5 tháng gần nhất để biểu đồ doanh thu không trống, tất cả còn trong hạn.
-///   Mỗi cơ sở dùng tối đa 6/12 ô; các ô còn lại để tự demo đặt kho.
+/// - Nhân viên / quản lý có họ tên thật (DemoStaffNames), không còn tên dạng "Quản lý &lt;cơ sở&gt;".
+/// - customer01 là khách hàng duy nhất của toàn hệ thống: tại mỗi cơ sở thuê 1–6 hợp đồng đang hiệu lực (số lượng khác nhau
+///   giữa các cơ sở để báo cáo vận hành thấy chênh lệch), ngày bắt đầu rải qua 5 tháng gần nhất để biểu đồ doanh thu không trống,
+///   tất cả còn trong hạn. Mỗi cơ sở dùng tối đa 6/12 ô; các ô còn lại để tự demo đặt kho.
 /// Chạy lại không tạo trùng, không ghi đè dữ liệu đã có; ô được chọn phải trống và không có hợp đồng/đơn giữ chỗ khác.
 /// Mật khẩu chung (chỉ dùng cho database demo): Staff@123, Manager@123, Customer@123.
 /// </summary>
@@ -33,13 +34,30 @@ public static partial class DbSeeder
         ["SafeSpace Bình Tân"] = "BTA",
     };
 
-    /// <summary>
-    /// Số hợp đồng demo của Customer&lt;MÃ&gt;01 tại từng cơ sở (tối đa 6). NLB chỉ 1 vì cơ sở gốc này đã có sẵn
-    /// bộ dữ liệu vận hành của customer01–06 (DbSeeder.FacilityOps) chiếm 6 ô và 1 ô bảo trì.
-    /// </summary>
+    /// <summary>Tài khoản khách hàng demo duy nhất, đứng tên mọi hợp đồng demo ở cả 12 cơ sở.</summary>
+    public const string DemoCustomerUsername = "customer01";
+
+    /// <summary>Họ tên nhân viên (Staff_&lt;MÃ&gt;) và quản lý (Manager_&lt;MÃ&gt;) của từng cơ sở.</summary>
+    public static readonly IReadOnlyDictionary<string, (string Staff, string Manager)> DemoStaffNames = new Dictionary<string, (string, string)>
+    {
+        ["NLB"] = ("Võ Thanh Tùng", "Đỗ Ngọc Hân"),
+        ["HL"] = ("Bùi Đức Thịnh", "Lý Thanh Hương"),
+        ["PX"] = ("Huỳnh Gia Khang", "Mai Phương Thảo"),
+        ["TT"] = ("Đặng Quốc Việt", "Tô Mỹ Linh"),
+        ["PMH"] = ("Ngô Hoàng Phúc", "Trương Bảo Ngọc"),
+        ["BTH"] = ("Phan Minh Nhật", "Hồ Thị Kim Oanh"),
+        ["NB"] = ("Lâm Tấn Phát", "Dương Hải Yến"),
+        ["BC"] = ("Châu Văn Lộc", "Vũ Thị Thanh Tâm"),
+        ["TD"] = ("Kiều Anh Dũng", "Nguyễn Hoài Thương"),
+        ["GV"] = ("Cao Thành Đạt", "Lê Ngọc Trâm"),
+        ["TB"] = ("La Minh Khôi", "Phùng Thị Diễm"),
+        ["BTA"] = ("Hà Đức Trọng", "Tạ Quỳnh Như"),
+    };
+
+    /// <summary>Số hợp đồng demo của customer01 tại từng cơ sở (tối đa 6).</summary>
     public static readonly IReadOnlyDictionary<string, int> DemoFacilityOrderCounts = new Dictionary<string, int>
     {
-        ["NLB"] = 1, ["HL"] = 6, ["PX"] = 5, ["TT"] = 2, ["PMH"] = 6, ["BTH"] = 4,
+        ["NLB"] = 4, ["HL"] = 6, ["PX"] = 5, ["TT"] = 2, ["PMH"] = 6, ["BTH"] = 4,
         ["NB"] = 1, ["BC"] = 3, ["TD"] = 5, ["GV"] = 2, ["TB"] = 4, ["BTA"] = 3,
     };
 
@@ -76,9 +94,14 @@ public static partial class DbSeeder
             if (!DemoFacilityCodes.TryGetValue(facility.Name, out var code)) continue;
             var lower = code.ToLowerInvariant();
 
-            var staff = await EnsureUserAsync(context, $"Staff_{code}", $"staff.{lower}@safespace.vn", "Staff@123", $"Nhân viên {ShortName(facility.Name)}", "0900000100", "STAFF");
-            var manager = await EnsureUserAsync(context, $"Manager_{code}", $"manager.{lower}@safespace.vn", "Manager@123", $"Quản lý {ShortName(facility.Name)}", "0900000200", "MANAGER");
-            var renter = await EnsureUserAsync(context, $"Customer{code}01", $"customer{lower}01@example.com", "Customer@123", $"Khách {code} 01", "0900000301", "CUSTOMER");
+            var (staffName, managerName) = DemoStaffNames.TryGetValue(code, out var names)
+                ? names : ($"Nhân viên {ShortName(facility.Name)}", $"Quản lý {ShortName(facility.Name)}");
+            var staff = await EnsureUserAsync(context, $"Staff_{code}", $"staff.{lower}@safespace.vn", "Staff@123", staffName, "0900000100", "STAFF");
+            var manager = await EnsureUserAsync(context, $"Manager_{code}", $"manager.{lower}@safespace.vn", "Manager@123", managerName, "0900000200", "MANAGER");
+            // DB cũ còn tên tạm "Nhân viên/Quản lý <cơ sở>" thì đổi sang họ tên thật (không đè tên admin đã sửa)
+            RenamePlaceholder(staff, $"Nhân viên {ShortName(facility.Name)}", staffName);
+            RenamePlaceholder(manager, $"Quản lý {ShortName(facility.Name)}", managerName);
+            var renter = await EnsureUserAsync(context, DemoCustomerUsername, "an.nguyen@example.com", "Customer@123", "Nguyễn Văn An", "0901234567", "CUSTOMER");
 
             // Phân công: chỉ gán khi tài khoản chưa có cơ sở nào đang hiệu lực (không đè phân công admin đã đổi)
             foreach (var user in new[] { staff, manager })
@@ -131,7 +154,7 @@ public static partial class DbSeeder
                 });
             }
 
-            // Customer<MÃ>01 là khách duy nhất của cơ sở: N hợp đồng đang thuê (N khác nhau giữa các cơ sở, tối đa 6),
+            // customer01 là khách duy nhất: N hợp đồng đang thuê (N khác nhau giữa các cơ sở, tối đa 6),
             // đã thanh toán trước cả kỳ, có QR/PIN. Đếm theo số hợp đồng đã có nên chạy lại không tạo thêm.
             var target = DemoFacilityOrderCounts.TryGetValue(code, out var n) ? n : 1;
             var existing = await context.RentalContracts.CountAsync(c => c.CustomerId == renter.UserId && c.Unit.FacilityId == facility.FacilityId);
@@ -199,6 +222,14 @@ public static partial class DbSeeder
                 await context.SaveChangesAsync();
             }
         }
+    }
+
+    /// <summary>Đổi họ tên khi tài khoản còn giữ đúng tên tạm cũ (chạy lại không đổi gì thêm).</summary>
+    private static void RenamePlaceholder(User user, string placeholder, string fullName)
+    {
+        if (user.FullName != placeholder || placeholder == fullName) return;
+        user.FullName = fullName;
+        user.UpdatedAt = DateTime.UtcNow;
     }
 
     /// <summary>"SafeSpace Nguyễn Lương Bằng" → "Nguyễn Lương Bằng".</summary>

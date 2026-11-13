@@ -6,8 +6,7 @@ namespace StorageProject.Infrastructure.Data;
 
 /// <summary>
 /// Tiến trình khởi tạo dữ liệu mẫu cho Phân hệ Vận hành Cơ sở (Facility Operations - BACKEND-TODO A1).
-/// - Khởi tạo quyền hạn chi tiết cho vai trò STAFF, MANAGER và các tài khoản mẫu manager01, staff02.
-/// - Phân công cơ sở phụ trách: staff01, staff02, manager01 → SafeSpace Nguyễn Lương Bằng (SRS A06: mỗi người 1 cơ sở).
+/// - Khởi tạo quyền hạn chi tiết cho vai trò STAFF, MANAGER (tài khoản nhân sự demo: xem DbSeeder.DemoFacilities, D61).
 /// - Dữ liệu vận hành mẫu phong phú tại cơ sở để sẵn sàng kiểm thử các màn hình S01–S09, M01–M08.
 /// </summary>
 public static partial class DbSeeder
@@ -40,7 +39,7 @@ public static partial class DbSeeder
         return user;
     }
 
-    /// <summary>Đảm bảo phân quyền cho vai trò STAFF và MANAGER cùng các tài khoản nhân sự cơ sở mẫu.</summary>
+    /// <summary>Đảm bảo phân quyền cho vai trò STAFF và MANAGER.</summary>
     private static async Task EnsureFacilityRolesAsync(AppDbContext context)
     {
         var staffRole = await context.Roles.FirstAsync(r => r.RoleName == "STAFF");
@@ -60,31 +59,11 @@ public static partial class DbSeeder
             }
         }
         await context.SaveChangesAsync();
-
-        await EnsureUserAsync(context, "manager01", "manager01@storage.vn", "Manager@123", "Phạm Thu Hà", "0900000005", "MANAGER");
-        await EnsureUserAsync(context, "staff02", "staff02@storage.vn", "Staff@123", "Nguyễn Minh Tâm", "0900000006", "STAFF");
-    }
-
-    /// <summary>Gán cơ sở cho tài khoản chưa có cơ sở nào đang hiệu lực (không ghi đè phân công do quản trị đặt).</summary>
-    private static async Task EnsureFacilityAssignmentsAsync(AppDbContext context, long facilityId, long adminId)
-    {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
-        foreach (var username in new[] { "staff01", "staff02", "manager01" })
-        {
-            var user = await context.Users.FirstOrDefaultAsync(u => u.Username == username);
-            if (user == null) continue;
-            var hasActive = await context.UserFacilities.AnyAsync(uf => uf.UserId == user.UserId && uf.Status == "ACTIVE");
-            if (hasActive) continue;
-            context.UserFacilities.Add(new UserFacility
-            {
-                UserId = user.UserId, FacilityId = facilityId, AssignedBy = adminId,
-                AssignedFrom = today.AddDays(-30), Status = "ACTIVE", CreatedAt = DateTime.UtcNow
-            });
-        }
-        await context.SaveChangesAsync();
+        // D61: không còn tạo manager01 / staff02 — nhân sự demo là Staff_<MÃ>, Manager_<MÃ> (DbSeeder.DemoFacilities)
     }
 
     /// <summary>
+    /// [Không còn được gọi — D61 bỏ customer02–06, staff01/02, manager01; giữ lại để tham khảo]
     /// Dữ liệu vận hành mẫu tại cơ sở đầu tiên. Chỉ chạy khi cơ sở này chưa có đơn đặt chỗ nào.
     /// Ô kho: K01, K09 đang thuê · K02 sắp hết hạn + chờ duyệt gia hạn · K03 quá hạn · K05 chờ bàn giao ·
     /// K07 chờ kiểm tra trả kho · K10 bảo trì · còn lại trống. Thêm 2 khoản chờ đối soát, 1 đơn chờ phân bổ,

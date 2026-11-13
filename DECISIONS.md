@@ -705,3 +705,11 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
   - **Màn xem ảnh / đặt theo loại kho (`SelectedUnitId == null`):** chế độ `AUTO`. Hệ thống tự bố trí ô phù hợp theo thứ tự ưu tiên hiện hành. Giao diện ghi rõ “Hệ thống tự động bố trí ô phù hợp”.
 - **Lưu trữ dữ liệu bền vững:** Giữ quy định không sửa schema database của D48; thông tin `mode: "EXACT" | "AUTO"` và `selectedUnitId` được lưu trong payload của hành động `UNIT_PROPOSED` tại `activity_logs`. Các bản ghi cũ không có trường `mode` mặc định là `AUTO` để đảm bảo tương thích ngược.
 - **Đồng bộ sơ đồ mặt bằng:** Endpoint `GET /api/facilities/{id}/units` khi có tham số khoảng ngày sẽ tính cả các ô đang được giữ bởi các đơn đặt chỗ chưa thanh toán (`UNIT_PROPOSED` còn hạn), đảm bảo sơ đồ phản ánh chính xác khả năng đặt của từng ô.
+
+## D61 — 13/11/2026: Dữ liệu demo — một khách hàng duy nhất customer01, nhân sự có họ tên thật — Đã chốt
+
+> Người dùng (Thắng) chốt ngày 13/11/2026, thay phần "mỗi cơ sở 1 khách `Customer<MÃ>01`" của D55. Giữ D48 (không đổi bảng/cột), giữ số hợp đồng theo cơ sở của D55.
+
+- Cả hệ thống chỉ còn **1 khách hàng demo: `customer01` / `Customer@123`** (Nguyễn Văn An), đứng tên toàn bộ 45 hợp đồng đang thuê ở 12 cơ sở (NLB 4, HL 6, PX 5, TT 2, PMH 6, BTH 4, NB 1, BC 3, TD 5, GV 2, TB 4, BTA 3).
+- Bỏ `customer02`–`customer06`, `Customer<MÃ>01` và tài khoản nhân sự cũ `staff01`, `staff02`, `manager01`: seed không tạo nữa, `/resetdb` xoá các tài khoản này (dữ liệu nền còn trỏ tới họ — bảng giá, chính sách — chuyển sang `admin`). Nhân sự cơ sở Nguyễn Lương Bằng là `Staff_NLB`, `Manager_NLB`.
+- `Staff_<MÃ>`, `Manager_<MÃ>`, `ops01` có **họ tên thật** (danh sách `DbSeeder.DemoStaffNames`, `references/credentials.md`); giữ nguyên tên đăng nhập và mật khẩu. DB cũ còn tên tạm ("Nhân viên …", "Quản lý …", "Lê Vận Hành") được đổi tên khi seed chạy; tên đã được admin sửa thì giữ.

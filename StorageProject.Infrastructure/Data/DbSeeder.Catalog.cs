@@ -27,7 +27,7 @@ public static partial class DbSeeder
     /// <summary>Thông tin định nghĩa cơ sở kho mẫu để khởi tạo.</summary>
     private sealed record SeedFacility(string Name, string District, decimal BasePrice, string Street, string Phone, string? OldAddress = null);
 
-    // Thứ tự và giá gốc giống src/data/seed.js. Cơ sở đầu tiên là nơi staff01 / manager01 phụ trách.
+    // Thứ tự và giá gốc giống src/data/seed.js. Cơ sở đầu tiên là cơ sở gốc (Home).
     private static readonly SeedFacility[] SafeSpaceFacilities =
     [
         new("SafeSpace Nguyễn Lương Bằng", "Quận 7", 1150000m, "Số 12 Nguyễn Lương Bằng, Tân Phú", "02837001012",
