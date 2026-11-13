@@ -111,7 +111,11 @@ public class StaffService(AppDbContext dbContext) : IStaffService
                 Floor = floor,
                 Type = u.UnitType.ClimateControlled ? "climate" : "normal",
                 Status = uiStatus,
-                End = end
+                End = end,
+                FloorName = u.Floor,
+                Zone = u.Zone,
+                LocationDescription = u.LocationDescription,
+                UnitTypeId = u.UnitTypeId
             };
         }).ToList();
 

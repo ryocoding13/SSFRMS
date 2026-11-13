@@ -18,7 +18,7 @@ import {
 } from "../src/features/business/policies/policyFields.js";
 import { activateWithConfirm, replacePolicy } from "../src/features/business/policies/policyActions.js";
 import { parseCsv, workbookBytes } from "../src/features/business/reports/reportExport.js";
-import { facilityToForm, formToRequest, splitCoordinates } from "../src/features/business/facilities/facilityForm.js";
+import { facilityToForm, formToRequest, managerLabel, splitCoordinates } from "../src/features/business/facilities/facilityForm.js";
 import { startMockApi } from '../mock/mock-api.mjs';
 import { API_URL } from '../src/app/config/api.js';
 const field = key => policyFields.find(f => f.key === key);
@@ -223,4 +223,44 @@ test('UI Simplification: validatePolicyNumber, fieldRawValue, and numeric pure n
  assert.equal(reletZeroJob.body.policyType, 'RELET_BUFFER');
  assert.equal(reletZeroJob.body.calculationType, 'FIXED');
  assert.equal(reletZeroJob.body.value, 0);
+});
+
+test('FM-02 / B05: managerLabel hiển thị đúng họ tên, danh sách managers, Quản lý #ID và Chưa phân công; không trả Chưa có thông tin', () => {
+ // 1. Cơ sở có Manager hợp lệ
+ assert.equal(managerLabel({ managerName: 'Nguyễn Văn Quản Lý' }), 'Nguyễn Văn Quản Lý');
+ assert.equal(managerLabel({ manager_name: 'Trần Thị Trưởng Cơ Sở' }), 'Trần Thị Trưởng Cơ Sở');
+
+ // 2. Cơ sở có danh sách managers
+ assert.equal(
+  managerLabel({
+   managers: [
+    { userId: 10, fullName: 'Lê Văn An' },
+    { userId: 11, fullName: 'Phạm Thị Bình' },
+   ],
+  }),
+  'Lê Văn An, Phạm Thị Bình'
+ );
+
+ // 3. Có phân công nhưng tên rỗng/whitespace, có managerId -> fallback Quản lý #ID
+ assert.equal(managerLabel({ managerId: 42, managerName: '   ' }), 'Quản lý #42');
+ assert.equal(
+  managerLabel({
+   managers: [
+    { userId: 5, fullName: '' },
+    { userId: 8, fullName: 'Vũ Văn Cường' },
+   ],
+  }),
+  'Quản lý #5, Vũ Văn Cường'
+ );
+
+ // 4. Cơ sở không có Manager hoặc đối tượng rỗng -> Chưa phân công
+ assert.equal(managerLabel(null), 'Chưa phân công');
+ assert.equal(managerLabel(undefined), 'Chưa phân công');
+ assert.equal(managerLabel({}), 'Chưa phân công');
+ assert.equal(managerLabel({ managerName: null, managerId: null }), 'Chưa phân công');
+ assert.equal(managerLabel({ managerName: '', managers: [] }), 'Chưa phân công');
+
+ // 5. Tuyệt đối không bao giờ trả về "Chưa có thông tin"
+ assert.notEqual(managerLabel({}), 'Chưa có thông tin');
+ assert.notEqual(managerLabel({ managerName: null }), 'Chưa có thông tin');
 });

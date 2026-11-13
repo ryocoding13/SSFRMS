@@ -23,6 +23,41 @@ export const fromBackendStatus = (s) => {
   return "SERVICE";
 };
 
+/** Định dạng nhãn Khu vực/Dãy: tránh nhân đôi tiền tố "Dãy Dãy A" hoặc "Dãy Khu A". */
+export const zoneLabel = (zone) => {
+  if (!zone) return "Chưa phân khu";
+  const s = String(zone).trim();
+  if (!s || s === "Chưa phân khu") return "Chưa phân khu";
+  if (/^(dãy|khu)\b/i.test(s)) return s;
+  return `Dãy ${s}`;
+};
+
+/** Định dạng nhãn Tầng: tránh nhân đôi tiền tố "Tầng Tầng 1". */
+export const floorLabel = (floor) => {
+  if (!floor) return "Chưa xác định tầng";
+  const s = String(floor).trim();
+  if (!s || s === "Chưa xác định tầng") return "Chưa xác định tầng";
+  if (/^tầng\b/i.test(s)) return s;
+  return `Tầng ${s}`;
+};
+
+/** Định dạng vị trí đầy đủ hiển thị cho ô kho (Tầng · Dãy [· Mô tả chi tiết]). */
+export const positionLabel = ({ floor, zone, locationDescription } = {}) => {
+  const f = floor ? floorLabel(floor) : null;
+  const z = zone ? zoneLabel(zone) : null;
+  const parts = [f, z].filter((p) => p && p !== "Chưa xác định tầng" && p !== "Chưa phân khu");
+  if (parts.length > 0) {
+    if (locationDescription && String(locationDescription).trim()) {
+      return `${parts.join(" · ")} (${String(locationDescription).trim()})`;
+    }
+    return parts.join(" · ");
+  }
+  if (locationDescription && String(locationDescription).trim()) {
+    return String(locationDescription).trim();
+  }
+  return "Chưa phân khu";
+};
+
 // Bố cục fallback demo: 12 ô, hành lang ở giữa (Figma 14/10).
 // Dãy A cỡ M: K01–K04 kho thường, K05–K06 kho lạnh. Dãy B cỡ L: K07–K10 kho thường, K11–K12 kho lạnh.
 const LAYOUT = [
@@ -107,7 +142,7 @@ export function unitsFor(facility, stock = null, realUnits = null) {
       const floor = u.floor || "Tầng trệt";
       const row = u.zone || u.row || "A";
       const zone = u.zone || u.row || null;
-      const position = [floor, zone ? `Dãy ${zone}` : null].filter(Boolean).join(" · ") || (u.locationDescription || "Chưa phân khu");
+      const position = positionLabel({ floor, zone, locationDescription: u.locationDescription });
 
       const offer = matchOfferForUnit(offers, u);
       const isClimate = u.climateControlled !== undefined ? Boolean(u.climateControlled) : (offer?.type === "climate" || u.type === "climate");

@@ -258,21 +258,54 @@ const ACTIONS = {
   },
 
   // M02b / M02c · Thêm và sửa ô kho (D17: cỡ M 15 m², cỡ L 30 m²; kho thường / kho lạnh)
-  CREATE_UNIT(state, { code, location, type, area }, now) {
+  CREATE_UNIT(state, { code, floor, zone, locationDescription, location, type, area, unitTypeId }, now) {
     const c = String(code || "").trim().toUpperCase();
     if (!c) fail("Nhập mã ô.");
     if (state.units.some((u) => u.code.toUpperCase() === c)) fail(`Mã ô ${c} đã tồn tại trong cơ sở.`);
     if (!["normal", "climate"].includes(type) || ![15, 30].includes(Number(area))) fail("Chọn loại kho và cỡ hợp lệ.");
-    const unit = { code: c, tenant: null, area: Number(area), floor: String(location || "").trim() || "trệt", type, status: "EMPTY", end: null };
+    const flStr = String(floor || location || "").trim() || "Tầng trệt";
+    const znStr = String(zone || "").trim() || "Dãy A";
+    const locDesc = locationDescription !== undefined ? (String(locationDescription || "").trim() || null) : (location || null);
+    const unit = {
+      code: c,
+      tenant: null,
+      area: Number(area),
+      floor: flStr,
+      floorName: flStr,
+      zone: znStr,
+      locationDescription: locDesc,
+      unitTypeId: unitTypeId || null,
+      type,
+      status: "EMPTY",
+      end: null,
+    };
     return { state: addLog({ ...state, units: [...state.units, unit] }, now, `Đã thêm ô kho ${c}`, "manager/units", "MANAGER"), result: { code: c } };
   },
-  UPDATE_UNIT(state, { id, code, location, type, area }, now) {
+  UPDATE_UNIT(state, { id, code, floor, zone, locationDescription, location, type, area, unitTypeId }, now) {
     const u = state.units.find((x) => x.code === id) || fail("Không tìm thấy ô kho.");
     const c = String(code || id).trim().toUpperCase();
     if (c !== u.code && state.units.some((x) => x.code.toUpperCase() === c)) fail(`Mã ô ${c} đã tồn tại trong cơ sở.`);
-    const changesShape = type !== u.type || Number(area) !== u.area;
+    const changesShape = (type && type !== u.type) || (area && Number(area) !== u.area) || (unitTypeId && u.unitTypeId && unitTypeId !== u.unitTypeId);
     if (changesShape && u.tenant) fail("Ô đang có khách thuê thì không đổi được loại kho và cỡ.");
-    const next = { ...state, units: state.units.map((x) => (x.code === id ? { ...x, code: c, floor: String(location || "").trim() || x.floor, type, area: Number(area) } : x)) };
+    const flStr = floor !== undefined ? String(floor || "").trim() : (location !== undefined ? String(location || "").trim() : u.floor);
+    const znStr = zone !== undefined ? String(zone || "").trim() : (u.zone || "");
+    const locDesc = locationDescription !== undefined
+      ? (String(locationDescription || "").trim() || null)
+      : (location !== undefined ? (String(location || "").trim() || null) : u.locationDescription);
+    const next = {
+      ...state,
+      units: state.units.map((x) => (x.code === id ? {
+        ...x,
+        code: c,
+        floor: flStr || x.floor,
+        floorName: flStr || x.floorName || x.floor,
+        zone: znStr || x.zone,
+        locationDescription: locDesc,
+        unitTypeId: unitTypeId || x.unitTypeId,
+        type: type || x.type,
+        area: area ? Number(area) : x.area,
+      } : x)),
+    };
     return { state: addLog(next, now, `Đã lưu ô kho ${c}`, "manager/units", "MANAGER"), result: { code: c } };
   },
 

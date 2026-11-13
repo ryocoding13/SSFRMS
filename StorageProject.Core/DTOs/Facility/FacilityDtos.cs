@@ -79,3 +79,11 @@ public record FacilityUnitDto(
     string? PeriodUnavailableReason = null
 );
 
+public record FloorZoneOption(string Value, IReadOnlyList<string> Zones);
+
+public record FacilityLocationLayoutDto(
+    long FacilityId,
+    string FacilityName,
+    IReadOnlyList<FloorZoneOption> Floors
+);
+

@@ -1,3 +1,60 @@
+## 2026-11-13 — Sửa hiển thị quản lý cơ sở trên màn Business Operator (FM-01..03)
+
+- **Mục tiêu:**
+  - Triển khai theo kế hoạch `SSFRMS-Business-Facility-Manager-Display-Fix-Plan.md`:
+    1. **FM-01 (Backend Contract & Batch Query):**
+       - Mở rộng `OpsFacilityDto` trong `StorageProject.Core/DTOs/Operations/OperationsDtos.cs` để hỗ trợ `ManagerName`, `ManagerId` và danh sách `Managers` (`IReadOnlyList<OpsFacilityManagerDto>`).
+       - Thêm `OpsFacilityManagerDto(long UserId, string FullName)` tối thiểu.
+       - Trong `OperationsService.ToFacilityDtosAsync`: query theo lô từ `UserFacilities` join `User` và `UserRoles` theo danh sách `facilityIds` đang xử lý, lọc phân công còn hiệu lực (`uf.Status == "ACTIVE"`, `uf.AssignedFrom <= today`, `uf.AssignedTo == null || uf.AssignedTo >= today`), tài khoản người dùng hoạt động (`user.Status == "ACTIVE"`) và vai trò `MANAGER`.
+       - Deduplicate theo `(FacilityId, UserId)` tránh trùng khi người dùng có nhiều vai trò, gán đầy đủ `ManagerName`, `ManagerId`, `Managers` vào `OpsFacilityDto` cho tất cả các caller (danh sách cơ sở, chi tiết cơ sở, tạo mới/cập nhật cơ sở, đổi trạng thái cơ sở).
+    2. **FM-02 (Frontend Display & Format):**
+       - Bổ sung hàm tiện ích `managerLabel(facility)` trong `facilityForm.js` và re-export tại `FacilityManagementPage.jsx`:
+         - Cơ sở có Manager hợp lệ: hiển thị họ tên đầy đủ.
+         - Cơ sở có nhiều Manager: hiển thị danh sách tên phân tách bởi dấu phẩy.
+         - Phân công có `UserId` nhưng `FullName` rỗng: fallback `"Quản lý #{UserId}"` (không coi là chưa phân công).
+         - Không có phân công hoặc đối tượng rỗng: hiển thị **"Chưa phân công"**.
+         - Tuyệt đối loại bỏ chuỗi fallback `"Chưa có thông tin"`.
+       - Áp dụng nhất quán `managerLabel` tại bảng danh sách và card chi tiết cơ sở trong `FacilityManagementPage.jsx`.
+       - Không che giấu lỗi API (giữ nguyên cơ chế `LoadState` báo lỗi và nút thử lại).
+    3. **FM-03 (Kiểm thử):**
+       - Backend unit test trong `StorageProject.Tests/OperationsFacilityManagerTests.cs` (4 test cases kiểm thử đầy đủ các kịch bản: Manager hợp lệ; cơ sở chỉ có Staff; phân công hết hạn/chưa tới hạn/tài khoản bị khóa; trùng vai trò/FullName rỗng).
+       - Frontend unit test trong `SafeSpace-Customer-UI/SafeSpace-Customer-UI/tests/business-frontend.test.mjs` (test `managerLabel` bao phủ 5 khía cạnh nghiệp vụ).
+- **Kiểm chứng:**
+  - Frontend Business Tests: `npm run test:business` PASS 15/15 tests (thêm 1 test cho FM-02).
+  - Frontend Test Suite: `npm test` PASS 212/212 tests.
+  - Frontend Workflows & Structure: `npm run test:workflows` PASS 12/12 tests, `npm run check:structure` PASS.
+  - Frontend Render & Build: `npm run test:render` PASS 178 routes, `npm run build` PASS 296 modules transformed.
+  - Backend Unit Tests: `dotnet test StorageProject.Tests -c Release` PASS 335/335 tests (4 test mới trong `OperationsFacilityManagerTests.cs`).
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-13 — Chuẩn hóa vị trí ô kho: Floor, Zone và LocationDescription (LOC-01..04)
+
+- **Mục tiêu:**
+  - Triển khai theo kế hoạch `SSFRMS-Unit-Location-Floor-Zone-Implementation-Plan.md`:
+    1. **LOC-01 (Kiểm kê và chốt API):** Thêm DTO layout `FacilityLocationLayoutDto` và `FloorZoneOption`, mở rộng `CreateStorageUnitRequest` / `UpdateStorageUnitRequest` và các `OpsUnitDto` của Manager/Staff/Board để hỗ trợ đầy đủ `Floor`, `FloorName`, `Zone`, `LocationDescription`, `UnitTypeId`.
+    2. **LOC-02 (Backend lưu và trả đủ trường):**
+       - Thêm phương thức `GetLocationLayoutAsync` trong `IManagerService` và `ManagerService` trả về cây `Floors -> Zones` chuẩn của SafeSpace cộng các tầng/khu vực thực tế đã có trong cơ sở.
+       - Thêm route `GET /api/manager/location-layout` và `GET /api/manager/facilities/{id:long}/location-layout`.
+       - Trong `CreateUnitAsync`: bỏ gán cứng "Tầng 1" / "Khu A" / defaultType; validate Floor/Zone theo cấu hình layout cơ sở; kiểm tra trùng mã ô; map chính xác `UnitTypeId` (hoặc `unitTypeCode` + `area`); validate `LocationDescription` tối đa 255 ký tự (chuỗi rỗng lưu `NULL`).
+       - Trong `UpdateUnitAsync`: cập nhật Floor, Zone khi thay đổi (bắt buộc cặp hợp lệ mới); cập nhật `LocationDescription` (chuỗi rỗng lưu `NULL`); kiểm tra ràng buộc không được đổi loại kho `UnitTypeId` khi ô đang có hợp đồng hoạt động (`ACTIVE`, `EXPIRING`, `OVERDUE`, `RETURN_PENDING`) hoặc đơn giữ chỗ (`ACTIVE`).
+       - Trong `GetFacilityUnitsAsync` và `FacilityOpsService.Board.cs`: nạp đầy đủ `FloorName`, `Zone`, `LocationDescription`, `UnitTypeId`.
+    3. **LOC-03 (Form tạo và sửa ô kho phía Manager):**
+       - Thay input vị trí gộp tự do bằng 2 Select: **Tầng (Floor)** và **Khu vực / Dãy (Zone)** nạp động từ `fetchLocationLayout(facilityId)`; zone được lọc tự động theo floor đang chọn.
+       - Thêm textarea **Vị trí chi tiết (LocationDescription)** tùy chọn (tối đa 255 ký tự).
+       - Nhận biết vị trí cũ ngoài danh mục (legacy floor/zone) kèm nhãn cảnh báo để không làm mất dữ liệu của ô cũ khi chỉ sửa mô tả.
+       - Gửi đúng `unitTypeId` từ bảng giá/catalog cơ sở.
+    4. **LOC-04 (Sơ đồ và hiển thị thống nhất):**
+       - Bổ sung helper `zoneLabel`, `floorLabel`, `positionLabel` trong `units.js`: chuẩn hóa thông minh nhãn hiển thị, chống nhân đôi tiền tố "Dãy Dãy A" hoặc "Dãy Khu A".
+       - Cập nhật `UnitMap.jsx` dùng `zoneLabel(zg.zone)` và `floorLabel(fg.floor)`.
+       - Cập nhật thẻ ô kho Manager `UnitManagementPage.jsx` hiển thị `positionLabel`.
+- **Kiểm chứng:**
+  - Frontend Test Suite: `npm test` PASS 212/212 tests (3 test mới cho LOC-03, LOC-04).
+  - Frontend Business Tests: `npm run test:business` PASS 14/14 tests.
+  - Frontend Workflows & Structure: `npm run test:workflows` PASS 12/12 tests, `npm run check:structure` PASS.
+  - Frontend Render & Build: `npm run test:render` PASS 178 routes, `npm run build` PASS 296 modules transformed.
+  - Backend Unit Tests: `dotnet test StorageProject.Tests -c Release` PASS 331/331 tests (6 test mới trong `UnitLocationFloorZoneTests.cs`).
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
 ## 2026-11-13 — Sửa sơ đồ kho Customer không nhận ô kho mới (Dynamic Unit Map Fix)
 
 - **Mục tiêu:**

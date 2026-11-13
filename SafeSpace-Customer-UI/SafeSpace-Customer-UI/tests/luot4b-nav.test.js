@@ -5,7 +5,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { refundKindOf, refundPendingCounts } from "../src/features/manager/refunds/refundCenterModel.js";
 import { hasMapCoords } from "../src/app/config/geo.js";
 
-const src = (p) => readFileSync(new URL(`../src/${p}`, import.meta.url), "utf8");
+const src = (p) => readFileSync(new URL(`../src/${p}`, import.meta.url), "utf8").replace(/\r\n/g, "\n");
 
 test("#7: navbar quản lý không còn Phân bổ kho, Phân công; có Hoàn tiền", () => {
   const layout = src("features/facility-operations/FacilityOperationsLayout.jsx");

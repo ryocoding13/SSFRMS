@@ -99,3 +99,56 @@ test("D32: không được thu phí trả kho, giữ dữ liệu cũ để đố
   assert.match(out.error.message, /không thu thêm/);
   assert.equal(out.state, s);
 });
+
+test("LOC-03: CREATE_UNIT và UPDATE_UNIT lưu và cập nhật đầy đủ floor, zone, locationDescription, unitTypeId", () => {
+  let s = createOpsData(T);
+  // Thêm ô kho mới
+  let out = run(s, "CREATE_UNIT", {
+    code: "K14",
+    floor: "Tầng 1",
+    zone: "Dãy C",
+    locationDescription: "Cạnh cửa sổ tầng 1",
+    type: "climate",
+    area: 15,
+    unitTypeId: 3,
+  });
+  assert.ok(!out.error);
+  s = out.state;
+  const k14 = s.units.find((u) => u.code === "K14");
+  assert.ok(k14);
+  assert.equal(k14.floor, "Tầng 1");
+  assert.equal(k14.zone, "Dãy C");
+  assert.equal(k14.locationDescription, "Cạnh cửa sổ tầng 1");
+  assert.equal(k14.unitTypeId, 3);
+  assert.equal(k14.type, "climate");
+  assert.equal(k14.area, 15);
+
+  // Sửa ô kho: đổi mô tả và khu vực
+  out = run(s, "UPDATE_UNIT", {
+    id: "K14",
+    code: "K14",
+    floor: "Tầng 1",
+    zone: "Dãy A",
+    locationDescription: "Đối diện thang máy",
+    type: "climate",
+    area: 15,
+    unitTypeId: 3,
+  });
+  assert.ok(!out.error);
+  s = out.state;
+  const k14Updated = s.units.find((u) => u.code === "K14");
+  assert.equal(k14Updated.zone, "Dãy A");
+  assert.equal(k14Updated.locationDescription, "Đối diện thang máy");
+
+  // Sửa ô kho: xóa mô tả bằng chuỗi rỗng
+  out = run(s, "UPDATE_UNIT", {
+    id: "K14",
+    code: "K14",
+    locationDescription: "",
+  });
+  assert.ok(!out.error);
+  s = out.state;
+  const k14NoDesc = s.units.find((u) => u.code === "K14");
+  assert.equal(k14NoDesc.locationDescription, null);
+  assert.equal(k14NoDesc.zone, "Dãy A"); // Giữ nguyên zone cũ
+});

@@ -16,7 +16,9 @@ import { useApp } from "../../../app/state/AppProvider.jsx";
 import { FACILITY_STATUS, areaOf, rateLabel, shortFacility } from "../utils/businessFormat.js";
 import { LoadState } from "../components/BusinessComponents.jsx";
 import { useChangeFlow } from "../../../shared/components/ChangeFlowDialog.jsx";
-import { coordinateLabel, facilityToForm, formToRequest, splitCoordinates } from "./facilityForm.js";
+import { coordinateLabel, facilityToForm, formToRequest, managerLabel, splitCoordinates } from "./facilityForm.js";
+
+export { managerLabel };
 
 // B05a · Sửa thông tin cơ sở / B05b · Thêm cơ sở (tên, địa chỉ, điện thoại, giờ ra vào, toạ độ ghim bản đồ)
 const EMPTY_FACILITY = { name: "", address: "", contactPhone: "", openingTime: "06:00", closingTime: "22:00", latitude: null, longitude: null };
@@ -191,14 +193,14 @@ export default function FacilityManagementPage({ query }) {
           <thead><tr><th>Cơ sở</th><th>Quản lý</th><th>Số kho / tỷ lệ thuê</th><th>Trạng thái</th></tr></thead>
           <tbody>{facilities.map(f => <tr key={f.facilityId} onClick={() => go(`business/facilities${qs({ id: f.facilityId })}`, { replace: true })}>
             <td><a className="biz-link" href={href(`business/facilities${qs({ id: f.facilityId })}`)} aria-current={current?.facilityId === f.facilityId ? 'true' : undefined}>{[areaOf(f.address).district, shortFacility(f.name)].filter(Boolean).join(' · ')}</a></td>
-            <td>{f.managerName || ('managerName' in f ? 'Chưa phân công' : 'Chưa có thông tin')}</td><td>{f.totalUnits} kho · {rateLabel(f.occupancyRate)}</td><td>{FACILITY_STATUS[f.status]?.[0] || f.status}</td>
+            <td>{managerLabel(f)}</td><td>{f.totalUnits} kho · {rateLabel(f.occupancyRate)}</td><td>{FACILITY_STATUS[f.status]?.[0] || f.status}</td>
           </tr>)}{!facilities.length && <tr><td colSpan={4}>Chưa có cơ sở nào.</td></tr>}</tbody>
         </table></div>
         {query.has("id")&&!current&&<Empty title="Không tìm thấy cơ sở" text="Chọn đúng cơ sở trong danh sách."/>}
         {current && <section className="panel biz-detail" aria-label={`Chi tiết ${current.name}`}>
           <h2>{current.name}</h2>
           <div className="muted"><p>{[areaOf(current.address).district, areaOf(current.address).city].filter(Boolean).join(', ')}{current.openingTime && ` · Giờ ra vào ${current.openingTime}–${current.closingTime}`}</p>
-          <p>{typeNames.length ? `${typeNames.join(' & ')} · ` : ''}Quản lý: {current.managerName || ('managerName' in current ? 'Chưa phân công' : 'Chưa có thông tin')}</p>
+          <p>{typeNames.length ? `${typeNames.join(' & ')} · ` : ''}Quản lý: {managerLabel(current)}</p>
           <p>Vị trí bản đồ: {coordinateLabel(current)}</p></div>
           <div className="ops-actions">
             <Button onClick={() => go(`business/reports${qs({ facility: current.facilityId })}`)}>Xem hiệu quả kinh doanh</Button>

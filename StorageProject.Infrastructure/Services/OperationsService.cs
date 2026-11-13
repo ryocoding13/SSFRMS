@@ -302,11 +302,45 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
             .Distinct()
             .ToListAsync(ct);
 
+        var activeManagers = await dbContext.UserFacilities.AsNoTracking()
+            .Where(uf => ids.Contains(uf.FacilityId)
+                         && uf.Status == "ACTIVE"
+                         && uf.AssignedFrom <= today
+                         && (uf.AssignedTo == null || uf.AssignedTo >= today)
+                         && uf.User.Status == "ACTIVE"
+                         && uf.User.UserRoles.Any(ur => ur.Role.RoleName == "MANAGER"))
+            .OrderBy(uf => uf.UserFacilityId)
+            .Select(uf => new
+            {
+                uf.FacilityId,
+                uf.UserId,
+                FullName = uf.User.FullName
+            })
+            .ToListAsync(ct);
+
+        var managersByFacility = activeManagers
+            .GroupBy(m => (m.FacilityId, m.UserId))
+            .Select(g => g.First())
+            .GroupBy(m => m.FacilityId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         return facilities.Select(f =>
         {
             var own = units.Where(u => u.FacilityId == f.FacilityId).ToList();
             var inUse = own.Count(u => OpsRules.UnitInUseStatuses.Contains(u.Status));
             var operable = own.Count - own.Count(u => OpsRules.UnitUnavailableStatuses.Contains(u.Status));
+
+            managersByFacility.TryGetValue(f.FacilityId, out var fManagers);
+            var managerList = fManagers?
+                .Select(m => new OpsFacilityManagerDto(
+                    m.UserId,
+                    string.IsNullOrWhiteSpace(m.FullName) ? $"Quản lý #{m.UserId}" : m.FullName.Trim()))
+                .ToList() ?? [];
+
+            string? managerName = managerList.Count > 0
+                ? string.Join(", ", managerList.Select(m => m.FullName))
+                : null;
+            long? managerId = managerList.Count > 0 ? managerList[0].UserId : null;
 
             return new OpsFacilityDto(
                 f.FacilityId,
@@ -325,7 +359,10 @@ public partial class OperationsService(AppDbContext dbContext) : IOperationsServ
                 f.CreatedAt,
                 f.UpdatedAt,
                 f.Latitude,
-                f.Longitude);
+                f.Longitude,
+                managerName,
+                managerId,
+                managerList);
         }).ToList();
     }
 

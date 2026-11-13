@@ -4,6 +4,8 @@ namespace StorageProject.Core.DTOs.Operations;
 // UC19 — Quản lý danh sách cơ sở toàn hệ thống
 // =====================================================================
 
+public record OpsFacilityManagerDto(long UserId, string FullName);
+
 public record OpsFacilityDto(
     long FacilityId,
     string Name,
@@ -21,7 +23,10 @@ public record OpsFacilityDto(
     DateTime CreatedAt,
     DateTime UpdatedAt,
     decimal? Latitude = null,
-    decimal? Longitude = null
+    decimal? Longitude = null,
+    string? ManagerName = null,
+    long? ManagerId = null,
+    IReadOnlyList<OpsFacilityManagerDto>? Managers = null
 );
 
 public record UpsertFacilityRequest(

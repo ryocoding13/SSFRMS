@@ -75,12 +75,50 @@ export const OPS_ACTIONS = {
   CONFIRM_REFUND: ({ id, note }) => ["POST", `/api/ops/contracts/${enc(id)}/refund`, { note: String(note || "").trim() || null }],
   // M08 · D27: xác nhận đã chuyển khoản hoàn cho đơn khách huỷ (backend chưa nhận phương thức / mã giao dịch → gửi kèm để lưu sau)
   CONFIRM_RESERVATION_REFUND: ({ id, method, transaction_ref, transferredAt, confirmed }) => ["POST", `/api/ops/reservations/${enc(id)}/refund`, { method: method || "BANK_TRANSFER", transactionRef: String(transaction_ref || "").trim() || null, transferredAt, confirmed }],
-  // M02b / M02c · CreateStorageUnitRequest / UpdateStorageUnitRequest (OpsDtos.cs). Backend chưa nhận loại kho + cỡ theo tên:
-  // gửi kèm unitTypeCode/area để BE chọn đúng UnitType (BACKEND-TODO.md mục M02b).
-  CREATE_UNIT: ({ code, location, type, area }) => ["POST", `/api/manager/units`, { unitNumber: code, locationDescription: location || null, unitTypeCode: type, area: Number(area) }],
-  UPDATE_UNIT: ({ id, code, location, type, area }) => ["PUT", `/api/manager/units/${enc(id)}`, { unitNumber: code, locationDescription: location || null, unitTypeCode: type, area: Number(area) }],
+  // M02b / M02c · CreateStorageUnitRequest / UpdateStorageUnitRequest (OpsDtos.cs).
+  // Hỗ trợ đầy đủ floor, zone, locationDescription, unitTypeId kèm backward compatibility cho unitTypeCode/area.
+  CREATE_UNIT: ({ code, floor, zone, locationDescription, location, type, area, unitTypeId }) => [
+    "POST",
+    `/api/manager/units`,
+    {
+      unitNumber: code,
+      floor: floor || null,
+      zone: zone || null,
+      locationDescription: locationDescription !== undefined ? (locationDescription || null) : (location || null),
+      unitTypeId: unitTypeId || undefined,
+      unitTypeCode: type,
+      area: area ? Number(area) : undefined,
+    },
+  ],
+  UPDATE_UNIT: ({ id, code, floor, zone, locationDescription, location, type, area, unitTypeId }) => [
+    "PUT",
+    `/api/manager/units/${enc(id)}`,
+    {
+      unitNumber: code,
+      floor: floor !== undefined ? floor : undefined,
+      zone: zone !== undefined ? zone : undefined,
+      locationDescription: locationDescription !== undefined ? locationDescription : (location !== undefined ? location : undefined),
+      unitTypeId: unitTypeId || undefined,
+      unitTypeCode: type,
+      area: area ? Number(area) : undefined,
+    },
+  ],
   LOCK_UNIT: ({ id, reason }) => ["POST", `/api/manager/units/${enc(id)}/lock`, { reason }],
 };
+
+export async function fetchLocationLayout(facilityId) {
+  const path = facilityId ? `/api/manager/facilities/${enc(facilityId)}/location-layout` : "/api/manager/location-layout";
+  try {
+    const res = await request(path);
+    return fromApi(res);
+  } catch (err) {
+    if (facilityId && [404, 405].includes(err.status)) {
+      const res = await request("/api/manager/location-layout");
+      return fromApi(res);
+    }
+    throw err;
+  }
+}
 
 export async function callAction(type, payload, shouldContinue=()=>true) {
   const make = OPS_ACTIONS[type];
