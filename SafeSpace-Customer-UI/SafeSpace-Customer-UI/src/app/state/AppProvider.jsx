@@ -390,9 +390,17 @@ function ApiProvider({ children }) {
     };
     const events = customerNotifications({ contracts: contractDetails, tickets: ticketDetails, reservations, unitConflicts });
     updateOverlay(o => {
-      const ids = new Set(o.notifications.map(n => n.id));
-      const incoming = events.filter(n => !ids.has(n.id));
-      return incoming.length ? { ...o, notifications: [...incoming, ...o.notifications] } : o;
+      const byId = new Map(events.map(event => [event.id, event]));
+      const ids = new Set(o.notifications.map(notice => notice.id));
+      const incoming = events.filter(event => !ids.has(event.id));
+      let updated = false;
+      const existing = o.notifications.map(notice => {
+        const event = typeof notice.id === "string" && notice.id.startsWith("SERVER-OVERDUE-") ? byId.get(notice.id) : null;
+        if (!event || event.detail === notice.detail) return notice;
+        updated = true;
+        return { ...notice, detail: event.detail };
+      });
+      return incoming.length || updated ? { ...o, notifications: [...incoming, ...existing] } : o;
     });
     refs.current.remote = next;
     setRemote(next);

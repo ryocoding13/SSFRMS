@@ -50,13 +50,13 @@ function messageOf(data, status) {
  * @param {RequestInit & { auth?: boolean, body?: any }} [options] - Cấu hình request
  * @returns {Promise<any>} Dữ liệu JSON phản hồi
  */
-export async function request(path, { method = "GET", body, auth = true, fetchImpl = globalThis.fetch } = {}) {
+export async function request(path, { method = "GET", body, auth = true, responseType = "json", fetchImpl = globalThis.fetch } = {}) {
   let res;
   try {
     res = await fetchImpl(`${API_URL}${path}`, {
       method,
       headers: {
-        Accept: "application/json",
+        Accept: responseType === "json" ? "application/json" : "text/html",
         ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
         ...(auth && token ? { Authorization: `Bearer ${token}` } : {}),
       },
@@ -65,7 +65,15 @@ export async function request(path, { method = "GET", body, auth = true, fetchIm
   } catch {
     throw new ApiError(DEFAULT_MESSAGES[0], 0);
   }
+  if (res.ok && responseType === "blob") {
+    if (!res.headers.get("content-disposition")?.toLowerCase().startsWith("attachment")) {
+      throw new ApiError("Máy chủ chưa trả về tệp hợp đồng.", res.status);
+    }
+    return res.blob();
+  }
   const text = await res.text();
+  // Hợp đồng giấy hiển thị trong trang: nhận HTML nguyên văn
+  if (res.ok && responseType === "html") return text;
   let data = null;
   if (text) {
     try {

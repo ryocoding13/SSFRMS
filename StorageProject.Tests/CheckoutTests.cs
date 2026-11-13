@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using MimeKit;
 using StorageProject.Core.DTOs.Ops;
 using StorageProject.Core.Entities;
 using StorageProject.Infrastructure.Data;
@@ -103,6 +104,67 @@ public sealed partial class CheckoutTests
         Assert.Equal(2, await f.Db.Payments.CountAsync()); Assert.All(await f.Db.Payments.ToListAsync(), p => Assert.Equal("CASH", p.PaymentMethod));
         Assert.Single(await f.Db.ActivityLogs.Where(l => l.Action == "PAYMENT_REVIEW_REQUIRED").ToListAsync());
     }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConfirmedPaymentWakesDeliveryAndSendsOneContract(bool atCounter)
+    {
+        await using var f = await Fixture.Create();
+        var signal = new CustomerEmailWakeup();
+        var payos = new PayOSService(f.Db, f.Gateway, NullLogger<PayOSService>.Instance, customerEmails: signal);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var ready = signal.WaitAsync(TimeSpan.FromMinutes(1), timeout.Token);
+
+        if (atCounter)
+        {
+            await payos.PayAtFacilityAsync(f.Order.CustomerId, f.Order.ReservationId);
+            var staff = new FacilityOpsService(f.Db, signal);
+            var actor = new StorageProject.Core.DTOs.FacilityOps.OpsActor(1, IsManager: false);
+            await staff.ConfirmPaymentAsync(actor, "SS-0001");
+            await staff.ConfirmPaymentAsync(actor, "SS-0001");
+        }
+        else
+        {
+            Assert.True(await payos.ProcessWebhookAsync("{}", null));
+            Assert.True(await payos.ProcessWebhookAsync("{}", null));
+        }
+
+        await ready;
+        Assert.Null(f.Db.Database.CurrentTransaction);
+        var contract = await f.Db.RentalContracts.SingleAsync();
+        Assert.NotNull(await ContractDocuments.LoadAsync(f.Db, f.Order.CustomerId, contract.ContractId, default));
+        var mailbox = new CustomerMailbox();
+        var delivery = new CustomerEmailDelivery(f.Db, mailbox, NullLogger<CustomerEmailDelivery>.Instance);
+        await delivery.DeliverPendingAsync(default);
+        await delivery.DeliverPendingAsync(default);
+        var message = Assert.Single(mailbox.Messages);
+        Assert.Equal("customer@example.com", message.Email);
+        Assert.Contains("Xác nhận thanh toán", message.Subject);
+        var parts = Assert.IsAssignableFrom<Multipart>(message.Body);
+        Assert.Contains(atCounter ? "Tại quầy" : "Trực tuyến qua PayOS", PlainText(message.Body));
+        Assert.DoesNotContain("localhost", PlainText(message.Body)); // web chạy localhost: không gửi link, hướng dẫn mở trong ứng dụng
+        Assert.DoesNotContain(parts.OfType<MimePart>(), part => part.IsAttachment); // D58: không đính kèm tệp
+        Assert.Contains("Xem hợp đồng giấy", PlainText(message.Body));
+    }
+
+    private static string PlainText(MimeEntity body) => body switch
+    {
+        TextPart text when text.IsPlain => text.Text,
+        Multipart multipart => multipart.Select(PlainText).FirstOrDefault(text => text.Length > 0) ?? "",
+        _ => ""
+    };
+
+    private sealed class CustomerMailbox : ISmtpMailTransport
+    {
+        public List<(string Email, string Subject, MimeEntity Body)> Messages { get; } = [];
+
+        public Task SendAsync(string email, string subject, MimeEntity body, CancellationToken ct)
+        {
+            Messages.Add((email, subject, body));
+            return Task.CompletedTask;
+        }
+    }
+
     [Fact] public async Task FailedCancellationDoesNotSwitchMethod() {
         await using var f = await Fixture.Create(); f.Order.CheckoutUrl = "https://pay.payos.vn/test"; await f.Db.SaveChangesAsync(); f.Gateway.FailCancel = true;
         await Assert.ThrowsAsync<InvalidOperationException>(() => f.PayOS.PayAtFacilityAsync(f.Order.CustomerId, f.Order.ReservationId));
@@ -300,10 +362,20 @@ public sealed partial class CheckoutTests
         Assert.True(await f.PayOS.ProcessWebhookAsync("{}", null)); Assert.True(await f.PayOS.ProcessWebhookAsync("{}", null));
         Assert.Equal(2, await f.Db.Payments.CountAsync()); Assert.Empty(await f.Db.RentalContracts.ToListAsync());
         Assert.Single(await f.Db.ActivityLogs.Where(l => l.Action == "AUTO_ALLOCATION_PENDING").ToListAsync());
+        var mailbox = new CustomerMailbox();
+        var delivery = new CustomerEmailDelivery(f.Db, mailbox, NullLogger<CustomerEmailDelivery>.Instance);
+        await delivery.DeliverPendingAsync(default);
+        await delivery.DeliverPendingAsync(default);
+        var receipt = Assert.Single(mailbox.Messages);
+        Assert.Contains("Xác nhận đã nhận tiền", receipt.Subject);
+        Assert.Contains("ngay khi ô kho được phân bổ", PlainText(receipt.Body));
         unit.Status = "AVAILABLE"; await f.Db.SaveChangesAsync();
         Assert.True(await f.PayOS.ProcessWebhookAsync("{}", null)); Assert.True(await f.PayOS.ProcessWebhookAsync("{}", null));
         Assert.Single(await f.Db.RentalContracts.ToListAsync()); Assert.Single(await f.Db.UnitAssignments.ToListAsync());
         Assert.All(await f.Db.Payments.ToListAsync(), p => Assert.NotNull(p.ContractId));
+        await delivery.DeliverPendingAsync(default);
+        Assert.Equal(2, mailbox.Messages.Count);
+        Assert.IsAssignableFrom<Multipart>(mailbox.Messages[1].Body);
     }
 
     [Fact] public async Task OpenMaintenanceExcludesUnitEvenIfStatusSaysAvailable() {

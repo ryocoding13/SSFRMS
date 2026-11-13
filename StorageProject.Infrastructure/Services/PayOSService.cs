@@ -19,7 +19,8 @@ public class PayOSService(
     AppDbContext dbContext,
     IPayOSGateway gateway,
     ILogger<PayOSService> logger,
-    IConfiguration? configuration = null) : IPayOSService
+    IConfiguration? configuration = null,
+    CustomerEmailWakeup? customerEmails = null) : IPayOSService
 {
     /// <summary>
     /// Tạo mã VietQR và link thanh toán trực tuyến PayOS cho đơn đặt chỗ mới.
@@ -78,9 +79,10 @@ public class PayOSService(
             var frontendBaseUrl = configuration?["AppSettings:FrontendUrl"]?.TrimEnd('/')
                 ?? configuration?["Frontend:BaseUrl"]?.TrimEnd('/')
                 ?? "http://localhost:5173";
-            var defaultReturnUrl = $"{frontendBaseUrl}/#/reservations/{r.ReservationId}";
+            var defaultReturnUrl = $"{frontendBaseUrl}/#/confirmation/{r.ReservationId}";
+            var defaultCancelUrl = $"{frontendBaseUrl}/#/reservations/{r.ReservationId}";
             var returnUrl = !string.IsNullOrWhiteSpace(request.ReturnUrl) ? request.ReturnUrl : defaultReturnUrl;
-            var cancelUrl = !string.IsNullOrWhiteSpace(request.CancelUrl) ? request.CancelUrl : defaultReturnUrl;
+            var cancelUrl = !string.IsNullOrWhiteSpace(request.CancelUrl) ? request.CancelUrl : defaultCancelUrl;
 
             link = await CreateLinkWithRetryAsync(gateway, r.OrderCode.Value, (int)amount, r.ReservationId,
                 new DateTimeOffset(DateTime.SpecifyKind(expiry, DateTimeKind.Utc)).ToUnixTimeSeconds(),
@@ -311,9 +313,10 @@ public class PayOSService(
             if (verified.Amount != ReservationSettlement.Amount(r)) return false;
             if (r.PaymentMethod == "PAYOS" && r.PaidAt != null)
             {
-                await ContractProvisioning.EnsureAsync(dbContext, r, null, ct);
+                var issued = await ContractProvisioning.EnsureAsync(dbContext, r, null, ct);
                 await dbContext.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct); // Re-delivery of the same verified order: no additional money or allocation.
+                if (issued) customerEmails?.Notify();
                 return true;
             }
             if (r.PaymentMethod == "AT_FACILITY" || r.Status != "PENDING_PAYMENT" || r.ExpiresAt <= DateTime.UtcNow)
@@ -324,10 +327,17 @@ public class PayOSService(
                     dbContext.ActivityLogs.Add(new ActivityLog { EntityType = "RESERVATION", EntityId = id,
                         Action = "PAYMENT_REVIEW_REQUIRED", NewValue = detail, LoggedAt = DateTime.UtcNow });
             }
-            else await ReservationSettlement.RecordAsync(dbContext, r, "PAYMENT_GATEWAY", $"PAYOS:{verified.OrderCode}", null, ct);
-            await dbContext.SaveChangesAsync(ct);
-            if (r.PaymentMethod == "PAYOS" && r.PaidAt != null)
-                await ContractProvisioning.EnsureAsync(dbContext, r, null, ct);
+            else
+            {
+                await ReservationSettlement.RecordAsync(dbContext, r, "PAYMENT_GATEWAY", $"PAYOS:{verified.OrderCode}", null, ct);
+                await dbContext.SaveChangesAsync(ct);
+                if (!await ContractProvisioning.EnsureAsync(dbContext, r, null, ct))
+                    CustomerEmailDelivery.QueuePaymentReceipt(dbContext, r);
+                await dbContext.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                customerEmails?.Notify();
+                return true;
+            }
             await dbContext.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return true;

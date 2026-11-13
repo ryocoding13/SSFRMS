@@ -1,5 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using MimeKit;
 using StorageProject.Core.DTOs.Payment;
 using StorageProject.Core.DTOs.Policy;
 using StorageProject.Core.DTOs.Renewal;
@@ -270,7 +272,7 @@ public sealed class PolicyConsentW4Tests
     }
 
     [Fact]
-    public async Task ContractProvisioning_LinksPolicyConsentsFromReservationToContract()
+    public async Task ContractProvisioning_LinksPolicyConsentAndEmailsDocumentOnce()
     {
         await using var f = new Fixture();
         await f.InitAsync();
@@ -291,9 +293,29 @@ public sealed class PolicyConsentW4Tests
         var contract = await f.Db.RentalContracts.FirstOrDefaultAsync(c => c.ReservationId == res.ReservationId);
         Assert.NotNull(contract);
 
-        var consent = await f.Db.PolicyConsents.FirstOrDefaultAsync(c => c.ReservationId == res.ReservationId);
-        Assert.NotNull(consent);
+        var consent = await f.Db.PolicyConsents.Include(c => c.PolicyVersion)
+            .SingleAsync(c => c.ReservationId == res.ReservationId);
         Assert.Equal(contract.ContractId, consent.ContractId);
+
+        Assert.True(await ContractProvisioning.EnsureAsync(f.Db, res, null, default));
+        Assert.Single(await f.Db.ActivityLogs.Where(log => log.Action == CustomerEmailDelivery.ContractQueued).ToListAsync());
+
+        var document = await ContractDocuments.LoadAsync(f.Db, f.Customer.UserId, contract.ContractId, default);
+        Assert.NotNull(document);
+        Assert.Equal(consent.PolicyVersion.DisplayVersion, document.PolicyVersion);
+
+        var mailbox = new ContractMailbox();
+        var delivery = new CustomerEmailDelivery(f.Db, mailbox, NullLogger<CustomerEmailDelivery>.Instance);
+        await delivery.DeliverPendingAsync(default);
+        await delivery.DeliverPendingAsync(default);
+
+        var message = Assert.Single(mailbox.Messages);
+        Assert.Equal(f.Customer.Email, message.Email);
+        // D58: thư không đính kèm tệp; khách xem hợp đồng giấy trong ứng dụng (cùng mẫu ToHtml)
+        var multipart = Assert.IsAssignableFrom<Multipart>(message.Body);
+        Assert.DoesNotContain(multipart.OfType<MimePart>(), part => part.IsAttachment);
+        Assert.Contains(document.Code, document.ToHtml());
+        Assert.Single(await f.Db.ActivityLogs.Where(log => log.Action == CustomerEmailDelivery.Sent).ToListAsync());
     }
 
     [Fact]
@@ -409,4 +431,16 @@ public sealed class PolicyConsentW4Tests
         Assert.NotNull(detail);
         Assert.Null(detail.PolicyConsent);
     }
+
+    private sealed class ContractMailbox : ISmtpMailTransport
+    {
+        public List<(string Email, MimeEntity Body)> Messages { get; } = [];
+
+        public Task SendAsync(string email, string subject, MimeEntity body, CancellationToken ct)
+        {
+            Messages.Add((email, body));
+            return Task.CompletedTask;
+        }
+    }
+
 }

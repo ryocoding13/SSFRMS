@@ -20,6 +20,7 @@ import { usableFromText } from "../../../shared/utils/access.js";
 import { canCancel } from "../reservations/ReservationListPage.jsx";
 import { UnitMoveCard } from "./components/UnitMoveCard.jsx";
 import { CancelRenewalButton } from "./components/CancelRenewalButton.jsx";
+import { renewalView } from "./renewalStatusModel.js";
 
 import "../../../shared/styles/customer-detail.css";
 
@@ -34,6 +35,7 @@ export function RentedUnitDetailPage({ id }) {
   if (!c) return <NotFound />;
   const f = facilityOf(data, c.facility_id, c.facility_name);
   const renewal = pendingRenewal(data, id);
+  const renewalPayment = renewal ? renewalView(data, renewal) : null;
   const ret = pendingReturn(data, id);
   const rent = [...data.ledger].reverse().find((l) => l.contract_id === id && (l.kind === "RENT" || /-RENT$/.test(l.ref)));
   const pickup = data.appointments.find((a) => a.kind === "CHECK_IN" && (a.contract_id === id || (c.reservation_id && a.reservation_id === c.reservation_id)) && a.status !== "CANCELLED");
@@ -44,7 +46,7 @@ export function RentedUnitDetailPage({ id }) {
   const busy = Boolean(renewal || ret);
   // D41: ô đã có khách mới đặt từ ngày hết hạn → khoá gia hạn ô này
   const bookedFrom = c.next_booking_from && !ended ? c.next_booking_from : null;
-  // Trước StartDate (D27) khách huỷ đơn để được hoàn 100% tiền thuê + 90% cọc, không đi luồng trả kho
+  // D49: trước StartDate, khách huỷ đơn và được hoàn toàn bộ tiền thuê và cọc đã thanh toán.
   const reservation = c.reservation_id ? data.reservations.find((x) => x.reservation_id === c.reservation_id) : null;
   const cancellable = prestart && !ended && reservation && canCancel(data, reservation);
   const pickupText = pickup ? `${dateLabel(pickup.date)} · ${pickup.slot}` : null;
@@ -67,6 +69,10 @@ export function RentedUnitDetailPage({ id }) {
               [ended || ret || c.status === "RETURN_PENDING" ? "Cọc ban đầu" : "Cọc đang giữ", money(c.deposit)],
               ["Thanh toán", rent ? <StatusTag map={LEDGER_STATUS} status={rent.status} /> : "Chưa có dữ liệu"],
             ]} />
+            {/* Figma C07b · D58: mở hợp đồng giấy (bản in, cùng mẫu tệp gửi qua email) */}
+            {issued && <div className="customer-detail__actions">
+              <LinkButton to={`units/${encodeURIComponent(id)}/contract`} variant="outline">Xem hợp đồng giấy</LinkButton>
+            </div>}
           </section>
           <section className="panel customer-detail__card">
             <h2>QR, PIN & chìa khóa</h2>
@@ -94,7 +100,7 @@ export function RentedUnitDetailPage({ id }) {
           <div className="customer-detail__task"><div><h3>Gia hạn</h3><p>{renewal ? (renewal.status === "PENDING" ? `${renewal.renewal_id} đang được kiểm tra · huỷ được trước khi xác nhận` : (renewal.at_counter ? `${renewal.renewal_id} chờ thu tại quầy · thanh toán trước hạn để gia hạn` : `${renewal.renewal_id} đã xác nhận · thanh toán trước hạn để gia hạn`)) : bookedFrom ? `Ô ${c.unit_number} đã có khách đặt từ ${dateLabel(bookedFrom)} · gia hạn sang ô khác còn trống.` : ret ? "Đã gửi trả kho nên không gia hạn được." : "Xác nhận gia hạn trước ngày hết hạn và thanh toán trong 24 giờ."}</p></div>
             {/* D46: ô đã có khách đặt → gia hạn sang ô khác (Figma C07b-D41 → C08-D41a). 3.2 · Figma C07b-L5c: đang chờ duyệt → xem / huỷ yêu cầu */}
             {renewal
-              ? <div className="customer-detail__task-actions">{/* #25: chỉ hiện "Thanh toán" khi khoản gia hạn đã được xác nhận và đang chờ trả (không phải tại quầy) */}{renewal.status === "APPROVED" && !renewal.at_counter ? <LinkButton to={`units/${encodeURIComponent(id)}/renewal-status`}>Thanh toán</LinkButton> : <LinkButton to={`units/${encodeURIComponent(id)}/renewal-status`}>Xem yêu cầu</LinkButton>}<CancelRenewalButton renewal={renewal} contract={c} /></div>
+              ? <div className="customer-detail__task-actions">{/* #25: chỉ hiện "Thanh toán" khi khoản gia hạn đã được xác nhận và đang chờ trả (không phải tại quầy) */}{renewalPayment?.ledger && !ended && !ret ? <LinkButton to={`units/${encodeURIComponent(id)}/renewal-status`}>Thanh toán</LinkButton> : <LinkButton to={`units/${encodeURIComponent(id)}/renewal-status`}>Xem yêu cầu</LinkButton>}<CancelRenewalButton renewal={renewal} contract={c} /></div>
               : issued && !ended && !busy && c.end_date > today() ? <LinkButton to={bookedFrom ? `units/${id}/renew-other` : `units/${id}/renew`} variant="outline">{bookedFrom ? "Gia hạn sang ô khác" : "Gia hạn"}</LinkButton> : <Button variant="outline" disabled>Gia hạn</Button>}
           </div>
           {prestart && !ended ? (

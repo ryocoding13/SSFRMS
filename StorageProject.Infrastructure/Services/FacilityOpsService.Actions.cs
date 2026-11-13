@@ -90,7 +90,7 @@ public partial class FacilityOpsService
     /// <summary>Nhân viên đối soát xác nhận đã nhận chuyển khoản đơn đặt chỗ (S09).</summary>
     public async Task ConfirmPaymentAsync(OpsActor actor, string id, CancellationToken ct = default)
     {
-        await new StaffService(dbContext).ConfirmPaymentAsync(actor.UserId, id, ct);
+        await new StaffService(dbContext, customerEmails).ConfirmPaymentAsync(actor.UserId, id, ct);
     }
 
     // =====================================================================
@@ -336,6 +336,7 @@ public partial class FacilityOpsService
         var facility = await FacilityOfAsync(actor, ct);
         var r = await ReservationAsync(facility.FacilityId, id, ct);
         await ReservationAllocation.AllocateAsync(dbContext, actor.UserId, facility.FacilityId, r.ReservationId, request.UnitCode ?? "", ct);
+        customerEmails?.Notify();
     }
 
     // =====================================================================

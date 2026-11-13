@@ -41,3 +41,43 @@ test('Board null không làm trắng trang và lỗi phân quyền không chuy�
     assert.deepEqual(paths, ['/api/ops/board']);
   } finally { globalThis.fetch = original; }
 });
+
+test('Đặt lại mật khẩu giữ đúng lỗi email chưa đăng ký và phân biệt route chưa có', async () => {
+  const { passwordResetApi } = await import('../src/features/auth/api/passwordResetApi.js');
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      code: 'EMAIL_NOT_REGISTERED', error: 'Email chưa đăng ký.'
+    }), { status: 404 });
+    await assert.rejects(passwordResetApi.request('customer@example.invalid'), /Email chưa đăng ký/);
+    globalThis.fetch = async () => new Response(null, { status: 404 });
+    await assert.rejects(passwordResetApi.request('customer@example.invalid'), /chưa hỗ trợ đặt lại mật khẩu/);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('Tải hợp đồng cần phản hồi tệp và giữ lỗi từ API', async () => {
+  const { request } = await import('../src/shared/api/httpClient.js');
+  const path = '/api/contracts/42/document';
+  const fetchFile = async () => new Response('<html>SafeSpace</html>', {
+    headers: { 'Content-Disposition': 'attachment; filename="contract.html"', 'Content-Type': 'text/html' },
+  });
+  const file = await request(path, { responseType: 'blob', fetchImpl: fetchFile });
+  assert.equal(await file.text(), '<html>SafeSpace</html>');
+  await assert.rejects(request(path, { responseType: 'blob', fetchImpl: async () => new Response('<html>Ứng dụng</html>') }), /chưa trả về tệp hợp đồng/);
+  await assert.rejects(request(path, { responseType: 'blob', fetchImpl: async () => new Response(
+    '{"error":"Không tìm thấy hợp đồng."}', { status: 404 }) }), error => error.status === 404);
+});
+
+test('Thông báo quá hạn có mã ổn định theo kỳ và dùng số tiền từ backend', async () => {
+  const { customerNotifications } = await import('../src/features/customer/notifications/customerNotifications.js');
+  const contract = { contractId: 42, unitNumber: 'A02', startDate: '2026-10-01', endDate: '2026-11-01',
+    status: 'OVERDUE', overdue: { asOfDate: '2026-11-04', overdueDays: 3, overdueFee: 120000, isSettled: false } };
+  const findOverdue = c => customerNotifications({ contracts: [c] }).find(n => n.id.startsWith('SERVER-OVERDUE-'));
+  const notice = findOverdue(contract);
+  assert.equal(notice.id, 'SERVER-OVERDUE-42-2026-11-01');
+  assert.match(notice.detail, /A02.*3 ngày.*120[.\s]000/);
+  assert.equal(findOverdue({ ...contract, overdue: { ...contract.overdue, overdueDays: 4 } }).id, notice.id);
+  assert.equal(findOverdue({ ...contract, status: 'RETURN_PENDING' }), undefined);
+});

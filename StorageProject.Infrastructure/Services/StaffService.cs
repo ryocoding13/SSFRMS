@@ -11,7 +11,7 @@ namespace StorageProject.Infrastructure.Services;
 /// Triển khai các tác vụ vận hành tại cơ sở theo Figma S01–S09:
 /// Bảng việc nhân viên (Board), thu tiền mặt, xác minh giấy tờ, kiểm kê trả kho, phản hồi ticket, đổi trạng thái ô kho và cấp lại mã truy cập.
 /// </summary>
-public class StaffService(AppDbContext dbContext) : IStaffService
+public class StaffService(AppDbContext dbContext, CustomerEmailWakeup? customerEmails = null) : IStaffService
 {
     /// <summary>
     /// Lấy dữ liệu bảng vận hành cơ sở (Board) dành riêng cho Nhân viên tại cơ sở được phân công.
@@ -337,9 +337,11 @@ public class StaffService(AppDbContext dbContext) : IStaffService
 
         await ReservationSettlement.RecordAsync(dbContext, found, "CASH", $"CASH:{found.ReservationId}", userId, ct);
         await dbContext.SaveChangesAsync(ct);
-        await ContractProvisioning.EnsureAsync(dbContext, found, userId, ct);
+        if (!await ContractProvisioning.EnsureAsync(dbContext, found, userId, ct))
+            CustomerEmailDelivery.QueuePaymentReceipt(dbContext, found);
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+        customerEmails?.Notify();
     }
 
     /// <summary>

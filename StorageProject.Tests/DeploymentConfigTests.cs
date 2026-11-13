@@ -247,7 +247,7 @@ public sealed class DeploymentConfigTests
         var result = await service.CreatePaymentQrAsync(user.UserId, new CreatePayOSQrRequest(null, null, null, reservation.ReservationId, null, null, null, null, null));
 
         Assert.NotNull(result);
-        Assert.Equal($"https://safespace.vn/#/reservations/{reservation.ReservationId}", capturedReturnUrl);
+        Assert.Equal($"https://safespace.vn/#/confirmation/{reservation.ReservationId}", capturedReturnUrl);
         Assert.Equal($"https://safespace.vn/#/reservations/{reservation.ReservationId}", capturedCancelUrl);
     }
 

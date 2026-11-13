@@ -1,0 +1,12 @@
+/* Figma C07g · Hợp đồng giấy: vùng nền xám bo 16, tờ A4 ở giữa */
+.contract-paper .page-header { align-items: center; }
+.contract-paper__actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.contract-paper__area { margin-top: 24px; padding: 0; border-radius: 16px; background: var(--soft); overflow: hidden; }
+.contract-paper__area > .notice, .contract-paper__loading { margin: 24px; }
+.contract-paper__loading { color: var(--muted); text-align: center; padding: 48px 0; }
+.contract-paper__frame { display: block; width: 100%; min-height: 1123px; border: 0; background: transparent; }
+.contract-paper__hint { margin-top: 12px; text-align: center; }
+@media (max-width: 760px) {
+  .contract-paper__actions { width: 100%; }
+  .contract-paper__actions .btn { flex: 1; }
+}
