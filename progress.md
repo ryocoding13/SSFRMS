@@ -1,3 +1,38 @@
+## 2026-11-13 — Cập nhật quy trình skill /resetdb: Reset và tự động nạp trạng thái hoạt động thực tế (D55 / #60)
+
+- **Mục tiêu:**
+  - Hoàn thiện skill `/resetdb` (`.agents/skills/resetdb`) để mỗi khi người dùng gọi lệnh `/resetdb`, hệ thống thực hiện trọn vẹn quy trình:
+    1. **Dọn dẹp bảng giao dịch:** Chạy `reset_db.sql` làm sạch các giao dịch rác, đơn test vãng lai, tài khoản không thuộc seed, dọn các ô kho ngoài danh mục, reset identities.
+    2. **Tự động nạp dữ liệu hoạt động thực tế (Development Seed D55 / #60):** Tích hợp bước gọi tự động `DatabaseSeedIntegrationTests` kết nối vào SQL Server `SSFRMS` để nạp 42 hợp đồng thuê mẫu đang hoạt động (`ACTIVE`) phân bổ trên 12 cơ sở, tạo 84 dòng thanh toán tiền thuê (358M+ VNĐ) và tiền cọc (60M+ VNĐ) rải đều qua 6 tháng gần nhất cho Business Ops, cấp 84 mã mở khoá QR và PIN.
+    3. **Kiểm tra và xác minh trạng thái hoàn tất:** Xác nhận 42 ô `OCCUPIED`, 102 ô `AVAILABLE` (chuẩn vị trí LOC-04), 12/12 cơ sở có Manager và Staff phân công `ACTIVE`.
+    4. **Cập nhật tài liệu skill:** Cập nhật `SKILL.md` và `references/credentials.md` phản ánh chính xác cấu trúc dữ liệu demo mới nhất và tài khoản sẵn sàng sử dụng.
+- **Kiểm chứng:**
+  - `reset-db.ps1`: Chạy full pipeline thành công 100%, tự động cleanup và nạp 42 hợp đồng, 84 giao dịch thanh toán (358.89M VNĐ tiền thuê), 12/12 cơ sở có Manager.
+  - Backend Tests: `dotnet test StorageProject.Tests -c Release` PASS 342/342 tests (bao gồm `DatabaseSeedIntegrationTests`).
+  - Frontend Tests: `npm test` PASS 213/213 tests.
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
+## 2026-11-13 — Nạp dữ liệu hợp đồng thuê mẫu và doanh thu Business Ops (D55 / #60)
+
+- **Mục tiêu:**
+  - Theo yêu cầu người dùng, đưa cơ sở dữ liệu SQL Server (`SSFRMS`) từ trạng thái zero activity sang trạng thái hoạt động thực tế có sẵn các hợp đồng thuê mẫu và doanh thu phục vụ kiểm thử phân hệ Quản lý cơ sở và Báo cáo Vận hành kinh doanh (Business Ops) theo quyết định **D55 / #60**:
+    1. **Khởi tạo dữ liệu hợp đồng thuê:**
+       - Nạp 42 hợp đồng thuê đang hoạt động (`ACTIVE`) phân bổ trên toàn bộ 12 cơ sở (HL 6, PX 5, TT 2, PMH 6, BTH 4, NB 1, BC 3, TD 5, GV 2, TB 4, BTA 3, NLB 1).
+       - Khách hàng mẫu `Customer<MÃ>01` tại từng cơ sở sở hữu các hợp đồng thuê với đầy đủ mã mở khóa QR và PIN (`AccessCredential`).
+    2. **Doanh thu và thanh toán cho Business Ops:**
+       - Tạo 42 khoản thanh toán tiền thuê (`RENT`) với tổng giá trị **358.890.000 VNĐ** rải qua 6 tháng gần nhất (từ 06/2026 đến 11/2026) để báo cáo doanh thu và biểu đồ của Quản lý vận hành KD không bị trống.
+       - Tạo 42 khoản tiền cọc (`DEPOSIT`) với tổng giá trị **60.760.000 VNĐ**.
+       - Toàn bộ giao dịch đều ở trạng thái `PAID`, có mã tham chiếu duy nhất `TransactionReference`.
+    3. **Trạng thái ô kho vật lý:**
+       - 42 ô có hợp đồng thuê chuyển trạng thái `OCCUPIED`.
+       - 102 ô còn lại duy trì trạng thái `AVAILABLE` để người dùng tiếp tục kiểm thử luồng đặt kho và xem sơ đồ.
+    4. **Phân công cơ sở:**
+       - Duy trì 100% phân công quản lý `ACTIVE` cho toàn bộ 12 cơ sở.
+- **Kiểm chứng:**
+  - SQL Server Query: `rental_contracts` ACTIVE: 42; `payments` RENT: 42 (358.89M VNĐ), DEPOSIT: 42 (60.76M VNĐ); `storage_units` AVAILABLE: 102, OCCUPIED: 42.
+  - Backend Tests: `dotnet test StorageProject.Tests -c Release` PASS 341/341 tests.
+  - Frontend Tests: `npm test` PASS 213/213 tests.
+
 ## 2026-11-13 — Giữ đúng ô khách chọn khi đặt kho theo kỳ tương lai (D56 / EXACT vs AUTO)
 
 - **Mục tiêu:**

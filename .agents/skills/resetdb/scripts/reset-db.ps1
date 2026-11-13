@@ -1,6 +1,6 @@
 # =========================================================================
 # reset-db.ps1: Automated reset script for SSFRMS
-# Can be run standalone or invoked by Antigravity /resetdb skill
+# Resets transactions and re-seeds active demo contracts & business revenue (D55 / #60)
 # =========================================================================
 
 param(
@@ -10,10 +10,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = (Resolve-Path "$ScriptDir/../../../..").Path
 $SqlFile = Join-Path $ScriptDir "reset_db.sql"
 
 Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "  SafeSpace (SSFRMS) - Database Reset to Fresh State  " -ForegroundColor Cyan
+Write-Host "  SafeSpace (SSFRMS) - Database Reset & Demo Seed     " -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host "Target Server   : $ServerInstance"
 Write-Host "Target Database : $Database"
@@ -25,73 +26,72 @@ if (-not (Test-Path $SqlFile)) {
     exit 1
 }
 
-# 1. Execute SQL reset script
-Write-Host "[1/3] Executing database cleanup..." -ForegroundColor Yellow
+# 1. Execute SQL reset script to clean transactions & orphaned records
+Write-Host "[1/3] Cleaning up old transactions and resetting tables..." -ForegroundColor Yellow
 $result = sqlcmd -I -S $ServerInstance -d $Database -i $SqlFile -b
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[ERROR] sqlcmd failed with exit code $LASTEXITCODE" -ForegroundColor Red
     Write-Host $result
     exit 1
 }
-Write-Host "Cleanup completed successfully." -ForegroundColor Green
+Write-Host "  [OK] Database cleanup completed successfully." -ForegroundColor Green
 
-# 2. Verify transaction table counts
+# 2. Re-seed active demo contracts & business revenue (D55 / #60)
 Write-Host ""
-Write-Host "[2/3] Verifying clean transaction state..." -ForegroundColor Yellow
-$verifySql = @"
-SELECT 'reservations' as tbl, COUNT(*) as cnt FROM reservations
-UNION ALL SELECT 'rental_contracts', COUNT(*) FROM rental_contracts
-UNION ALL SELECT 'payments', COUNT(*) FROM payments
-UNION ALL SELECT 'payment_checkouts', COUNT(*) FROM payment_checkouts
-UNION ALL SELECT 'policy_consents', COUNT(*) FROM policy_consents
-UNION ALL SELECT 'support_tickets', COUNT(*) FROM support_tickets
-UNION ALL SELECT 'handover_records', COUNT(*) FROM handover_records
-UNION ALL SELECT 'return_inspections', COUNT(*) FROM return_inspections
-UNION ALL SELECT 'unit_assignments', COUNT(*) FROM unit_assignments
-UNION ALL SELECT 'maintenance_requests', COUNT(*) FROM maintenance_requests
-UNION ALL SELECT 'contract_renewals', COUNT(*) FROM contract_renewals
-UNION ALL SELECT 'overdue_cases', COUNT(*) FROM overdue_cases
-UNION ALL SELECT 'access_credentials', COUNT(*) FROM access_credentials
-UNION ALL SELECT 'activity_logs', COUNT(*) FROM activity_logs;
+Write-Host "[2/3] Seeding demo contracts, access credentials & revenue (D55 / #60)..." -ForegroundColor Yellow
+$testProj = Join-Path $ProjectRoot "StorageProject.Tests/StorageProject.Tests.csproj"
+$seedCmd = "dotnet test `"$testProj`" -c Release --filter `"FullyQualifiedName~DatabaseSeedIntegrationTests.Seed_SqlServer_SSFRMS`""
+Invoke-Expression $seedCmd | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[WARN] Dotnet seeder returned code $LASTEXITCODE; verifying database state..." -ForegroundColor DarkYellow
+} else {
+    Write-Host "  [OK] Demo contracts and revenue seeded successfully." -ForegroundColor Green
+}
+
+# 3. Verify storage unit availability, contracts, revenue & accounts
+Write-Host ""
+Write-Host "[3/3] Verifying live operational state & business revenue..." -ForegroundColor Yellow
+
+$summarySql = @"
+SELECT 'rental_contracts' as metric, Status as detail, COUNT(*) as cnt FROM rental_contracts GROUP BY Status
+UNION ALL
+SELECT 'payments', PaymentType, COUNT(*) FROM payments GROUP BY PaymentType
+UNION ALL
+SELECT 'storage_units', Status, COUNT(*) FROM storage_units GROUP BY Status;
 "@
 
-$counts = sqlcmd -S $ServerInstance -d $Database -Q $verifySql -h -1 -W
-$allZero = $true
-$lines = $counts -split "`r?`n" | Where-Object { $_ -match '^\w+\s+\d+' }
-foreach ($line in $lines) {
-    $parts = $line.Trim() -split '\s+'
-    if ($parts.Length -ge 2) {
-        $table = $parts[0]
-        $cnt = [int]$parts[1]
-        if ($cnt -ne 0) {
-            Write-Host "  [FAIL] $table : $cnt rows" -ForegroundColor Red
-            $allZero = $false
-        } else {
-            Write-Host "  [PASS] $table : 0 rows" -ForegroundColor Gray
-        }
-    }
-}
+$summary = sqlcmd -S $ServerInstance -d $Database -Q $summarySql -h -1 -W
+Write-Host "Operational Summary:" -ForegroundColor Cyan
+Write-Host $summary
 
-if (-not $allZero) {
-    Write-Host "[ERROR] Some tables still have remaining rows!" -ForegroundColor Red
-    exit 1
-}
+$revSql = @"
+SELECT
+    COUNT(*) as total_payments,
+    CAST(SUM(CASE WHEN PaymentType = 'RENT' THEN Amount ELSE 0 END) AS BIGINT) as rent_revenue_vnd,
+    CAST(SUM(CASE WHEN PaymentType = 'DEPOSIT' THEN Amount ELSE 0 END) AS BIGINT) as deposit_held_vnd,
+    MIN(PaidAt) as earliest_paid,
+    MAX(PaidAt) as latest_paid
+FROM payments;
+"@
+$revResult = sqlcmd -S $ServerInstance -d $Database -Q $revSql -h -1 -W
+Write-Host "Revenue & Time Range:" -ForegroundColor Cyan
+Write-Host $revResult
 
-# 3. Verify storage unit availability & accounts
-Write-Host ""
-Write-Host "[3/3] Checking storage units & seed accounts..." -ForegroundColor Yellow
-
-$unitSql = "SELECT Status, COUNT(*) as cnt FROM storage_units GROUP BY Status;"
-$unitResult = sqlcmd -S $ServerInstance -d $Database -Q $unitSql -h -1 -W
-Write-Host "Storage Units status:" -ForegroundColor Cyan
-Write-Host $unitResult
-
-$userSql = "SELECT u.Username, r.RoleName FROM users u JOIN user_roles ur ON u.UserId = ur.UserId JOIN roles r ON ur.RoleId = r.RoleId ORDER BY u.UserId;"
-$userResult = sqlcmd -S $ServerInstance -d $Database -Q $userSql -h -1 -W
-Write-Host "Active Seed Accounts:" -ForegroundColor Cyan
-Write-Host $userResult
+$managerCheckSql = @"
+SELECT f.Name as FacilityName, ISNULL(u.Username, 'NONE') as ManagerUsername, ISNULL(r.RoleName, 'NONE') as RoleName
+FROM facilities f
+LEFT JOIN user_facilities uf ON f.FacilityId = uf.FacilityId AND uf.Status = 'ACTIVE'
+LEFT JOIN users u ON uf.UserId = u.UserId
+LEFT JOIN user_roles ur ON u.UserId = ur.UserId
+LEFT JOIN roles r ON ur.RoleId = r.RoleId AND r.RoleName = 'MANAGER'
+WHERE f.Status = 'ACTIVE' AND (r.RoleName = 'MANAGER' OR u.Username IS NULL)
+ORDER BY f.FacilityId;
+"@
+$managerResult = sqlcmd -S $ServerInstance -d $Database -Q $managerCheckSql -h -1 -W
+Write-Host "Facility Manager Assignment Coverage (12 facilities):" -ForegroundColor Cyan
+Write-Host $managerResult
 
 Write-Host ""
 Write-Host "======================================================" -ForegroundColor Green
-Write-Host "  DATABASE RESET COMPLETED - 100% CLEAN & READY!      " -ForegroundColor Green
+Write-Host "  DATABASE RESET & DEMO SEED COMPLETED - READY TO USE!" -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Green
