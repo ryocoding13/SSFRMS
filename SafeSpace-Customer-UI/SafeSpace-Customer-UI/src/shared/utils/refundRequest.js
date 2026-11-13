@@ -39,9 +39,9 @@ export const cleanRefundBank = bank => ({
   accountNumber: String(bank.accountNumber || "").trim(),
   accountHolder: bank.accountHolder.trim().replace(/\s+/g, " "),
 });
-export function validateReturnPhotos(photos) {
+export function validateReturnPhotos(photos, max = MAX_RETURN_PHOTOS) {
   if (!Array.isArray(photos) || !photos.length) return "Vui lòng tải ít nhất một ảnh kho trống.";
-  if (photos.length > MAX_RETURN_PHOTOS) return "Chỉ được tải tối đa 5 ảnh kho trống.";
+  if (photos.length > max) return `Chỉ được tải tối đa ${max} ảnh kho trống.`;
   if (photos.some(p => !["image/jpeg", "image/png"].includes(p.type) || !(p.size > 0) || p.size > MAX_PHOTO_BYTES)) return "Ảnh phải là JPG hoặc PNG, mỗi ảnh không quá 5 MB.";
   return "";
 }

@@ -19,8 +19,8 @@ export default function ReturnPhotoInput({ files, onChange, disabled, onReading,
     if (reading.current || !chosen.length) return;
     const next = [...files, ...chosen];
     if (next.length > max) return setError(`Tối đa ${max} ảnh. Xoá bớt ảnh trước khi thêm.`);
-    const invalid = validateReturnPhotos(next);
-    if (invalid) return setError(required ? invalid : invalid.replaceAll("ảnh kho trống", "ảnh đính kèm"));
+    const invalid = validateReturnPhotos(next, max);
+    if (invalid) return setError(!required ? invalid.replaceAll("ảnh kho trống", "ảnh đính kèm") : label === "Tải ảnh kho trống" ? invalid : invalid.replaceAll("ảnh kho trống", "ảnh"));
     reading.current = true; onReading?.(true); setError("");
     try { for (const file of chosen) await verifyPhotoFile(file); if (mounted.current) onChange(next); }
     catch (err) { if (mounted.current) setError(err.message); }

@@ -645,3 +645,19 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Các hợp đồng khác loại kho và thời hạn (3–12 tháng), ngày bắt đầu rải qua 6 tháng gần nhất (thanh toán trước cả kỳ) để biểu đồ doanh thu không trống; **tất cả còn trong hạn**, 1 hợp đồng sắp hết hạn (~12 ngày) để thử mốc 14 ngày. Không có hồ sơ quá hạn.
 - Mỗi cơ sở dùng tối đa 6/12 ô cho dữ liệu này; các ô còn lại để người dùng tự demo.
 - Chạy lại seed không tạo thêm: đếm số hợp đồng khách đã có tại cơ sở. Database đã chạy seed cũ thì giữ nguyên dữ liệu cũ (kể cả `Customer<MÃ>02`); muốn đúng hoàn toàn thì tạo lại database.
+
+## D56 — 13/11/2026: Biên bản xử lý đồ quá hạn — 1 ô ảnh, nơi lưu giữ tự điền — Đã chốt
+
+> Người dùng chốt ngày 13/11/2026 (Figma D30-11 vẽ lại 13/11). Không đổi bảng/cột (D48).
+
+- Nhân viên chỉ gửi **một bộ ảnh hiện trạng**: tối thiểu 1, tối đa 10 ảnh, JPG/PNG, mỗi ảnh ≤ 5 MB (thay hai ô "ảnh trước" / "ảnh sau"). API nhận trường `photos`; bản cũ gửi `beforePhotos` + `afterPhotos` vẫn được nhận.
+- Nơi lưu giữ đồ tự điền **"Khu tạm giữ đồ quá hạn"**, chỉ hiển thị, không nhập tay. Máy chủ tự điền khi trường trống.
+- Một nút "Lưu biên bản" (bỏ nút "Kiểm tra & lưu biên bản"); các mục trên biểu mẫu cách đều nhau.
+
+## D57 — 13/11/2026: Công cụ demo · Chỉnh giá theo cơ sở — Đã chốt
+
+> Người dùng chốt ngày 13/11/2026 (Figma A-DEMO-GIÁ vẽ lại 13/11). Thay phần "chỉnh giá" của #54.
+
+- Admin chọn cơ sở rồi sửa giá thuê tháng của từng loại kho, giống Bảng giá thuê của Vận hành KD (`GET/POST /api/admin/demo/rates`, dùng lại kiểm tra của `SetRateAsync`: > 0, bội số 1.000, trong khung giá, ghi `RATE_SET`).
+- Giá mới áp dụng từ hôm nay cho báo giá và đơn đặt mới; hợp đồng đang thuê giữ giá đã chốt; cọc đơn mới = 1 tháng theo giá mới.
+- Bỏ phần sửa số tiền từng giao dịch khỏi màn Chỉnh giá. Chỉnh ngày hợp đồng / ngày giao dịch vẫn ở màn Chỉnh ngày.

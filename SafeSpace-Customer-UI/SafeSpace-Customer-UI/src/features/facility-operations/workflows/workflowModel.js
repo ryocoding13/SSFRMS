@@ -1,4 +1,4 @@
-import { transferProof,validateRemoval } from "../settlements/settlementModel.js";
+import { transferProof,validateRemoval,removalPhotos,OVERDUE_HOLDING_AREA } from "../settlements/settlementModel.js";
 import { addDays, today } from "../../../shared/utils/format.js";
 
 export const POLICY_SECTIONS = [
@@ -61,7 +61,8 @@ export function applyWorkflowAction(state, action, payload, actor, now = new Dat
     case "RECORD_REMOVAL": {
       allow("STAFF", "MANAGER"); const item = find("overdue"); if (item.status === "DONE") throw new Error("Biên bản đã được lưu; không gửi lại.");
       const performedAt=validateRemoval(item,payload,state.policy,actor,now);
-      Object.assign(item, { status: "DONE", record: { ...payload,performedAt,beforePhotos:payload.beforePhotos.map(f=>({fileName:f.name,contentType:f.type,size:f.size})),afterPhotos:payload.afterPhotos.map(f=>({fileName:f.name,contentType:f.type,size:f.size})),staff: actor.name, savedAt: at } }); break;
+      const meta=f=>({fileName:f.name,contentType:f.type,size:f.size});
+      Object.assign(item, { status: "DONE", record: { ...payload,location:payload.location?.trim()||OVERDUE_HOLDING_AREA,performedAt,photos:removalPhotos(payload).map(meta),beforePhotos:undefined,afterPhotos:undefined,staff: actor.name, savedAt: at } }); break;
     }
     case "CONFIRM_DEPOSIT_REFUND": {
       allow("MANAGER"); const item = find("depositRefunds"); if (item.status !== "PENDING" || item.amount <= 0) throw new Error("Khoản hoàn không còn chờ xử lý.");

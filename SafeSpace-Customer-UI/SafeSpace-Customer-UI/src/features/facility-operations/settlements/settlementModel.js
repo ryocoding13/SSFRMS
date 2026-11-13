@@ -82,12 +82,21 @@ export function validateRemoval(item,payload,policy,actor,now=new Date()) {
  if(actor.roles.includes("STAFF")&&item.assignee!==actor.name)throw new Error("Bạn chưa được phân công hồ sơ này.");
  const performedAt=actualVnTime(payload.performedAt,now),day=new Intl.DateTimeFormat("sv-SE",{timeZone:"Asia/Ho_Chi_Minh"}).format(new Date(performedAt)),days=Math.floor((Date.parse(`${day}T00:00:00Z`)-Date.parse(`${item.endDate}T00:00:00Z`))/86400000),removalDay=Number.isSafeInteger(policy?.removalDay)&&policy.removalDay>=20?policy.removalDay:20;
  if(!Number.isFinite(days)||days<removalDay)throw new Error(`Chưa đến mốc ${removalDay} ngày quá hạn tại thời điểm thực hiện.`);
- if(!payload.inventory?.trim()||!payload.location?.trim())throw new Error("Điền danh sách đồ và vị trí thực tế.");
+ if(!payload.inventory?.trim())throw new Error("Điền danh sách / tình trạng đồ.");
  if(!["INSPECTION","MAINTENANCE"].includes(payload.unitStatus))throw new Error("Kho cần chờ kiểm tra hoặc bảo trì.");
  if(payload.confirmed!==true)throw new Error("Cần xác nhận nội dung phản ánh đúng việc đã thực hiện.");
- for(const files of [payload.beforePhotos,payload.afterPhotos]) {validateDamageFiles(files);if(!files?.length)throw new Error("Cần ít nhất một ảnh trước và một ảnh sau xử lý.");}
+ const photos=removalPhotos(payload);
+ if(!photos.length)throw new Error("Cần ít nhất một ảnh hiện trạng.");
+ if(photos.length>OVERDUE_MAX_PHOTOS)throw new Error(`Chỉ được tải tối đa ${OVERDUE_MAX_PHOTOS} ảnh hiện trạng.`);
+ if(photos.some(file=>!["image/jpeg","image/png"].includes(file.type)||!(file.size>0)||file.size>5*1024*1024))throw new Error("Ảnh phải là JPG/PNG, mỗi ảnh không quá 5 MB.");
  return performedAt;
 }
+/** D56: nơi lưu giữ đồ quá hạn tự điền, không nhập tay. */
+export const OVERDUE_HOLDING_AREA="Khu tạm giữ đồ quá hạn";
+/** D56: biên bản xử lý đồ quá hạn nhận 1–10 ảnh hiện trạng (một ô ảnh). */
+export const OVERDUE_MAX_PHOTOS=10;
+/** Ảnh của biên bản: bộ ảnh mới (photos) hoặc ảnh trước/sau của bản cũ. */
+export const removalPhotos=payload=>Array.isArray(payload?.photos)?payload.photos:[...(payload?.beforePhotos||[]),...(payload?.afterPhotos||[])];
 
 // ---- #16 / #19 (Lượt 2): một nguồn số liệu cho bảng đối soát -------------------------------------------
 // Số tiền do RefundPolicy phía máy chủ tính (board.returns[].settlement khi chưa chốt / đã chốt; deposit_refunds khi

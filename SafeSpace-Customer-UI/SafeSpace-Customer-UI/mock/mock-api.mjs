@@ -499,6 +499,19 @@ export function startMockApi(
       const running = (c) => { const t = dateOnly(new Date()); if (c.status !== "ACTIVE") return c.status; if (c.endDate <= t) return "OVERDUE"; return (new Date(c.endDate) - new Date(t)) / 864e5 <= 14 ? "EXPIRING" : "ACTIVE"; };
       const overdueDays = (c) => { const t = dateOnly(new Date()); return c.status === "ACTIVE" && c.endDate <= t ? Math.round((new Date(t) - new Date(c.endDate)) / 864e5) : 0; };
       const demoDto = (c) => { const u = unit(c.unitId); return { contractId: c.contractId, contractCode: `HĐ-${c.startDate.slice(0, 4)}-${String(c.contractId).padStart(4, "0")}`, customerName: S.users.find((x) => x.userId === c.customerId)?.fullName, unitNumber: u.unitNumber, facilityName: fac(u.facilityId)?.name, startDate: c.startDate, endDate: c.endDate, agreedMonthlyRate: c.agreedMonthlyRate ?? c.monthlyRate ?? 0, depositAmount: c.depositAmount ?? 0, status: running(c), overdueDays: overdueDays(c), payments: S.payments.filter((p) => p.contractId === c.contractId).map((p) => ({ paymentId: p.paymentId, paymentType: p.paymentType, status: p.status, amount: p.amount, paidAt: p.paidAt ? dbTime(p.paidAt) : null, dueDate: p.dueDate || null })) }; };
+      // D57 · Chỉnh giá theo cơ sở (demo): giá 4 loại kho của một cơ sở
+      if (req.method === "GET" && path === "/api/admin/demo/rates") {
+        const fid = +url.searchParams.get("facilityId");
+        return send(200, S.rates.filter((r) => r.facilityId === fid).map((r) => ({ ...r, status: "ACTIVE", isCurrent: true })));
+      }
+      if (req.method === "POST" && path === "/api/admin/demo/rates") {
+        const r = S.rates.find((x) => x.facilityId === body.facilityId && x.unitTypeId === body.unitTypeId);
+        if (!r) return msg(400, "Cơ sở chưa có giá cho loại kho này.");
+        if (!(body.monthlyRate > 0) || body.monthlyRate % 1000) return msg(400, "Giá thuê tháng phải lớn hơn 0 và là bội số của 1.000 VND.");
+        const before = r.monthlyRate; r.monthlyRate = body.monthlyRate; r.effectiveFrom = dateOnly(new Date());
+        log("RATE_SET", "RENTAL_RATE", r.rateId, { monthlyRate: before }, { monthlyRate: r.monthlyRate, facilityId: r.facilityId, unitTypeId: r.unitTypeId });
+        return send(200, { ...r, status: "ACTIVE", isCurrent: true });
+      }
       if (req.method === "GET" && path === "/api/admin/demo/contracts") {
         const q = (url.searchParams.get("search") || "").toLowerCase();
         return send(200, S.contracts.map(demoDto).filter((d) => !q || [d.contractCode, d.customerName, d.unitNumber].some((x) => String(x).toLowerCase().includes(q))));

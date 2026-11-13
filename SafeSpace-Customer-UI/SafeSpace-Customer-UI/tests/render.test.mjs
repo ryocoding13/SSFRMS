@@ -57,7 +57,7 @@ try {
   window.location.hash = "#/units/HĐ-2026-0142/return";
   const returnHtml = renderToStaticMarkup(React.createElement(App));
   // D42 + Task #8/#9: trả kho chỉ chọn ngày, không bắt ảnh hay khung giờ; chọn cách nhận hoàn (chuyển khoản / tiền mặt tại quầy)
-  for (const text of ["Lịch trả kho", "Ngày mong muốn trả kho", "Nhận tiền hoàn", "Nhận hoàn qua", "Tiền mặt tại quầy", "Số tài khoản", "Không thể huỷ yêu cầu", "QR/PIN khoá ngay", "48 giờ"]) assert.ok(returnHtml.includes(text), text);
+  for (const text of ["Thông tin trả kho", "Ngày mong muốn trả kho", "Nhận tiền hoàn", "Nhận hoàn qua", "Tiền mặt tại quầy", "Số tài khoản", "Không thể huỷ yêu cầu", "QR/PIN khoá ngay", "48 giờ"]) assert.ok(returnHtml.includes(text), text);
   for (const text of ["Tải ảnh kho trống", "Khung giờ"]) assert.ok(!returnHtml.includes(text), text);
   window.location.hash = "#/reservations/SS-20260914-0142/cancel";
   const cancelHtml = renderToStaticMarkup(React.createElement(App));

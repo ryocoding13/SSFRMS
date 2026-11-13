@@ -14,7 +14,9 @@ public record OverdueRemovalRecordDto(
     string SavedAt,
     string? UnitStatus = null,
     IReadOnlyList<EvidencePhotoDto>? BeforePhotos = null,
-    IReadOnlyList<EvidencePhotoDto>? AfterPhotos = null
+    IReadOnlyList<EvidencePhotoDto>? AfterPhotos = null,
+    /// <summary>D56: một bộ ảnh hiện trạng (1–10 ảnh) thay cho hai nhóm trước/sau.</summary>
+    IReadOnlyList<EvidencePhotoDto>? Photos = null
 );
 
 /// <summary>
@@ -57,5 +59,7 @@ public record OverdueCaseActionRequest(
     string? UnitStatus = null,
     bool? Confirmed = null,
     IReadOnlyList<EvidencePhotoUpload>? BeforePhotos = null,
-    IReadOnlyList<EvidencePhotoUpload>? AfterPhotos = null
+    IReadOnlyList<EvidencePhotoUpload>? AfterPhotos = null,
+    /// <summary>D56: một bộ ảnh hiện trạng (1–10 ảnh). Có trường này thì không cần BeforePhotos/AfterPhotos.</summary>
+    IReadOnlyList<EvidencePhotoUpload>? Photos = null
 );

@@ -111,6 +111,9 @@ export const adminApi = {
   demoContracts: (search) => request(`/api/admin/demo/contracts${q({ search })}`),
   demoEditContract: (id, body) => request(`/api/admin/demo/contracts/${id}`, { method: "PUT", body }),
   demoEditPayment: (id, body) => request(`/api/admin/demo/payments/${id}`, { method: "PUT", body }),
+  // D57 · Chỉnh giá theo cơ sở (giống Bảng giá thuê của Vận hành KD)
+  demoRates: (facilityId) => request(`/api/admin/demo/rates${q({ facilityId })}`),
+  demoSetRate: (body) => request("/api/admin/demo/rates", { method: "POST", body }),
   // #49: nhật ký cửa
   doorLogs: (filter) => request(`/api/admin/door-logs${q(filter)}`),
   // Máy quét tại cửa (thiết bị công khai, không gắn tài khoản đăng nhập) · D51

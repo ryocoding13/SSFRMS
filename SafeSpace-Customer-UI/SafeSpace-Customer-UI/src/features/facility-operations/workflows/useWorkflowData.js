@@ -1,6 +1,6 @@
 import { requirePublication,verifyPublishedPolicy } from "../../business/policies/policyPublication.js";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { transferProof, validateRemoval, actualVnTime } from "../settlements/settlementModel.js";
+import { transferProof, validateRemoval, actualVnTime, removalPhotos, OVERDUE_HOLDING_AREA } from "../settlements/settlementModel.js";
 import { useOps } from "../state/FacilityOperationsProvider.jsx";
 import { verifyPhotoFile,readPhotoData } from "../../../shared/utils/refundRequest.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
@@ -67,7 +67,7 @@ export function useWorkflowData(resource) {
       if(action==="RECORD_REMOVAL")validateRemoval((data||[]).find(r=>r.id===payload.id),payload,demo?readDemo().policy:{removalDay:data.find(r=>r.id===payload.id)?.removalDay},{id:user?.user_id,name:user?.full_name,roles:roles||[],facilityId});
       if(action==="CONFIRM_DEPOSIT_REFUND") {const item=(data||[]).find(r=>r.id===payload.id);if(!roles?.includes("MANAGER")||item?.facilityId!==facilityId)throw new Error("Khoản hoàn không thuộc cơ sở phụ trách.");transferProof(item,payload);if(!demo&&(!Number.isSafeInteger(item.version)||payload.expectedVersion!==item.version))throw new Error("Thiếu phiên bản khoản hoàn hợp lệ. Tải lại trước khi gửi.");}
       if (demo) {
-        if(action==="RECORD_REMOVAL")for(const file of [...payload.beforePhotos,...payload.afterPhotos])await verifyPhotoFile(file);
+        if(action==="RECORD_REMOVAL")for(const file of removalPhotos(payload))await verifyPhotoFile(file);
         if(activeActor.current!==actorKey)throw new Error("Tài khoản đã thay đổi. Tải lại trước khi gửi.");
         const next = applyWorkflowAction(readDemo(), action, payload, { id: user?.user_id, name: user?.full_name, roles: roles || [],facilityId });
         memory = next;
@@ -75,7 +75,7 @@ export function useWorkflowData(resource) {
         setData(next[storageResource]); window.dispatchEvent(new Event("safespace-workflows"));
       } else {
         let requestPayload=action==="CONFIRM_DEPOSIT_REFUND"?{...payload,transactionRef:payload.transactionRef.trim(),transferredAt:actualVnTime(payload.transferredAt)}:payload;
-        if(action==="RECORD_REMOVAL") {requestPayload={...payload,beforePhotos:[],afterPhotos:[]};for(const kind of ["beforePhotos","afterPhotos"]){for(const file of payload[kind]){await verifyPhotoFile(file);requestPayload[kind].push(await readPhotoData(file));}}}
+        if(action==="RECORD_REMOVAL") {requestPayload={...payload,location:payload.location?.trim()||OVERDUE_HOLDING_AREA,photos:[],beforePhotos:undefined,afterPhotos:undefined};for(const file of removalPhotos(payload)){await verifyPhotoFile(file);requestPayload.photos.push(await readPhotoData(file));}}
         if(activeActor.current!==actorKey)throw new Error("Tài khoản đã thay đổi. Tải lại trước khi gửi.");
         if(action==="RECORD_REMOVAL")requestPayload.performedAt=actualVnTime(payload.performedAt);
         if (resource === "inquiries") {
@@ -97,7 +97,7 @@ export function useWorkflowData(resource) {
           inquiryRequest.current = null;
         }
         if(action==="CONFIRM_DEPOSIT_REFUND") {const item=result?.item;if(item?.id!==payload.id||item.status!=="PAID"||item.transactionRef!==payload.transactionRef.trim()||!Number.isFinite(Date.parse(item.paidAt))||item.amount!==data.find(r=>r.id===payload.id)?.amount||item.facilityId!==facilityId||!Number.isSafeInteger(item.version)||item.version<=data.find(r=>r.id===payload.id)?.version||["contractId","ownerId","customer","bankName","accountNumber","accountHolder"].some(k=>item[k]!==data.find(r=>r.id===payload.id)?.[k])){const error=new Error("Máy chủ chưa xác nhận bằng chứng chuyển tiền; tải lại trước khi gửi tiếp.");error.uncertain=true;throw error;}setData(previous=>previous.map(r=>r.id===item.id?item:r));}
-        else if(action==="RECORD_REMOVAL") {if(result?.item?.id!==payload.id||result.item.status!=="DONE"||!result.item.record?.savedAt||result.item.facilityId!==facilityId||!result.item.record?.beforePhotos?.length||!result.item.record?.afterPhotos?.length){const error=new Error("Máy chủ chưa xác nhận biên bản và bằng chứng xử lý.");error.uncertain=true;throw error;}setData(previous=>previous.map(r=>r.id===result.item.id?result.item:r));}
+        else if(action==="RECORD_REMOVAL") {if(result?.item?.id!==payload.id||result.item.status!=="DONE"||!result.item.record?.savedAt||result.item.facilityId!==facilityId||!(result.item.record?.photos?.length||result.item.record?.afterPhotos?.length)){const error=new Error("Máy chủ chưa xác nhận biên bản và bằng chứng xử lý.");error.uncertain=true;throw error;}setData(previous=>previous.map(r=>r.id===result.item.id?result.item:r));}
         else if (resource === "inquiries") setData(previous => {
           const item = result.item;
           return previous.some(row => row.id === item.id)

@@ -33,7 +33,7 @@ function RefundPreview({ c, cash }) {
   return <section className="panel customer-detail__card return-refund">
     <h2>Khoản hoàn dự kiến</h2>
     <DetailList items={rows} />
-    <div className="return-refund__total"><span>Dự kiến hoàn (trước kiểm tra)</span><strong>{known ? money(Math.max(0, deposit - keep) + rent) : "Chưa có dữ liệu"}</strong></div>
+    <div className="return-refund__total"><span className="return-refund__label">Dự kiến hoàn<small>Trước kiểm tra kho</small></span><strong>{known ? money(Math.max(0, deposit - keep) + rent) : "Chưa có dữ liệu"}</strong></div>
     <p className="hint">{early ? `Trả trước ngày ${dateLabel(c.end_date)}: hoàn 100% cọc (nếu kho đạt chuẩn, không hư hỏng) và tiền thuê các tháng nguyên chưa bắt đầu; tháng đang dùng tính đủ.` : "Trả đúng hạn, kho đạt tiêu chuẩn: hoàn đủ cọc."} Số chính thức xác nhận sau kiểm tra kho; tổng khấu trừ tối đa bằng cọc. {cash ? "Nhận tiền mặt tại quầy trong 30 ngày sau khi quản lý duyệt." : "Hoàn trong 3–5 ngày làm việc vào tài khoản khách đăng ký."}</p>
   </section>;
 }
@@ -75,11 +75,11 @@ export function ReturnRequestPage({ id }) {
     <div className="customer-detail__grid">
       <form className="customer-detail__column" onSubmit={submit}>
         <fieldset className="panel customer-detail__card return-request__fields" disabled={busy || blocked}>
-          <h2>1 · Lịch trả kho</h2>
-          <DatePicker label="Ngày mong muốn trả kho" value={date} min={today()} onChange={setDate} />
+          <h2>1 · Thông tin trả kho</h2>
+          <p className="hint">Bạn không cần chụp ảnh. Nhân viên cơ sở sẽ kiểm tra kho, chụp ảnh hiện trạng và gửi biên bản cho bạn.</p>
+          <DatePicker label="Ngày mong muốn trả kho *" value={date} min={today()} onChange={setDate} />
           <Field label="Ghi chú cho nhân viên (không bắt buộc)"><input maxLength={300} value={notes} onChange={e => setNotes(e.target.value)} /></Field>
           <label className="customer-detail__choice"><input type="checkbox" checked={emptied} onChange={e => setEmptied(e.target.checked)} /><span>Tôi xác nhận đã chuyển hết đồ ra khỏi kho</span></label>
-          <p className="hint">Bạn không cần gửi ảnh. Nhân viên cơ sở sẽ kiểm tra thực tế và chụp ảnh hiện trạng kho sau khi tiếp nhận yêu cầu.</p>
         </fieldset>
         <section className="panel customer-detail__card"><h2>2 · Nhận tiền hoàn</h2>
           <RefundMethodFields value={bank} onChange={setBank} expectedName={expectedName} disabled={busy || blocked} facility={facility} />
@@ -88,7 +88,7 @@ export function ReturnRequestPage({ id }) {
           {support.error && <Button variant="outline" onClick={support.reload}>Tải lại</Button>}
           {blocked && <Notice>Chưa thể gửi thêm: hợp đồng chưa bắt đầu, đã kết thúc hoặc đang có yêu cầu gia hạn/trả kho. <a href={`#/units/${encodeURIComponent(id)}`}>Xem hợp đồng</a></Notice>}
           {error && <Notice tone="error">{error}</Notice>}
-          <div className="customer-detail__actions"><LinkButton to={`units/${id}`} variant="outline">Quay lại hợp đồng</LinkButton><Button type="submit" disabled={busy || blocked || !support.ready}>Kiểm tra & gửi yêu cầu</Button></div>
+          <div className="customer-detail__actions"><LinkButton to={`units/${id}`} variant="outline">Quay lại hợp đồng</LinkButton><Button type="submit" disabled={busy || blocked || !support.ready}>Gửi yêu cầu trả kho</Button></div>
         </section>
       </form>
       <aside className="customer-detail__column customer-detail__sidebar">

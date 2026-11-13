@@ -16,6 +16,11 @@ namespace StorageProject.Infrastructure.Services;
 /// </summary>
 public partial class FacilityOpsService
 {
+    /// <summary>D56: nơi lưu giữ đồ quá hạn — tự điền, không nhập tay.</summary>
+    public const string OverdueHoldingArea = "Khu tạm giữ đồ quá hạn";
+    /// <summary>D56: biên bản xử lý đồ quá hạn nhận 1–10 ảnh hiện trạng.</summary>
+    public const int OverdueMaxPhotos = 10;
+
     private const string AssignRemovalAction = "ASSIGN_REMOVAL";
     private const string RecordRemovalAction = "RECORD_REMOVAL";
 
@@ -199,10 +204,12 @@ public partial class FacilityOpsService
 
         // 2. Kiểm tra danh mục đồ và vị trí
         var inventory = (request.Inventory ?? string.Empty).Trim();
+        // D56: nơi lưu giữ đồ tự điền "Khu tạm giữ đồ quá hạn" (nhân viên không nhập tay).
         var location = (request.Location ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(inventory) || string.IsNullOrWhiteSpace(location))
+        if (string.IsNullOrWhiteSpace(location)) location = OverdueHoldingArea;
+        if (string.IsNullOrWhiteSpace(inventory))
         {
-            throw new ArgumentException("Điền đầy đủ danh sách đồ và vị trí thực tế.");
+            throw new ArgumentException("Điền danh sách / tình trạng đồ.");
         }
 
         // 3. Kiểm tra trạng thái ô kho sau kiểm tra (INSPECTION hoặc MAINTENANCE, không được AVAILABLE)
@@ -218,18 +225,30 @@ public partial class FacilityOpsService
             throw new ArgumentException("Cần xác nhận nội dung phản ánh đúng việc đã thực hiện.");
         }
 
-        // 5. Kiểm tra ảnh trước và sau (bắt buộc ít nhất 1 ảnh mỗi loại)
-        if (request.BeforePhotos == null || request.BeforePhotos.Count == 0 ||
-            request.AfterPhotos == null || request.AfterPhotos.Count == 0)
+        // 5. Ảnh hiện trạng. D56: một bộ ảnh 1–10 tấm (Photos). Bản cũ gửi ảnh trước + sau vẫn được nhận.
+        List<EvidencePhotos.Decoded> beforePhotos, afterPhotos;
+        if (request.Photos is { Count: > 0 })
         {
-            throw new ArgumentException("Cần ít nhất một ảnh trước và một ảnh sau xử lý.");
+            var raw = EvidencePhotos.Decode(request.Photos, required: true, what: "hiện trạng", maxPhotos: OverdueMaxPhotos);
+            beforePhotos = [];
+            afterPhotos = raw.Select(p => new EvidencePhotos.Decoded($"photo_{p.FileName}", p.ContentType, p.Data)).ToList();
         }
-
-        var rawBefore = EvidencePhotos.Decode(request.BeforePhotos, required: true, what: "trước xử lý");
-        var rawAfter = EvidencePhotos.Decode(request.AfterPhotos, required: true, what: "sau xử lý");
-
-        var beforePhotos = rawBefore.Select(p => new EvidencePhotos.Decoded($"before_{p.FileName}", p.ContentType, p.Data)).ToList();
-        var afterPhotos = rawAfter.Select(p => new EvidencePhotos.Decoded($"after_{p.FileName}", p.ContentType, p.Data)).ToList();
+        else if (request.BeforePhotos is { Count: > 0 } || request.AfterPhotos is { Count: > 0 })
+        {
+            if (request.BeforePhotos == null || request.BeforePhotos.Count == 0 ||
+                request.AfterPhotos == null || request.AfterPhotos.Count == 0)
+            {
+                throw new ArgumentException("Cần ít nhất một ảnh trước và một ảnh sau xử lý.");
+            }
+            var rawBefore = EvidencePhotos.Decode(request.BeforePhotos, required: true, what: "trước xử lý");
+            var rawAfter = EvidencePhotos.Decode(request.AfterPhotos, required: true, what: "sau xử lý");
+            beforePhotos = rawBefore.Select(p => new EvidencePhotos.Decoded($"before_{p.FileName}", p.ContentType, p.Data)).ToList();
+            afterPhotos = rawAfter.Select(p => new EvidencePhotos.Decoded($"after_{p.FileName}", p.ContentType, p.Data)).ToList();
+        }
+        else
+        {
+            throw new ArgumentException("Cần ít nhất một ảnh hiện trạng.");
+        }
 
         // 6. Ghi dữ liệu
         var now = NowUtc;
@@ -315,6 +334,7 @@ public partial class FacilityOpsService
                     allPhotos.TryGetValue(c.OverdueCaseId, out var photos);
                     var bPhotos = (photos ?? []).Where(p => p.Caption != null && p.Caption.StartsWith("before_")).Select(p => new EvidencePhotoDto(p.Url, p.Caption!.StartsWith("before_") ? p.Caption[7..] : p.Caption)).ToList();
                     var aPhotos = (photos ?? []).Where(p => p.Caption != null && p.Caption.StartsWith("after_")).Select(p => new EvidencePhotoDto(p.Url, p.Caption!.StartsWith("after_") ? p.Caption[6..] : p.Caption)).ToList();
+                    var sPhotos = (photos ?? []).Where(p => p.Caption != null && p.Caption.StartsWith("photo_")).Select(p => new EvidencePhotoDto(p.Url, p.Caption![6..])).ToList();
 
                     recordDto = new OverdueRemovalRecordDto(
                         recordData.Staff,
@@ -324,7 +344,8 @@ public partial class FacilityOpsService
                         recordData.SavedAt,
                         recordData.UnitStatus,
                         bPhotos,
-                        aPhotos
+                        aPhotos,
+                        sPhotos
                     );
 
                     if (!string.IsNullOrWhiteSpace(recordData.OriginalNotes))

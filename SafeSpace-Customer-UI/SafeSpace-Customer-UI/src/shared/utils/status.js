@@ -64,10 +64,10 @@ export const ACCESS_REQUESTS = { QR: "Cấp lại mã QR", PIN: "Đặt lại PI
 // Figma C12-* · câu hỏi thứ hai theo chủ đề; ghép với chủ đề thành tiêu đề yêu cầu.
 export const TICKET_OPTIONS = {
   ACCESS: { question: "Bạn cần hỗ trợ gì?", options: ACCESS_REQUESTS, hint: "Mã QR/PIN cũ ngừng hoạt động ngay khi cơ sở cấp mã mới." },
-  PAYMENT: { question: "Vấn đề thanh toán", options: { NOT_RECORDED: "Đã trả nhưng chưa ghi nhận", VAT: "Cần hóa đơn VAT", WRONG_AMOUNT: "Số tiền bị trừ sai" }, hint: "Đính kèm ảnh biên lai hoặc sao kê. Không gửi số thẻ, mã OTP hay mật khẩu ngân hàng." },
+  PAYMENT: { question: "Vấn đề thanh toán", options: { NOT_RECORDED: "Đã trả nhưng chưa ghi nhận", VAT: "Cần hóa đơn VAT", WRONG_AMOUNT: "Số tiền bị trừ sai" }, hint: "Ghi rõ ngày giờ và số tiền đã trả khi nhân viên liên hệ. Không gửi số thẻ, mã OTP hay mật khẩu ngân hàng." },
   RENEWAL: { question: "Bạn cần hỏi gì?", options: { PRICE: "Giá gia hạn", MONTHS: "Đổi số tháng gia hạn", REJECTED: "Yêu cầu gia hạn bị từ chối" }, hint: "Gửi yêu cầu gia hạn ở mục Kho của tôi; ở đây chỉ hỏi thêm thông tin. Ô đã có khách đặt trước thì gia hạn sang ô khác." },
   RETURN: { question: "Bạn cần hỗ trợ gì?", options: { REFUND: "Hỏi khoản hoàn cọc", RESCHEDULE: "Đổi lịch kiểm tra trả kho", DISPUTE: "Khiếu nại biên bản kiểm tra" }, hint: "Gửi yêu cầu trả kho ở mục Kho của tôi. Khoản khấu trừ và cách nhận hoàn xem trong biên bản trả kho." },
-  UNIT: { question: "Sự cố gặp phải", options: { STUCK: "Cửa kẹt, không mở được", LOCK: "Khóa hỏng", LEAK: "Kho dột hoặc ẩm" }, hint: "Khẩn cấp (không ra được, có nguy hiểm): gọi hotline của cơ sở. Đính kèm ảnh để cơ sở xử lý nhanh hơn." },
+  UNIT: { question: "Sự cố gặp phải", options: { STUCK: "Cửa kẹt, không mở được", LOCK: "Khóa hỏng", LEAK: "Kho dột hoặc ẩm" }, hint: "Khẩn cấp (không ra được, có nguy hiểm): gọi hotline của cơ sở. Cơ sở cử nhân viên kiểm tra tại kho." },
   MAINTENANCE: { question: "Khu vực cần xử lý", options: { CLEANING: "Khu chung chưa đạt tiêu chuẩn vệ sinh", PEST: "Côn trùng", POWER: "Đèn hoặc điện hỏng" }, hint: "Cơ sở xếp lịch xử lý theo thứ tự gửi và báo lại trên chuông thông báo." },
   SCHEDULE: { question: "Bạn cần thay đổi gì?", options: { APPOINTMENT: "Đổi lịch hẹn", PROFILE: "Sửa thông tin cá nhân", COPY: "Xin bản sao hợp đồng" }, hint: "Đổi tên chủ hợp đồng cần mang CCCD đến quầy. Thông tin đã sửa hiện trong hợp đồng sau khi cơ sở xác nhận." },
 };
