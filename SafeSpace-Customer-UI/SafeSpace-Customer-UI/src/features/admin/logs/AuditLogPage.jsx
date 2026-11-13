@@ -21,6 +21,7 @@ import { adminApi } from "../api/adminApi.js";
 import { parseUtc } from "../../../shared/api/apiMappers.js";
 import { DatePicker, Pagination } from "../../../shared/components/Pickers.jsx";
 import { Notice } from "../../../shared/components/UI.jsx";
+import { today } from "../../../shared/utils/format.js";
 import { ACTION_GROUPS, roleLabel, sortRoles } from "../../../shared/utils/roles.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { dateTime, describeActivity, useLoad } from "../utils/adminUtils.js";
@@ -189,8 +190,8 @@ export default function AuditLogPage() {
 
         {/* Bộ lọc chọn khoảng ngày (Từ ngày - Đến ngày) */}
         <div className="admin-toolbar__filters">
-          <DatePicker label="Từ ngày" value={from} min="2000-01-01" onChange={pick(setFrom)} className="inline-date" />
-          <DatePicker label="Đến ngày" value={to} min={from || "2000-01-01"} onChange={pick(setTo)} className="inline-date" />
+          <DatePicker label="Từ ngày" value={from} min="2000-01-01" max={to || today()} onChange={pick(setFrom)} className="inline-date" />
+          <DatePicker label="Đến ngày" value={to} min={from || "2000-01-01"} max={today()} onChange={pick(setTo)} className="inline-date" />
           {/* Nút xóa bộ lọc ngày nếu đang lọc */}
           {(from || to) && (
             <button

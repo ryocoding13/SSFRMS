@@ -28,7 +28,7 @@ export function DailyStaffReportPage({ embedded = false } = {}) {
   const Wrap = embedded ? "section" : "main";
   return <Wrap className={embedded ? "daily-report-embedded" : "container page workflow-page"}>
     {embedded ? <><h2 className="section-title">Công việc nhân viên trong ngày</h2><p className="muted">Việc nhân viên chưa xong và đã làm trong ngày (hệ thống ghi lúc 22:00). Việc xếp theo thời gian tạo; quá 3 ngày chỉ gắn nhãn.</p></> : <PageHeader title="Báo cáo cuối ngày" description="Việc nhân viên chưa xong và đã làm trong ngày. Việc xếp theo thời gian tạo; quá 3 ngày chỉ gắn nhãn." />}
-    <DatePicker label="Ngày báo cáo" value={date} min={addDays(today(), -90)} onChange={setDate} />
+    <DatePicker label="Ngày báo cáo" value={date} min={addDays(today(), -90)} max={today()} onChange={setDate} />
     <WorkflowState load={load}>
       {rows.map(s => <RecordCard key={s.staffId} title={`${s.fullName} · ${s.staffId}`} subtitle={s.oldestPendingSince ? `Việc chưa xong cũ nhất từ ${s.oldestPendingSince}` : "Không còn việc tồn"}
         actions={<Tag tone={s.pending ? "amber" : "green"}>{s.pending ? `${s.pending} việc chưa xong` : "Đã xong hết"}</Tag>}>

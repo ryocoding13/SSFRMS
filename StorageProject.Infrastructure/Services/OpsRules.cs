@@ -52,6 +52,16 @@ public static class OpsRules
     /// <summary>Ngày kinh doanh hiện tại theo giờ Việt Nam (UTC+7).</summary>
     public static DateOnly TodayLocal => DateOnly.FromDateTime(DateTime.UtcNow + ReportOffset);
 
+    /// <summary>
+    /// Ngày cuối cùng được hẹn đến kho trong kỳ thuê (trả kho, nhận chìa khóa): trước ngày hết hạn, vì QR/PIN chỉ mở cửa trong
+    /// [StartDate, EndDate) theo giờ Việt Nam (D26). Hợp đồng đã tới/quá ngày hết hạn chỉ hẹn được trong hôm nay.
+    /// </summary>
+    public static DateOnly LastVisitDay(DateOnly endDate, DateOnly today)
+    {
+        var dayBeforeEnd = endDate.AddDays(-1);
+        return dayBeforeEnd > today ? dayBeforeEnd : today;
+    }
+
     /// <summary>Ngày hiện tại theo giờ chuẩn UTC.</summary>
     public static DateOnly TodayUtc => DateOnly.FromDateTime(DateTime.UtcNow);
 
