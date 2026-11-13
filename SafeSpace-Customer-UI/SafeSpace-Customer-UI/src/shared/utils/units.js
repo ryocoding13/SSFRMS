@@ -12,11 +12,18 @@ export const UNIT_STATUS = {
 };
 export const LEGEND = ["FREE", "RENTED", "HELD", "SERVICE"];
 
-// StorageUnit.Status (backend) → trạng thái hiển thị
-export const fromBackendStatus = (s) =>
-  s === "AVAILABLE" ? "FREE" : s === "RESERVED" || s === "ASSIGNED" ? "HELD" : ["MAINTENANCE", "INSPECTION", "OUT_OF_SERVICE"].includes(s) ? "SERVICE" : "RENTED";
+// StorageUnit.Status (backend) → trạng thái hiển thị (an toàn: status không xác định map về SERVICE)
+export const fromBackendStatus = (s) => {
+  if (!s) return "SERVICE";
+  const upper = String(s).toUpperCase();
+  if (upper === "AVAILABLE" || upper === "FREE") return "FREE";
+  if (upper === "RESERVED" || upper === "ASSIGNED" || upper === "HELD") return "HELD";
+  if (["MAINTENANCE", "INSPECTION", "OUT_OF_SERVICE", "LOCKED", "SERVICE"].includes(upper)) return "SERVICE";
+  if (["RENTED", "OCCUPIED", "RETURN_PENDING", "OVERDUE"].includes(upper)) return "RENTED";
+  return "SERVICE";
+};
 
-// Bố cục theo Figma 14/10: 12 ô, hành lang ở giữa.
+// Bố cục fallback demo: 12 ô, hành lang ở giữa (Figma 14/10).
 // Dãy A cỡ M: K01–K04 kho thường, K05–K06 kho lạnh. Dãy B cỡ L: K07–K10 kho thường, K11–K12 kho lạnh.
 const LAYOUT = [
   ["K01", "A", "normal", "M"], ["K02", "A", "normal", "M"], ["K03", "A", "normal", "M"], ["K04", "A", "normal", "M"],
@@ -31,10 +38,9 @@ const NON_FREE = ["RENTED", "HELD", "SERVICE"];
 const areaText = (n) => `${String(n).replace(".", ",")} m²`;
 const BAND_AREA = Object.fromEntries(SIZE_BANDS.map((b) => [b.id, b.area]));
 
-// Gán gói kho cho 12 ô theo loại (thường / lạnh) và cỡ (M / L).
-// Dữ liệu backend chưa đủ 4 loại thì ô lấy gói gần nhất: cùng loại + cùng cỡ → cùng cỡ → cùng loại → gói bất kỳ.
+// Gán gói kho cho 12 ô theo loại (thường / lạnh) và cỡ (M / L) cho chế độ demo.
 function offersForLayout(facility) {
-  const offers = facility.offers || [];
+  const offers = facility?.offers || [];
   return LAYOUT.map(([, , type, band]) => {
     const offer =
       offers.find((o) => o.type === type && o.band === band) ||
@@ -47,30 +53,105 @@ function offersForLayout(facility) {
 }
 
 /**
- * 12 ô kho của một cơ sở.
- * `stock` (không bắt buộc): { [offer.key]: số ô trống } lấy từ POST /api/availability/check.
- * `realUnits` (không bắt buộc): danh sách StorageUnit thực tế từ GET /api/facilities/{id}/units —
- * khi có, trạng thái từng ô lấy trực tiếp từ database qua fromBackendStatus().
+ * Tìm offer trong catalog của cơ sở khớp tốt nhất với ô kho thực tế.
+ * Ưu tiên:
+ * 1. Khớp chính xác UnitTypeId / `ut-${UnitTypeId}`
+ * 2. Khớp cùng loại (thường / lạnh) và diện tích xấp xỉ
+ * 3. Khớp cùng loại (thường / lạnh)
+ * 4. Fallback gói đầu tiên của cơ sở nếu có
+ */
+function matchOfferForUnit(offers, unit) {
+  if (!offers || offers.length === 0) return null;
+  const unitTypeId = unit.unitTypeId ?? unit.unit_type_id ?? null;
+  if (unitTypeId != null) {
+    const matchId = offers.find(
+      (o) => o.unit_type_id === unitTypeId || o.key === `ut-${unitTypeId}` || o.unitTypeId === unitTypeId,
+    );
+    if (matchId) return matchId;
+  }
+  const isClimate = unit.climateControlled !== undefined ? Boolean(unit.climateControlled) : unit.type === "climate";
+  const targetType = isClimate ? "climate" : "normal";
+  const unitArea = Number(unit.sizeM2 ?? unit.area ?? 0);
+  if (unitArea > 0) {
+    const matchTypeArea = offers.find(
+      (o) => o.type === targetType && Math.abs(Number(o.area || 0) - unitArea) < 0.1,
+    );
+    if (matchTypeArea) return matchTypeArea;
+  }
+  const matchType = offers.find((o) => o.type === targetType);
+  if (matchType) return matchType;
+  return offers[0] || null;
+}
+
+/**
+ * Danh sách ô kho của một cơ sở (Customer Unit Map).
+ * - Chế độ API: Khi `realUnits` là một mảng (kể cả mảng rỗng []), danh sách ô được ánh xạ 100% động từ
+ *   kết quả API (GET /api/facilities/{id}/units), hỗ trợ hiển thị 0, 1, 12, 13, 20... ô kho không bị chặn cứng.
+ * - Chế độ Demo/Offline: Khi `realUnits === null`, giữ fallback 12 ô mẫu để bảo toàn backward compatibility.
+ *
+ * @param {object} facility Đối tượng cơ sở kho
+ * @param {object|null} stock Số ô trống theo offer.key từ checkAvailability (dùng cho chế độ demo)
+ * @param {Array|null} realUnits Danh sách StorageUnit từ GET /api/facilities/{id}/units
+ * @returns {Array} Danh sách ô kho hiển thị
  */
 export function unitsFor(facility, stock = null, realUnits = null) {
   if (!facility) return [];
+
+  // CHẾ ĐỘ API: Dữ liệu thực tế từ backend
+  if (Array.isArray(realUnits)) {
+    if (realUnits.length === 0) return [];
+
+    const offers = facility.offers || [];
+    return realUnits.map((u, i) => {
+      const code = String(u.unitNumber ?? u.code ?? `K${String(i + 1).padStart(2, "0")}`).trim();
+      const floor = u.floor || "Tầng trệt";
+      const row = u.zone || u.row || "A";
+      const zone = u.zone || u.row || null;
+      const position = [floor, zone ? `Dãy ${zone}` : null].filter(Boolean).join(" · ") || (u.locationDescription || "Chưa phân khu");
+
+      const offer = matchOfferForUnit(offers, u);
+      const isClimate = u.climateControlled !== undefined ? Boolean(u.climateControlled) : (offer?.type === "climate" || u.type === "climate");
+      const unitArea = Number(u.sizeM2 ?? u.area ?? offer?.area ?? 15);
+      const area = unitArea > 0 ? unitArea : 15;
+      const status = fromBackendStatus(u.status);
+
+      return {
+        unit_id: u.unitId ?? u.unit_id ?? null,
+        code,
+        row,
+        zone,
+        floor,
+        area,
+        area_label: areaText(area),
+        type: offer?.type || (isClimate ? "climate" : "normal"),
+        offer_key: offer?.key || (u.unitTypeId ? `ut-${u.unitTypeId}` : null),
+        monthly_rate: offer?.monthly_rate || 0,
+        has_pricing: Boolean(offer && offer.monthly_rate > 0),
+        position,
+        status,
+        free_from: u.freeFrom || null,
+        overdue: Boolean(u.overdue),
+        bookable_for_period: u.bookableForPeriod !== undefined ? Boolean(u.bookableForPeriod) : status === "FREE",
+        period_unavailable_reason: u.periodUnavailableReason || null,
+        current_contract_end_date: u.currentContractEndDate || null,
+      };
+    });
+  }
+
+  // CHẾ ĐỘ DEMO / FALLBACK: 12 ô mẫu xoay vòng theo cơ sở
   const shift = ((Number(facility.facility_id) || 1) - 1) % PATTERN.length;
   const assigned = offersForLayout(facility);
   const freeLeft = stock ? { ...stock } : null;
-  const hasReal = Array.isArray(realUnits) && realUnits.length > 0;
+
   return LAYOUT.map(([code, row], i) => {
     const { offer, area } = assigned[i];
-    let status;
-    const real = hasReal ? realUnits.find((u) => (u.unitNumber || u.code) === code) : null;
-    if (real) {
-      status = fromBackendStatus(real.status);
-    } else {
-      status = PATTERN[(i + shift * 3) % PATTERN.length];
-      if (freeLeft && offer && offer.key in freeLeft) {
-        if (freeLeft[offer.key] > 0) {
-          status = "FREE";
-          freeLeft[offer.key] -= 1;
-        } else if (status === "FREE") status = NON_FREE[i % NON_FREE.length];
+    let status = PATTERN[(i + shift * 3) % PATTERN.length];
+    if (freeLeft && offer && offer.key in freeLeft) {
+      if (freeLeft[offer.key] > 0) {
+        status = "FREE";
+        freeLeft[offer.key] -= 1;
+      } else if (status === "FREE") {
+        status = NON_FREE[i % NON_FREE.length];
       }
     }
     return {
@@ -81,14 +162,14 @@ export function unitsFor(facility, stock = null, realUnits = null) {
       type: offer?.type || "normal",
       offer_key: offer?.key || null,
       monthly_rate: offer?.monthly_rate || 0,
+      has_pricing: Boolean(offer && offer.monthly_rate > 0),
       position: `Tầng trệt · Dãy ${row}`,
       status,
-      // D41 / T3: tách trạng thái hiện tại với khả năng đặt trong kỳ đang tìm và ngày hết hạn dự kiến
-      current_contract_end_date: real?.currentContractEndDate || null,
-      free_from: real?.freeFrom || null,
-      overdue: Boolean(real?.overdue),
-      bookable_for_period: real?.bookableForPeriod ?? (real ? fromBackendStatus(real.status) === "FREE" : status === "FREE"),
-      period_unavailable_reason: real?.periodUnavailableReason || null,
+      current_contract_end_date: null,
+      free_from: null,
+      overdue: false,
+      bookable_for_period: status === "FREE",
+      period_unavailable_reason: null,
     };
   });
 }

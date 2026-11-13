@@ -126,3 +126,68 @@ test("siteLabel hiển thị đúng tên cơ sở thực tế (ví dụ SafeSpac
   assert.equal(siteLabel(null), "SafeSpace");
 });
 
+test("MAP-01/02: sơ đồ nhận đúng 13 ô động từ API (K01–K13, dãy C, tầng 2) và không bị ép 12 ô", () => {
+  const facilities = createFacilities();
+  const f = facilities[0];
+  const realUnits = [
+    ...Array.from({ length: 12 }, (_, i) => ({
+      unitId: i + 1,
+      unitNumber: `K${String(i + 1).padStart(2, "0")}`,
+      zone: i < 6 ? "A" : "B",
+      floor: "Tầng trệt",
+      sizeM2: i < 6 ? 15 : 30,
+      climateControlled: i === 4 || i === 5 || i === 10 || i === 11,
+      status: "AVAILABLE",
+    })),
+    {
+      unitId: 13,
+      unitNumber: "K13",
+      zone: "C",
+      floor: "Tầng 2",
+      sizeM2: 15,
+      climateControlled: false,
+      status: "AVAILABLE",
+    },
+  ];
+  const units = unitsFor(f, null, realUnits);
+  assert.equal(units.length, 13);
+  const k13 = units.find((u) => u.code === "K13");
+  assert.ok(k13);
+  assert.equal(k13.unit_id, 13);
+  assert.equal(k13.zone, "C");
+  assert.equal(k13.floor, "Tầng 2");
+  assert.equal(k13.position, "Tầng 2 · Dãy C");
+  assert.equal(k13.status, "FREE");
+  assert.equal(k13.area, 15);
+  assert.equal(k13.type, "normal");
+});
+
+test("MAP-01: khi API trả mảng rỗng [] thì mapper trả [] (không sinh bù 12 ô mẫu)", () => {
+  const facilities = createFacilities();
+  const f = facilities[0];
+  const units = unitsFor(f, null, []);
+  assert.deepEqual(units, []);
+});
+
+test("MAP-01: khi realUnits === null (chế độ demo/offline), giữ fallback 12 ô mẫu", () => {
+  const facilities = createFacilities();
+  const f = facilities[0];
+  const units = unitsFor(f, null, null);
+  assert.equal(units.length, 12);
+  assert.equal(units[0].code, "K01");
+  assert.equal(units[11].code, "K12");
+});
+
+test("MAP-01: ô kho không có gói giá phù hợp thì has_pricing = false, monthly_rate = 0", () => {
+  const f = { facility_id: 1, name: "SafeSpace Test", offers: [] };
+  const realUnits = [
+    { unitId: 101, unitNumber: "X01", status: "AVAILABLE", sizeM2: 25, climateControlled: false },
+  ];
+  const units = unitsFor(f, null, realUnits);
+  assert.equal(units.length, 1);
+  assert.equal(units[0].code, "X01");
+  assert.equal(units[0].has_pricing, false);
+  assert.equal(units[0].monthly_rate, 0);
+  assert.equal(units[0].status, "FREE");
+});
+

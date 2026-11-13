@@ -1,3 +1,38 @@
+## 2026-11-13 — Sửa sơ đồ kho Customer không nhận ô kho mới (Dynamic Unit Map Fix)
+
+- **Mục tiêu:**
+  - Triển khai theo kế hoạch `SSFRMS-Customer-Unit-Map-Dynamic-Data-Fix-Plan.md`:
+    1. **MAP-01 (Chuẩn hóa dữ liệu thật):** Sửa `unitsFor` trong `src/shared/utils/units.js` để trong chế độ API (`Array.isArray(realUnits)`), toàn bộ danh sách ô kho hiển thị được ánh xạ 100% động từ kết quả API `GET /api/facilities/{id}/units`, không bị giới hạn cứng bởi danh sách mẫu 12 ô K01–K12 (`LAYOUT`), hỗ trợ hiển thị 0, 1, 12, 13, 20... ô kho; khớp catalog/offer chính xác theo `unitTypeId` hoặc loại/diện tích thực tế; khi không khớp giá thì đặt `has_pricing = false` và `monthly_rate = 0`; bảo toàn khả dụng (`bookable_for_period`, `free_from`, `overdue`); mảng rỗng `[]` là trạng thái rỗng hợp lệ (không tự sinh bù 12 ô mẫu); khi `realUnits === null` giữ fallback 12 ô mẫu cho chế độ demo/offline.
+    2. **MAP-02 (Bố cục sơ đồ linh hoạt theo dữ liệu):** Sửa `UnitMap.jsx` để gom nhóm hiển thị linh hoạt theo `Floor` $\rightarrow$ `Zone` (dãy/khu), thiếu thì hiển thị "Chưa phân khu" thay vì chỉ có cố định 2 dãy A/B của Tầng trệt; bố cục grid tự động xuống dòng khi có nhiều ô; legend và đếm số lượng tính trực tiếp từ dữ liệu thực tế đang vẽ; hiển thị thông báo empty state khi `units.length === 0`.
+    3. **MAP-03 (Tải, làm mới và lựa chọn):** Sửa `FacilityDetailPage.jsx` và `AppProvider.jsx` để quản lý tách biệt 4 trạng thái tải sơ đồ (loading, error kèm nút thử lại, empty, success); thêm nút "Tải lại sơ đồ" (reload) để Customer có thể cập nhật ngay sau khi Manager thêm ô kho mới mà không cần F5 toàn trang; chống race condition khi đổi cơ sở/ngày thuê; tự động giữ lựa chọn ô hiện tại nếu còn tồn tại trong danh sách mới, hoặc chuyển sang ô trống đầu tiên; chặn tạo đơn đặt chỗ khi ô chưa có giá niêm yết phù hợp.
+    4. **MAP-04 (Giữ đúng khả dụng & kiểm thử):** Bổ sung bộ unit test trong `tests/units.test.js` kiểm thử toàn diện các ca 13 ô (có K13, dãy C, tầng 2), ca mảng rỗng `[]`, ca fallback `null`, và ca ô thiếu giá; bảo đảm toàn bộ hệ thống test suite pass 100%.
+- **Giải pháp triển khai:**
+  1. `SafeSpace-Customer-UI/src/shared/utils/units.js`:
+     - Tách biệt rõ ràng chế độ API (`Array.isArray(realUnits)`) và chế độ demo (`realUnits === null`).
+     - Viết hàm `matchOfferForUnit(offers, unit)` tìm offer khớp nhất theo `unitTypeId` $\rightarrow$ loại kho & diện tích $\rightarrow$ loại kho $\rightarrow$ null.
+     - Hàm `fromBackendStatus(s)` an toàn: chuẩn hoá chữ hoa, chuyển các trạng thái không xác định về `SERVICE` (không coi là `FREE`).
+  2. `SafeSpace-Customer-UI/src/shared/components/UnitMap.jsx`:
+     - Nhận các props `loading`, `error`, `onRetry`, `onReload`.
+     - Gom nhóm theo `Floor` và `Zone`, hiển thị tiêu đề dãy và số lượng ô; render hành lang chung và chú thích mặt bằng.
+     - Xử lý trạng thái đang tải (loading) và trạng thái cơ sở chưa có dữ liệu ô kho (empty state).
+  3. `SafeSpace-Customer-UI/src/features/customer/facilities/FacilityDetailPage.jsx`:
+     - Quản lý `loadingUnits`, `unitsError`, `reloadKey` và hàm `reloadUnits`.
+     - Reset `realUnits` và lỗi khi đổi cơ sở (`facility?.facility_id`).
+     - Tự động đồng bộ ô đang chọn khi `units` cập nhật.
+     - Chặn đặt chỗ khi ô chưa có giá niêm yết phù hợp (`unitHasNoPrice`).
+  4. `SafeSpace-Customer-UI/src/shared/api/customerApi.js` & `AppProvider.jsx`:
+     - `facilityUnits` hỗ trợ nhận tham số query `params` tuỳ chọn.
+     - `getFacilityUnits` trong `AppProvider.jsx` không nuốt lỗi mà ném để caller phân biệt lỗi mạng với kết quả rỗng.
+  5. `SafeSpace-Customer-UI/tests/units.test.js`:
+     - Thêm 4 test case mới: nhận 13 ô động K01–K13 kèm dãy C và tầng 2; API trả rỗng `[]` tạo `[]`; demo `null` giữ 12 ô; ô không có giá đặt `has_pricing = false` và `monthly_rate = 0`.
+- **Kiểm chứng:**
+  - Frontend Test Suite: `npm test` PASS 170/170 tests (4 test mới thêm).
+  - Frontend Business Tests: `npm run test:business` PASS 14/14 tests.
+  - Frontend Workflows & Structure: `npm run test:workflows` PASS 12/12, `npm run check:structure` PASS.
+  - Frontend Render & Build: `npm run test:render` PASS 178 routes, `npm run build` PASS.
+  - Backend Unit Tests: `dotnet test StorageProject.Tests -c Release` PASS 295/295 tests.
+  - Git Whitespace: `git diff --check` PASS 0 whitespace errors.
+
 ## 2026-11-12 — Triển khai tuần tự 16 task nghiệp vụ & giao diện không cần Figma trước (#1, #3, #4+D49, #5, #6, #8, #9, #10, #11, #12, #13, #15, #18, #20, #21, #23)
 
 - **Mục tiêu & Quyết định áp dụng:**

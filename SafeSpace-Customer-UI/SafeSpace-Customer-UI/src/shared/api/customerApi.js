@@ -17,8 +17,8 @@ export const api = {
   availability: (body) => request("/api/availability/check", { method: "POST", body, auth: false }),
   facilityUnits: (facilityId, params = {}) => {
     const query = new URLSearchParams();
-    if (params.startDate) query.set("startDate", params.startDate);
-    if (params.months != null) query.set("months", String(params.months));
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.months != null) query.set("months", String(params.months));
     const qs = query.toString();
     return request(`/api/facilities/${facilityId}/units${qs ? `?${qs}` : ""}`, { auth: false });
   },

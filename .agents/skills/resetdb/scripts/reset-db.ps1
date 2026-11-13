@@ -42,6 +42,8 @@ $verifySql = @"
 SELECT 'reservations' as tbl, COUNT(*) as cnt FROM reservations
 UNION ALL SELECT 'rental_contracts', COUNT(*) FROM rental_contracts
 UNION ALL SELECT 'payments', COUNT(*) FROM payments
+UNION ALL SELECT 'payment_checkouts', COUNT(*) FROM payment_checkouts
+UNION ALL SELECT 'policy_consents', COUNT(*) FROM policy_consents
 UNION ALL SELECT 'support_tickets', COUNT(*) FROM support_tickets
 UNION ALL SELECT 'handover_records', COUNT(*) FROM handover_records
 UNION ALL SELECT 'return_inspections', COUNT(*) FROM return_inspections

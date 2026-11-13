@@ -15,10 +15,14 @@ SET ANSI_NULLS ON;
 EXEC sp_msforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT all';
 
 -- 2. Clear all customer transaction & activity tables
+IF OBJECT_ID('payment_checkouts') IS NOT NULL DELETE FROM [payment_checkouts];
 IF OBJECT_ID('evidence_photos') IS NOT NULL DELETE FROM [evidence_photos];
+IF OBJECT_ID('facility_incidents') IS NOT NULL DELETE FROM [facility_incidents];
 IF OBJECT_ID('support_inquiry_replies') IS NOT NULL DELETE FROM [support_inquiry_replies];
 IF OBJECT_ID('support_inquiries') IS NOT NULL DELETE FROM [support_inquiries];
+IF OBJECT_ID('password_reset_challenges') IS NOT NULL DELETE FROM [password_reset_challenges];
 IF OBJECT_ID('password_resets') IS NOT NULL DELETE FROM [password_resets];
+IF OBJECT_ID('policy_consents') IS NOT NULL DELETE FROM [policy_consents];
 DELETE FROM [activity_logs];
 DELETE FROM [login_history];
 DELETE FROM [access_credentials];
@@ -35,6 +39,9 @@ DELETE FROM [rental_contracts];
 DELETE FROM [reservations];
 
 -- 3. Reset identities on transaction tables so IDs start clean from 1
+IF OBJECT_ID('payment_checkouts') IS NOT NULL DBCC CHECKIDENT ('payment_checkouts', RESEED, 0);
+IF OBJECT_ID('policy_consents') IS NOT NULL DBCC CHECKIDENT ('policy_consents', RESEED, 0);
+IF OBJECT_ID('facility_incidents') IS NOT NULL DBCC CHECKIDENT ('facility_incidents', RESEED, 0);
 IF OBJECT_ID('evidence_photos') IS NOT NULL DBCC CHECKIDENT ('evidence_photos', RESEED, 0);
 IF OBJECT_ID('support_inquiry_replies') IS NOT NULL DBCC CHECKIDENT ('support_inquiry_replies', RESEED, 0);
 IF OBJECT_ID('support_inquiries') IS NOT NULL DBCC CHECKIDENT ('support_inquiries', RESEED, 0);

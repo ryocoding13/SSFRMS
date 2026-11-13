@@ -807,11 +807,7 @@ function ApiProvider({ children }) {
   }, []);
 
   const getFacilityUnits = useCallback(async (facilityId, params) => {
-    try {
-      return await api.facilityUnits(facilityId, params);
-    } catch {
-      return null;
-    }
+    return await api.facilityUnits(facilityId, params);
   }, []);
 
 
