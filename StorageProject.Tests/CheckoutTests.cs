@@ -224,12 +224,12 @@ public sealed partial class CheckoutTests
         Assert.Equal("ACTIVE", c.Status); Assert.Null(c.HandoverRecord); // D36: lịch chỉ tạo khi khách yêu cầu chìa khóa
         Assert.Single(await f.Db.AccessCredentials.Where(a => a.CredentialType == "ACCESS_CODE" && a.CredentialReference!.StartsWith("QR-")).ToListAsync()); // mã cấp sẵn (D26)
         var access = Access(f.Db);
-        // L13: trước ngày bắt đầu thuê không trả QR/PIN cho khách.
-        await Assert.ThrowsAsync<InvalidOperationException>(() => access.GetQrAsync(f.Order.CustomerId, c.ContractId));
+        // #59: trước ngày bắt đầu thuê khách xem được mã nhưng chưa dùng được.
+        Assert.False((await access.GetQrAsync(f.Order.CustomerId, c.ContractId)).UsableNow);
         var start = c.StartDate;
         c.StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)); await f.Db.SaveChangesAsync();
         var qr = await access.GetQrAsync(f.Order.CustomerId, c.ContractId);
-        Assert.Matches(@"^\d{6}$", qr.BackupCode); Assert.Equal(c.StartDate.ToString("yyyy-MM-dd"), qr.ValidFrom);
+        Assert.Matches(@"^[1-9]{6}$", qr.BackupCode); Assert.Equal(c.StartDate.ToString("yyyy-MM-dd"), qr.ValidFrom);
         c.StartDate = start; await f.Db.SaveChangesAsync();
         Assert.Equal("DENIED", (await access.ScanAsync(qr.Code, "test")).Result); // mã có nhưng chưa tới ngày thuê
         c.StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)); await f.Db.SaveChangesAsync();
@@ -239,6 +239,10 @@ public sealed partial class CheckoutTests
         Assert.Equal("OPEN", (await access.ScanAsync(qr.BackupCode, "test", unitNumber: "K01")).Result);
         Assert.Equal("DENIED", (await access.ScanAsync(qr.BackupCode, "test")).Result);
         Assert.Equal("DENIED", (await access.ScanAsync(qr.Code, "test", unitNumber: "OTHER")).Result);
+        // Mã ô K01 có ở mọi cơ sở: máy quét ở cơ sở khác không được mở, kể cả QR hay PIN
+        Assert.Equal("OPEN", (await access.ScanAsync(qr.Code, "test", unitNumber: "K01", facilityId: f.Order.FacilityId)).Result);
+        Assert.Equal("DENIED", (await access.ScanAsync(qr.Code, "test", unitNumber: "K01", facilityId: f.Order.FacilityId + 999)).Result);
+        Assert.Equal("DENIED", (await access.ScanAsync(qr.BackupCode, "test", unitNumber: "K01", facilityId: f.Order.FacilityId + 999)).Result);
         await Assert.ThrowsAsync<KeyNotFoundException>(() => access.GetQrAsync(1, c.ContractId));
     }
 

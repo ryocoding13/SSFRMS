@@ -28,3 +28,10 @@
 .rental-policy__milestones span { color: var(--muted); font-size: 13px; margin-top: 4px; }
 @media (max-width: 900px) { .policy-review__grid, .rental-policy__grid { grid-template-columns: 1fr; } .policy-review__cover { height: 360px; } .policy-review__thumbs .photo { height: 120px; } }
 @media (max-width: 480px) { .policy-review__cover { height: 260px; } .policy-review__thumbs { gap: 10px; } .policy-review__thumbs .photo { height: 90px; } .policy-review__card, .rental-policy__card { padding: 20px; } .rental-policy__toolbar { align-items: stretch; flex-direction: column; } .rental-policy__tabs { flex-wrap: wrap; } }
+
+/* #2 · C04a-ô: ô hệ thống bố trí */
+.policy-review__unit { border-color: var(--blue); animation: policy-unit-in .22s ease-out both; }
+.policy-review__unit-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.policy-review__unit-code { margin: 0; font-family: Manrope, Inter, sans-serif; font-size: 30px; font-weight: 700; color: var(--navy, #0b1f44); letter-spacing: .5px; }
+@keyframes policy-unit-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .policy-review__unit { animation: none; } }

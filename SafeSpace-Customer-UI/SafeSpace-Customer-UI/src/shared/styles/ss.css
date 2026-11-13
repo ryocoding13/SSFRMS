@@ -93,6 +93,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .lead { color: var(--muted); font-size: 17px; }
 .hint { color: var(--muted); font-size: 13.5px; line-height: 1.5; }
 .hint--tight { margin-top: -6px; }
+/* Ghi chú cần khách chú ý (ví dụ: cách xử lý cọc khi đặt kho) — chữ đỏ */
+.hint--alert { color: var(--red); font-weight: 500; }
 .h-sub { font-size: 20px; font-weight: 700; color: var(--ink); margin: 14px 0 6px; }
 h2, h3 { color: var(--ink); }
 h3 { font-size: 17px; font-weight: 700; }
@@ -125,9 +127,11 @@ h4 { font-size: 16px; font-weight: 700; color: var(--ink); }
 .pill { display: inline-flex; padding: 4px 12px; border-radius: 999px; background: var(--soft); color: var(--blue); font-size: 12px; font-weight: 700; letter-spacing: 0.02em; width: max-content; }
 
 /* ---------- Forms ---------- */
-.field { display: grid; gap: 6px; position: relative; }
-.field label, .field__label { font-size: 14px; font-weight: 500; color: var(--text); }
-.field input, .field textarea, .select select, .select-like, .attach { width: 100%; border: 1px solid var(--line); background: var(--white); border-radius: 8px; padding: 12px 14px; font-size: 15px; color: var(--text); }
+.field { display: grid; gap: 6px; position: relative; align-content: start; min-width: 0; }
+.field label, .field__label { font-size: 14px; font-weight: 500; color: var(--text); line-height: 1.4; }
+.field input, .field textarea, .select select, .select-like, .attach { width: 100%; border: 1px solid var(--line); background: var(--white); border-radius: 8px; padding: 11px 14px; font-size: 15px; line-height: 1.35; color: var(--text); box-sizing: border-box; }
+.field input:not([type="checkbox"]):not([type="radio"]), .select select, .select-like { min-height: 46px; height: 46px; }
+.select select { text-overflow: ellipsis; }
 .field input::placeholder, .field textarea::placeholder { color: #8a97ab; }
 .field textarea { resize: vertical; min-height: 72px; }
 .field input[readonly] { color: var(--text); cursor: default; }
@@ -147,7 +151,8 @@ h4 { font-size: 16px; font-weight: 700; color: var(--ink); }
 .form-card .field input, .form-card .field textarea, .form-card .select select, .form-card .select-like, .attach { background: var(--field); border-color: transparent; }
 .form-card .field--invalid input { background: #fff; border-color: #dc2626; }
 .form-card > .btn { justify-self: start; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.form-row > * { min-width: 0; }
 .attach { text-align: left; color: var(--text); cursor: pointer; }
 .files { display: grid; gap: 6px; margin-top: 6px; }
 .files li { display: flex; justify-content: space-between; gap: 8px; background: var(--soft); border-radius: 8px; padding: 6px 10px; font-size: 14px; }
@@ -375,6 +380,8 @@ h4 { font-size: 16px; font-weight: 700; color: var(--ink); }
 
 /* ---------- Modal / lightbox / toast / footer ---------- */
 .overlay { position: fixed; inset: 0; background: rgba(16, 21, 42, 0.45); display: grid; place-items: center; padding: 16px; z-index: 80; }
+/* #29: popup là con trực tiếp của .page nên dính quy tắc ".page > * + * { margin-top }" → lớp phủ bị đẩy xuống, chừa dải trống phía trên. Lớp phủ cố định không bao giờ có lề. */
+.overlay { margin: 0 !important; }
 .modal { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; background: #fff; border-radius: 14px; box-shadow: 0 20px 50px rgba(16, 21, 42, 0.25); padding: 26px 28px; width: 100%; max-width: 440px; display: grid; gap: 14px; outline: none; }
 .modal h2 { font-size: 20px; font-weight: 700; }
 .modal__text { color: var(--muted); font-size: 16px; }
@@ -560,6 +567,9 @@ a.cell-strong:hover { color: var(--blue); }
 .unit-tile strong { font-size: 22px; font-weight: 700; }
 .unit-tile span { font-size: 13px; white-space: nowrap; }
 .unit-tile--free { color: #fff; }
+.unit-tile--bookable { box-shadow: inset 0 0 0 2px #16a34a; }
+.unit-tile__meta { font-size: 11px !important; color: var(--muted); }
+.unit-tile__bookable { font-size: 11px !important; font-weight: 600; color: #15803d; }
 .unit-tile:hover { transform: translateY(-2px); }
 .unit-tile.is-selected { box-shadow: inset 0 0 0 4px var(--soft), 0 0 0 2px var(--blue); }
 .unit-tile--free.is-selected { box-shadow: inset 0 0 0 4px var(--soft); }
@@ -920,3 +930,41 @@ label.search-input input { border: 0; outline: 0; flex: 1; font-size: 14px; back
 .home-footer__cols a.home-footer__hotline { color: var(--blue); font-weight: 600; transition: color var(--ss-fast, .15s) ease; }
 .home-footer__cols a.home-footer__hotline:hover { color: var(--navy, #1e3a8a); }
 .home-footer__note { font-size: 12px !important; line-height: 1.5; }
+
+/* #33 Thẻ tổng quan đồng đều: cùng chiều cao; nhãn ở trên (tối đa 2 dòng, giữ chỗ để giá trị thẳng hàng giữa các thẻ),
+   giá trị không xuống dòng, dòng tăng trưởng luôn nằm sát đáy thẻ. Áp dụng cho Quản lý cơ sở và Vận hành KD. */
+.stats { align-items: stretch; }
+.stat { display: flex; flex-direction: column; justify-content: flex-start; gap: 6px; min-height: 132px; min-width: 0; }
+.stat span { order: -1; line-height: 1.35; min-height: 2.7em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.stat strong { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: clamp(20px, 1.9vw, 28px); }
+.stat small { margin-top: auto; line-height: 1.35; }
+
+/* #7 · Figma G2: menu tài khoản — mỗi thông tin một dòng, chữ dài xuống dòng trong khung 300 px, không dính chữ */
+.usermenu__pop { width: 300px; max-width: calc(100vw - 32px); padding: 16px 0 8px; gap: 0; }
+.usermenu__info { display: grid; gap: 2px; padding: 0 18px 12px; border-bottom: 1px solid var(--line); text-align: left; }
+.usermenu__info strong { font-size: 15px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.usermenu__info span { font-size: 13px; color: var(--muted); line-height: 1.4; overflow-wrap: anywhere; }
+.usermenu__pop > button { margin: 8px 18px 0; }
+
+/* #7 · Figma G2: tab trong trang thay cho dãy nút phụ dưới navbar */
+.page-tabs { margin-top: 20px; }
+.page-tabs__inner { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: #fff; border: 1px solid var(--line); border-radius: 10px; max-width: 100%; }
+.page-tabs__inner > a { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--text); white-space: nowrap; transition: background-color .15s ease, color .15s ease; }
+.page-tabs__inner > a:hover { background: var(--soft); }
+.page-tabs__inner > a.is-active { background: var(--soft); color: var(--blue); font-weight: 600; }
+
+/* #34: trục và nhãn cột hiện số tiền đầy đủ → trục rộng hơn, không xuống dòng (biểu đồ vẽ lại ở lượt báo cáo #35–#37) */
+.bars { grid-template-columns: 96px 1fr; }
+.bars__axis span, .bars__col b { white-space: nowrap; }
+.bars__axis { font-size: 11.5px; }
+.bars__col b { font-size: 12px; }
+/* #7 · Figma G2: mục điều hướng chính chưa mở dùng chữ xám, mục đang mở chữ xanh trên nền nhạt */
+.subnav a { color: #475569; font-weight: 500; transition: background-color .15s ease, color .15s ease; }
+.subnav a:hover { background: var(--soft); }
+.subnav a.is-active { color: var(--blue); font-weight: 600; }
+
+/* #2 · C03b-không ô: không có ô trống cả kỳ */
+.booking__none { display: grid; gap: 6px; padding: 14px 16px; border: 1px solid #f5c2bd; border-radius: 12px; background: #fdf1f0; color: #7a1d14; animation: booking-none-in .2s ease-out both; }
+.booking__none p { margin: 0; font-size: 14px; line-height: 1.5; }
+@keyframes booking-none-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .booking__none { animation: none; } }

@@ -29,7 +29,7 @@ public sealed partial class D32RefundEvidenceTests
             "Đạt · không còn đồ", ready ? "Đạt · tường sàn cửa nguyên vẹn" : "Trầy cửa", "Đã nhận đủ chìa",
             ready ? "Sẵn sàng cho thuê lại" : "Cần bảo trì trước khi cho thuê lại",
             damage, cleaning, damage > 0 ? "Cửa cuốn" : null, cleaning || damage > 0 ? "Theo biên bản" : null,
-            damage > 0 ? new[] { Photo(Jpeg) } : null));
+            new[] { Photo(Jpeg) }));
         f.Db.ChangeTracker.Clear();
         return res.InspectionId;
     }
@@ -119,6 +119,91 @@ public sealed partial class D32RefundEvidenceTests
         Assert.False(i.CleaningRequired);
         Assert.Equal("RECHECKED", (await f.Ops.GetReturnDeductionAsync(f.Customer.UserId, Code(c))).Status);
         Assert.Equal(1_000_000m, (await f.Ops.ConfirmRefundAsync(f.ManagerActor, Code(c))).Refund);
+    }
+
+    [Fact]
+    public async Task Board_HidesReturnFromManagerSettlementUntilInspectedAndDeductionResolved()
+    {
+        await using var f = await Fixture.CreateAsync();
+        var c = await f.ActiveContractAsync(deposit: 1_000_000m);
+        var move = await new ContractService(f.Db).RegisterMoveOutAsync(f.Customer.UserId, c.ContractId, MoveOut());
+
+        // Chưa kiểm tra xong: chưa được hiện ở hàng chờ quyết toán (RETURNED)
+        var beforeInspect = await f.Ops.GetBoardAsync(f.ManagerActor);
+        var ret0 = Assert.Single(beforeInspect.Returns, r => r.Contract == Code(c));
+        Assert.False(ret0.DamageWorkflowResolved);
+        Assert.DoesNotContain(beforeInspect.Contracts, x => x.Id == Code(c) && x.State == "RETURNED");
+
+        // Đã kiểm tra nhưng có khấu trừ chờ khách xác nhận: vẫn ẩn khỏi chờ quyết toán
+        await f.Ops.SubmitReturnInspectionAsync(f.StaffActor, $"TK-{move.InspectionId:0000}",
+            new OpsReturnInspectionRequest("Trống", "Cần dọn", "Đã nhận", "Vệ sinh lại", 0m, true, null, "Còn bụi", [Photo(Jpeg)]));
+        var waitingBoard = await f.Ops.GetBoardAsync(f.ManagerActor);
+        var ret1 = Assert.Single(waitingBoard.Returns, r => r.Contract == Code(c));
+        Assert.Equal("WAITING", ret1.DeductionStatus);
+        Assert.False(ret1.DamageWorkflowResolved);
+        Assert.DoesNotContain(waitingBoard.Contracts, x => x.Id == Code(c) && x.State == "RETURNED");
+
+        // Khách chọn tự vệ sinh: vẫn ẩn cho đến khi kiểm tra lại xong
+        await f.Ops.DecideReturnDeductionAsync(f.Customer.UserId, Code(c), new ReturnDeductionDecisionRequest("SELF_CLEAN", "Tự vệ sinh"));
+        var selfCleanBoard = await f.Ops.GetBoardAsync(f.ManagerActor);
+        Assert.False(Assert.Single(selfCleanBoard.Returns, r => r.Contract == Code(c)).DamageWorkflowResolved);
+        Assert.DoesNotContain(selfCleanBoard.Contracts, x => x.Id == Code(c) && x.State == "RETURNED");
+
+        // Kiểm tra lại đạt -> mở chờ quyết toán
+        await f.Ops.RecheckReturnAsync(f.StaffActor, $"TK-{move.InspectionId:0000}", new ReturnRecheckRequest(true, null, "Đã dọn sạch"));
+        var readyBoard = await f.Ops.GetBoardAsync(f.ManagerActor);
+        var ret2 = Assert.Single(readyBoard.Returns, r => r.Contract == Code(c));
+        Assert.Equal("RECHECKED", ret2.DeductionStatus);
+        Assert.True(ret2.DamageWorkflowResolved);
+        Assert.Contains(readyBoard.Contracts, x => x.Id == Code(c) && x.State == "RETURNED");
+    }
+
+    [Fact]
+    public async Task DecideReturnDeduction_SupportsPerItemMultiAgreeAndMixedChoices()
+    {
+        // Trường hợp 1: Đồng ý từng mục (cả hai cùng AGREE -> AGREED)
+        await using (var f = await Fixture.CreateAsync())
+        {
+            var c = await f.ActiveContractAsync(deposit: 1_000_000m);
+            await InspectAsync(f, c, cleaning: true, damage: 200_000m);
+            var decided = await f.Ops.DecideReturnDeductionAsync(f.Customer.UserId, Code(c),
+                new ReturnDeductionDecisionRequest(null, "Đồng ý tất cả", null, "AGREE", "AGREE"));
+            Assert.Equal("AGREED", decided.Status);
+            Assert.Equal("AGREE", decided.CleaningDecision);
+            Assert.Equal("AGREE", decided.DamageDecision);
+            Assert.Equal(700_000m, (await f.Ops.ConfirmRefundAsync(f.ManagerActor, Code(c))).Refund);
+        }
+
+        // Trường hợp 2: Đồng ý vệ sinh, tự thay vật dụng hư hỏng -> chỉ miễn phí hư hỏng khi đạt
+        await using (var f = await Fixture.CreateAsync())
+        {
+            var c = await f.ActiveContractAsync(deposit: 1_000_000m);
+            var inspectionId = await InspectAsync(f, c, cleaning: true, damage: 200_000m);
+            var decided = await f.Ops.DecideReturnDeductionAsync(f.Customer.UserId, Code(c),
+                new ReturnDeductionDecisionRequest(null, "Tôi tự thay bản lề", [Photo(Jpeg)], "AGREE", "SELF_REPLACE"));
+            Assert.Equal("SELF_REPLACE", decided.Status);
+            Assert.Equal("AGREE", decided.CleaningDecision);
+            Assert.Equal("SELF_REPLACE", decided.DamageDecision);
+
+            await f.Ops.RecheckReturnAsync(f.StaffActor, $"TK-{inspectionId:0000}",
+                new ReturnRecheckRequest(true, true, "Đã thay bản lề"));
+            Assert.Equal(900_000m, (await f.Ops.ConfirmRefundAsync(f.ManagerActor, Code(c))).Refund); // chỉ trừ vệ sinh 100k
+        }
+
+        // Trường hợp 3: Vừa tự dọn vừa tự thay -> SELF_REMEDY
+        await using (var f = await Fixture.CreateAsync())
+        {
+            var c = await f.ActiveContractAsync(deposit: 1_000_000m);
+            var inspectionId = await InspectAsync(f, c, cleaning: true, damage: 200_000m);
+            var decided = await f.Ops.DecideReturnDeductionAsync(f.Customer.UserId, Code(c),
+                new ReturnDeductionDecisionRequest(null, "Tự dọn và tự thay", null, "SELF_CLEAN", "SELF_REPLACE"));
+            Assert.Equal("SELF_REMEDY", decided.Status);
+            var boardBefore = await f.Ops.GetBoardAsync(f.ManagerActor);
+            Assert.False(Assert.Single(boardBefore.Returns, r => r.Contract == Code(c)).DamageWorkflowResolved);
+            await f.Ops.RecheckReturnAsync(f.StaffActor, $"TK-{inspectionId:0000}",
+                new ReturnRecheckRequest(true, true, "Đã dọn và thay đạt chuẩn"));
+            Assert.Equal(1_000_000m, (await f.Ops.ConfirmRefundAsync(f.ManagerActor, Code(c))).Refund);
+        }
     }
 
     [Fact]
@@ -236,7 +321,7 @@ public sealed partial class D32RefundEvidenceTests
             new StorageProject.Core.DTOs.Operations.ReportFilter(TodayVn.AddDays(-40), TodayVn.AddDays(40), null, null));
         Assert.Equal(forfeitedPayment.Amount, system.Totals.ForfeitedRefunds);
         var board = await f.Ops.GetBoardAsync(f.ManagerActor);
-        Assert.Equal(Math.Round(forfeitedPayment.Amount / 1_000_000m, 1, MidpointRounding.AwayFromZero), board.Revenue!.ForfeitedRefunds);
+        Assert.Equal(Math.Round(forfeitedPayment.Amount, 0), board.Revenue!.ForfeitedRefunds); // #34: tiền đầy đủ, không rút gọn triệu
     }
 
     [Fact]
@@ -337,13 +422,13 @@ public sealed partial class D32RefundEvidenceTests
         await f.Ops.ApproveCashRefundAsync(f.ManagerActor, cashId, new OpsAssignRequest($"NV-{f.Staff.UserId:00}"));
         f.Db.ChangeTracker.Clear();
 
-        // Tên chủ tài khoản phải trùng hợp đồng; khách khác không đổi được
+        // Tên chủ tài khoản trống bị từ chối; tên người thân được phép (Task #10); khách khác không đổi được
         await Assert.ThrowsAsync<ArgumentException>(() => f.Ops.SwitchCashRefundToBankAsync(f.Customer.UserId, cashId,
-            new RefundBankInput("Vietcombank", "0123456789", "TRAN VAN B")));
+            new RefundBankInput("Vietcombank", "0123456789", "   ")));
         await Assert.ThrowsAsync<KeyNotFoundException>(() => f.Ops.SwitchCashRefundToBankAsync(f.Staff.UserId, cashId,
             new RefundBankInput("Vietcombank", "0123456789", "NGUYEN VAN AN")));
         var switched = await f.Ops.SwitchCashRefundToBankAsync(f.Customer.UserId, cashId,
-            new RefundBankInput("Vietcombank", "0123456789", "Nguyen Van An"));
+            new RefundBankInput("Vietcombank", "0123456789", "TRAN VAN B"));
         Assert.Equal("SWITCHED_TO_BANK", switched.Status);
         f.Db.ChangeTracker.Clear();
 
@@ -371,14 +456,22 @@ public sealed partial class D32RefundEvidenceTests
         Assert.Equal(1, await f.Db.EvidencePhotos.CountAsync(p => p.OwnerType == EvidencePhotos.SupportTicket && p.OwnerId == withPhoto.TicketId));
 
         var key = await tickets.CreateTicketAsync(f.Customer.UserId,
-            new CreateTicketRequest(c.ContractId, null, SupportTicketService.KeyPickupTopic, "", "Tôi muốn nhận chìa khóa", "NORMAL"));
+            new CreateTicketRequest(c.ContractId, null, SupportTicketService.KeyPickupTopic, "", null, "NORMAL", PreferredDate: TodayVn));
         Assert.Equal(SupportTicketService.KeyPickupTitle, key.Title);
         Assert.Equal("ACCESS_CARD", key.IssueType);
+        var keyDetail = await tickets.GetTicketDetailAsync(f.Customer.UserId, key.TicketId);
+        Assert.NotNull(keyDetail);
+        Assert.Contains(TodayVn.ToString("dd/MM/yyyy"), keyDetail!.Description);
+        Assert.DoesNotContain(":", keyDetail.Description.Replace("Ngày muốn nhận chìa khóa:", ""));
         var handover = await f.Db.HandoverRecords.AsNoTracking().SingleAsync(h => h.ContractId == c.ContractId);
         Assert.Equal("SCHEDULED", handover.Status);
         Assert.Equal(f.Staff.UserId, handover.StaffId);
         await Assert.ThrowsAsync<InvalidOperationException>(() => tickets.CreateTicketAsync(f.Customer.UserId,
-            new CreateTicketRequest(c.ContractId, null, SupportTicketService.KeyPickupTopic, "", "Gửi lại", "NORMAL")));
+            new CreateTicketRequest(c.ContractId, null, SupportTicketService.KeyPickupTopic, "", null, "NORMAL", PreferredDate: TodayVn)));
         Assert.Equal(1, await f.Db.HandoverRecords.CountAsync());
+        // Task #5: không gửi mô tả vẫn tạo ticket hợp lệ
+        var noDesc = await tickets.CreateTicketAsync(f.Customer.UserId,
+            new CreateTicketRequest(c.ContractId, null, "LOCK", "Khóa bị kẹt", null, "HIGH"));
+        Assert.Equal("OPEN", noDesc.Status);
     }
 }

@@ -203,7 +203,7 @@ public class OpsRevenueDto
     public List<OpsRevenueMonthDto> Months { get; set; } = [];
     public List<OpsRevenueByTypeDto> ByType { get; set; } = [];
     public string AsOf { get; set; } = null!;
-    /// <summary>D44/D45: tiền mặt hoàn quá 30 ngày khách không nhận, tính vào doanh thu cơ sở (triệu đồng, dòng riêng).</summary>
+    /// <summary>D44/D45: tiền mặt hoàn quá 30 ngày khách không nhận, tính vào doanh thu cơ sở (đồng, số đầy đủ theo #34, dòng riêng).</summary>
     public decimal ForfeitedRefunds { get; set; }
 }
 

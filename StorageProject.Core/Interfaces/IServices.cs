@@ -33,7 +33,7 @@ public interface IFacilityService
     Task<UnitTypeDto?> GetUnitTypeByIdAsync(long unitTypeId, CancellationToken ct = default);
     Task<IReadOnlyList<RentalRateDto>> GetActiveRatesAsync(long? facilityId, long? unitTypeId, CancellationToken ct = default);
     Task<AvailabilityResultDto?> CheckAvailabilityAsync(AvailabilityQueryRequest request, CancellationToken ct = default);
-    Task<IReadOnlyList<FacilityUnitDto>> GetUnitsByFacilityIdAsync(long facilityId, CancellationToken ct = default);
+    Task<IReadOnlyList<FacilityUnitDto>> GetUnitsByFacilityIdAsync(long facilityId, DateOnly? startDate = null, int? months = null, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -67,7 +67,21 @@ public interface IContractService
 public interface IAccessService
 {
     Task<AccessQrDto> GetQrAsync(long customerId, long contractId, CancellationToken ct = default);
-    Task<ScanResultDto> ScanAsync(string? code, string? ipAddress, CancellationToken ct = default, string? unitNumber = null);
+    Task<ScanResultDto> ScanAsync(string? code, string? ipAddress, CancellationToken ct = default, string? unitNumber = null, long? facilityId = null);
+}
+
+/// <summary>
+/// Lượt 6 · #48–#51 (D51): cửa mô phỏng — trạng thái, đóng cửa (không tự khoá), hỗ trợ tại cửa, nhật ký cửa.
+/// Không thêm bảng (D48): mọi sự kiện ghi vào activity_logs.
+/// </summary>
+public interface IDoorService
+{
+    Task<DoorStateDto> GetUnitStateAsync(string? unitNumber, long? facilityId, CancellationToken ct = default);
+    Task<DoorStateDto> CloseFromDeviceAsync(string? unitNumber, long? facilityId, string? ipAddress, CancellationToken ct = default);
+    Task<DoorStateDto> GetContractDoorAsync(long customerId, long contractId, CancellationToken ct = default);
+    Task<DoorStateDto> CloseByCustomerAsync(long customerId, long contractId, CancellationToken ct = default);
+    Task<DoorSupportResultDto> RequestSupportAsync(DoorSupportRequest request, string? ipAddress, CancellationToken ct = default);
+    Task<StorageProject.Core.DTOs.Common.PagedResult<DoorLogRowDto>> GetDoorLogsAsync(DoorLogFilter filter, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -163,4 +177,12 @@ public interface IAdminService
 
     // Dashboard Stats
     Task<StorageProject.Core.DTOs.Admin.AdminDashboardStatsDto> GetDashboardStatsAsync(CancellationToken ct = default);
+}
+
+/// <summary>Lượt 6 · #45 #54: Công cụ demo của admin — chỉnh ngày hợp đồng, ngày giao dịch và giá; ghi nhật ký trước/sau.</summary>
+public interface IDemoToolsService
+{
+    Task<IReadOnlyList<StorageProject.Core.DTOs.Demo.DemoContractDto>> ListContractsAsync(string? search, CancellationToken ct = default);
+    Task<StorageProject.Core.DTOs.Demo.DemoEditResultDto> EditContractAsync(long adminId, long contractId, StorageProject.Core.DTOs.Demo.DemoContractEditRequest request, CancellationToken ct = default);
+    Task<StorageProject.Core.DTOs.Demo.DemoEditResultDto> EditPaymentAsync(long adminId, long paymentId, StorageProject.Core.DTOs.Demo.DemoPaymentEditRequest request, CancellationToken ct = default);
 }

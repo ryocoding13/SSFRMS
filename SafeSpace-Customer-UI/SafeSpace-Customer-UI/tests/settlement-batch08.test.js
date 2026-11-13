@@ -1,13 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {canFinalizeReturn,opsMutationCheck,opsReceiptCheck,transferProof,validateInspection,validateKeyReceipt,validateRemoval} from '../src/features/facility-operations/settlements/settlementModel.js';
+import {canFinalizeReturn,isReturnSettlementReady,opsMutationCheck,opsReceiptCheck,transferProof,validateInspection,validateKeyReceipt,validateRemoval} from '../src/features/facility-operations/settlements/settlementModel.js';
 import {createOpsData} from '../src/features/facility-operations/data/facilityOperationsSeed.js';
 import {reduceOps} from '../src/features/facility-operations/state/facilityOperationsReducer.js';
 const now=new Date('2026-10-28T05:00:00Z'),proof={transactionRef:'FT-001',transferredAt:'2026-10-28T11:30',confirmed:true};
 const item={id:'HC-test',customer:'Nguyễn Thị Mai',amount:1000,status:'PENDING',bankName:'VCB',accountNumber:'0123456789',accountHolder:'NGUYEN THI MAI'};
-test('hoàn tiền cần đủ tài khoản chính chủ, số tiền, mã giao dịch, thời gian thực tế và checkbox',()=>{
+test('hoàn tiền cần đủ tài khoản hợp lệ, số tiền, mã giao dịch, thời gian thực tế và checkbox',()=>{
  assert.equal(transferProof(item,proof,now).transferredAt,'2026-10-28T04:30:00.000Z');
- for(const patch of [{amount:undefined},{amount:0},{amount:-1},{status:'PAID'},{accountHolder:'NGUOI KHAC'},{accountNumber:'123'},{bankName:''}])assert.throws(()=>transferProof({...item,...patch},proof,now));
+ assert.equal(transferProof({...item,accountHolder:'NGUOI KHAC'},proof,now).method,'BANK_TRANSFER');
+ assert.throws(()=>transferProof(item,{...proof,method:'CASH'},now));
+ assert.throws(()=>transferProof({...item,method:'CASH',bankName:'CASH'},{...proof,method:'BANK_TRANSFER'},now));
+ for(const patch of [{amount:undefined},{amount:0},{amount:-1},{status:'PAID'},{accountHolder:''},{accountNumber:'123'},{bankName:''}])assert.throws(()=>transferProof({...item,...patch},proof,now));
  for(const patch of [{transactionRef:''},{confirmed:false},{transferredAt:'2026-10-29T10:00'},{transferredAt:'2026-02-30T10:00'}])assert.throws(()=>transferProof(item,{...proof,...patch},now));
 });
 test('thiếu hồ sơ xác minh hoặc checklist không được nhận chìa khóa; không đổi ô/ngày',()=>{
@@ -17,18 +20,24 @@ test('thiếu hồ sơ xác minh hoặc checklist không được nhận chìa k
  const before=JSON.stringify(ops.units);const out=reduceOps(ops,{type:'RECORD_KEY_RECEIPT',payload:p},now);assert.equal(out.error,undefined);assert.equal(JSON.stringify(out.state.units),before);assert.equal(out.state.handovers.find(x=>x.id===h.id).status,'DONE');
  assert.throws(()=>validateKeyReceipt({...ops,verifications:[]},p));assert.throws(()=>validateKeyReceipt(ops,{...p,key_delivered:false}));
 });
-test('hư hỏng cần ảnh, hạng mục/lý do, vệ sinh cố định và không cho kho cần sửa về trống',()=>{
- const r={status:'SCHEDULED',deposit:1000},report={items:'Trống',walls:'Cửa cong',keys:'Đã nhận',proposal:'Cần bảo trì trước khi cho thuê lại',damage_fee:100,damage_item:'Bản lề',fee_reason:'Bị cong'},file={type:'image/png',size:100};
- assert.doesNotThrow(()=>validateInspection(r,report,[file]));assert.throws(()=>validateInspection(r,report,[]));assert.throws(()=>validateInspection(r,{...report,damage_item:''},[file]));assert.throws(()=>validateInspection(r,{...report,proposal:'Sẵn sàng cho thuê lại'},[file]));assert.throws(()=>validateInspection({...r,status:'SUBMITTED'},report,[file]));
+test('kiểm tra trả kho luôn bắt buộc ảnh hiện trạng, hư hỏng cần hạng mục và không cho kho cần sửa về trống',()=>{
+ const r={status:'SCHEDULED',deposit:1000},report={items:'Trống',walls:'Cửa cong',keys:'Đã nhận',proposal:'Cần bảo trì trước khi cho thuê lại',damage_fee:100,damage_item:'Bản lề',fee_reason:'Bị cong'},cleanReport={items:'Đạt · không còn đồ',walls:'Đạt · tường sàn cửa nguyên vẹn',keys:'Đã nhận đủ chìa',proposal:'Sẵn sàng cho thuê lại',damage_fee:0},file={type:'image/png',size:100};
+ assert.doesNotThrow(()=>validateInspection(r,report,[file]));assert.doesNotThrow(()=>validateInspection(r,cleanReport,[file]));assert.throws(()=>validateInspection(r,cleanReport,[]));assert.throws(()=>validateInspection(r,report,[]));assert.throws(()=>validateInspection(r,{...report,damage_item:''},[file]));assert.throws(()=>validateInspection(r,{...report,proposal:'Sẵn sàng cho thuê lại'},[file]));assert.throws(()=>validateInspection({...r,status:'SUBMITTED'},report,[file]));
 });
 test('M07 chặn biên bản thiếu và phản hồi/khắc phục chưa đóng kể cả có marker D32',()=>{
  const c={id:'HĐ-1',state:'RETURNED'},r={contract:'HĐ-1',status:'SUBMITTED'};
  assert.equal(canFinalizeReturn({},c,r),true);assert.equal(canFinalizeReturn({},c,null),false);assert.equal(canFinalizeReturn({},c,{...r,damage_workflow_resolved:false}),false);assert.equal(canFinalizeReturn({damage_cases_pending:[{contractId:'HĐ-1'}]},c,r),false);
+ for(const deduction_status of ['WAITING','SELF_CLEAN','SELF_REPLACE','SELF_REMEDY','DISPUTE']){assert.equal(canFinalizeReturn({},c,{...r,deduction_status}),false);assert.equal(isReturnSettlementReady({contracts:[c],returns:[{...r,deduction_status}]},c),false);}
+ assert.equal(isReturnSettlementReady({contracts:[c],returns:[{...r,deduction_status:'AGREED',damage_workflow_resolved:true}]},c),true);
+ const seed=createOpsData('2026-10-28');
+ const after=reduceOps(seed,{type:'SUBMIT_RETURN',payload:{id:'TK-0098',report:{items:'Trống',walls:'Cần dọn',keys:'Đã nhận',proposal:'Cần bảo trì trước khi cho thuê lại',cleaning_required:true,damage_fee:0,fee_reason:'Còn bụi'}}},now).state;
+ assert.notEqual(after.contracts.find(x=>x.id==='HĐ-0098').state,'RETURNED');
+ assert.equal(after.returns.find(x=>x.id==='TK-0098').damage_workflow_resolved,false);
  const board={contracts:[c],returns:[r]};assert.throws(()=>opsMutationCheck('CONFIRM_REFUND',{id:c.id},board,'api','MANAGER'),/chưa xác nhận/);
 });
 test('API chưa hỗ trợ ảnh/bằng chứng hoàn không được gửi dù form hợp lệ',()=>{
- const report={items:'Trống',walls:'Tốt',keys:'Đã nhận',proposal:'Sẵn sàng cho thuê lại',damage_fee:0};
- assert.throws(()=>opsMutationCheck('SUBMIT_RETURN',{id:'TK-1',report,files:[]},{returns:[{id:'TK-1',status:'SCHEDULED',deposit:1000}]},'api','STAFF'),/chưa hỗ trợ/);
+ const report={items:'Trống',walls:'Tốt',keys:'Đã nhận',proposal:'Sẵn sàng cho thuê lại',damage_fee:0},file={type:'image/png',size:100};
+ assert.throws(()=>opsMutationCheck('SUBMIT_RETURN',{id:'TK-1',report,files:[file]},{returns:[{id:'TK-1',status:'SCHEDULED',deposit:1000}]},'api','STAFF'),/chưa hỗ trợ/);
  assert.throws(()=>opsMutationCheck('CONFIRM_REFUND',{id:'x'},{},'local','STAFF'),/Vai trò/);
 });
 test('receipt 200 thiếu board/trạng thái/evidence không báo thành công',()=>{

@@ -15,13 +15,12 @@ export const api = {
   unitTypes: () => request("/api/unit-types", { auth: false }),
   rates: () => request("/api/rates", { auth: false }),
   availability: (body) => request("/api/availability/check", { method: "POST", body, auth: false }),
-  facilityUnits: (facilityId, params) => {
-    let queryStr = "";
-    if (params && typeof params === "object") {
-      const q = new URLSearchParams(params).toString();
-      if (q) queryStr = `?${q}`;
-    }
-    return request(`/api/facilities/${facilityId}/units${queryStr}`, { auth: false });
+  facilityUnits: (facilityId, params = {}) => {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.months != null) query.set("months", String(params.months));
+    const qs = query.toString();
+    return request(`/api/facilities/${facilityId}/units${qs ? `?${qs}` : ""}`, { auth: false });
   },
 
   // Đặt chỗ
@@ -75,6 +74,9 @@ export const api = {
   // C07q · QR mở cửa (chỉ chủ hợp đồng, hợp đồng đã bàn giao và còn hiệu lực)
   accessQr: (contractId) => request(`/api/contracts/${contractId}/access-qr`),
   // C07r · Máy quét ở cửa kho (mô phỏng): kiểm mã → OPEN / DENIED, backend ghi activity_logs
+  // Lượt 6 · D51: cửa không tự khoá — khách xem trạng thái và bấm "Đóng cửa" (chỉ cần xác nhận)
+  doorState: (contractId) => request(`/api/contracts/${contractId}/door`),
+  closeDoor: (contractId) => request(`/api/contracts/${contractId}/door/close`, { method: "POST" }),
   scanAccess: (arg) => request("/api/access/scan", { method: "POST", body: typeof arg === "string" ? { code: arg } : arg, auth: false }),
 
   // Hỗ trợ

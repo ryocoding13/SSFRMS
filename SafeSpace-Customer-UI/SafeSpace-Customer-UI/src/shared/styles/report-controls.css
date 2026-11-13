@@ -1,0 +1,56 @@
+/* Lượt 5 · bộ lọc báo cáo + biểu đồ cột dùng chung (Figma B-BC / B04a / B-BC-TT) */
+.report-filter { display: grid; gap: 10px; }
+.report-filter__current { display: flex; align-items: baseline; gap: 8px; font-size: 14px; }
+.report-filter__current span { color: var(--muted); }
+.report-filter__row { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: flex-end; gap: 12px; }
+.report-filter__field { display: grid; gap: 6px; width: 160px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.report-filter__select select { height: 44px; min-height: 44px; width: 100%; padding: 0 36px 0 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--white, #fff); font-size: 14px; color: var(--text); transition: border-color .15s ease, box-shadow .15s ease; }
+.report-filter__select select:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37, 99, 235, .15); }
+.report-filter__field.is-invalid select { border-color: #d92d20; }
+.report-filter__row .btn { height: 44px; min-width: 120px; }
+.report-filter__error { margin: 0; color: #b42318; font-size: 13px; text-align: right; }
+
+.report-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.report-kpis .stat strong { white-space: nowrap; }
+@media (max-width: 1000px) { .report-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.report-chart-card { display: grid; gap: 16px; padding: 24px; }
+.report-chart-card header h2 { margin: 0; font-size: 18px; }
+.report-chart-card header p { margin: 4px 0 0; font-size: 14px; }
+.report-chart-card__empty { padding: 32px 0; text-align: center; }
+.report-chart-card__footer { margin: 0; }
+
+.col-chart { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 8px; height: 320px; }
+.col-chart__axis { display: flex; flex-direction: column; justify-content: space-between; padding: 22px 0 44px; font-size: 12px; color: var(--muted); text-align: right; white-space: nowrap; }
+.col-chart__axis span { line-height: 0; }
+.col-chart__plot { position: relative; display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 8px; border-left: 1px solid var(--line); padding-top: 22px; }
+.col-chart__grid-layer { position: absolute; left: 0; right: 0; top: 22px; bottom: 44px; pointer-events: none; }
+.col-chart__grid { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed var(--line); }
+.col-chart__grid:last-child { border-top-style: solid; border-top-color: #cbd5e1; }
+.col-chart__col { position: relative; display: grid; grid-template-rows: 1fr 44px; min-width: 0; }
+.col-chart__bar-wrap { position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+.col-chart__bar-wrap b { position: absolute; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.col-chart__bar { display: block; width: min(36px, 70%); min-height: 2px; border-radius: 6px 6px 0 0; background: #93c5fd; transform-origin: bottom; animation: col-grow .45s cubic-bezier(.2, .7, .2, 1) both; transition: background-color .15s ease; }
+.col-chart__col.is-current .col-chart__bar { background: #2563eb; }
+.col-chart__col:hover .col-chart__bar { background: #3b82f6; }
+.col-chart__col > span { padding-top: 8px; font-size: 12px; line-height: 1.3; color: var(--muted); text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.col-chart__col.is-current > span { color: #2563eb; font-weight: 600; }
+@keyframes col-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+.report-state { display: grid; justify-items: center; gap: 8px; padding: 40px 24px; text-align: center; }
+.report-state p { margin: 0; color: var(--muted); }
+.report-state--error { border-color: #f5c2bd; background: #fdf1f0; }
+.report-state__spinner { width: 28px; height: 28px; border-radius: 50%; border: 3px solid #dbeafe; border-top-color: #2563eb; animation: report-spin .8s linear infinite; }
+@keyframes report-spin { to { transform: rotate(360deg); } }
+
+.report-table td.num, .report-table th.num { text-align: right; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .col-chart__bar, .report-state__spinner { animation: none; } }
+.report-filter__field:not(:nth-child(-n+2)) { width: 210px; }
+.report-filter__select select { text-overflow: ellipsis; }
+.report-table__total td { font-weight: 600; background: var(--soft, #f1f5f9); }
+.manager-report__grid { display: grid; grid-template-columns: minmax(0, 1fr) 432px; gap: 24px; align-items: start; }
+@media (max-width: 1100px) { .manager-report__grid { grid-template-columns: 1fr; } }
+/* Nhiều cột (> 12 tháng): giá trị hiện khi rê chuột / cột hiện tại để không chồng chữ; nhãn tháng vẫn đủ */
+.col-chart.is-dense .col-chart__bar-wrap b { opacity: 0; transition: opacity .15s ease; background: var(--white, #fff); padding: 1px 4px; border-radius: 4px; box-shadow: 0 1px 4px rgba(15, 23, 42, .12); z-index: 1; }
+.col-chart.is-dense .col-chart__col:hover b, .col-chart.is-dense .col-chart__col.is-current b { opacity: 1; }
+.col-chart.is-dense .col-chart__col > span { font-size: 11px; }

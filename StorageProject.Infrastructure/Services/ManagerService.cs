@@ -151,8 +151,8 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
             .Where(p => (p.ContractId != null ? p.Contract.Unit.FacilityId : p.Reservation.FacilityId) == fac.FacilityId && p.Status == "PAID" && p.PaymentType == "RENT")
             .ToListAsync(ct);
 
-        var normalTotal = payments.Where(p => !(p.ContractId != null ? p.Contract.Unit.UnitType.ClimateControlled : p.Reservation.UnitType.ClimateControlled)).Sum(p => p.Amount) / 1_000_000m;
-        var climateTotal = payments.Where(p => (p.ContractId != null ? p.Contract.Unit.UnitType.ClimateControlled : p.Reservation.UnitType.ClimateControlled)).Sum(p => p.Amount) / 1_000_000m;
+        var normalTotal = payments.Where(p => !(p.ContractId != null ? p.Contract.Unit.UnitType.ClimateControlled : p.Reservation.UnitType.ClimateControlled)).Sum(p => p.Amount);
+        var climateTotal = payments.Where(p => (p.ContractId != null ? p.Contract.Unit.UnitType.ClimateControlled : p.Reservation.UnitType.ClimateControlled)).Sum(p => p.Amount);
 
         var revenueMonths = payments
             .Where(p => p.PaidAt.HasValue)
@@ -163,7 +163,7 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
                 Label = $"Tháng {g.Key.Month}",
                 Month = g.Key.Month,
                 Year = g.Key.Year,
-                Value = Math.Round(g.Sum(p => p.Amount) / 1_000_000m, 1)
+                Value = Math.Round(g.Sum(p => p.Amount), 0)
             })
             .ToList();
 
@@ -175,7 +175,7 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
                 Label = $"Tháng {now.Month}",
                 Month = now.Month,
                 Year = now.Year,
-                Value = Math.Round((normalTotal + climateTotal), 1)
+                Value = Math.Round(normalTotal + climateTotal, 0)
             });
         }
 
@@ -187,12 +187,12 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
 
         board.Revenue = new OpsRevenueDto
         {
-            ForfeitedRefunds = Math.Round(forfeitedRefs / 1_000_000m, 1),
+            ForfeitedRefunds = Math.Round(forfeitedRefs, 0),
             Months = revenueMonths,
             ByType = new List<OpsRevenueByTypeDto>
             {
-                new() { Label = "Kho thường", Value = Math.Round(normalTotal, 1) },
-                new() { Label = "Kiểm soát nhiệt độ", Value = Math.Round(climateTotal, 1) }
+                new() { Label = "Kho thường", Value = Math.Round(normalTotal, 0) },
+                new() { Label = "Kiểm soát nhiệt độ", Value = Math.Round(climateTotal, 0) }
             },
             AsOf = DateTime.UtcNow.ToString("yyyy-MM-dd")
         };
@@ -250,55 +250,12 @@ public class ManagerService(AppDbContext dbContext, IStaffService staffService) 
     /// <param name="userId">ID Quản lý thực hiện.</param>
     /// <param name="id">Mã yêu cầu gia hạn.</param>
     /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
-    public async Task ApproveRenewalAsync(long userId, string id, CancellationToken ct = default)
-    {
-        var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
-        // M01: route /api/manager cũ dùng chung đường duyệt chuẩn.
-        await RenewalApproval.ApproveAsync(dbContext, userId, FacilityOpsStateStore.ParseIdNumber(id), fac.FacilityId, ct);
-    }
+    public Task ApproveRenewalAsync(long userId, string id, CancellationToken ct = default)
+        => throw new InvalidOperationException("Chức năng quản lý duyệt gia hạn đã bỏ. Hệ thống tự động xác nhận gia hạn hợp lệ để khách thanh toán trực tiếp.");
 
-    /// <summary>
-    /// Từ chối yêu cầu gia hạn hợp đồng (M03) kèm lý do từ chối bắt buộc.
-    /// </summary>
-    /// <param name="userId">ID Quản lý thực hiện.</param>
-    /// <param name="id">Mã yêu cầu gia hạn.</param>
-    /// <param name="request">Yêu cầu từ chối chứa lý do.</param>
-    /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
-    public async Task RejectRenewalAsync(long userId, string id, RejectRenewalRequest request, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(request.Reason))
-        {
-            throw new ArgumentException("từ chối phải có lý do");
-        }
-        var fac = await FacilityOpsStateStore.GetUserFacilityAsync(dbContext, userId, ct);
-        var num = FacilityOpsStateStore.ParseIdNumber(id);
-        var renewal = await dbContext.ContractRenewals
-            .Include(r => r.Contract).ThenInclude(c => c.Unit)
-            .FirstOrDefaultAsync(r => r.RenewalId == num && r.Contract.Unit.FacilityId == fac.FacilityId, ct)
-            ?? throw new InvalidOperationException("Không tìm thấy yêu cầu gia hạn tại cơ sở.");
-
-        if (renewal.Status != "PENDING")
-        {
-            throw new InvalidOperationException("Yêu cầu này đã được xử lý.");
-        }
-
-        var now = DateTime.UtcNow;
-        renewal.Status = "REJECTED";
-        renewal.ApprovedBy = userId;
-        renewal.ApprovedAt = now;
-
-        dbContext.ActivityLogs.Add(new ActivityLog
-        {
-            UserId = userId,
-            EntityType = "RENEWAL",
-            EntityId = renewal.RenewalId,
-            Action = "RENEWAL_REJECTED",
-            NewValue = System.Text.Json.JsonSerializer.Serialize(new { renewal.RenewalId, reason = request.Reason }),
-            LoggedAt = now
-        });
-
-        await dbContext.SaveChangesAsync(ct);
-    }
+    /// <summary>Khóa luồng từ chối gia hạn thủ công sau Task #23.</summary>
+    public Task RejectRenewalAsync(long userId, string id, RejectRenewalRequest request, CancellationToken ct = default)
+        => throw new InvalidOperationException("Chức năng quản lý duyệt gia hạn đã bỏ. Hệ thống tự động xác nhận gia hạn hợp lệ để khách thanh toán trực tiếp.");
 
     /// <summary>
     /// Ghi nhận lời nhắc khách hàng quá hạn thanh toán/trả kho (M04 / M07), cập nhật hồ sơ OverdueCase.

@@ -50,7 +50,7 @@ function EditFacilityDialog({ facility, onClose, onSaved, runChange }) {
     const out = await runChange({
       action: creating ? "Thêm cơ sở" : "Lưu thông tin cơ sở", scope: body.name, confirm: false, successAction: "Đã hiểu",
       successTitle: creating ? `Đã thêm cơ sở ${body.name}` : "Đã lưu thông tin cơ sở",
-      successText: creating ? "Cơ sở chưa có bảng giá, ô kho và nhân sự nên khách chưa đặt được." : "Bản đồ Tìm kho dùng vị trí mới ngay.",
+      successText: creating ? `Cơ sở chưa có bảng giá, ô kho và nhân sự nên khách chưa đặt được.${body.latitude == null ? " Chưa có toạ độ nên cơ sở chưa hiện trên bản đồ Tìm kho." : ""}` : "Bản đồ Tìm kho dùng vị trí mới ngay.",
       perform: async () => {
         const payload = creating ? { ...body, operationId: form.operationId || (form.operationId = crypto.randomUUID()) } : body;
         const res = await checkedFacilityWrite(businessApi, () => creating ? businessApi.createFacility(payload) : businessApi.updateFacility(facility.facilityId, body), body, facility?.facilityId);
@@ -82,13 +82,13 @@ function EditFacilityDialog({ facility, onClose, onSaved, runChange }) {
         </div>
         {errors.hours && <p className="field__error" role="alert">{errors.hours}</p>}
         <div className="biz-form__pair">
-          <Field label="Vĩ độ"><input value={form.latitude} inputMode="decimal" placeholder="10.693500" onChange={set("latitude")} onPaste={pasteCoords} /></Field>
-          <Field label="Kinh độ"><input value={form.longitude} inputMode="decimal" placeholder="106.722200" onChange={set("longitude")} onPaste={pasteCoords} /></Field>
+          <Field label="Vĩ độ (không bắt buộc)"><input value={form.latitude} inputMode="decimal" placeholder="10.693500" onChange={set("latitude")} onPaste={pasteCoords} /></Field>
+          <Field label="Kinh độ (không bắt buộc)"><input value={form.longitude} inputMode="decimal" placeholder="106.722200" onChange={set("longitude")} onPaste={pasteCoords} /></Field>
         </div>
         {errors.coords && <p className="field__error" role="alert">{errors.coords}</p>}
         <p className="hint">
+          Chưa có toạ độ thì để trống: cơ sở vẫn được thêm, chỉ chưa hiện trên bản đồ Tìm kho. Bổ sung sau bằng nút Sửa.
           Lấy toạ độ: mở Google Maps, nhấp chuột phải vào đúng vị trí cơ sở, bấm dòng số đầu tiên để sao chép rồi dán vào ô Vĩ độ.
-          Toạ độ dùng để đặt ghim trên bản đồ Tìm kho và nút Chỉ đường.
         </p>
         <a href="https://www.google.com/maps" target="_blank" rel="noreferrer">Mở Google Maps ↗</a>
         {errors.form && <Notice tone="error">{errors.form}</Notice>}

@@ -16,6 +16,7 @@ import { CONTRACT_STATUS } from "../../../shared/utils/status.js";
 import { contractStatus, facilityOf, pendingRenewal, pendingReturn } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { AccessQrModal } from "../access/AccessQrModal.jsx";
+import { DoorCloseButton } from "../access/DoorCloseButton.jsx";
 
 /**
  * Màn hình danh sách các ô kho lưu trữ khách hàng đang thuê trong hệ thống.
@@ -46,13 +47,17 @@ export function RentedUnitListPage() {
               (a.contract_id === c.contract_id || (c.reservation_id && a.reservation_id === c.reservation_id)));
             return (
               <RecordSummaryCard key={c.contract_id} title={`${c.unit_number} · ${typeLabel(c.type)}`}
-                status={prestart ? <Tag tone="blue">Chưa đến ngày sử dụng</Tag> : <StatusTag map={CONTRACT_STATUS} status={status} />}
+                status={prestart ? <Tag tone="blue">Chưa đến ngày sử dụng</Tag> : <StatusTag map={CONTRACT_STATUS} status={pendingReturn(data, c.contract_id) && !ended ? "RETURN_PENDING" : status} />}
                 actions={<>
+                  {/* #25: khoản gia hạn đã xác nhận, chưa trả (không chọn tại quầy) → nút "Thanh toán"; còn lại vẫn là "Gia hạn" */}
+                  {(() => { const r = pendingRenewal(data, c.contract_id); return r && r.status === "APPROVED" && !r.at_counter ? <LinkButton to={`units/${c.contract_id}/renewal-status`}>Thanh toán</LinkButton> : null; })()}
                   {issued && !ended && (status === "EXPIRING" && c.end_date > now && !busy
                     ? <LinkButton to={`units/${c.contract_id}/renew`} variant="outline">Gia hạn</LinkButton>
-                    : prestart
-                      ? <Button variant="outline" disabled>Mã hiện từ {dateLabel(c.start_date)}</Button>
-                      : <Button variant="outline" disabled={Boolean(pendingReturn(data, c.contract_id)) || c.end_date <= now} onClick={() => setQrContract(c)}>Xem QR & PIN</Button>)}
+                    : <>
+                      {/* #59: xem mã được cả trước ngày thuê (chỉ mở cửa từ 00:00 ngày bắt đầu) */}
+                      <Button variant="outline" disabled={Boolean(pendingReturn(data, c.contract_id)) || c.end_date <= now} onClick={() => setQrContract(c)}>Mã QR mở cửa</Button>
+                      {!prestart && <DoorCloseButton c={c} disabled={Boolean(pendingReturn(data, c.contract_id)) || c.end_date <= now} />}
+                    </>)}
                   <LinkButton to={`units/${c.contract_id}`}>Xem hợp đồng</LinkButton>
                 </>}>
                 <p>{siteLabel(f)}{c.size_m2 ? ` · ${c.size_m2} m²` : ""} · {c.contract_id}</p>

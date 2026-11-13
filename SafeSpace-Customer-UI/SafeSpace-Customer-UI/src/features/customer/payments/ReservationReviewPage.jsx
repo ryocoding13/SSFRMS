@@ -44,13 +44,23 @@ export function ReservationReviewPage({ id }) {
     <PageHeader title={facility.name} description={[facility.district, facility.city].filter(Boolean).join(", ") || facility.address}><Tag tone="blue">Bước 2/3 · Xác nhận &amp; chính sách</Tag></PageHeader>
     <div className="policy-review__grid">
       <div className="policy-review__gallery">
+        {/* #2 · Figma C04a-ô: ô hệ thống bố trí hiện rõ trước khi khách xác nhận */}
+        <section className="panel policy-review__card policy-review__unit" aria-live="polite">
+          <div className="policy-review__unit-head"><h2>Ô hệ thống bố trí cho bạn</h2>{reservation.unit_code && <Tag tone="green">Khả dụng cả kỳ</Tag>}</div>
+          {reservation.unit_code ? <>
+            <p className="policy-review__unit-code">{reservation.unit_code}</p>
+            <p className="muted">{typeLabel(reservation.type)} · {reservation.size_label || bandLabel(reservation.band)} · {facility.name}</p>
+            <p className="hint">Trống trong toàn bộ kỳ {dateLabel(reservation.start_date)} – {dateLabel(reservation.end_date)} · không trùng hợp đồng hoặc lượt đặt khác. Bạn không cần chọn ô trên sơ đồ.</p>
+            <a className="policy-review__read" href={`#/find/${reservation.facility_id}?view=map&unit=${encodeURIComponent(reservation.unit_code)}&offer=${encodeURIComponent(reservation.offer_key || "")}`}>Xem vị trí ô trên sơ đồ →</a>
+          </> : <p className="muted">Hệ thống bố trí ô trống cả kỳ theo loại kho và diện tích bạn chọn; mã ô hiện ở đây ngay khi có.</p>}
+        </section>
         <Photo facility={facility} index={0} className="policy-review__cover" eager />
         <div className="policy-review__thumbs">{[0, 2, 3].map(index => <Photo key={index} facility={facility} index={index} />)}</div>
-        <section className="panel policy-review__card"><h2>Không gian phù hợp cho đồ dùng cá nhân và hàng hóa</h2><p className="muted">Camera 24/7 · Lối đi rộng · Khu vực xe đẩy · Ra vào {facility.hours}</p><h3>Kiểm tra trước khi đặt</h3><p className="muted">Không lưu trữ vật liệu dễ cháy, hàng cấm hoặc thực phẩm dễ hỏng. Hệ thống chọn ô phù hợp và cấp hợp đồng sau khi thanh toán được xác nhận.</p></section>
+        <section className="panel policy-review__card"><h2>Không gian phù hợp cho đồ dùng cá nhân và hàng hóa</h2><p className="muted">Camera 24/7 · Lối đi rộng · Khu vực xe đẩy · Ra vào {facility.hours}</p><h3>Kiểm tra trước khi đặt</h3><p className="muted">Không lưu trữ vật liệu dễ cháy, hàng cấm hoặc thực phẩm dễ hỏng. Hợp đồng cấp cho đúng ô đã bố trí sau khi thanh toán được xác nhận; nếu ô vừa có người đặt, hệ thống báo và bố trí ô tương đương.</p></section>
       </div>
       <form className="panel policy-review__card policy-review__summary" onSubmit={submit} noValidate>
         <h2>Tóm tắt đơn {id}</h2>
-        <DetailList items={[["Cơ sở", facility.name], ["Kho", `${typeLabel(reservation.type)} · ${reservation.size_label || bandLabel(reservation.band)}`], ["Bắt đầu", dateLabel(reservation.start_date)], ["Dùng đến hết", `${dateLabel(reservation.end_date)} · 23:59`], [`Tiền thuê ${reservation.months} tháng`, money(reservation.rent_total)], ["Cọc 1 tháng", money(reservation.deposit)], ["Tổng thanh toán", <strong className="policy-review__total">{money(reservation.initial_total)}</strong>]]} />
+        <DetailList items={[["Cơ sở", facility.name], ...(reservation.unit_code ? [["Ô kho", reservation.unit_code]] : []), ["Kho", `${typeLabel(reservation.type)} · ${reservation.size_label || bandLabel(reservation.band)}`], ["Bắt đầu", dateLabel(reservation.start_date)], ["Dùng đến hết", `${dateLabel(reservation.end_date)} · 23:59`], [`Tiền thuê ${reservation.months} tháng`, money(reservation.rent_total)], ["Cọc 1 tháng", money(reservation.deposit)], ["Tổng thanh toán", <strong className="policy-review__total">{money(reservation.initial_total)}</strong>]]} />
         <a className="policy-review__read" href="#/policies" target="_blank" rel="noreferrer">Đọc chính sách thuê kho →</a>
         {policy.loading && <p role="status">Đang tải chính sách hiện hành…</p>}
         {policy.error && <Notice tone="error">{policy.error}<Button variant="outline" onClick={() => { setAcceptedVersion(null); policy.reload(); }}>Thử lại</Button></Notice>}

@@ -8,6 +8,7 @@
  *   không phạt phí quá hạn (D46b).
  */
 import React, { useState } from "react";
+import "../../manager/refunds/refund-center.css";
 import { Button, DetailList, Field, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
 import { money } from "../../../shared/utils/format.js";
@@ -33,7 +34,7 @@ function Select({ label, value, options, onChange, disabled }) {
 /**
  * Màn hình nhân viên nghiệm thu ô kho cũ sau khi khách hoàn tất chuyển sang ô mới.
  */
-export function OldUnitInspectionPage() {
+export function OldUnitInspectionPage({ embedded = false } = {}) {
   const load = useOpsEndpoint("/api/ops/unit-moves");
   const items = Array.isArray(load.data) ? load.data : [];
   const [openId, setOpenId] = useState(null), [form, setForm] = useState(blank);
@@ -65,9 +66,13 @@ export function OldUnitInspectionPage() {
     if (res.ok) { set({ goods: "CLEAR" }); setResult({ kind: "goods", unit }); }
     else setResult({ kind: "goodsFail", message: res.error, note: abandon.note });
   };
-  return <main className="container page workflow-page">
-    <PageHeader title="Kiểm tra ô cũ sau gia hạn sang ô khác" description="Khách đã chuyển sang ô mới. Kiểm tra ô cũ như trả kho nhưng không hoàn cọc; khoản khấu trừ trừ vào cọc đang giữ.">
-      {items.length > 0 && <Tag tone="amber">{items.length} ô cần kiểm tra</Tag>}</PageHeader>
+  const Wrap = embedded ? "section" : "main";
+  // #7: nhúng vào trang Kiểm tra trả kho; trang rỗng thì ẩn hẳn, không thêm khối trống
+  // Máy chủ chưa có API ô cũ (404) thì cũng ẩn, không làm rối trang Kiểm tra trả kho
+  if (embedded && !load.loading && ((!load.error && !items.length) || load.errorStatus === 404)) return null;
+  return <Wrap className={embedded ? "container workflow-page old-unit-embedded" : "container page workflow-page"}>
+    {embedded ? <h2 className="section-title">Kiểm tra ô cũ sau gia hạn sang ô khác {items.length > 0 && <Tag tone="amber">{items.length} ô</Tag>}</h2> : <PageHeader title="Kiểm tra ô cũ sau gia hạn sang ô khác" description="Khách đã chuyển sang ô mới. Kiểm tra ô cũ như trả kho nhưng không hoàn cọc; khoản khấu trừ trừ vào cọc đang giữ.">
+      {items.length > 0 && <Tag tone="amber">{items.length} ô cần kiểm tra</Tag>}</PageHeader>}
     <WorkflowState load={load}>
       {items.map(x => <RecordCard key={x.renewalId} title={`GH-${String(x.renewalId).padStart(4, "0")} · ${x.customerName}`}
         subtitle={`Ô cũ ${x.fromUnit} → ô mới ${x.toUnit} · HĐ ${x.contractId}`} status={x.goodsAbandoned ? "Đồ khách bỏ · đang dọn" : x.autoMoved ? "Hệ thống tự chuyển" : "Chờ kiểm tra ô cũ"}
@@ -114,5 +119,5 @@ export function OldUnitInspectionPage() {
       text={`${result.message || "Kết nối bị gián đoạn."} Ghi chú đồ còn lại vẫn được giữ.`} onCancel={() => setResult(null)} onConfirm={() => { const note = result.note || ""; setResult(null); setAbandon({ note }); }} />}
     {result?.kind === "fail" && <ConfirmDialog title="Chưa ghi được kết quả kiểm tra" tone="failure" hint="" label="Thử lại"
       text={`${result.message || "Kết nối bị gián đoạn."} Hạng mục và ghi chú bạn đã nhập vẫn được giữ.`} onCancel={() => setResult(null)} onConfirm={() => { setResult(null); setConfirm(true); }} />}
-  </main>;
+  </Wrap>;
 }

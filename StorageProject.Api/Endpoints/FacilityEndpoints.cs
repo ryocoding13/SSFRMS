@@ -60,10 +60,10 @@ public static class FacilityEndpoints
             return result is not null ? Results.Ok(result) : Results.NotFound(new { error = "Không tìm thấy thông tin phù hợp để kiểm tra tình trạng kho." });
         });
 
-        // GET /api/facilities/{id}/units: Lấy danh sách ô kho và sơ đồ mặt bằng vật lý của cơ sở (D13/D17)
-        group.MapGet("/facilities/{id:long}/units", async (long id, IFacilityService facilityService, CancellationToken ct) =>
+        // GET /api/facilities/{id}/units: Lấy danh sách ô kho và sơ đồ mặt bằng vật lý của cơ sở (D13/D17/D41/#3)
+        group.MapGet("/facilities/{id:long}/units", async (long id, DateOnly? startDate, int? months, IFacilityService facilityService, CancellationToken ct) =>
         {
-            var units = await facilityService.GetUnitsByFacilityIdAsync(id, ct);
+            var units = await facilityService.GetUnitsByFacilityIdAsync(id, startDate, months, ct);
             return Results.Ok(units);
         });
 

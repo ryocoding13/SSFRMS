@@ -90,7 +90,7 @@ export function ReservationDetailPage({ id, mode = "confirmation" }) {
         {isDetail ? (
           <>
             {r.status === "CONFIRMED" && <LinkButton to="payments" block>Xem lịch nhận kho</LinkButton>}
-            {prestartPaid && <p className="hint">Chưa đến ngày thuê nên vẫn huỷ được đơn: hoàn 100% tiền thuê và 95% tiền cọc (phí huỷ 5% cọc).</p>}
+            {prestartPaid && <p className="hint">Chưa đến ngày thuê nên vẫn huỷ được đơn: hoàn 100% tiền thuê và 100% tiền cọc (miễn phí huỷ).</p>}
             {cancellable && <LinkButton to={`reservations/${r.reservation_id}/cancel`} variant="outline" block>Huỷ đơn</LinkButton>}
             <LinkButton to="reservations" variant={waiting || r.status === "CONFIRMED" ? "outline" : "primary"} block>Về đơn đặt chỗ</LinkButton>
           </>

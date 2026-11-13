@@ -1,3 +1,5 @@
+import { isReturnSettlementReady } from "../settlements/settlementModel.js";
+
 // Derive badges from the same work queues as each page; never store a second counter.
 export function pendingTaskCounts(ops, role, me) {
   const count = (items, test) => (items || []).filter(test).length;
@@ -20,7 +22,7 @@ export function pendingTaskCounts(ops, role, me) {
 
     const scheduledReturns = count(ops.returns, r => r.status === "SCHEDULED");
     const recheckReturns = count(ops.returns, r =>
-      ["SELF_CLEAN", "SELF_REPLACE", "DISPUTE"].includes(r.deduction_status)
+      ["SELF_CLEAN", "SELF_REPLACE", "SELF_REMEDY", "DISPUTE"].includes(r.deduction_status)
     );
     const returns = scheduledReturns + recheckReturns;
 
@@ -34,10 +36,11 @@ export function pendingTaskCounts(ops, role, me) {
       c.status !== "DONE" && (!c.assignee || c.assignee === me?.full_name || c.assignee === me?.staff_id)
     );
 
+    // #7: không còn tab con; số trên mỗi mục navbar = mọi việc hiện trong trang đó (đồ quá hạn nằm ở Kiểm tra trả kho)
     const result = {
       "staff/reconcile": reconcile,
       "staff/verify": verify,
-      "staff/return": returns,
+      "staff/return": returns + overdueRemovals,
       "staff/support": support,
     };
 
@@ -53,21 +56,20 @@ export function pendingTaskCounts(ops, role, me) {
   // MANAGER
   const overdueCases = count(ops.overdue_cases, c => c.status !== "DONE");
   const managerCashRefunds = count(ops.cash_refunds, r => r.status === "WAITING_APPROVAL");
-  const unitConflicts = count(ops.unit_conflicts, c => c.status === "OPEN");
+  // Xung đột đặt kho: hệ thống tự đề xuất đổi ô cho khách; quản lý chỉ cần xử lý khi không còn ô tương đương (NONE).
+  const unitConflicts = count(ops.unit_conflicts, c => c.status === "OPEN" && c.option === "NONE");
   const depositRefunds = count(ops.deposit_refunds, r => r.status === "PENDING");
   const refunds = count(ops.refunds, r => r.status === "PENDING");
 
+  // #7 (12/11): navbar quản lý = Tổng quan · Danh sách kho · Hợp đồng & quá hạn · Hoàn tiền · Báo cáo.
+  // Phân bổ kho / Xung đột đặt kho chỉ còn là thẻ "Cần xử lý" ở Tổng quan khi không bố trí được ô.
   const allocate = count(ops.allocations, a => a.status === "PENDING");
-  const assign = count(ops.assignments, a => a.status === "OPEN");
-  const renewals = count(ops.renewals, r => r.status === "PENDING");
-  const contracts = count(ops.contracts, c => ["OVERDUE", "RETURNED"].includes(c.state)) +
-    refunds + depositRefunds + managerCashRefunds + unitConflicts + overdueCases;
+  const contracts = count(ops.contracts, c => c.state === "OVERDUE" || isReturnSettlementReady(ops, c)) + overdueCases;
+  const refund = refunds + depositRefunds + managerCashRefunds;
 
   const result = {
-    "manager/allocate": allocate,
-    "manager/assign": assign,
-    "manager/renewals": renewals,
     "manager/contracts": contracts,
+    "manager/refund": refund,
   };
 
   if (overdueCases > 0 || ops.overdue_cases !== undefined) result["manager/overdue"] = overdueCases;
@@ -75,7 +77,7 @@ export function pendingTaskCounts(ops, role, me) {
   if (unitConflicts > 0 || ops.unit_conflicts !== undefined) result["manager/unit-conflicts"] = unitConflicts;
   if (depositRefunds > 0 || ops.deposit_refunds !== undefined) result["manager/deposit-refunds"] = depositRefunds;
   if (refunds > 0 || ops.refunds !== undefined) result["manager/refunds"] = refunds;
-  result["manager"] = allocate + assign + renewals + contracts;
+  result["manager"] = allocate + unitConflicts;
 
   return result;
 }

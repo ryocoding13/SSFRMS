@@ -151,10 +151,13 @@ public sealed partial class D32RefundEvidenceTests
     {
         var acc = RefundBank.Validate(new RefundBankInput(" Vietcombank ", "0012345678", "nguyen   van an"), "Nguyễn Văn An");
         Assert.Equal("0012345678", acc.AccountNumber); // giữ số 0 đầu
+        Assert.Equal("Vietcombank", acc.BankName);
         Assert.Equal("nguyen van an", acc.AccountHolder);
         Assert.Equal("DANG THU TRANG", RefundBank.NormalizeHolder("Đặng Thu Trang"));
-        Assert.Throws<ArgumentException>(() => RefundBank.Validate(new RefundBankInput("VCB", "12345", "NGUYEN VAN AN"), "Nguyễn Văn An"));
-        Assert.Throws<ArgumentException>(() => RefundBank.Validate(new RefundBankInput("VCB", "123456", "TRAN VAN B"), "Nguyễn Văn An"));
+        Assert.Throws<ArgumentException>(() => RefundBank.Validate(new RefundBankInput("VCB", "123456", "NGUYEN VAN AN"), "Nguyễn Văn An"));
+        Assert.Throws<ArgumentException>(() => RefundBank.Validate(new RefundBankInput("Ngân hàng lạ", "0123456789", "NGUYEN VAN AN"), "Nguyễn Văn An"));
+        var relative = RefundBank.Validate(new RefundBankInput("VCB", "0123456789", "TRAN VAN B"), "Nguyễn Văn An");
+        Assert.Equal("TRAN VAN B", relative.AccountHolder);
         Assert.Throws<ArgumentException>(() => RefundBank.Validate(null, "Nguyễn Văn An"));
     }
 
@@ -167,22 +170,21 @@ public sealed partial class D32RefundEvidenceTests
         var c = await f.ActiveContractAsync();
         var svc = new ContractService(f.Db);
 
-        await Assert.ThrowsAsync<ArgumentException>(() => svc.RegisterMoveOutAsync(f.Customer.UserId, c.ContractId, MoveOut()));
         await Assert.ThrowsAsync<ArgumentException>(() => svc.RegisterMoveOutAsync(f.Customer.UserId, c.ContractId,
-            MoveOut(Photo(Jpeg)) with { Emptied = false }));
+            MoveOut() with { Emptied = false }));
         await Assert.ThrowsAsync<ArgumentException>(() => svc.RegisterMoveOutAsync(f.Customer.UserId, c.ContractId,
-            MoveOut(Photo(Jpeg)) with { AccountHolder = "NGUOI KHAC" }));
+            MoveOut() with { AccountHolder = "   " }));
 
-        var res = await svc.RegisterMoveOutAsync(f.Customer.UserId, c.ContractId, MoveOut(Photo(Jpeg), Photo(Png, "image/png", "b.png")));
+        var res = await svc.RegisterMoveOutAsync(f.Customer.UserId, c.ContractId, MoveOut() with { AccountHolder = "TRAN THI NGUOI THAN" });
         var inspection = await f.Db.ReturnInspections.SingleAsync(i => i.InspectionId == res.InspectionId);
         Assert.Equal("Vietcombank", inspection.RefundBankName);
         Assert.Equal("0123456789", inspection.RefundAccountNumber);
-        Assert.Equal(2, await f.Db.EvidencePhotos.CountAsync(p => p.OwnerType == EvidencePhotos.MoveOut && p.OwnerId == res.InspectionId));
+        Assert.Equal(0, await f.Db.EvidencePhotos.CountAsync(p => p.OwnerType == EvidencePhotos.MoveOut && p.OwnerId == res.InspectionId));
         Assert.Equal("RETURN_PENDING", (await f.Db.RentalContracts.FindAsync(c.ContractId))!.Status);
         // 09:00 giờ Việt Nam lưu thành 02:00 UTC (D10)
         Assert.Equal(new TimeOnly(2, 0), TimeOnly.FromDateTime(inspection.ScheduledAt!.Value));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.RegisterMoveOutAsync(f.Customer.UserId, c.ContractId, MoveOut(Photo(Jpeg))));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => svc.RegisterMoveOutAsync(f.Customer.UserId, c.ContractId, MoveOut()));
     }
 
     [Fact]
@@ -239,6 +241,8 @@ public sealed partial class D32RefundEvidenceTests
         await Assert.ThrowsAsync<OpsConflictException>(() => f.Ops.ConfirmDepositRefundAsync(f.ManagerActor, request with { ExpectedVersion = 2 }));
         await Assert.ThrowsAsync<ArgumentException>(() => f.Ops.ConfirmDepositRefundAsync(f.ManagerActor, request with { Confirmed = false }));
         await Assert.ThrowsAsync<ArgumentException>(() => f.Ops.ConfirmDepositRefundAsync(f.ManagerActor, request with { TransferredAt = DateTime.UtcNow.AddHours(2) }));
+        // Task #20: khóa hình thức hoàn theo lựa chọn khách (BANK_TRANSFER không được đổi sang CASH)
+        await Assert.ThrowsAsync<InvalidOperationException>(() => f.Ops.ConfirmDepositRefundAsync(f.ManagerActor, request with { Method = "CASH" }));
 
         var paid = await f.Ops.ConfirmDepositRefundAsync(f.ManagerActor, request);
         Assert.Equal("PAID", paid.Status);
@@ -339,8 +343,8 @@ public sealed partial class D32RefundEvidenceTests
         var reservations = new ReservationService(f.Db);
         var preview = await reservations.GetCancelPreviewAsync(f.Customer.UserId, r.ReservationId);
         Assert.Equal(4_000_000m, preview.PaidAmount);
-        Assert.Equal(50_000m, preview.CancellationFee);
-        Assert.Equal(3_950_000m, preview.RefundAmount);
+        Assert.Equal(0m, preview.CancellationFee);
+        Assert.Equal(4_000_000m, preview.RefundAmount);
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
             reservations.GetCancelPreviewAsync(f.Staff.UserId, r.ReservationId));
         // Đã thanh toán mà thiếu tài khoản chính chủ → không huỷ
@@ -356,7 +360,7 @@ public sealed partial class D32RefundEvidenceTests
         Assert.Equal("AVAILABLE", (await f.Db.StorageUnits.SingleAsync(u => u.UnitId == unit.UnitId)).Status);
         Assert.Equal("REVOKED", (await f.Db.AccessCredentials.SingleAsync(a => a.ContractId == contract.ContractId)).Status);
         var refund = await f.Db.Payments.SingleAsync(p => p.ReservationId == r.ReservationId && p.PaymentType == "REFUND");
-        Assert.Equal(3_950_000m, refund.Amount); // D40: 100% thuê + 95% cọc
+        Assert.Equal(4_000_000m, refund.Amount); // D49: 100% thuê + 100% cọc (miễn phí huỷ)
         Assert.Equal("PENDING", refund.Status);
 
         var code = $"SS-{cancelled.CreatedAt.AddHours(7):yyyyMMdd}-{cancelled.ReservationId:0000}";
@@ -399,10 +403,13 @@ public sealed partial class D32RefundEvidenceTests
         var c = await f.ActiveContractAsync();
         var move = await new ContractService(f.Db).RegisterMoveOutAsync(f.Customer.UserId, c.ContractId, MoveOut(Photo(Jpeg)));
         var request = new OpsReturnInspectionRequest("Đạt · không còn đồ", "Đạt tiêu chuẩn", "Đã nhận đủ chìa", "Sẵn sàng cho thuê lại",
-            hasDamageFee ? 0m : null, hasCleaningChoice ? false : null);
+            hasDamageFee ? 0m : null, hasCleaningChoice ? false : null, Photos: [Photo(Jpeg)]);
 
         await Assert.ThrowsAsync<ArgumentException>(() => f.Ops.SubmitReturnInspectionAsync(
             f.StaffActor, $"TK-{move.InspectionId:0000}", request));
+        // Task #8: nhân viên kiểm tra trả kho (kể cả không hư hỏng) bắt buộc có ít nhất 1 ảnh hiện trạng.
+        await Assert.ThrowsAsync<ArgumentException>(() => f.Ops.SubmitReturnInspectionAsync(
+            f.StaffActor, $"TK-{move.InspectionId:0000}", request with { DamageFee = 0m, CleaningRequired = false, Photos = null }));
 
         f.Db.ChangeTracker.Clear();
         var inspection = await f.Db.ReturnInspections.SingleAsync(i => i.InspectionId == move.InspectionId);
@@ -411,7 +418,7 @@ public sealed partial class D32RefundEvidenceTests
         Assert.Equal("RETURN_PENDING", (await f.Db.RentalContracts.FindAsync(c.ContractId))!.Status);
         Assert.False(await f.Db.ActivityLogs.AnyAsync(l => l.Action == "RETURN_INSPECTED"));
 
-        // Không có phí vẫn hợp lệ, nhưng biểu mẫu phải gửi rõ 0 và false.
+        // Không có phí vẫn hợp lệ, nhưng biểu mẫu phải gửi rõ 0, false và ảnh hiện trạng.
         await f.Ops.SubmitReturnInspectionAsync(f.StaffActor, $"TK-{move.InspectionId:0000}",
             request with { DamageFee = 0m, CleaningRequired = false });
         Assert.Equal("COMPLETED", inspection.Status);
@@ -469,7 +476,7 @@ public sealed partial class D32RefundEvidenceTests
         var c = await f.ActiveContractAsync();
         var move = await new ContractService(f.Db).RegisterMoveOutAsync(f.Customer.UserId, c.ContractId, MoveOut(Photo(Jpeg)));
         await f.Ops.SubmitReturnInspectionAsync(f.StaffActor, $"TK-{move.InspectionId:0000}",
-            new("Đạt · không còn đồ", "Đạt tiêu chuẩn", "Đã nhận đủ chìa", "Sẵn sàng cho thuê lại", 0m, false));
+            new("Đạt · không còn đồ", "Đạt tiêu chuẩn", "Đã nhận đủ chìa", "Sẵn sàng cho thuê lại", 0m, false, Photos: [Photo(Jpeg)]));
         var inspection = await f.Db.ReturnInspections.SingleAsync(i => i.InspectionId == move.InspectionId);
         // Đặt các mốc khác nhau để phát hiện DTO lấy nhầm giờ chốt làm giờ kiểm kê.
         var inspectedAt = DateTime.UtcNow.AddHours(-1);
@@ -495,14 +502,15 @@ public sealed partial class D32RefundEvidenceTests
             new(){Items="Trống",Walls="Sạch",Keys="Đủ",Proposal="Sẵn sàng cho thuê lại"}));
         // L22 / D38: đạt 1/3 tiêu chuẩn thì không được chọn cho thuê lại ngay.
         var below=await Assert.ThrowsAsync<ArgumentException>(()=>service.SubmitReturnInspectionAsync(f.Staff.UserId,move.InspectionId.ToString(),
-            new(){Items="Chưa đạt · còn ít đồ",Walls="Chưa đạt tiêu chuẩn vệ sinh",Keys="Đã nhận đủ chìa",Proposal="Sẵn sàng cho thuê lại",DamageFee=0,CleaningRequired=false}));
+            new(){Items="Chưa đạt · còn nhiều đồ",Walls="Chưa đạt tiêu chuẩn vệ sinh",Keys="Đã nhận đủ chìa",Proposal="Sẵn sàng cho thuê lại",DamageFee=0,CleaningRequired=false,Photos=[Photo(Jpeg)]}));
         Assert.Contains("2/3",below.Message);
+        // Task #13: "Đạt · còn ít đồ" tính là đạt (2/3 cùng với chìa khóa), không tự động phát sinh phí vệ sinh.
         await service.SubmitReturnInspectionAsync(f.Staff.UserId,move.InspectionId.ToString(),
-            new(){Items="Trống",Walls="Bẩn",Keys="Đủ",Proposal="Cần vệ sinh",DamageFee=0,CleaningRequired=true,FeeReason="Cần vệ sinh sau trả kho"});
+            new(){Items="Đạt · còn ít đồ",Walls="Đạt tiêu chuẩn",Keys="Đã nhận đủ chìa",Proposal="Sẵn sàng cho thuê lại",DamageFee=0,CleaningRequired=false,Photos=[Photo(Jpeg)]});
         var inspection=await f.Db.ReturnInspections.AsNoTracking().SingleAsync(x=>x.InspectionId==move.InspectionId);
-        Assert.Equal("COMPLETED",inspection.Status);Assert.True(inspection.CleaningRequired);Assert.Equal(100_000m,inspection.CleaningFee);
+        Assert.Equal("COMPLETED",inspection.Status);Assert.False(inspection.CleaningRequired);Assert.Equal(0m,inspection.CleaningFee);
         await Assert.ThrowsAsync<InvalidOperationException>(()=>service.SubmitReturnInspectionAsync(f.Staff.UserId,move.InspectionId.ToString(),
-            new(){Items="Đạt · không còn đồ",Walls="Đạt tiêu chuẩn",Keys="Đã nhận đủ chìa",Proposal="Sẵn sàng cho thuê lại",DamageFee=0,CleaningRequired=false}));
+            new(){Items="Đạt · không còn đồ",Walls="Đạt tiêu chuẩn",Keys="Đã nhận đủ chìa",Proposal="Sẵn sàng cho thuê lại",DamageFee=0,CleaningRequired=false,Photos=[Photo(Jpeg)]}));
     }
 
 }

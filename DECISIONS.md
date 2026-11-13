@@ -560,3 +560,88 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - **Quyền:** `POST/DELETE /api/admin/roles/{id}/permissions` trả 410 (D32: ma trận quyền chỉ xem, T25); đổi vai trò dùng `POST /api/admin/users/{id}/role-change` trong một giao dịch (T24).
 - **Báo cáo chi tiết cơ sở (Figma B04a)** và **lịch sử thanh toán đủ thời gian / phương thức / mã giao dịch (Figma C11h, LS02)** làm trong đợt này, chỉ FE, dùng API có sẵn. Trường `outstanding` hiển thị là "Khoản chờ thu" (D32: không có công nợ ngoài cọc).
 - **Lỗi phát hiện khi rà soát (sửa ở Phiên 2):** khấu trừ khi kiểm tra ô cũ bị lưu `PENDING`, thiếu thời điểm tạo (PR #82) → lưu `PAID`.
+
+## D49 — 12/11/2026: Bỏ phí huỷ 5% trước ngày bắt đầu thuê và bỏ giữ 30% cọc khi trả kho sớm — Đã chốt
+
+> Người dùng chốt ngày 12/11/2026. Thay ý `"Phí huỷ 5% cọc"` của D40 và phần hoàn cọc/huỷ đơn tương ứng của D27, D32 (mục huỷ đơn 10% cọc và mục giữ 30% / hoàn 70% cọc khi dừng sớm sau `StartDate`); giữ nguyên toàn bộ lịch sử ở trên.
+
+- **Huỷ đơn đặt chỗ trước `StartDate`:** phí huỷ = **`0%`** (hoàn **100% tiền thuê + 100% tiền cọc** nếu đã thanh toán).
+- **Tách bạch hoàn toàn với trả kho sớm sau `StartDate`:** từ `00:00` ngày `StartDate` trở đi đi theo luồng trả kho (`EarlyStop`):
+  - **Tiền cọc:** hoàn **100% cọc** nếu sau khi nhân viên kiểm tra kho không có vi phạm vệ sinh/hư hỏng; nếu có vi phạm vệ sinh (10% cọc theo chính sách) hoặc hư hỏng (theo biên bản kiểm tra), xử lý trừ vào tiền cọc **giống như lúc trả kho khi đến hạn** (tổng khấu trừ tối đa 100% cọc, không phát sinh công nợ ngoài cọc theo D32). Bỏ quy tắc giữ cố định `30%` / hoàn `70%` cọc của D27/D32.
+  - **Tiền thuê:** tính tròn theo các tháng đã bắt đầu (ví dụ dùng 1 tháng 1 ngày thì trừ tiền thuê của **2 tháng**); hoàn tiền thuê của **các tháng nguyên chưa bắt đầu** theo quy tắc D27/D32.
+- **Phạm vi đồng bộ khi triển khai code:** bảng/chính sách `RentalPolicy` / `policies` (`CANCELLATION = 0%`), `RefundPolicy` / `OpsRules` / `DbSeeder`, API `cancel-preview` và xác nhận huỷ, màn Chính sách (`PolicySettingsPage`, màn Chính sách khách hàng), màn xác nhận huỷ `C14a`, màn trả kho `ReturnRequestPage` / `ReturnInspectionPage` / `SettlementComponents`, màn hoàn tiền `M08` (`CancellationRefundPage`), và các unit test / FE test liên quan.
+
+## D50 — 12/11/2026: Chốt nghiệp vụ cho bộ task #1–#23 (không cần Figma trước) — Đã chốt
+
+> Người dùng yêu cầu triển khai tuần tự toàn bộ 16 task (#1, #3, #4, #5, #6, #8, #9, #10, #11, #12, #13, #15, #18, #20, #21, #23; phần #4 và dừng sớm đã chốt tại D49); giữ nguyên toàn bộ lịch sử ở trên.
+
+- **Thông tin liên hệ (#1, thay ý `"Hotline footer là số minh hoạ"` của D40):** Hotline công khai là `0825123676`, giờ hoạt động `06:00–22:00`, địa chỉ có tiền tố `Trụ sở :` phía trước.
+- **Sơ đồ kho & lịch tương lai (#3, bổ sung D41):** Ô đang thuê hiển thị ngày hết hạn dự kiến; phân biệt trạng thái hiện tại với khả năng đặt trong khoảng ngày khách đang chọn; kiểm tra trùng với toàn bộ hợp đồng/đặt chỗ tương lai (kể cả năm sau) + ngày đệm, không khóa đặt lịch tương lai chỉ vì hôm nay ô đang có người thuê.
+- **Hỗ trợ & nhận chìa khóa (#5, #6, thay phần mô tả/ảnh bắt buộc của D35 và khung giờ của D36/D45):** Bỏ mục `2. Mô tả & ảnh đính kèm` ở biểu mẫu hỗ trợ khách hàng (vẫn giữ luồng chat phản hồi sau khi tạo). Nhận chìa khóa chỉ chọn ngày (`DatePicker`), bỏ Sáng/Chiều/Ngày khác và không hiển thị giờ cụ thể khi xem lại.
+- **Trả kho (#8, #9, thay phần ảnh trả kho bắt buộc của khách trong D32/D35):** Khách gửi trả kho chỉ chọn ngày mong muốn (bỏ khung giờ), không phải đính kèm ảnh; yêu cầu trả kho chưa coi là đã kiểm tra xong. Nhân viên cơ sở chịu trách nhiệm kiểm tra thực địa và bắt buộc đính kèm ảnh hiện trạng khi lập biên bản.
+- **Tài khoản nhận hoàn & màn hoàn tiền (#10, #11, #20, #21, thay yêu cầu trùng tên hợp đồng của D27/D32/D44/D45, củng cố D42/D47):**
+  - Bắt buộc đủ 3 trường: Ngân hàng (chọn từ danh sách), Số tài khoản (kiểm tra độ dài/định dạng theo ngân hàng đã chọn, giữ số `0` đầu), Tên chủ tài khoản nhận tiền.
+  - **Không bắt buộc trùng tên đăng ký/hợp đồng**, cho phép nhận vào tài khoản người thân/người khác; ghi rõ chỉ kiểm tra định dạng theo ngân hàng, không coi là đã xác minh tài khoản tồn tại.
+  - Quản lý cơ sở **không được đổi** phương thức hoàn tiền của khách; **bỏ** tự sinh mã giao dịch mặc định và **bỏ** nút `"Tạo lại mã"`.
+- **Tài khoản của tôi (#12):** Cho phép sửa Email với kiểm tra định dạng hợp lệ và không trùng Email/Username của tài khoản khác.
+- **Kiểm tra `"Còn ít đồ"` (#13, cập nhật D38):** `"Còn ít đồ"` được đánh giá **Đạt tiêu chuẩn**, không tự động tick hoặc thu phí vệ sinh `10%` cọc.
+- **Hiển thị đối soát & phản hồi nhiều khoản khấu trừ (#15, #18, bổ sung D39/D40):**
+  - Quản lý chỉ thấy hồ sơ ở hàng chờ đối soát/xác nhận hoàn cọc khi đã có biên bản kiểm tra trả kho `COMPLETED` **và** khách hàng/cơ sở đã hoàn tất bước phản hồi khấu trừ (`DamageWorkflowResolved = true`, không còn `WAITING`/`SELF_CLEAN`/`SELF_REPLACE`/`DISPUTE`).
+  - Khách hàng được chọn đồng ý đồng thời nhiều khoản khấu trừ (vệ sinh, hư hỏng) hoặc chọn phương án riêng cho từng khoản.
+- **Bỏ quản lý duyệt gia hạn (#23, thay phần duyệt gia hạn M01/M03 của D11/D32/D46b):** Khách gửi gia hạn hợp lệ (tại chỗ hoặc chuyển ô) thì hệ thống tự kiểm tra điều kiện/lịch trống, chốt giá và mở thanh toán trực tiếp (`APPROVED` / tạo `RENEWAL` `PENDING`, giữ ô mới nếu đổi ô); chỉ cập nhật `EndDate` hợp đồng sau khi thanh toán đủ.
+
+## D51 — 12/11/2026: Cửa kho, mã QR/PIN, công cụ demo và IP khách — Đã chốt
+
+> Người dùng chốt ngày 12–13/11/2026 khi làm #45, #48–#51, #54, #59. Thay ý "cửa tự khoá" và PIN có số 0 ở các quyết định trước; giữ D48 (không đổi database). Triển khai ở Lượt 6, 6b.
+
+- **Không tự khoá cửa:** cửa mở tới khi có người bấm "Đóng cửa" (trên máy quét, hoặc trong Kho của tôi của khách). Đóng cửa chỉ cần popup xác nhận, không nhập lại QR/PIN. Đóng khi cửa đã khoá thì không ghi thêm sự kiện.
+- **PIN 6 số chỉ gồm 1–9** (bỏ số 0). Máy chủ từ chối PIN có số 0 với thông báo "Mã PIN gồm 6 số từ 1 đến 9." Bàn phím máy quét khoá phím 0.
+- **Xem mã trước ngày thuê (#59):** khách xem được QR và PIN ngay khi có hợp đồng. Trước 00:00 ngày bắt đầu, quét mã bị từ chối với "Chưa đến ngày sử dụng. Có thể mở cửa từ 00:00 ngày dd/MM/yyyy."
+- **Lưu trạng thái cửa trong `activity_logs`** (D48): `ACCESS_SCANNED` (kết quả OPEN/DENIED, cách xác thực QR/PIN, lý do), `DOOR_CLOSED` (CLOSE_DEVICE / CLOSE_APP), `DOOR_SUPPORT_REQUESTED`. Không lưu nguyên mã QR/PIN; Nhật ký cửa không hiển thị mã.
+- **Gọi hỗ trợ tại cửa:** tạo yêu cầu hỗ trợ chủ đề mã ra vào, ưu tiên cao, gắn cơ sở và ô kho; trong 30 phút với cùng ô thì trả lại yêu cầu đang mở, không tạo trùng.
+- **Công cụ demo của admin (#45, #54):** mục "Công cụ demo" trên thanh menu admin mở trang 4 thẻ (không có hàng tab): Máy quét, Chỉnh giá, Chỉnh ngày hợp đồng, Nhật ký cửa.
+  - Chỉnh ngày hợp đồng: ngày bắt đầu, ngày hết hạn (4 kịch bản: chưa tới ngày thuê, đang thuê, sắp hết hạn, quá hạn) và ngày giao dịch đã thanh toán (giờ Việt Nam). Máy chủ tính lại trạng thái hợp đồng, ô kho, số ngày quá hạn.
+  - Chỉnh giá: giá thuê tháng và số tiền giao dịch; tiền cọc chỉ xem.
+  - Mỗi lần chỉnh ghi `DEMO_CONTRACT_EDITED` / `DEMO_PAYMENT_EDITED` với giá trị trước/sau, lý do và admin thực hiện.
+  - Giao diện Máy quét và Nhật ký cửa do Thắng làm cùng lượt này (thay phân công cho Đạt trước đó).
+- **IP của khách hàng:** admin không xem được IP (và thông tin thiết bị trong lịch sử đăng nhập) của tài khoản chỉ có vai trò khách. API nhật ký trả `null`, giao diện hiện "Ẩn"; database vẫn lưu. IP của nhân viên, quản lý, vận hành, admin và log hệ thống vẫn hiện.
+
+## D52 — 12/11/2026: Bỏ hàng tab dưới thanh menu, gộp chức năng theo vai trò — Đã chốt
+
+> Người dùng chốt ngày 12/11/2026 khi sửa #7. Áp dụng cho mọi vai trò; Figma đã vẽ lại (G2, menu quản lý, menu admin). Triển khai ở Lượt 4b.
+
+- **Không có hàng nút/tab dưới thanh menu** ở bất kỳ vai trò nào; chức năng nhỏ mở từ thẻ việc trên Tổng quan hoặc nút trên từng mục.
+- **Quản lý cơ sở:** menu gồm Tổng quan, Danh sách kho, Hợp đồng & quá hạn, Hoàn tiền, Báo cáo.
+  - Bỏ "Phân bổ kho" và "Phân công": hệ thống tự đề xuất ô khi đặt; yêu cầu của khách hiện thẳng bên nhân viên. Tổng quan chỉ còn thẻ việc cho trường hợp cần người xử lý (ví dụ xung đột đặt kho không có ô tương đương).
+  - "Hoàn tiền" gộp hoàn tiền đơn huỷ, hoàn tiền mặt và hoàn cọc.
+  - Xử lý quá hạn mở từ nút trên từng hợp đồng. Danh sách sự cố xem trong Danh sách kho. Báo cáo cuối ngày nằm trong Báo cáo.
+- **Nhân viên:** "Kiểm tra ô cũ" nằm trong "Kiểm tra trả kho".
+- **Vận hành KD — Thêm cơ sở:** chưa bắt buộc kinh độ/vĩ độ; cơ sở chưa có toạ độ không hiện trên bản đồ.
+
+## D53 — 13/11/2026: Máy quét chỉ mở đúng ô của đúng cơ sở; phím 0 bấm được — Đã chốt
+
+> Người dùng chốt ngày 13/11/2026 khi thử máy quét (#48, #51). Thay ý "Bàn phím máy quét khoá phím 0" của D51; giữ D48 (không đổi database).
+
+- **Mã ô trùng giữa các cơ sở (K01…):** máy quét gửi kèm cơ sở đang đặt máy; QR/PIN chỉ mở ô của đúng hợp đồng **tại đúng cơ sở đó**. Sai cơ sở → từ chối "Mã không thuộc kho của cơ sở này." và ghi nhật ký cửa.
+- **Phím 0:** hiện và bấm được như các phím khác. PIN vẫn chỉ gồm 1–9 (D51): có số 0 thì bấm OK báo "Mã PIN gồm 6 số từ 1 đến 9." ngay trên máy quét, không gửi lên máy chủ, không mở cửa.
+- **Quét QR bằng camera:** luôn xin quyền camera trước; trình duyệt không có BarcodeDetector (Chrome/Edge trên Windows) thì đọc mã bằng thư viện jsQR.
+
+## D54 — 13/11/2026: Nhật ký admin 3 nhóm, popup phủ kín, nhãn "Chờ trả kho", dữ liệu demo theo cơ sở — Đã chốt
+
+> Người dùng chốt ngày 13/11/2026 khi làm #29, #39, #40, #60 (Google Doc "Tổng hợp yêu cầu và lỗi"). Giữ D48 (không đổi bảng/cột).
+
+- **#29 Popup:** lớp phủ popup luôn phủ kín màn hình, không chừa dải phía trên (lớp phủ không nhận lề của khối trang).
+- **#39 Nhật ký:** hiện tên người, tên cơ sở, loại kho, mã hợp đồng/giao dịch thay cho ID thô; hành động chưa có tên tiếng Việt hiện "Hoạt động hệ thống", không hiện mã kỹ thuật. IP khách vẫn ẩn (D51).
+- **#40 Nhóm nhật ký:** Thay đổi dữ liệu (tài khoản, cơ sở, giá, chính sách, Công cụ demo), **Phân công nhân sự** (gán/đổi cơ sở phụ trách, trạng thái phân công), Phân quyền (cấp/đổi/thu hồi vai trò, quyền). Chuyển cơ sở không tính là đổi vai trò. Thể hiện trước → sau khi bản ghi có đủ giá trị.
+- **Kho của tôi:** khách đã gửi trả kho thì nhãn hợp đồng là "Chờ trả kho" (không còn "Đang thuê"), khớp với việc QR/PIN đã hết hiệu lực (D32).
+- **#60 Dữ liệu demo:** mỗi cơ sở có `Staff_<MÃ>`, `Manager_<MÃ>` (đúng 1 cơ sở), `Customer<MÃ>01` (hợp đồng đang thuê đã thanh toán, có QR/PIN) và `Customer<MÃ>02` (đơn chờ thu tại quầy). Mã cơ sở: NLB, HL, PX, TT, PMH, BTH, NB, BC, TD, GV, TB, BTA. Mật khẩu demo: `Staff@123`, `Manager@123`, `Customer@123`. Chạy lại seed không tạo trùng, không ghi đè; ô được chọn phải trống, không chồng kỳ thuê.
+
+## D55 — 13/11/2026: Dữ liệu demo #60 — mỗi cơ sở 1 khách, số đơn khác nhau — Đã chốt
+
+> Người dùng chốt ngày 13/11/2026, thay phần #60 của D54. Giữ D48 (chỉ thêm dữ liệu, không đổi bảng/cột).
+
+- Mỗi cơ sở chỉ có **1 khách demo** `Customer<MÃ>01`; không tạo `Customer<MÃ>02` và không tạo đơn chờ thu tại quầy nữa.
+- Khách có **1–6 hợp đồng đang thuê**, số lượng khác nhau giữa các cơ sở để báo cáo Vận hành KD thấy chênh lệch: NLB 1, HL 6, PX 5, TT 2, PMH 6, BTH 4, NB 1, BC 3, TD 5, GV 2, TB 4, BTA 3. NLB chỉ 1 vì cơ sở gốc đã có bộ dữ liệu vận hành của customer01–06.
+- Các hợp đồng khác loại kho và thời hạn (3–12 tháng), ngày bắt đầu rải qua 6 tháng gần nhất (thanh toán trước cả kỳ) để biểu đồ doanh thu không trống; **tất cả còn trong hạn**, 1 hợp đồng sắp hết hạn (~12 ngày) để thử mốc 14 ngày. Không có hồ sơ quá hạn.
+- Mỗi cơ sở dùng tối đa 6/12 ô cho dữ liệu này; các ô còn lại để người dùng tự demo.
+- Chạy lại seed không tạo thêm: đếm số hợp đồng khách đã có tại cơ sở. Database đã chạy seed cũ thì giữ nguyên dữ liệu cũ (kể cả `Customer<MÃ>02`); muốn đúng hoàn toàn thì tạo lại database.

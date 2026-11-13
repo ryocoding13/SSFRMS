@@ -165,16 +165,16 @@ export function unitsFor(facility, stock = null, realUnits = null) {
       has_pricing: Boolean(offer && offer.monthly_rate > 0),
       position: `Tầng trệt · Dãy ${row}`,
       status,
+      current_contract_end_date: null,
       free_from: null,
       overdue: false,
       bookable_for_period: status === "FREE",
       period_unavailable_reason: null,
-      current_contract_end_date: null,
     };
   });
 }
 
-
 export const freeCount = (units) => units.filter((u) => u.status === "FREE").length;
+export const bookableCount = (units) => units.filter((u) => u.bookable_for_period).length;
 export const countBy = (units) =>
   LEGEND.reduce((acc, s) => ({ ...acc, [s]: units.filter((u) => u.status === s).length }), {});

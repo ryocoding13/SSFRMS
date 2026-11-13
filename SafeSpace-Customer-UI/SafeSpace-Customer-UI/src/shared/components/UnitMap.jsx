@@ -1,6 +1,7 @@
 import React from "react";
 import { typeLabel } from "../utils/catalog.js";
-import { LEGEND, UNIT_STATUS, countBy, freeCount } from "../utils/units.js";
+import { dateLabel } from "../utils/format.js";
+import { LEGEND, UNIT_STATUS, bookableCount, countBy, freeCount } from "../utils/units.js";
 
 // Sơ đồ ô kho của cơ sở: chú giải, các dãy theo tầng/khu vực động, ô đang chọn có viền sáng.
 export default function UnitMap({
@@ -81,18 +82,23 @@ export default function UnitMap({
     const on = u.code === selected;
     const st = UNIT_STATUS[u.status] || UNIT_STATUS.SERVICE;
     const isClimate = u.type === "climate";
+    const futureBookable = u.status !== "FREE" && u.bookable_for_period;
     return (
       <button
         type="button"
         key={u.unit_id || u.code}
-        className={`unit-tile unit-tile--${st.tone}${on ? " is-selected" : ""}`}
+        className={`unit-tile unit-tile--${st.tone}${futureBookable ? " unit-tile--bookable" : ""}${on ? " is-selected" : ""}`}
         onClick={() => onSelect(u.code)}
         aria-pressed={on}
-        aria-label={`Ô ${u.code}, ${u.area_label}, ${typeLabel(u.type)}, ${st.label}`}
+        aria-label={`Ô ${u.code}, ${u.area_label}, ${typeLabel(u.type)}, ${st.label}${u.current_contract_end_date ? `, hết hạn ${dateLabel(u.current_contract_end_date)}` : ""}`}
       >
         <strong>{u.code}</strong>
         <span>{u.area_label} · {isClimate ? "Lạnh" : "Thường"}</span>
         <span>{st.label}</span>
+        {u.current_contract_end_date && (
+          <span className="unit-tile__meta">Hết hạn {dateLabel(u.current_contract_end_date)}</span>
+        )}
+        {futureBookable && <span className="unit-tile__bookable">Đặt được kỳ này</span>}
       </button>
     );
   };
@@ -102,7 +108,7 @@ export default function UnitMap({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "8px" }}>
         <div>
           <h2>Chọn một ô để xem thông tin</h2>
-          <p className="muted unit-map__sub">{units.length} ô kho · {floorSub} · Tình trạng hiện tại</p>
+          <p className="muted unit-map__sub">{units.length} ô kho · {floorSub} · Trạng thái hiện tại &amp; khả năng đặt theo kỳ đang tìm</p>
         </div>
         {onReload && (
           <button type="button" className="btn btn--outline btn--sm" onClick={onReload} title="Cập nhật sơ đồ kho">
@@ -153,7 +159,7 @@ export default function UnitMap({
         </div>
       ))}
 
-      <p className="unit-map__note">{freeCount(units)} ô còn trống · Bấm vào ô bất kỳ để xem thông tin.</p>
+      <p className="unit-map__note">{freeCount(units)} ô trống hôm nay · {bookableCount(units)} ô khả dụng trong kỳ đang chọn · Bấm vào ô để xem thông tin.</p>
     </section>
   );
 }

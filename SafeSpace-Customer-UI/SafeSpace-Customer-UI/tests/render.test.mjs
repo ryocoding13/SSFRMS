@@ -56,11 +56,12 @@ try {
   seed(true);
   window.location.hash = "#/units/HĐ-2026-0142/return";
   const returnHtml = renderToStaticMarkup(React.createElement(App));
-  // D42: khách chọn cách nhận hoàn (chuyển khoản / tiền mặt tại quầy); mặc định chuyển khoản vẫn hiện ô tài khoản
-  for (const text of ["Hiện trạng kho", "Tải ảnh kho trống", "Nhận tiền hoàn · Chính chủ", "Nhận hoàn qua", "Tiền mặt tại quầy", "Số tài khoản", "Không thể huỷ yêu cầu", "QR/PIN khoá ngay", "48 giờ"]) assert.ok(returnHtml.includes(text), text);
+  // D42 + Task #8/#9: trả kho chỉ chọn ngày, không bắt ảnh hay khung giờ; chọn cách nhận hoàn (chuyển khoản / tiền mặt tại quầy)
+  for (const text of ["Lịch trả kho", "Ngày mong muốn trả kho", "Nhận tiền hoàn", "Nhận hoàn qua", "Tiền mặt tại quầy", "Số tài khoản", "Không thể huỷ yêu cầu", "QR/PIN khoá ngay", "48 giờ"]) assert.ok(returnHtml.includes(text), text);
+  for (const text of ["Tải ảnh kho trống", "Khung giờ"]) assert.ok(!returnHtml.includes(text), text);
   window.location.hash = "#/reservations/SS-20260914-0142/cancel";
   const cancelHtml = renderToStaticMarkup(React.createElement(App));
-  for (const text of ["Nhận tiền hoàn · Chính chủ", "Tiền mặt tại quầy", "Số tài khoản", "Chủ tài khoản", "Khoản hoàn dự kiến"]) assert.ok(cancelHtml.includes(text), text);
+  for (const text of ["Nhận tiền hoàn", "Tiền mặt tại quầy", "Số tài khoản", "Chủ tài khoản", "Khoản hoàn dự kiến"]) assert.ok(cancelHtml.includes(text), text);
   const { createWorkflowSeed } = await vite.ssrLoadModule("/src/features/facility-operations/workflows/workflowModel.js");
   const workflowFixture = createWorkflowSeed();
   const owner = createSeedData().user.user_id;
@@ -86,20 +87,22 @@ try {
   memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: recordData }));
   window.location.hash = "#/units";
   const endedUnits = renderToStaticMarkup(React.createElement(App));
-  assert.ok(endedUnits.includes("Xem hợp đồng") && !endedUnits.includes("Xem QR &amp; PIN"));
+  assert.ok(endedUnits.includes("Xem hợp đồng") && !endedUnits.includes("Mã QR mở cửa"));
   recordData.contracts[0].status = "ACTIVE";
   recordData.contracts[0].end_date = "2099-12-31";
-  // D35–D36 · L13: trước ngày thuê không mở QR/PIN, chỉ ghi ngày mã hiện
+  // #59 (thay L13): trước ngày thuê vẫn xem được mã, chưa có nút Đóng cửa; mã chỉ mở cửa từ 00:00 ngày bắt đầu
   recordData.contracts[0].start_date = "2099-01-01";
   memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: recordData }));
   const prestartUnits = renderToStaticMarkup(React.createElement(App));
-  assert.match(prestartUnits, /<button[^>]*disabled[^>]*>Mã hiện từ /);
-  assert.ok(!prestartUnits.includes("Xem QR &amp; PIN"));
+  assert.match(prestartUnits, /<button type="button" class="btn btn--outline ">Mã QR mở cửa<\/button>/);
+  assert.ok(prestartUnits.includes("Chưa đến ngày sử dụng"));
+  assert.ok(!prestartUnits.includes(">Đóng cửa<"), "chưa đến ngày thuê thì chưa có nút Đóng cửa");
   recordData.contracts[0].start_date = "2026-01-01";
   recordData.returns = [{ contract_id: recordData.contracts[0].contract_id, status: "PENDING" }];
   memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: recordData }));
   const returningUnits = renderToStaticMarkup(React.createElement(App));
-  assert.match(returningUnits, /<button[^>]*disabled[^>]*>Xem QR &amp; PIN<\/button>/);
+  assert.match(returningUnits, /<button[^>]*disabled[^>]*>Mã QR mở cửa<\/button>/);
+  assert.match(returningUnits, /<button[^>]*disabled[^>]*>Đóng cửa<\/button>/, "đã gửi trả kho thì không điều khiển cửa");
   recordData.contracts = [];
   recordData.reservations = [];
   memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: recordData }));
@@ -146,7 +149,7 @@ try {
   memory.set(STORAGE_KEY, JSON.stringify({version:5,authed:true,data:lifecycleData}));
   window.location.hash = "#/units/HĐ-2026-0086";
   const pendingRenewalHtml = renderToStaticMarkup(React.createElement(App));
-  for (const text of ["Xem yêu cầu", "Huỷ yêu cầu", "GH-0043 chờ quản lý duyệt · huỷ được trước khi duyệt"]) assert.ok(pendingRenewalHtml.includes(text), text);
+  for (const text of ["Xem yêu cầu", "Huỷ yêu cầu", "GH-0043 đang được kiểm tra · huỷ được trước khi xác nhận"]) assert.ok(pendingRenewalHtml.includes(text), text);
   window.location.hash = "#/profile";
   assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Tên đăng nhập"));
   window.location.hash = "#/register";
@@ -237,26 +240,26 @@ try {
   window.location.hash = "#/manager/report";
   const zeroHtml = renderToStaticMarkup(React.createElement(App));
   assert.ok(!zeroHtml.includes("NaN"), "Báo cáo doanh thu 0/0 không được có NaN");
-  assert.ok(zeroHtml.includes("Kho thường") && zeroHtml.includes("0,0 triệu đ · 0%"));
-  assert.ok(zeroHtml.includes("Kho lạnh") && zeroHtml.includes("0,0 triệu đ · 0%"));
+  assert.ok(zeroHtml.includes("Kho thường") && zeroHtml.includes("0 đ · 0%"));
+  assert.ok(zeroHtml.includes("Kho lạnh") && zeroHtml.includes("0 đ · 0%"));
   assert.ok(zeroHtml.includes('style="width:0%"'), "Thanh doanh thu 0% có chiều rộng 0%");
   assert.ok(zeroHtml.includes("Tỷ lệ lấp đầy kho"), "Tỷ lệ lấp đầy kho là chỉ số riêng");
 
   const shareReportOps = {
     ...createOpsData(),
     revenue: {
-      months: [{ month: 9, year: 2026, value: 4, label: "Tháng 9" }],
+      months: [{ month: 9, year: 2026, value: 4_000_000, label: "Tháng 9" }],
       by_type: [
-        { label: "Kho thường", value: 3 },
-        { label: "Kho lạnh", value: 1 },
+        { label: "Kho thường", value: 3_000_000 },
+        { label: "Kho lạnh", value: 1_000_000 },
       ],
     },
   };
   memory.set(OPS_KEY, JSON.stringify(shareReportOps));
   window.location.hash = "#/manager/report";
   const shareHtml = renderToStaticMarkup(React.createElement(App));
-  assert.ok(shareHtml.includes("3,0 triệu đ · 75%"));
-  assert.ok(shareHtml.includes("1,0 triệu đ · 25%"));
+  assert.ok(shareHtml.includes("3.000.000 đ · 75%"));
+  assert.ok(shareHtml.includes("1.000.000 đ · 25%"));
   assert.ok(shareHtml.includes('style="width:75%"'));
   assert.ok(shareHtml.includes('style="width:25%"'));
 
@@ -275,11 +278,11 @@ try {
   seed(true);
   const pages = [
     // D36: chìa khóa vật lý giao theo yêu cầu "Nhận chìa khóa"; D40: hợp đồng chưa tới ngày thuê vẫn gửi hỗ trợ được
-    ["units/HĐ-2026-0142", ["Hợp đồng và mã ra vào đã được cấp", "Đã cấp · mã hiện từ", "Mã hiện từ", "Nhận chìa khóa"]],
-    ["units/HĐ-2026-0086", ["Xem QR &amp; PIN 6 số", "Gia hạn", "Trả kho"]],
+    ["units/HĐ-2026-0142", ["Hợp đồng và mã ra vào đã được cấp", "Đã cấp · mở cửa từ 00:00 ngày", "Có thể mở cửa từ 00:00 ngày", "Nhận chìa khóa"]],
+    ["units/HĐ-2026-0086", ["Mã QR mở cửa", "Đóng cửa", "Gia hạn", "Trả kho"]],
     ["payments", ["Thanh toán", "Gia hạn B-015 · 3 tháng", "Chờ thanh toán"]],
     ["support", ["Phản hồi của nhân viên", "Thẻ cũ bị lỗi từ", "Yêu cầu gần đây", "Lưu ý khi gửi"]],
-    ["reservations", ["Huỷ đơn SS-0142", "Thao tác", "phí huỷ 5% tiền cọc"]], // D40
+    ["reservations", ["Huỷ đơn SS-0142", "Thao tác", "miễn phí huỷ"]], // D49
     ["find/1", ["Chỉ đường đến cơ sở", "google.com/maps/dir"]],
   ];
   for (const [r, texts] of pages) {
@@ -291,7 +294,7 @@ try {
   window.location.hash = "#/units/HĐ-2026-0142";
   // D26 vẫn cấp mã sau thanh toán; D35–D36 (L13) chỉ mở QR/PIN từ ngày bắt đầu thuê
   const prestartDetail = renderToStaticMarkup(React.createElement(App));
-  assert.ok(prestartDetail.includes("Đã cấp · mã hiện từ") && !prestartDetail.includes("Xem QR &amp; PIN 6 số"), "L13: trước ngày thuê không mở QR/PIN");
+  assert.ok(prestartDetail.includes("Đã cấp · mở cửa từ 00:00 ngày") && prestartDetail.includes("Mã QR mở cửa") && !prestartDetail.includes(">Đóng cửa<"), "#59: trước ngày thuê xem được mã, chỉ mở cửa từ 00:00 ngày bắt đầu");
   seed(true, OPS_ACCOUNTS[0]);
   for (const [r, texts] of [["staff/reconcile", ["Thu tiền tại kho", "Chờ thu khi nhận kho"]], ["staff/reconcile?id=SS-20260914-0142", ["Xác nhận đã thu", "Để sau", "Thuê 3 tháng"]], ["staff", ["Chờ thu tiền tại kho", "THU TIỀN"]]]) {
     window.location.hash = `#/${r}`;
@@ -358,10 +361,12 @@ try {
   assert.ok(b8html.includes("Thiếu hồ sơ xác minh hợp lệ"));assert.match(b8html,/<button[^>]*disabled[^>]*>Ghi nhận đã giao chìa khóa<\/button>/);
   b8ops.verifications=[{id:keyTask.verification_id,status:"DONE",doc_last4:"1234",doc_type:"CCCD"}];memory.set(OPS_KEY,JSON.stringify(b8ops));
   b8html=renderToStaticMarkup(React.createElement(App));assert.equal((b8html.match(/type="checkbox"/g)||[]).length,3);assert.ok(!/type="checkbox"[^>]*checked/.test(b8html));assert.ok(b8html.includes("Chưa có bằng chứng chính sách"));
-  window.location.hash="#/staff/return?id=TK-0098";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Tải ảnh hiện trạng / hư hỏng")&&b8html.includes("Lưu nháp"));assert.ok(b8html.includes("Ảnh kho trống do khách gửi")&&b8html.includes("Ảnh kho trống K04 do khách chụp"));assert.ok(!b8html.includes("Đã chuyển hết đồ khỏi kho"),"Không điền sẵn kết luận kiểm kê");
-  b8ops.returns[0].move_out_photos=[];memory.set(OPS_KEY,JSON.stringify(b8ops));b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Khách hàng chưa đính kèm ảnh kho trống khi yêu cầu trả kho."));
+  const { inspectionFlags } = await vite.ssrLoadModule("/src/features/staff/returns/ReturnInspectionPage.jsx");
+  const fewItems = inspectionFlags({ items: "Đạt · còn ít đồ", walls: "Đạt tiêu chuẩn", keys: "Đã nhận đủ chìa" });
+  assert.equal(fewItems.clean, 3); assert.equal(fewItems.dirty, false);
+  window.location.hash="#/staff/return?id=TK-0098";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Tải ảnh hiện trạng / hư hỏng · Bắt buộc")&&b8html.includes("Lưu nháp"));assert.ok(!b8html.includes("Ảnh kho trống do khách gửi"),"Task #8 bỏ khung ảnh khách gửi");assert.ok(!b8html.includes("Đã chuyển hết đồ khỏi kho"),"Không điền sẵn kết luận kiểm kê");
   seed(true,manager);window.location.hash="#/manager/contracts?id=missing";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Không tìm thấy hợp đồng"));assert.ok(!b8html.includes("Bước tiếp theo"));assert.ok(!b8html.includes('table--hover'));
-  window.location.hash="#/manager/deposit-refunds?id=HC-0098";b8html=renderToStaticMarkup(React.createElement(App));for(const text of ["Mã giao dịch","Thời gian chuyển","đúng tài khoản nhận"])assert.ok(b8html.includes(text),text);assert.match(b8html,/<button[^>]*disabled[^>]*>Ghi nhận đã chuyển tiền<\/button>/);
+  window.location.hash="#/manager/deposit-refunds?id=HC-0098";b8html=renderToStaticMarkup(React.createElement(App));for(const text of ["Mã giao dịch","Thời gian chuyển","đúng tài khoản nhận"])assert.ok(b8html.includes(text),text);assert.match(b8html,/<button[^>]*disabled[^>]*>Ghi nhận đã chuyển tiền<\/button>/);assert.ok(!b8html.includes("Tạo lại mã")&&!b8html.includes('value="FT'),"Task #21 bỏ nút Tạo lại mã và tự sinh mã");assert.ok(!b8html.includes("Tiền mặt tại quầy"),"Task #20 khóa hình thức hoàn theo khách");
   delete b8ops.deposit_refunds[0].amount;memory.set(OPS_KEY,JSON.stringify(b8ops));b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Chưa có dữ liệu"));assert.ok(!b8html.includes("Không còn khoản hoàn;"));
   b8ops.deposit_refunds[0].amount=0;b8ops.deposit_refunds[0].status="NO_REFUND";memory.set(OPS_KEY,JSON.stringify(b8ops));b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("không tạo giao dịch chuyển tiền"));assert.ok(!b8html.includes('type="datetime-local"'));
   b8ops.refunds=[{...b8ops.refunds[0],status:"UNKNOWN",amount:undefined}];memory.set(OPS_KEY,JSON.stringify(b8ops));window.location.hash="#/manager/refunds";b8html=renderToStaticMarkup(React.createElement(App));assert.ok(b8html.includes("Chưa rõ trạng thái")&&b8html.includes("Chưa có dữ liệu"));assert.ok(!b8html.includes("Đã hoàn"));

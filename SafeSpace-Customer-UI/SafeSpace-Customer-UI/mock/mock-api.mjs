@@ -112,7 +112,7 @@ export function createState() {
   const renewEnd = addMonths(contracts[0].endDate, 3);
   const renewals = [{ renewalId: 1, contractId: 1, oldEndDate: contracts[0].endDate, newEndDate: renewEnd, renewalPeriodMonths: 3, oldMonthlyRate: 1500000, newMonthlyRate: 1500000, renewalAmount: 4500000, status: "APPROVED", requestedAt: days(-2) }];
   payments.push({ paymentId: 3, contractId: 1, renewalId: 1, paymentType: "RENEWAL", amount: 4500000, currency: "VND", paymentMethod: "PAYOS", transactionReference: "SS-0001-REN", dueDate: contracts[0].endDate, paidAt: null, status: "PENDING", createdAt: days(-1) });
-  return { policyVersions: { 1: { ...defaultRentalPolicy(), displayVersion: "10/2026" } }, rentalPolicy: { ...defaultRentalPolicy(), displayVersion: "10/2026" }, policyConsents: [], users, facilities, unitTypes, rates, units, reservations, contracts, handovers, payments, renewals, tickets, payos: new Map(), accessLogs: [], tokens: new Map(), down: false, roles, permissions, rolePermissions, userRoles, userFacilities: [], loginHistory: [], activityLogs: [] };
+  return { policyVersions: { 1: { ...defaultRentalPolicy(), displayVersion: "10/2026" } }, rentalPolicy: { ...defaultRentalPolicy(), displayVersion: "10/2026" }, policyConsents: [], users, facilities, unitTypes, rates, units, reservations, contracts, handovers, payments, renewals, tickets, payos: new Map(), accessLogs: [], tokens: new Map(), doors: new Map(), down: false, roles, permissions, rolePermissions, userRoles, userFacilities: [], loginHistory: [], activityLogs: [] };
 }
 
 // ---- Khu vận hành (Nhân viên / Quản lý cơ sở): chỉ bật khi { ops: true } hoặc MOCK_OPS=1.
@@ -232,7 +232,8 @@ export function startMockApi(
     return { orderCode: o.orderCode, amount: o.amount, description: o.description, qrCode: qr, checkoutUrl: `https://pay.payos.vn/web/mock-${o.orderCode}`, expiredAt: iso(o.expiredAt), status: o.status };
   };
   const accessCode = (c) => {
-    const n = String((c.contractId * 7919 + 4821) % 1000000).padStart(6, "0");
+    // D51: PIN 6 số chỉ gồm 1–9
+    const n = String((c.contractId * 7919 + 4821) % 1000000).padStart(6, "0").replace(/\d/g, (d) => String(1 + (Number(d) % 9)));
     return { code: `SSQR-${c.contractId}-${n.slice(0, 4)}`, backup: n };
   };
 
@@ -336,6 +337,15 @@ export function startMockApi(
       if (!u) return send(401);
       if (body.fullName) u.fullName = body.fullName.trim();
       if (body.phone !== undefined) u.phone = body.phone;
+      if (body.email !== undefined) {
+        const email = String(body.email || "").trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return bad("Email chưa đúng định dạng.");
+        const lower = email.toLowerCase();
+        if (S.users.some((x) => x.userId !== u.userId && (x.email?.toLowerCase() === lower || x.username?.toLowerCase() === lower))) {
+          return bad("Email này đã được sử dụng cho tài khoản khác.");
+        }
+        u.email = email;
+      }
       const roleNames = S.userRoles.filter((r) => r.userId === u.userId).map((r) => S.roles.find((x) => x.roleId === r.roleId).roleName);
       return send(200, { userId: u.userId, username: u.username, fullName: u.fullName, email: u.email, phone: u.phone || null, status: u.status, roles: roleNames });
     }
@@ -385,24 +395,59 @@ export function startMockApi(
       return send(200, { facilityId: body.facilityId, facilityName: fac(body.facilityId)?.name, unitTypeId: body.unitTypeId, unitTypeName: t?.typeName, area: t?.area, climateControlled: t?.climateControlled, monthlyRate: rate?.monthlyRate || 0, estimatedTotalRent: (rate?.monthlyRate || 0) * body.rentalPeriodMonths, requiredDeposit: rate?.monthlyRate || 0, startDate: body.startDate, expectedEndDate: addMonths(body.startDate, body.rentalPeriodMonths), availableUnitCount: count, isAvailable: count > 0 });
     }
 
+    // ---- Lượt 6b · cửa mô phỏng theo ô (D51: không tự khoá) + nhật ký cửa (không lưu nguyên mã)
+    const vnLocal = (d) => new Date(d.getTime() + 7 * 36e5).toISOString().slice(0, 19);
+    const codeOf = (cc) => `HĐ-${cc.startDate.slice(0, 4)}-${String(cc.contractId).padStart(4, "0")}`;
+    const unitByNumber = (no, fid) => S.units.find((u) => u.unitNumber === no && (!fid || u.facilityId === Number(fid)));
+    const doorDto = (no, changed = false) => { const d = S.doors.get(no); const u = unitByNumber(no); return { unitNumber: no, door: d?.door === "OPEN" ? "OPEN" : "LOCKED", updatedAt: d?.at || null, changed, facilityName: u ? fac(u.facilityId)?.name : null }; };
+    const doorLog = (row) => S.accessLogs.push({ logId: S.accessLogs.length + 1, at: new Date(), ...row });
+    const closeDoorAt = (no, method, contractId = null) => {
+      const open = S.doors.get(no)?.door === "OPEN";
+      if (open) { S.doors.set(no, { door: "LOCKED", at: vnLocal(new Date()) }); doorLog({ unitNumber: no, result: "CLOSED", method, contractId }); }
+      return doorDto(no, open);
+    };
+
     // C07r · máy quét cửa kho (thiết bị tại cơ sở, không cần đăng nhập khách)
     if (req.method === "POST" && path === "/api/access/scan") {
       const code = String(body?.code || "").trim();
       const clean = code.replace(/\s/g, "");
-      const c = S.contracts.find((x) => { const a = accessCode(x); return a.code === code || a.backup.replace(/\s/g, "") === clean; });
+      const at = body?.unitNumber || null;
+      const method = /^SSQR-/i.test(code) ? "QR" : "PIN";
       const now = new Date();
       const out = (result, reason, cc) => {
-        S.accessLogs.push({ code, result, at: now });
         const u = cc && unit(cc.unitId);
         const cust = cc && S.users.find((x) => x.userId === cc.customerId);
-        return send(200, { result, unitNumber: u?.unitNumber || null, customerName: cust?.fullName || null, contractCode: cc ? `HĐ-${cc.startDate.slice(0, 4)}-${String(cc.contractId).padStart(4, "0")}` : null, scannedAt: iso(now), reason });
+        doorLog({ unitNumber: at || u?.unitNumber || null, result, method, reason, contractId: cc?.contractId || null });
+        return send(200, { result, unitNumber: u?.unitNumber || at, customerName: cust?.fullName || null, contractCode: cc ? codeOf(cc) : null, scannedAt: iso(now), reason, scanMethod: method });
       };
+      if (method === "PIN" && /^\d{6}$/.test(clean) && clean.includes("0")) return out("DENIED", "Mã PIN gồm 6 số từ 1 đến 9.", null);
+      const c = S.contracts.find((x) => { const a = accessCode(x); return a.code === code || a.backup.replace(/\s/g, "") === clean; });
       if (!c) return out("DENIED", "Mã không đúng. Kiểm tra lại mã trên ứng dụng hoặc mã dự phòng.", null);
-      const h = S.handovers.find((x) => x.contractId === c.contractId);
+      if (body?.facilityId && Number(unit(c.unitId).facilityId) !== Number(body.facilityId)) return out("DENIED", "Mã không thuộc kho của cơ sở này.", null);
+      if (at && unit(c.unitId).unitNumber !== at) return out("DENIED", `Mã không thuộc ô ${at}. QR và PIN chỉ mở đúng kho của hợp đồng.`, c);
       if (c.status !== "ACTIVE") return out("DENIED", "Mã đã hết hiệu lực — hợp đồng đã trả kho.", c);
-      if (c.startDate > dateOnly(now)) return out("DENIED", "Chưa đến ngày bắt đầu hợp đồng.", c);
+      if (c.startDate > dateOnly(now)) return out("DENIED", `Chưa đến ngày sử dụng. Có thể mở cửa từ 00:00 ngày ${c.startDate.split("-").reverse().join("/")}.`, c);
       if (c.endDate <= dateOnly(now)) return out("DENIED", "Hợp đồng đã quá hạn. Vui lòng gia hạn hoặc liên hệ cơ sở.", c);
+      S.doors.set(unit(c.unitId).unitNumber, { door: "OPEN", at: vnLocal(now) });
       return out("OPEN", null, c);
+    }
+    if (path === "/api/access/door" || path === "/api/access/door/close" || path === "/api/access/support") {
+      const no = String((req.method === "GET" ? url.searchParams.get("unitNumber") : body?.unitNumber) || "").trim();
+      const fid = req.method === "GET" ? url.searchParams.get("facilityId") : body?.facilityId;
+      const u = no && unitByNumber(no, fid);
+      if (!u) return send(404, { error: "Không tìm thấy ô kho." });
+      if (req.method === "GET" && path === "/api/access/door") return send(200, doorDto(no));
+      if (req.method === "POST" && path === "/api/access/door/close") return send(200, closeDoorAt(no, "CLOSE_DEVICE"));
+      if (req.method === "POST" && path === "/api/access/support") {
+        const since = Date.now() - 30 * 6e4;
+        const dup = S.tickets.find((t) => t.unitId === u.unitId && t.issueType === "ACCESS_CODE" && t.status === "OPEN" && new Date(t.createdAt).getTime() >= since);
+        const c = S.contracts.find((x) => x.unitId === u.unitId && x.status === "ACTIVE");
+        const t = dup || (() => { const nt = { ticketId: S.tickets.length + 1, contractId: c?.contractId || null, customerId: c?.customerId || null, unitId: u.unitId, issueType: "ACCESS_CODE", title: `Hỗ trợ tại cửa kho ${no}`, description: body?.reason || "Khách cần hỗ trợ tại cửa.", priority: "HIGH", status: "OPEN", createdAt: new Date(), responses: [] }; S.tickets.push(nt);
+          // Mock: dữ liệu vận hành (nhân viên/quản lý) là bộ riêng → thêm vào bảng việc, giống BE gắn ticket theo hợp đồng/ô của cơ sở
+          if (O) { O.tickets = [{ id: `HT-${String(nt.ticketId).padStart(4, "0")}`, unit: no, customer: c ? S.users.find((x) => x.userId === c.customerId)?.fullName : null, title: nt.title, created_at: vnLocal(nt.createdAt).slice(0, 16), schedule: null, status: "OPEN", assignee: null, notes: [] }, ...O.tickets]; O.version = (O.version || 0) + 1; }
+          return nt; })();
+        return send(200, { ticketCode: `HT-${String(t.ticketId).padStart(4, "0")}`, unitNumber: no, facilityName: fac(u.facilityId)?.name, status: t.status, createdAt: vnLocal(new Date(t.createdAt)), duplicate: Boolean(dup) });
+      }
     }
 
     const user = auth();
@@ -439,6 +484,49 @@ export function startMockApi(
         const t = url.searchParams.get("toDate");
         return (!f || d >= new Date(f)) && (!t || d <= new Date(t));
       };
+
+      // #49: nhật ký cửa
+      if (req.method === "GET" && path === "/api/admin/door-logs") {
+        const P = url.searchParams, f = P.get("facilityId"), no = (P.get("unitNumber") || "").trim().toLowerCase(), r = P.get("result"), from = P.get("from"), to = P.get("to");
+        const rows = [...S.accessLogs].reverse().map((l) => {
+          const u = l.unitNumber && unitByNumber(l.unitNumber); const cc = l.contractId && S.contracts.find((x) => x.contractId === l.contractId);
+          return { logId: l.logId, at: vnLocal(l.at), facilityId: u?.facilityId || null, facilityName: u ? fac(u.facilityId)?.name : null, unitNumber: l.unitNumber, customerName: cc ? S.users.find((x) => x.userId === cc.customerId)?.fullName : null, contractCode: cc ? codeOf(cc) : null, result: l.result, method: l.method || null, reason: l.reason || null };
+        }).filter((x) => (!f || x.facilityId === Number(f)) && (!no || String(x.unitNumber || "").toLowerCase().includes(no)) && (!r || x.result === r) && (!from || x.at.slice(0, 10) >= from) && (!to || x.at.slice(0, 10) <= to))
+          .map(({ facilityId, ...x }) => x);
+        return send(200, page(rows));
+      }
+      // Lượt 6 · #45 #54: công cụ demo ngày & giá
+      const running = (c) => { const t = dateOnly(new Date()); if (c.status !== "ACTIVE") return c.status; if (c.endDate <= t) return "OVERDUE"; return (new Date(c.endDate) - new Date(t)) / 864e5 <= 14 ? "EXPIRING" : "ACTIVE"; };
+      const overdueDays = (c) => { const t = dateOnly(new Date()); return c.status === "ACTIVE" && c.endDate <= t ? Math.round((new Date(t) - new Date(c.endDate)) / 864e5) : 0; };
+      const demoDto = (c) => { const u = unit(c.unitId); return { contractId: c.contractId, contractCode: `HĐ-${c.startDate.slice(0, 4)}-${String(c.contractId).padStart(4, "0")}`, customerName: S.users.find((x) => x.userId === c.customerId)?.fullName, unitNumber: u.unitNumber, facilityName: fac(u.facilityId)?.name, startDate: c.startDate, endDate: c.endDate, agreedMonthlyRate: c.agreedMonthlyRate ?? c.monthlyRate ?? 0, depositAmount: c.depositAmount ?? 0, status: running(c), overdueDays: overdueDays(c), payments: S.payments.filter((p) => p.contractId === c.contractId).map((p) => ({ paymentId: p.paymentId, paymentType: p.paymentType, status: p.status, amount: p.amount, paidAt: p.paidAt ? dbTime(p.paidAt) : null, dueDate: p.dueDate || null })) }; };
+      if (req.method === "GET" && path === "/api/admin/demo/contracts") {
+        const q = (url.searchParams.get("search") || "").toLowerCase();
+        return send(200, S.contracts.map(demoDto).filter((d) => !q || [d.contractCode, d.customerName, d.unitNumber].some((x) => String(x).toLowerCase().includes(q))));
+      }
+      if (req.method === "PUT" && (m = path.match(/^\/api\/admin\/demo\/contracts\/(\d+)$/))) {
+        const c = S.contracts.find((x) => x.contractId === +m[1]);
+        if (!c) return msg(404, "Không tìm thấy hợp đồng.");
+        if (!body.startDate || !body.endDate || body.endDate <= body.startDate) return msg(400, "Ngày hết hạn phải sau ngày bắt đầu.");
+        const before = demoDto(c), changes = [];
+        if (c.startDate !== body.startDate) changes.push({ field: "Ngày bắt đầu", before: c.startDate, after: body.startDate });
+        if (c.endDate !== body.endDate) changes.push({ field: "Ngày hết hạn", before: c.endDate, after: body.endDate });
+        c.startDate = body.startDate; c.endDate = body.endDate;
+        if (body.agreedMonthlyRate != null) { changes.push({ field: "Giá thuê / tháng", before: String(before.agreedMonthlyRate), after: String(body.agreedMonthlyRate) }); c.agreedMonthlyRate = body.agreedMonthlyRate; }
+        const after = demoDto(c);
+        if (before.status !== after.status) changes.push({ field: "Trạng thái", before: before.status, after: after.status });
+        log("DEMO_CONTRACT_EDITED", "CONTRACT", c.contractId, before, { ...after, reason: body.reason || null });
+        return send(200, { target: after.contractCode, changes, contract: after });
+      }
+      if (req.method === "PUT" && (m = path.match(/^\/api\/admin\/demo\/payments\/(\d+)$/))) {
+        const p = S.payments.find((x) => x.paymentId === +m[1]);
+        if (!p) return msg(404, "Không tìm thấy giao dịch.");
+        const changes = [];
+        if (body.paidAt) { if (!p.paidAt) return msg(400, "Giao dịch chưa thanh toán nên không chỉnh được ngày thanh toán."); changes.push({ field: "Ngày thanh toán", before: dbTime(p.paidAt), after: body.paidAt }); p.paidAt = new Date(`${body.paidAt}+07:00`); }
+        if (body.amount != null) { if (!(body.amount > 0)) return msg(400, "Số tiền phải lớn hơn 0."); changes.push({ field: "Số tiền", before: String(p.amount), after: String(body.amount) }); p.amount = body.amount; }
+        if (!changes.length) return msg(400, "Chưa có thay đổi.");
+        log("DEMO_PAYMENT_EDITED", "PAYMENT", p.paymentId, null, { changes, reason: body.reason || null });
+        return send(200, { target: `TT-${String(p.paymentId).padStart(4, "0")}`, changes, contract: demoDto(S.contracts.find((c) => c.contractId === p.contractId)) });
+      }
 
       if (req.method === "GET" && path === "/api/admin/dashboard/stats") {
         const active = S.users.filter((u) => u.status === "ACTIVE").length;
@@ -567,13 +655,15 @@ export function startMockApi(
       if (req.method === "GET" && path === "/api/admin/logs/login-history") {
         const list = [...S.loginHistory].filter((h) => inRange(h.loginAt)).sort((a, b) => b.loginAt - a.loginAt).map((h) => {
           const u = S.users.find((x) => x.userId === h.userId);
-          return { ...h, username: u.username, fullName: u.fullName, loginAt: dbTime(h.loginAt), logoutAt: h.logoutAt ? dbTime(h.logoutAt) : null };
+          const show = roleNamesOf(h.userId).some((r) => r !== "CUSTOMER"); // Lượt 6b: như BE, không trả IP/thiết bị của khách
+          return { ...h, username: u.username, fullName: u.fullName, loginAt: dbTime(h.loginAt), logoutAt: h.logoutAt ? dbTime(h.logoutAt) : null, ipAddress: show ? h.ipAddress : null, deviceInfo: show ? h.deviceInfo : null };
         });
         return send(200, page(list));
       }
       if (req.method === "GET" && path === "/api/admin/logs/activity-logs") {
         const action = url.searchParams.get("action");
-        const list = [...S.activityLogs].filter((l) => inRange(l.loggedAt) && (!action || l.action === action)).sort((a, b) => b.loggedAt - a.loggedAt).map(logDto);
+        const list = [...S.activityLogs].filter((l) => inRange(l.loggedAt) && (!action || l.action === action)).sort((a, b) => b.loggedAt - a.loggedAt).map(logDto)
+          .map((l) => (l.userId && !roleNamesOf(l.userId).some((r) => r !== "CUSTOMER") ? { ...l, ipAddress: null } : l));
         return send(200, page(list));
       }
       return send(404, { message: "Not found" });
@@ -593,7 +683,7 @@ export function startMockApi(
       const r = S.reservations.find((x) => x.reservationId === +m[1] && x.customerId === me);
       if (!r) return send(404, { error: "Không tìm thấy đơn đặt chỗ." });
       const c = S.contracts.find((x) => x.reservationId === r.reservationId);
-      return send(200, { ...resDto(r), checkInAppointmentAt: null, assignedUnitNumber: c ? unit(c.unitId).unitNumber : null, contractId: c?.contractId ?? null, contractStatus: c?.status ?? null });
+      return send(200, { ...resDto(r), checkInAppointmentAt: null, assignedUnitNumber: c ? unit(c.unitId).unitNumber : null, proposedUnitNumber: !c && r.proposedUnitId ? unit(r.proposedUnitId).unitNumber : null, contractId: c?.contractId ?? null, contractStatus: c?.status ?? null });
     }
     if (req.method === "POST" && path === "/api/reservations") {
       if (body.rentalPeriodMonths <= 0) return bad("Thời hạn thuê phải lớn hơn 0 tháng.");
@@ -603,9 +693,14 @@ export function startMockApi(
       const rate = S.rates.find((r) => r.facilityId === body.facilityId && r.unitTypeId === body.unitTypeId);
       if (!rate) return bad("Chưa có bảng giá áp dụng cho cơ sở và loại kho này.");
       if (availability(body.facilityId, body.unitTypeId, body.startDate, body.rentalPeriodMonths) <= 0) return bad("Hiện tại đã hết kho trống cho loại kho và khoảng thời gian yêu cầu.");
-      const r = { reservationId: S.reservations.length + 1, customerId: me, facilityId: body.facilityId, unitTypeId: body.unitTypeId, startDate: body.startDate, expectedEndDate: addMonths(body.startDate, body.rentalPeriodMonths), rentalPeriodMonths: body.rentalPeriodMonths, quotedMonthlyRate: rate.monthlyRate, estimatedAmount: rate.monthlyRate * body.rentalPeriodMonths, requiredDeposit: rate.monthlyRate, status: "PENDING_PAYMENT", createdAt: new Date(), expiresAt: new Date(Date.now() + 24 * 3600000), cancelledAt: null, cancellationReason: null };
+      // #2: giống BE UnitProposal — ô AVAILABLE đầu tiên theo mã, bỏ qua ô đã bố trí cho đơn khác còn hiệu lực trùng kỳ
+      const endDate = addMonths(body.startDate, body.rentalPeriodMonths);
+      const heldUnits = new Set(S.reservations.filter((x) => x.facilityId === body.facilityId && x.unitTypeId === body.unitTypeId && x.proposedUnitId && ["PENDING_PAYMENT", "PENDING_VERIFICATION", "CONFIRMED"].includes(x.status) && x.startDate < endDate && x.expectedEndDate > body.startDate).map((x) => x.proposedUnitId));
+      const proposed = S.units.filter((u) => u.facilityId === body.facilityId && u.unitTypeId === body.unitTypeId && u.status === "AVAILABLE" && !heldUnits.has(u.unitId)).sort((a, b) => a.unitNumber.localeCompare(b.unitNumber))[0];
+      if (!proposed) return bad("Hiện tại đã hết kho trống cho loại kho và khoảng thời gian yêu cầu.");
+      const r = { reservationId: S.reservations.length + 1, proposedUnitId: proposed.unitId, customerId: me, facilityId: body.facilityId, unitTypeId: body.unitTypeId, startDate: body.startDate, expectedEndDate: endDate, rentalPeriodMonths: body.rentalPeriodMonths, quotedMonthlyRate: rate.monthlyRate, estimatedAmount: rate.monthlyRate * body.rentalPeriodMonths, requiredDeposit: rate.monthlyRate, status: "PENDING_PAYMENT", createdAt: new Date(), expiresAt: new Date(Date.now() + 24 * 3600000), cancelledAt: null, cancellationReason: null };
       S.reservations.push(r);
-      return send(201, { ...resDto(r), createdAt: iso(r.createdAt), expiresAt: iso(r.expiresAt) });
+      return send(201, { ...resDto(r), createdAt: iso(r.createdAt), expiresAt: iso(r.expiresAt), proposedUnitNumber: proposed.unitNumber });
     }
     if (req.method === "POST" && (m = path.match(/^\/api\/reservations\/(\d+)\/confirm-transfer$/))) {
       // Giống ReservationService.ConfirmTransferAsync: PENDING_PAYMENT → PENDING_VERIFICATION; quá hạn giữ chỗ → 400 code EXPIRED
@@ -639,15 +734,14 @@ export function startMockApi(
       const r = S.reservations.find((x) => x.reservationId === +m[1] && x.customerId === me);
       if (!r) return send(404, { error: "Không tìm thấy đơn đặt chỗ." });
       const paid = r.status === "CONFIRMED" ? r.estimatedAmount + r.requiredDeposit : 0;
-      const fee = paid ? Math.round(r.estimatedAmount * 0.1) : 0;
-      return send(200, { paidAmount: paid, cancellationFee: fee, refundAmount: paid - fee, policyName: "Huỷ trước ngày nhận kho: phí 10% tiền thuê" });
+      return send(200, { paidAmount: paid, cancellationFee: 0, refundAmount: paid, policyName: "Huỷ trước ngày bắt đầu: miễn phí huỷ (0%), hoàn đủ 100% tiền thuê và 100% tiền cọc" });
     }
     if (req.method === "POST" && (m = path.match(/^\/api\/reservations\/(\d+)\/cancel$/))) {
       const r = S.reservations.find((x) => x.reservationId === +m[1] && x.customerId === me);
       if (!r) return bad("Không tìm thấy đơn đặt chỗ hợp lệ.");
       if (!["PENDING_PAYMENT", "CONFIRMED"].includes(r.status)) return bad(`Không thể hủy đơn đặt chỗ ở trạng thái '${r.status}'.`);
       const paid = r.status === "CONFIRMED" && r.paymentMethod === "PAYOS";
-      Object.assign(r, { status: "CANCELLED", cancelledAt: new Date(), cancellationReason: body?.reason, ...(paid ? { refundAmount: r.estimatedAmount + r.requiredDeposit - Math.round(r.estimatedAmount * 0.1), refundStatus: "PENDING" } : {}) });
+      Object.assign(r, { status: "CANCELLED", cancelledAt: new Date(), cancellationReason: body?.reason, ...(paid ? { refundAmount: r.estimatedAmount + r.requiredDeposit, refundStatus: "PENDING" } : {}) });
       return send(200, { message: "Đã hủy đơn đặt chỗ thành công." });
     }
     if (req.method === "POST" && (path === "/api/v1/reservations/create-payos-qr" || path === "/api/reservations/create-payos-qr")) {
@@ -723,7 +817,15 @@ export function startMockApi(
       if (c.status !== "ACTIVE") return bad("QR mở cửa chỉ dùng được sau khi nhận kho và khi hợp đồng còn hiệu lực.");
       const u = unit(c.unitId);
       const a = accessCode(c);
-      return send(200, { contractId: c.contractId, code: a.code, backupCode: a.backup, unitNumber: u.unitNumber, unitType: ut(u.unitTypeId).climateControlled ? "Kho lạnh" : "Kho thường", location: null, validUntil: c.endDate, validFrom: c.startDate });
+      return send(200, { contractId: c.contractId, code: a.code, backupCode: a.backup, unitNumber: u.unitNumber, unitType: ut(u.unitTypeId).climateControlled ? "Kho lạnh" : "Kho thường", location: null, validUntil: c.endDate, validFrom: c.startDate, usableNow: c.startDate <= dateOnly(new Date()), usableFrom: c.startDate <= dateOnly(new Date()) ? null : c.startDate });
+    }
+    // Lượt 6 · #48–51: trạng thái cửa và đóng cửa từ ứng dụng
+    if ((m = path.match(/^\/api\/contracts\/(\d+)\/door(\/close)?$/))) {
+      const c = S.contracts.find((x) => x.contractId === +m[1] && x.customerId === me);
+      if (!c) return send(404, { error: "Không tìm thấy hợp đồng." });
+      const no = unit(c.unitId).unitNumber;
+      if (req.method === "GET" && !m[2]) return send(200, doorDto(no));
+      if (req.method === "POST" && m[2]) return send(200, closeDoorAt(no, "CLOSE_APP", c.contractId));
     }
     if (req.method === "POST" && (m = path.match(/^\/api\/handovers\/(\d+)\/confirm$/))) {
       const h = S.handovers.find((x) => x.handoverId === +m[1]);
@@ -765,6 +867,22 @@ export function startMockApi(
         const board = isManager ? all : Object.fromEntries(STAFF_PARTS.map((k) => [k, O[k]]));
         // Giống BE thật (FacilityOpsEndpoints.cs): báo đã hỗ trợ lưu bằng chứng biên bản trả kho và hoàn tiền.
         return send(200, mapKeys({ ...board, me, inspection_evidence_supported: true, refund_evidence_supported: true }, camel));
+      }
+      // Lượt 5 (#58): doanh thu cơ sở theo khoảng tháng, giống GET /api/ops/revenue của BE (tiền đầy đủ theo đồng)
+      if (req.method === "GET" && path === "/api/ops/revenue") {
+        if (!isManager) return send(403, { error: "Chỉ quản lý cơ sở được xem báo cáo." });
+        const from = (url.searchParams.get("from") || "").slice(0, 7), to = (url.searchParams.get("to") || "").slice(0, 7);
+        if (!/^\d{4}-\d{2}$/.test(from) || !/^\d{4}-\d{2}$/.test(to) || from > to) return bad("Tháng bắt đầu phải trước hoặc bằng tháng kết thúc.");
+        const known = new Map((O.revenue?.months || []).map((m) => [`${m.year}-${String(m.month).padStart(2, "0")}`, m.value]));
+        const months = []; let [y, mo] = from.split("-").map(Number);
+        while (`${y}-${String(mo).padStart(2, "0")}` <= to && months.length < 24) {
+          const key = `${y}-${String(mo).padStart(2, "0")}`, idx = y * 12 + mo;
+          const value = known.has(key) ? known.get(key) : key > dateOnly(new Date()).slice(0, 7) ? 0 : 9_000_000 + ((idx * 37) % 11) * 400_000;
+          months.push({ label: `Tháng ${mo}`, month: mo, year: y, value });
+          mo++; if (mo > 12) { mo = 1; y++; }
+        }
+        const sum = months.reduce((a, m) => a + m.value, 0);
+        return send(200, { months, byType: [{ label: "Kho thường", value: Math.round(sum * 0.67) }, { label: "Kho lạnh", value: sum - Math.round(sum * 0.67) }], asOf: dateOnly(new Date()), forfeitedRefunds: 0 });
       }
       for (const [method, re, role, type, toPayload] of OPS_ROUTES) {
         const hit = req.method === method && path.match(re);

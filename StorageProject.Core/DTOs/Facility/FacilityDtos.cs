@@ -72,6 +72,10 @@ public record FacilityUnitDto(
     // D41: ô đang thuê / chờ kiểm tra trống lại từ ngày này (ngày hết hạn + ngày đệm); null = đang trống hoặc không xác định.
     DateOnly? FreeFrom = null,
     // D41: ô có hợp đồng quá hạn — không cho đặt trước
-    bool Overdue = false
+    bool Overdue = false,
+    // #3: Ngày dự kiến hết hạn hợp đồng hiện tại (nếu đang thuê/giữ) và khả năng đặt theo khoảng ngày đang tìm.
+    DateOnly? CurrentContractEndDate = null,
+    bool BookableForPeriod = true,
+    string? PeriodUnavailableReason = null
 );
 

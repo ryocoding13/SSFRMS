@@ -85,7 +85,7 @@ public partial class FacilityOpsService
             case "WAITING":
                 throw new InvalidOperationException(
                     $"Chờ khách xác nhận khấu trừ đến {Local(deadline)!.Replace('T', ' ')}. Quá hạn hệ thống tự chốt theo biên bản.");
-            case "SELF_CLEAN" or "SELF_REPLACE" or "DISPUTE":
+            case "SELF_CLEAN" or "SELF_REPLACE" or "SELF_REMEDY" or "DISPUTE":
                 throw new InvalidOperationException("Khách đã chọn phương án khác. Kiểm tra lại kho trước khi chốt hoàn cọc.");
             case "AUTO_AGREED" when !logs.Any(l => l.Action == FlowAction.DeductionAutoAgreed):
                 Log(actorId, FlowAction.DeductionAutoAgreed, LogEntity.Return, inspection.InspectionId,
@@ -129,14 +129,24 @@ public partial class FacilityOpsService
         // D30-13: phí quá hạn tính đến lúc khách gửi trả kho (D32), hiển thị cùng khoản khấu trừ.
         var overdueDays = Math.Max(0, DateOnly.FromDateTime(i.CreatedAt + VnOffset).DayNumber - c.EndDate.DayNumber);
         var overdueFee = c.Unit != null ? await OverdueFeeAtAsync(c, c.Unit.FacilityId, i.CreatedAt, ct) : 0;
+        var decisionCode = decision != null ? Read(decision, "decision") : null;
+        var hasCleaning = i.CleaningRequired || i.CleaningFee > 0;
+        var hasDamage = i.DamageFee > 0;
+        var cleaningDecision = decision != null
+            ? Read(decision, "cleaningDecision") ?? (hasCleaning ? (decisionCode == "AGREE" ? "AGREE" : decisionCode is "SELF_CLEAN" or "DISPUTE" ? decisionCode : hasDamage ? "AGREE" : null) : null)
+            : null;
+        var damageDecision = decision != null
+            ? Read(decision, "damageDecision") ?? (hasDamage ? (decisionCode == "AGREE" ? "AGREE" : decisionCode is "SELF_REPLACE" or "DISPUTE" ? decisionCode : hasCleaning ? "AGREE" : null) : null)
+            : null;
         return new ReturnDeductionDto(
             ReturnCode(i.InspectionId), ContractCode(c), c.DepositAmount, i.CleaningFee, i.DamageFee,
             i.DamageItem ?? "", i.FeeReason ?? "", PhotosOf(photos, i.InspectionId),
             Local(i.InspectedAt), Local(deadline), status == "WAITING",
-            status, decision != null ? Read(decision, "decision") : null, decision != null ? Read(decision, "note") : null,
+            status, decisionCode, decision != null ? Read(decision, "note") : null,
             Local(decision?.LoggedAt), recheck != null ? Read(recheck, "note") : null,
             overdueFee, overdueDays, i.Staff?.FullName,
-            customerPhotos.TryGetValue(i.InspectionId, out var mine) ? mine : []);
+            customerPhotos.TryGetValue(i.InspectionId, out var mine) ? mine : [],
+            cleaningDecision, damageDecision);
     }
 
     /// <summary>Khách hàng lấy thông tin chi tiết khấu trừ biên bản trả kho.</summary>
@@ -152,13 +162,19 @@ public partial class FacilityOpsService
     public async Task<ReturnDeductionDto> DecideReturnDeductionAsync(long customerId, string contractCode,
         ReturnDeductionDecisionRequest request, CancellationToken ct = default)
     {
-        var decision = (request.Decision ?? string.Empty).Trim().ToUpperInvariant();
-        if (!DeductionDecisions.Contains(decision)) throw new ArgumentException("Chọn một phương án xác nhận khấu trừ.");
+        var rawClean = string.IsNullOrWhiteSpace(request.CleaningDecision) ? null : request.CleaningDecision.Trim().ToUpperInvariant();
+        var rawDamage = string.IsNullOrWhiteSpace(request.DamageDecision) ? null : request.DamageDecision.Trim().ToUpperInvariant();
+        var hasPerItem = rawClean != null || rawDamage != null;
+        var singleDecision = (request.Decision ?? string.Empty).Trim().ToUpperInvariant();
+
+        if (!hasPerItem && !DeductionDecisions.Contains(singleDecision))
+            throw new ArgumentException("Chọn một phương án xác nhận khấu trừ.");
+        if (rawClean != null && rawClean is not ("AGREE" or "SELF_CLEAN" or "DISPUTE"))
+            throw new ArgumentException("Lựa chọn cho khoản vệ sinh không hợp lệ.");
+        if (rawDamage != null && rawDamage is not ("AGREE" or "SELF_REPLACE" or "DISPUTE"))
+            throw new ArgumentException("Lựa chọn cho khoản hư hỏng không hợp lệ.");
+
         var note = Clip(request.Note, 1000);
-        if (decision == "DISPUTE" && note.Length == 0) throw new ArgumentException("Ghi rõ nội dung khiếu nại.");
-        // Câu 7: ảnh hoá đơn / vật dụng thay thế (không bắt buộc), chỉ cho tự thay thế hoặc khiếu nại.
-        if (request.Photos?.Count > 0 && decision is not ("SELF_REPLACE" or "DISPUTE"))
-            throw new ArgumentException("Chỉ đính kèm ảnh khi tự thay thế vật dụng hoặc khiếu nại.");
         var photos = EvidencePhotos.Decode(request.Photos, required: false, "hoá đơn / vật dụng thay thế");
 
         var contractId = CustomerContractId(contractCode);
@@ -177,11 +193,41 @@ public partial class FacilityOpsService
             case not "WAITING": throw new InvalidOperationException("Bạn đã gửi lựa chọn cho biên bản này.");
         }
         var cleaning = i.CleaningRequired || i.CleaningFee > 0;
-        if (decision == "SELF_CLEAN" && !cleaning) throw new ArgumentException("Biên bản không có phí vệ sinh.");
-        if (decision == "SELF_REPLACE" && i.DamageFee <= 0) throw new ArgumentException("Biên bản không có phí hư hỏng.");
+        var damage = i.DamageFee > 0;
+
+        string? cleaningDecision, damageDecision;
+        string decision;
+        if (hasPerItem)
+        {
+            if (rawClean != null && !cleaning) throw new ArgumentException("Biên bản không có phí vệ sinh.");
+            if (rawDamage != null && !damage) throw new ArgumentException("Biên bản không có phí hư hỏng.");
+            if (cleaning && rawClean == null) throw new ArgumentException("Chọn phương án cho khoản vệ sinh.");
+            if (damage && rawDamage == null) throw new ArgumentException("Chọn phương án cho khoản hư hỏng.");
+            cleaningDecision = rawClean;
+            damageDecision = rawDamage;
+            decision = (cleaningDecision == "DISPUTE" || damageDecision == "DISPUTE") ? "DISPUTE"
+                : cleaningDecision == "SELF_CLEAN" && damageDecision == "SELF_REPLACE" ? "SELF_REMEDY"
+                : cleaningDecision == "SELF_CLEAN" ? "SELF_CLEAN"
+                : damageDecision == "SELF_REPLACE" ? "SELF_REPLACE"
+                : "AGREE";
+        }
+        else
+        {
+            if (singleDecision == "SELF_CLEAN" && !cleaning) throw new ArgumentException("Biên bản không có phí vệ sinh.");
+            if (singleDecision == "SELF_REPLACE" && !damage) throw new ArgumentException("Biên bản không có phí hư hỏng.");
+            decision = singleDecision;
+            cleaningDecision = cleaning ? (singleDecision is "SELF_CLEAN" or "DISPUTE" ? singleDecision : "AGREE") : null;
+            damageDecision = damage ? (singleDecision is "SELF_REPLACE" or "DISPUTE" ? singleDecision : "AGREE") : null;
+        }
+
+        if ((cleaningDecision == "DISPUTE" || damageDecision == "DISPUTE") && note.Length == 0)
+            throw new ArgumentException("Ghi rõ nội dung khiếu nại.");
+        // Câu 7: ảnh hoá đơn / vật dụng thay thế (không bắt buộc), chỉ cho tự thay thế hoặc khiếu nại.
+        if (request.Photos?.Count > 0 && damageDecision != "SELF_REPLACE" && cleaningDecision != "DISPUTE" && damageDecision != "DISPUTE")
+            throw new ArgumentException("Chỉ đính kèm ảnh khi tự thay thế vật dụng hoặc khiếu nại.");
 
         Log(customerId, FlowAction.DeductionDecision, LogEntity.Return, i.InspectionId,
-            new { decision, note, cleaningFee = i.CleaningFee, damageFee = i.DamageFee, photos = photos.Count });
+            new { decision, cleaningDecision, damageDecision, note, cleaningFee = i.CleaningFee, damageFee = i.DamageFee, photos = photos.Count });
         EvidencePhotos.Attach(dbContext, photos, EvidencePhotos.ReturnDeduction, i.InspectionId, customerId, NowUtc);
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
@@ -199,7 +245,7 @@ public partial class FacilityOpsService
         var i = await InspectionAsync(facility.FacilityId, id, ct);
         var logs = await LogsAsync(LogEntity.Return, [i.InspectionId], ct);
         var (status, _) = DeductionStateOf(i, logs, NowUtc);
-        if (status is not ("SELF_CLEAN" or "SELF_REPLACE" or "DISPUTE"))
+        if (status is not ("SELF_CLEAN" or "SELF_REPLACE" or "SELF_REMEDY" or "DISPUTE"))
         {
             throw new InvalidOperationException("Biên bản không có phương án nào chờ kiểm tra lại.");
         }
@@ -207,8 +253,11 @@ public partial class FacilityOpsService
         {
             throw new InvalidOperationException("Hoàn cọc đã được chốt.");
         }
-        var cleaningPassed = request.CleaningPassed == true && (status is "SELF_CLEAN" or "DISPUTE") && (i.CleaningRequired || i.CleaningFee > 0);
-        var replacementPassed = request.ReplacementPassed == true && (status is "SELF_REPLACE" or "DISPUTE") && i.DamageFee > 0;
+        var decisionLog = logs.LastOrDefault(l => l.Action == FlowAction.DeductionDecision);
+        var cleanAction = Read(decisionLog ?? new ActivityLog(), "cleaningDecision") ?? (status is "SELF_CLEAN" or "DISPUTE" ? status : null);
+        var damageAction = Read(decisionLog ?? new ActivityLog(), "damageDecision") ?? (status is "SELF_REPLACE" or "DISPUTE" ? status : null);
+        var cleaningPassed = request.CleaningPassed == true && cleanAction is "SELF_CLEAN" or "DISPUTE" && (i.CleaningRequired || i.CleaningFee > 0);
+        var replacementPassed = request.ReplacementPassed == true && damageAction is "SELF_REPLACE" or "DISPUTE" && i.DamageFee > 0;
         var before = new { cleaningFee = i.CleaningFee, damageFee = i.DamageFee, condition = i.ConditionStatus };
         if (cleaningPassed)
         {

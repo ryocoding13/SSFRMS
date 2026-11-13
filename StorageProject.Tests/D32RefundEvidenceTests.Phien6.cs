@@ -27,7 +27,7 @@ public sealed partial class D32RefundEvidenceTests
         f.Db.UserFacilities.Add(new UserFacility { UserId = staffB.UserId, FacilityId = other.FacilityId, Status = "ACTIVE", AssignedBy = f.Manager.UserId, AssignedFrom = TodayVn.AddDays(-1), CreatedAt = DateTime.UtcNow });
         await f.Db.SaveChangesAsync();
         var actorB = new OpsActor(staffB.UserId, false);
-        var report = new OpsReturnInspectionRequest("Đạt · không còn đồ", "Đạt · tường sàn cửa nguyên vẹn", "Đã nhận đủ chìa", "Sẵn sàng cho thuê lại", 0, false, null, null, null);
+        var report = new OpsReturnInspectionRequest("Đạt · không còn đồ", "Đạt · tường sàn cửa nguyên vẹn", "Đã nhận đủ chìa", "Sẵn sàng cho thuê lại", 0, false, null, null, [Photo(Jpeg)]);
 
         // Cơ sở B không thấy và không ghi được biên bản của cơ sở A
         await Assert.ThrowsAnyAsync<Exception>(() => f.Ops.SubmitReturnInspectionAsync(actorB, code, report));

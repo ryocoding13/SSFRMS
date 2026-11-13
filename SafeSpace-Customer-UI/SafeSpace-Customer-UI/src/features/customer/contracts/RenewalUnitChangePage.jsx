@@ -62,7 +62,7 @@ export function RenewalUnitChangePage({ id }) {
     guard.current = true; setBusy(true);
     try {
       await load.send(months, { version: String(version) }, choice.kind === "KEEP" ? null : choice.unitId);
-      setConfirm(false); setResult({ ok: true }); retry?.();
+      setConfirm(false); retry?.(); go(`units/${encodeURIComponent(id)}/renewal-status`);
     } catch (err) {
       const taken = /vừa có người đặt|không còn trống/i.test(err?.message || "");
       setConfirm(false); setResult({ ok: false, taken, message: err?.message || "Chưa gửi được yêu cầu. Vui lòng thử lại." });
@@ -72,7 +72,7 @@ export function RenewalUnitChangePage({ id }) {
   const title = upgraded ? `Gia hạn sau nâng cấp miễn phí · Kho ${c.unit_number}` : `Gia hạn sang ô khác · Kho ${c.unit_number}`;
   return <main className="container page customer-records customer-detail">
     <p className="customer-records__breadcrumb">SafeSpace / Khách hàng / Kho của tôi / {id} / Gia hạn</p>
-    <PageHeader title={title} description={upgraded ? "Bạn đang dùng ô lớn hơn được nâng cấp miễn phí. Chọn giữ ô này với giá của ô lớn, hoặc chuyển về loại đã đặt ban đầu." : "Ô hiện tại đã có khách đặt cho kỳ sau. Chọn một ô trống cùng loại để gia hạn; ô được giữ cho bạn khi cơ sở duyệt."}>
+    <PageHeader title={title} description={upgraded ? "Bạn đang dùng ô lớn hơn được nâng cấp miễn phí. Chọn giữ ô này với giá của ô lớn, hoặc chuyển về loại đã đặt ban đầu." : "Ô hiện tại đã có khách đặt cho kỳ sau. Chọn một ô trống cùng loại để gia hạn; ô được giữ và mở thanh toán ngay khi bạn xác nhận."}>
       <Tag tone="blue">Hết hạn {dateLabel(c.end_date)}</Tag></PageHeader>
     {load.demo ? <Notice>Chế độ mô phỏng chưa có danh sách ô trống thật. Vui lòng dùng chế độ kết nối máy chủ.</Notice>
       : load.loading ? <Notice>Đang tải ô trống…</Notice>
@@ -97,14 +97,14 @@ export function RenewalUnitChangePage({ id }) {
         </form>
         <aside className="panel customer-detail__card customer-detail__sidebar">
           <h2>Chi phí dự kiến</h2>
-          <DetailList items={[["Ô kỳ mới", choice ? (choice.kind === "KEEP" ? `${choice.unitNumber} (giữ nguyên)` : choice.unitNumber) : "Chưa chọn"], ["Giá / tháng", choice?.kind === "KEEP" ? "Theo bảng giá ô hiện tại" : money(est.rate)], ["Số tháng", months], ["Tiền gia hạn", choice?.kind === "KEEP" ? "Chốt khi duyệt" : money(est.rent)], ["Cọc chênh", money(est.topUp)]]} />
-          <div className="summary-total"><span>Tạm tính phải trả</span><strong>{choice?.kind === "KEEP" ? "Chốt khi duyệt" : money(est.total)}</strong></div>
-          <p className="hint">Giá chốt khi cơ sở duyệt; thanh toán một lần (tiền gia hạn + cọc chênh) trong 24 giờ. Đổi sang ô khác: bạn tự chuyển đồ trong 3 ngày cuối kỳ cũ, mã QR/PIN hiện tại mở được cả ô mới trong thời gian chuyển; hết kỳ cũ mã ô cũ bị khoá, đồ còn lại coi là đồ bạn bỏ. Cọc ô mới thấp hơn thì phần chênh hoàn khi kết thúc hợp đồng.</p>
+          <DetailList items={[["Ô kỳ mới", choice ? (choice.kind === "KEEP" ? `${choice.unitNumber} (giữ nguyên)` : choice.unitNumber) : "Chưa chọn"], ["Giá / tháng", choice?.kind === "KEEP" ? "Theo bảng giá ô hiện tại" : money(est.rate)], ["Số tháng", months], ["Tiền gia hạn", choice?.kind === "KEEP" ? "Chốt khi xác nhận" : money(est.rent)], ["Cọc chênh", money(est.topUp)]]} />
+          <div className="summary-total"><span>Tổng cần thanh toán</span><strong>{choice?.kind === "KEEP" ? "Chốt khi xác nhận" : money(est.total)}</strong></div>
+          <p className="hint">Hệ thống tự động xác nhận gia hạn hợp lệ và mở thanh toán một lần (tiền gia hạn + cọc chênh) trong 24 giờ. Đổi sang ô khác: bạn tự chuyển đồ trong 3 ngày cuối kỳ cũ, mã QR/PIN hiện tại mở được cả ô mới trong thời gian chuyển; hết kỳ cũ mã ô cũ bị khoá, đồ còn lại coi là đồ bạn bỏ. Cọc ô mới thấp hơn thì phần chênh hoàn khi kết thúc hợp đồng.</p>
         </aside>
       </div>}
-    {confirm && choice && <ConfirmDialog title={choice.kind === "KEEP" ? `Gửi yêu cầu gia hạn ${c.unit_number}?` : `Gửi yêu cầu gia hạn sang ô ${choice.unitNumber}?`} busy={busy} onCancel={() => setConfirm(false)} onConfirm={send} label="Gửi yêu cầu"
-      text={choice.kind === "KEEP" ? "Giữ ô hiện tại với giá của ô này theo bảng giá." : "Ô được giữ cho bạn khi cơ sở duyệt. Sau khi thanh toán, bạn tự chuyển đồ trong 3 ngày cuối kỳ cũ."}
-      rows={[["Ô kỳ mới", choice.kind === "KEEP" ? c.unit_number : choice.unitNumber], ["Kỳ gia hạn", `${months} tháng · đến ${dateLabel(addMonths(c.end_date, months))}`], ...(choice.kind === "KEEP" ? [] : [["Tạm tính phải trả", money(est.total)]])]} />}
+    {confirm && choice && <ConfirmDialog title={choice.kind === "KEEP" ? `Xác nhận gia hạn ${c.unit_number}?` : `Xác nhận gia hạn sang ô ${choice.unitNumber}?`} busy={busy} onCancel={() => setConfirm(false)} onConfirm={send} label="Xác nhận & thanh toán"
+      text={choice.kind === "KEEP" ? "Gia hạn được xác nhận ngay theo bảng giá ô hiện tại để bạn thanh toán trong 24 giờ." : "Ô mới được giữ ngay cho bạn khi xác nhận gia hạn. Sau khi thanh toán, bạn tự chuyển đồ trong 3 ngày cuối kỳ cũ."}
+      rows={[["Ô kỳ mới", choice.kind === "KEEP" ? c.unit_number : choice.unitNumber], ["Kỳ gia hạn", `${months} tháng · đến ${dateLabel(addMonths(c.end_date, months))}`], ...(choice.kind === "KEEP" ? [] : [["Tổng thanh toán", money(est.total)]])]} />}
     {result?.ok && <ConfirmDialog title={choice?.kind === "KEEP" || !choice ? "Đã gửi yêu cầu gia hạn" : `Đã gửi yêu cầu gia hạn sang ô ${choice.unitNumber}`} tone="success" cancelLabel={null} hint="" label="Về hợp đồng"
       text="Cơ sở duyệt và chốt giá; bạn thanh toán trong 24 giờ sau khi được duyệt." onCancel={() => go(`units/${encodeURIComponent(id)}`)} onConfirm={() => go(`units/${encodeURIComponent(id)}`)} />}
     {result && !result.ok && <ConfirmDialog title={result.taken ? "Ô vừa có người đặt" : "Chưa gửi được yêu cầu"} tone="failure" hint="" label={result.taken ? "Chọn ô khác" : "Thử lại"}

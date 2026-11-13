@@ -90,7 +90,7 @@ public static class OpsRules
     public const int DefaultReletBufferDays = 3; // Ngày đệm cho thuê lại 3 ngày (D41)
     public const decimal DefaultDepositMonths = 1.0m; // Mức cọc mặc định 1 tháng tiền thuê (D09/D16/D32)
     public const decimal DefaultCleaningFeeRate = 10.0m; // Phí vệ sinh cơ bản 10% cọc (D32)
-    public const decimal DefaultCancellationFeeRate = 5.0m; // Phí hủy trước StartDate 5% cọc (D40)
+    public const decimal DefaultCancellationFeeRate = 0.0m; // D49: Hủy trước StartDate miễn phí (0% cọc)
 
     /// <summary>
     /// Hạn giữ chỗ khi đặt phòng trực tuyến: 15 phút kể từ thời điểm tạo (UTC).

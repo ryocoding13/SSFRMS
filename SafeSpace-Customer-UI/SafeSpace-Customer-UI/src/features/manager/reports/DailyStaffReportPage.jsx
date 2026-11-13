@@ -7,6 +7,7 @@
  * - Tự động đồng bộ với hệ thống ghi log lúc 22:00 hàng ngày.
  */
 import React, { useState } from "react";
+import "../refunds/refund-center.css";
 import { DetailList, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import { DatePicker } from "../../../shared/components/Pickers.jsx";
 import { addDays, today } from "../../../shared/utils/format.js";
@@ -19,13 +20,14 @@ const KIND = { RETURN: "Biên bản trả kho", TICKET: "Hỗ trợ", HANDOVER: 
 /**
  * Màn hình báo cáo tổng kết năng suất và tiến độ hoàn thành công việc của nhân viên trong ngày.
  */
-export function DailyStaffReportPage() {
+export function DailyStaffReportPage({ embedded = false } = {}) {
   const [date, setDate] = useState(today());
   const load = useOpsEndpoint(`/api/ops/daily-report?date=${date}`);
   const rows = load.data?.staff || [];
   const task = t => `${KIND[t.kind] || t.kind} · ${t.label || t.reference}${t.late ? " · quá hạn" : ""}`;
-  return <main className="container page workflow-page">
-    <PageHeader title="Báo cáo cuối ngày" description="Việc nhân viên chưa xong và đã làm trong ngày. Việc xếp theo thời gian tạo; quá 3 ngày chỉ gắn nhãn." />
+  const Wrap = embedded ? "section" : "main";
+  return <Wrap className={embedded ? "daily-report-embedded" : "container page workflow-page"}>
+    {embedded ? <><h2 className="section-title">Công việc nhân viên trong ngày</h2><p className="muted">Việc nhân viên chưa xong và đã làm trong ngày (hệ thống ghi lúc 22:00). Việc xếp theo thời gian tạo; quá 3 ngày chỉ gắn nhãn.</p></> : <PageHeader title="Báo cáo cuối ngày" description="Việc nhân viên chưa xong và đã làm trong ngày. Việc xếp theo thời gian tạo; quá 3 ngày chỉ gắn nhãn." />}
     <DatePicker label="Ngày báo cáo" value={date} min={addDays(today(), -90)} onChange={setDate} />
     <WorkflowState load={load}>
       {rows.map(s => <RecordCard key={s.staffId} title={`${s.fullName} · ${s.staffId}`} subtitle={s.oldestPendingSince ? `Việc chưa xong cũ nhất từ ${s.oldestPendingSince}` : "Không còn việc tồn"}
@@ -36,5 +38,5 @@ export function DailyStaffReportPage() {
       </RecordCard>)}
       {!rows.length && <WorkflowEmpty title="Chưa có dữ liệu" text="Ngày này chưa có việc của nhân viên." />}
     </WorkflowState>
-  </main>;
+  </Wrap>;
 }

@@ -8,10 +8,10 @@
  */
 import React from "react";
 import { Empty, LinkButton } from "../../../shared/components/UI.jsx";
-import { dateLabel, today } from "../../../shared/utils/format.js";
+import { dateLabel, money, today } from "../../../shared/utils/format.js";
 import { href } from "../../../app/router.js";
+import { isReturnSettlementReady } from "../../facility-operations/settlements/settlementModel.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
-import { millions } from "../../facility-operations/components/FacilityOperationsComponents.jsx";
 
 export const RENTED = ["ACTIVE", "EXPIRING", "OVERDUE", "WAITING_HANDOVER"];
 
@@ -30,18 +30,18 @@ export const pct = (n) => `${n >= 0 ? "+" : ""}${n.toFixed(1).replace(".", ",")}
  */
 export function ManagerDashboardPage() {
   const { ops } = useOps();
-  const renewals = ops.renewals.filter((r) => r.status === "PENDING");
   const overdue = ops.units.filter((u) => u.status === "OVERDUE");
   const allocations = ops.allocations.filter((a) => a.status === "PENDING");
-  const returned = ops.contracts.filter((c) => c.state === "RETURNED");
-  const unassigned = ops.assignments.filter((a) => a.status === "OPEN");
+  const returned = ops.contracts.filter((c) => isReturnSettlementReady(ops, c));
+  // #7: bỏ Phân bổ kho / Phân công / Xung đột khỏi navbar — chỉ hiện thẻ khi hệ thống không tự bố trí được ô.
+  const noUnit = (ops.unit_conflicts || []).filter((c) => c.status === "OPEN" && c.option === "NONE");
+  const overdueCases = (ops.overdue_cases || []).filter((c) => c.status !== "DONE");
   const month = ops.revenue.months.at(-1) || { value: 0 };
   const g = growth(ops.revenue.months);
   const items = [
-    renewals.length && { key: "r", title: `${renewals.length} yêu cầu gia hạn đang chờ duyệt`, sub: "Cần phản hồi trong vòng 24 giờ", to: "manager/renewals", label: "Xem yêu cầu", primary: true },
-    allocations.length && { key: "a", title: `${allocations.length} đơn đã thanh toán chờ phân bổ kho`, sub: allocations.map((a) => a.id).join(", "), to: "manager/allocate", label: "Phân bổ kho", primary: true },
-    unassigned.length && { key: "u", title: `${unassigned.length} công việc chưa phân công`, sub: unassigned.map((a) => a.title).join(" · "), to: "manager/assign", label: "Phân công" },
-    overdue.length && { key: "o", title: `${overdue.length} kho quá hạn thanh toán`, sub: `Kho ${overdue.map((u) => `#${u.code}`).join(", ")}`, to: "manager/units?tab=OVERDUE", label: "Xem danh sách kho" },
+    allocations.length && { key: "a", title: `${allocations.length} đơn đã thanh toán nhưng hệ thống chưa bố trí được ô`, sub: `${allocations.map((a) => a.id).join(", ")} · không còn ô trống cả kỳ, chọn ô thủ công hoặc liên hệ khách`, to: "manager/allocate", label: "Chọn ô", primary: true },
+    noUnit.length && { key: "c", title: `${noUnit.length} khách sắp nhận kho nhưng không còn ô tương đương`, sub: `${noUnit.map((c) => c.customer || c.id).join(", ")} · dời ngày hoặc huỷ và hoàn 100%`, to: "manager/unit-conflicts", label: "Xử lý", primary: true },
+    (overdue.length || overdueCases.length) && { key: "o", title: `${Math.max(overdue.length, overdueCases.length)} hợp đồng quá hạn`, sub: overdue.length ? `Kho ${overdue.map((u) => `#${u.code}`).join(", ")}` : "Nhắc khách, ngày 20 lập biên bản", to: "manager/contracts", label: "Xem hợp đồng" },
     returned.length && { key: "t", title: `${returned.length} biên bản trả kho chờ xác nhận hoàn cọc`, sub: returned.map((c) => `${c.unit} · ${c.customer}`).join(", "), to: "manager/contracts", label: "Xem hợp đồng" },
   ].filter(Boolean);
   return (
@@ -55,8 +55,8 @@ export function ManagerDashboardPage() {
       <div className="stats stats--4">
         <div className="stat"><strong>{ops.units.length}</strong><span>Tổng số kho</span></div>
         <div className="stat"><strong className="tone-blue">{occupancy(ops.units)}%</strong><span>Tỷ lệ lấp đầy</span></div>
-        <div className="stat"><strong className="ok">{millions(month.value)}</strong><span>Doanh thu tháng này</span><small className="ok">{pct(g)} so với tháng trước</small></div>
-        <div className="stat"><strong className="warn">{renewals.length}</strong><span>Yêu cầu chờ duyệt</span></div>
+        <div className="stat"><strong className="ok">{money(month.value)}</strong><span>Doanh thu tháng này</span><small className="ok">{pct(g)} so với tháng trước</small></div>
+        <div className="stat"><strong className="warn">{allocations.length + noUnit.length + returned.length}</strong><span>Việc cần xử lý</span></div>
       </div>
       <h2 className="section-title">Cần xử lý</h2>
       {items.length === 0 ? (

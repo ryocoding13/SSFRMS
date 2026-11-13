@@ -3,7 +3,6 @@
  *
  * Cung cấp:
  * - Badge: Huy hiệu đếm số công việc đang chờ xử lý theo màu cảnh báo.
- * - millions: Định dạng số tiền thành chuỗi triệu đồng ngắn gọn cho báo cáo.
  * - StatusBadge: Hiển thị trạng thái công việc và ô kho với nhãn tiếng Việt chuẩn.
  */
 import React from "react";
@@ -18,7 +17,6 @@ export function slotLabel(isoDateTime, now = new Date()) {
   return `${day} · ${timeLabel(isoDateTime)}`;
 }
 
-export const millions = (n) => `${String(Number(n).toFixed(1)).replace(".", ",")} triệu đ`;
 
 // Chọn một mục trong hàng đợi (nhiều đơn cần đối soát, nhiều khách cần xác minh…)
 export function QueuePicker({ label, items, current, base, render }) {

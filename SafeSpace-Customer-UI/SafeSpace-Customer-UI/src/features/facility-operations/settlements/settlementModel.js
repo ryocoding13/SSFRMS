@@ -14,7 +14,13 @@ export function actualVnTime(value,now=new Date()) {
 export function transferProof(item,payload,now=new Date()) {
  if(!item||item.status!=="PENDING"||!knownMoney(item.amount)||item.amount<=0)throw new Error("Khoản hoàn chưa có số tiền hợp lệ hoặc không còn chờ xử lý.");
  if(!item.customer)throw new Error("Thiếu tên khách trên hợp đồng.");
- const isCash = payload.method === "CASH" || item.method === "CASH" || item.bankName === "CASH";
+ const customerIsCash = item.method === "CASH" || item.bankName === "CASH";
+ if (payload.method && payload.method !== (customerIsCash ? "CASH" : "BANK_TRANSFER")) {
+  throw new Error(customerIsCash
+   ? "Khách chọn nhận tiền mặt tại quầy. Duyệt chi tiền mặt, không ghi chuyển khoản."
+   : "Khách đã chọn nhận chuyển khoản ngân hàng. Không thể đổi sang tiền mặt.");
+ }
+ const isCash = customerIsCash;
  if (!isCash) {
   const error=validateRefundBank({bankName:item.bankName,accountNumber:item.accountNumber,accountHolder:item.accountHolder},item.customer);if(error)throw new Error(error);
  }
@@ -35,14 +41,21 @@ export function validateInspection(ret,report,files=[]) {
  if(["items","walls","keys","proposal"].some(k=>!String(report[k]||"").trim()))throw new Error("Điền đủ bốn mục kiểm kê.");
  if(!knownMoney(report.damage_fee)||!Number.isSafeInteger(report.damage_fee))throw new Error("Khấu trừ hư hỏng phải là số tiền nguyên không âm.");
  validateDamageFiles(files);
- if(report.damage_fee>0&&(!files.length||!String(report.damage_item||"").trim()))throw new Error("Hư hỏng cần hạng mục và ảnh bằng chứng.");
+ if(!files.length)throw new Error("Vui lòng tải ít nhất 1 ảnh hiện trạng kho khi kiểm tra trả kho.");
+ if(report.damage_fee>0&&!String(report.damage_item||"").trim())throw new Error("Hư hỏng cần hạng mục và ảnh bằng chứng.");
  if((report.damage_fee>0||report.cleaning_required)&&!String(report.fee_reason||"").trim())throw new Error("Nhập lý do khấu trừ.");
  if((report.damage_fee>0||report.cleaning_required)&&report.proposal==="Sẵn sàng cho thuê lại")throw new Error("Kho cần vệ sinh hoặc sửa phải chờ kiểm tra/bảo trì.");
 }
 export function canFinalizeReturn(board,contract,ret) {
  if(!contract||contract.state!=="RETURNED"||!ret||ret.status!=="SUBMITTED")return false;
- if(board.damage_cases_pending?.some(c=>(c.contractId||c.contract_id)===contract.id))return false;
+ if(board?.damage_cases_pending?.some(c=>(c.contractId||c.contract_id)===contract.id))return false;
+ if(["WAITING","SELF_CLEAN","SELF_REPLACE","SELF_REMEDY","DISPUTE"].includes(ret.deduction_status))return false;
  return ret.damage_workflow_resolved!==false;
+}
+export function isReturnSettlementReady(board,contract) {
+ if(!contract||contract.state!=="RETURNED")return false;
+ const ret=board?.returns?.find(r=>r.contract===contract.id);
+ return canFinalizeReturn(board,contract,ret);
 }
 export function opsMutationCheck(type,payload,ops,source,role) {
  const staff=["VERIFY_CUSTOMER","RECORD_KEY_RECEIPT","SUBMIT_RETURN"].includes(type),manager=["CONFIRM_REFUND","CONFIRM_RESERVATION_REFUND","CONFIRM_DEPOSIT_REFUND"].includes(type);
@@ -74,4 +87,65 @@ export function validateRemoval(item,payload,policy,actor,now=new Date()) {
  if(payload.confirmed!==true)throw new Error("Cần xác nhận nội dung phản ánh đúng việc đã thực hiện.");
  for(const files of [payload.beforePhotos,payload.afterPhotos]) {validateDamageFiles(files);if(!files?.length)throw new Error("Cần ít nhất một ảnh trước và một ảnh sau xử lý.");}
  return performedAt;
+}
+
+// ---- #16 / #19 (Lượt 2): một nguồn số liệu cho bảng đối soát -------------------------------------------
+// Số tiền do RefundPolicy phía máy chủ tính (board.returns[].settlement khi chưa chốt / đã chốt; deposit_refunds khi
+// đã có khoản hoàn). FE chỉ chuẩn hoá để hiển thị, không tự tính lại tiền thuê, nên không có hai kết quả khác nhau.
+const pick = (o, ...keys) => { for (const k of keys) if (o && o[k] !== undefined && o[k] !== null) return o[k]; return undefined; };
+const moneyOr = v => (knownMoney(v) ? v : undefined);
+
+/** Bảng đối soát từ board.returns[].settlement (snake_case sau fromApi). */
+export function settlementOf(raw) {
+ if (!raw) return null;
+ const v = (...k) => moneyOr(pick(raw, ...k));
+ return {
+  official: pick(raw, "official") === true,
+  scenario: pick(raw, "scenario") || "",
+  deposit: v("deposit"), cleaning: v("cleaning") ?? 0, damage: v("damage") ?? 0, overdue: v("overdue") ?? 0,
+  totalDeduction: v("total_deduction", "totalDeduction"),
+  depositRefund: v("deposit_refund", "depositRefund"),
+  rentRefund: v("rent_refund", "rentRefund"),
+  total: v("total"),
+  monthsTotal: pick(raw, "months_total", "monthsTotal"),
+  monthsCharged: pick(raw, "months_charged", "monthsCharged"),
+ };
+}
+
+/** Bảng đối soát chính thức từ khoản hoàn cọc (deposit_refunds): Amount = hoàn cọc + hoàn tiền thuê. */
+export function settlementFromRefund(item) {
+ if (!item) return null;
+ const deposit = moneyOr(item.deposit), amount = moneyOr(item.amount);
+ const cleaning = moneyOr(item.cleaning) ?? 0, damage = moneyOr(item.damage) ?? 0, overdue = moneyOr(item.overdue) ?? 0;
+ const rentRefund = moneyOr(pick(item, "rent_refund", "rentRefund")) ?? 0;
+ const rawDeposit = moneyOr(pick(item, "deposit_refund", "depositRefund"));
+ const depositRefund = rawDeposit !== undefined && (rawDeposit > 0 || amount === 0) ? rawDeposit : (amount !== undefined ? Math.max(0, amount - rentRefund) : undefined);
+ const sum = cleaning + damage + overdue;
+ return { official: true, scenario: rentRefund > 0 ? "EarlyStop" : "", deposit, cleaning, damage, overdue,
+  totalDeduction: deposit !== undefined ? Math.min(deposit, sum) : sum, depositRefund, rentRefund, total: amount };
+}
+
+/** Phía nhân viên khi đang lập biên bản: chỉ phần cọc; tiền thuê được hoàn hiện sau khi gửi biên bản (tính theo kỳ thuê). */
+export function depositSidePreview(deposit, cleaning = 0, damage = 0, overdue = 0) {
+ if (!knownMoney(deposit)) return null;
+ const sum = [cleaning, damage, overdue].reduce((s, x) => s + (knownMoney(x) ? x : 0), 0);
+ const totalDeduction = Math.min(deposit, sum);
+ return { official: false, partial: true, scenario: "", deposit, cleaning: cleaning || 0, damage: damage || 0, overdue: overdue || 0,
+  totalDeduction, depositRefund: deposit - totalDeduction, rentRefund: undefined, total: undefined };
+}
+
+/**
+ * #15: trạng thái hồ sơ trả kho cho quản lý — tách chờ nhân viên kiểm tra / chờ khách phản hồi / sẵn sàng duyệt / đã chốt.
+ * Trả về [mã, nhãn, tông màu]. Chỉ "READY" mới được bấm duyệt đối soát.
+ */
+export function returnCaseState(board, contract, ret) {
+ if (contract && ["CLOSED", "RESOLVED"].includes(contract.state)) {
+  const refund = board?.deposit_refunds?.find(r => (r.contractId || r.contract_id) === contract.id);
+  if (refund?.status === "PAID") return ["PAID", "Đã hoàn tiền", "green"];
+  if (refund?.status === "PENDING") return ["SETTLED", "Đã chốt · Đang chờ hoàn", "green"];
+  return ["SETTLED", "Đã chốt đối soát", "green"];
+ }
+ if (!ret || ret.status !== "SUBMITTED") return ["WAIT_STAFF", "Chờ nhân viên kiểm tra", "gray"];
+ if (canFinalizeReturn(board, contract, ret)) return ["READY", "Sẵn sàng duyệt", "blue"];
+ return ["WAIT_CUSTOMER", "Đã có biên bản · chờ khách phản hồi", "amber"];
 }

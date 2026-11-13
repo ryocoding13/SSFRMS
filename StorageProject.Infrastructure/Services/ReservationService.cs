@@ -67,6 +67,8 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         if (r == null) return null;
 
         var assignedUnit = r.UnitAssignments.OrderByDescending(a => a.AssignedAt).FirstOrDefault()?.Unit?.UnitNumber;
+        // #2: ô hệ thống đã bố trí (chưa phân bổ chính thức) để khách thấy trước khi xác nhận
+        var proposedUnit = assignedUnit == null ? (await UnitProposal.OfAsync(dbContext, r.ReservationId, ct))?.UnitNumber : null;
         var contract = r.RentalContract;
 
         var consent = await dbContext.PolicyConsents
@@ -108,7 +110,8 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             r.PaymentMethod,
             consent?.PolicyVersion?.Version,
             consent?.AcceptedAt,
-            consentDto
+            consentDto,
+            proposedUnit
         );
     }
 
@@ -194,6 +197,12 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
 
         dbContext.Reservations.Add(reservation);
         await dbContext.SaveChangesAsync(ct);
+
+        // #2: hệ thống tự bố trí ô khả dụng cả kỳ, không trùng hợp đồng hay đơn khác; khách thấy ô trước khi xác nhận.
+        var proposed = await UnitProposal.ChooseAsync(dbContext, reservation, ct)
+            ?? throw new InvalidOperationException("Hiện tại đã hết kho trống cho loại kho và khoảng thời gian yêu cầu.");
+        UnitProposal.Record(dbContext, customerId, reservation, proposed, "Hệ thống bố trí khi tạo đơn");
+        await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
         return new ReservationDto(
@@ -213,7 +222,8 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
             reservation.CancelledAt,
             reservation.CancellationReason,
             reservation.CreatedAt,
-            reservation.PaymentMethod
+            reservation.PaymentMethod,
+            ProposedUnitNumber: proposed.UnitNumber
         );
     }
 
@@ -227,7 +237,7 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         return new CancelPreviewDto(quote.Paid, quote.Fee, quote.Refund, CancelPolicyName);
     }
 
-    private const string CancelPolicyName = "Huỷ trước ngày bắt đầu: phí 5% tiền cọc, hoàn đủ tiền thuê và 95% tiền cọc";
+    private const string CancelPolicyName = "Huỷ trước ngày bắt đầu: miễn phí huỷ (0%), hoàn đủ 100% tiền thuê và 100% tiền cọc";
 
     // D27: chỉ tính trên khoản đã thu (RENT + DEPOSIT, PAID). Đơn chưa thanh toán thì không phát sinh phí.
     private async Task<(decimal Paid, decimal Fee, decimal Refund)> QuoteCancelAsync(Reservation reservation, CancellationToken ct)

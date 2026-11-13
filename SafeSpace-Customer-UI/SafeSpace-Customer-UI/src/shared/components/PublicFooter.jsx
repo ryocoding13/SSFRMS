@@ -3,9 +3,11 @@ import { href } from "../../app/router.js";
 
 // Figma "SafeSpace / Footer công khai": dùng chung cho trang chủ và các màn chưa đăng nhập
 // (đăng nhập, đăng ký, quên mật khẩu, bảng giá, hướng dẫn). Hotline dùng khi khách quên cả mật khẩu và email.
-export const SUPPORT_HOTLINE = "028 3700 1012";
+export const SUPPORT_HOTLINE = "0825123676";
 
 export function PublicFooter({ hours = "06:00–22:00", address = "Số 12 Nguyễn Lương Bằng, Quận 7" }) {
+  const headOffice = String(address || "").trim();
+  const addressLabel = /^Trụ sở\s*:/i.test(headOffice) ? headOffice : `Trụ sở : ${headOffice}`;
   return (
     <footer className="home-footer">
       <div className="container">
@@ -32,7 +34,7 @@ export function PublicFooter({ hours = "06:00–22:00", address = "Số 12 Nguy�
             <strong>Liên hệ &amp; hỗ trợ khẩn cấp</strong>
             <a className="home-footer__hotline" href={`tel:${SUPPORT_HOTLINE.replace(/\s/g, "")}`}>Hotline: {SUPPORT_HOTLINE}</a>
             <p className="home-footer__note">Quên mật khẩu và cả email đăng ký? Gọi hotline để xác minh danh tính và khôi phục tài khoản.</p>
-            <p>{address}</p>
+            <p>{addressLabel}</p>
           </div>
         </div>
         <p className="home-footer__copy">© {new Date().getFullYear()} SafeSpace. Hệ thống quản lý và cho thuê kho tự phục vụ.</p>

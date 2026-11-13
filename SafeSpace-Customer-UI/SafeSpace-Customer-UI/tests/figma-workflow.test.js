@@ -15,9 +15,10 @@ test('staff badges derive from pending work and exclude waiting customers or ano
   assert.ok(Object.values(pendingTaskCounts(ops,'STAFF',{staff_id:'me'})).every(n=>n===0));
 });
 test('manager allocation badge decreases after allocation and reaches zero',()=>{
-  let ops=createOpsData("2026-10-22"); const before=pendingTaskCounts(ops,'MANAGER')['manager/allocate'];
+  // #7 (12/11): đơn chưa có ô hiện ở Tổng quan (không còn mục Phân bổ kho trên navbar)
+  let ops=createOpsData("2026-10-22"); ops.unit_conflicts=[]; const before=pendingTaskCounts(ops,'MANAGER')['manager'];
   for(const a of ops.allocations.filter(a=>a.status==='PENDING')) a.status='DONE';
-  assert.ok(before>0); assert.equal(pendingTaskCounts(ops,'MANAGER')['manager/allocate'],0);
+  assert.ok(before>0); assert.equal(pendingTaskCounts(ops,'MANAGER')['manager'],0);
 });
 // D36/D40 (Thắng chốt 04/11): C12 thêm chủ đề "Nhận chìa khóa · lần đầu nhận kho" → 9 nhóm
 test('nine support topic groups incl. key pickup and each access reissue title',()=>{
@@ -69,4 +70,15 @@ test('D41/D45: đề xuất đổi kho hiện trong chuông (không email), ID �
   assert.equal(a[0].created_at,'2026-09-25T17:00:00.000Z');
   assert.match(a[1].detail,/ô K06/);
   assert.ok(!a.some(n=>/email/i.test(n.title+n.detail)));
+});
+
+test('Task #5 & #6: hỗ trợ không bắt buộc mô tả/ảnh; KEY_PICKUP chỉ lưu ngày chọn, không hiển thị giờ',()=>{
+  const state=createSeedData('2026-10-22');
+  const out=reduce(state,{type:'CREATE_TICKET',payload:{contract_id:state.contracts[0].contract_id,topic:'KEY_PICKUP',preferred_date:'2026-10-25'}},{now});
+  assert.equal(out.error,undefined);
+  assert.equal(out.state.tickets[0].preferred_date,'2026-10-25');
+  assert.equal(out.state.tickets[0].description,'Ngày muốn nhận chìa khóa: 25/10/2026');
+  const accessOut=reduce(state,{type:'CREATE_TICKET',payload:{contract_id:state.contracts[0].contract_id,topic:'ACCESS',access_request:'PIN'}},{now});
+  assert.equal(accessOut.error,undefined);
+  assert.equal(accessOut.state.tickets[0].description,'');
 });

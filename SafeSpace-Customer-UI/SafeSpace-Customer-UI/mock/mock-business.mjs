@@ -195,15 +195,29 @@ export function handleBusiness({ req, res, path, url, body, S, me, send }) {
   }
 
   // ---- Báo cáo
+  // Lượt 5 (#58): doanh thu mô phỏng theo cơ sở × tháng để các biểu đồ / bảng / file xuất cùng một nguồn và khớp nhau.
+  const ymList = (from, to) => { const out = []; let [y, m] = from.slice(0, 7).split("-").map(Number); const [ty, tm] = to.slice(0, 7).split("-").map(Number); while (y * 12 + m <= ty * 12 + tm && out.length < 36) { out.push(`${y}-${String(m).padStart(2, "0")}`); m++; if (m > 12) { m = 1; y++; } } return out; };
+  const synth = (facilityId, unitTypeId, ym) => {
+    if (ym > today.slice(0, 7)) return 0;
+    const f = S.facilities.find((x) => x.facilityId === facilityId); if (!f || f.status !== "ACTIVE") return 0;
+    const ids = S.facilities.map((x) => x.facilityId).sort((a, b) => a - b); const rank = ids.indexOf(facilityId);
+    if (rank === ids.length - 1) return 0; // cơ sở cuối chưa có doanh thu → kiểm tra hiển thị 0 đ
+    const [y, m] = ym.split("-").map(Number), t = (y - 2025) * 12 + m;
+    const base = 4_200_000 - rank * 300_000, season = 1 + 0.04 * t + (m % 3 === 0 ? -0.06 : 0.03);
+    const share = unitTypeId ? (unitTypeId % 2 ? 0.62 : 0.38) : 1;
+    return Math.max(0, Math.round((base * season * share) / 10_000) * 10_000);
+  };
+  const synthSum = (facilityId, unitTypeId, from, to) => ymList(from, to).reduce((s, ym) => s + synth(facilityId, unitTypeId, ym), 0);
   const snapshotAt = dbTime(new Date());
   if (req.method === "GET" && path === "/api/operations/reports/facilities") {
     const fl = filter();
     const rows = S.facilities.filter((f) => !fl.facilityId || f.facilityId === fl.facilityId).map((f) => {
       const s = scoped(f.facilityId, fl.unitTypeId);
-      return { facilityId: f.facilityId, facilityName: f.name, facilityStatus: f.status, metrics: metrics(s.units, s.contracts, s.payments) };
+      return { facilityId: f.facilityId, facilityName: f.name, facilityStatus: f.status, metrics: { ...metrics(s.units, s.contracts, s.payments), rentalAndFeeRevenue: synthSum(f.facilityId, fl.unitTypeId, fl.from, fl.to) } };
     });
     const all = scoped(fl.facilityId, fl.unitTypeId);
-    return send(200, { filter: fl, snapshotAt, totals: metrics(all.units, all.contracts, all.payments), facilities: rows }), true;
+    const totals = { ...metrics(all.units, all.contracts, all.payments), rentalAndFeeRevenue: rows.reduce((a, r) => a + r.metrics.rentalAndFeeRevenue, 0) };
+    return send(200, { filter: fl, snapshotAt, totals, facilities: rows }), true;
   }
   if (req.method === "GET" && (m = path.match(/^\/api\/operations\/reports\/facilities\/(\d+)\/contracts$/))) {
     const facilityId = +m[1];
@@ -229,14 +243,17 @@ export function handleBusiness({ req, res, path, url, body, S, me, send }) {
     return send(200, { filter: fl, snapshotAt, totals: metrics(all.units, all.contracts, all.payments), unitTypes: rows }), true;
   }
   if (req.method === "GET" && path === "/api/operations/reports/revenue-trend") {
-    const n = num("months") || 6;
-    const [y, mo] = today.split("-").map(Number);
-    const months = Array.from({ length: n }, (_, i) => {
-      const d = new Date(Date.UTC(y, mo - n + i, 1));
-      const base = i === n - 1 ? 3000000 : 0;
-      return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, label: `${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`, collected: base * 1.5, refunded: 0, rentalAndFeeRevenue: base, depositCollected: base / 2 };
+    const fid = num("facilityId"), tid = num("unitTypeId");
+    let from = url.searchParams.get("from"), to = url.searchParams.get("to");
+    if (!from || !to) { const n = num("months") || 6; const [y, mo] = today.split("-").map(Number); const d = new Date(Date.UTC(y, mo - n, 1)); from = d.toISOString().slice(0, 10); to = today; }
+    if (from.slice(0, 7) > to.slice(0, 7)) return send(400, { error: "Tháng bắt đầu phải trước hoặc bằng tháng kết thúc." }), true;
+    const fids = S.facilities.filter((f) => !fid || f.facilityId === fid).map((f) => f.facilityId);
+    const months = ymList(from, to).map((ym) => {
+      const revenue = fids.reduce((a, id) => a + synth(id, tid, ym), 0);
+      const [yy, mm] = ym.split("-").map(Number);
+      return { year: yy, month: mm, label: `Tháng ${mm}/${yy}`, collected: Math.round(revenue * 1.25), refunded: Math.round(revenue * 0.04), rentalAndFeeRevenue: revenue, depositCollected: Math.round(revenue * 0.25) };
     });
-    return send(200, { facilityId: num("facilityId"), unitTypeId: null, snapshotAt, months }), true;
+    return send(200, { facilityId: fid, unitTypeId: tid, snapshotAt, months }), true;
   }
   if (req.method === "GET" && path === "/api/operations/reports/rental-status") {
     const s = scoped(num("facilityId"));
@@ -252,7 +269,7 @@ export function handleBusiness({ req, res, path, url, body, S, me, send }) {
       rows.push(['Cơ sở', 'Doanh thu', 'Tỷ lệ lấp đầy', 'Kho quá hạn']);
       for (const f of S.facilities.filter(f => !fl.facilityId || f.facilityId === fl.facilityId)) {
         const s = scoped(f.facilityId, fl.unitTypeId), m = metrics(s.units, s.contracts, s.payments);
-        rows.push([f.name, m.rentalAndFeeRevenue, m.occupancyRate, m.overdueUnits]);
+        rows.push([f.name, synthSum(f.facilityId, fl.unitTypeId, fl.from, fl.to), m.occupancyRate, m.overdueUnits]);
       }
     } else if (view === 'unit-types') {
       rows.push(['Loại kho', 'Doanh thu', 'Tỷ lệ lấp đầy', 'Kho quá hạn']);
@@ -262,9 +279,9 @@ export function handleBusiness({ req, res, path, url, body, S, me, send }) {
       }
     } else if (view === 'revenue-trend') {
       rows.push(['Tháng', 'Đã thu', 'Hoàn', 'Thuê và phí', 'Tiền cọc']);
-      for (let d = new Date(fl.from.slice(0, 7) + '-01T00:00:00Z'); d.toISOString().slice(0, 10) <= fl.to; d.setUTCMonth(d.getUTCMonth() + 1)) {
-        const current = d.toISOString().slice(0, 7) === today.slice(0, 7), revenue = current ? 3000000 : 0;
-        rows.push([`${d.getUTCMonth() + 1}/${d.getUTCFullYear()}`, revenue * 1.5, 0, revenue, revenue / 2]);
+      for (const ym of ymList(fl.from, fl.to)) {
+        const revenue = S.facilities.filter((f) => !fl.facilityId || f.facilityId === fl.facilityId).reduce((a, f) => a + synth(f.facilityId, fl.unitTypeId, ym), 0);
+        rows.push([`${ym.slice(5, 7)}/${ym.slice(0, 4)}`, Math.round(revenue * 1.25), Math.round(revenue * 0.04), revenue, Math.round(revenue * 0.25)]);
       }
     } else return bad('view không hợp lệ.');
     const csv = '\ufeff' + rows.map(row => row.map(v => '"' + String(v ?? '').replaceAll('"', '""') + '"').join(',')).join('\r\n');

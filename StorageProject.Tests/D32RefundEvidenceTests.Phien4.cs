@@ -97,6 +97,78 @@ public sealed partial class D32RefundEvidenceTests
     }
 
     [Fact]
+    public async Task Task3_UnitMapShowsCurrentExpiry_AndDistinguishesFutureNextYearPeriodAvailability()
+    {
+        await using var f = await Fixture.CreateAsync();
+        var old = await f.ActiveContractAsync(); // ô K01 hết hạn hôm nay (OCCUPIED)
+        var today = TodayVn;
+        var fid = f.Facility.FacilityId;
+
+        var svc = new FacilityService(f.Db);
+        // Kỳ hiện tại [today, today + 1 month) trùng hợp đồng đang thuê -> CurrentContractEndDate có giá trị, BookableForPeriod = false
+        var currentUnits = await svc.GetUnitsByFacilityIdAsync(fid, today, 1);
+        var uNow = Assert.Single(currentUnits);
+        Assert.Equal("OCCUPIED", uNow.Status);
+        Assert.Equal(old.EndDate, uNow.CurrentContractEndDate);
+        Assert.Equal(today.AddDays(3), uNow.FreeFrom);
+        Assert.False(uNow.BookableForPeriod);
+        Assert.False(string.IsNullOrWhiteSpace(uNow.PeriodUnavailableReason));
+
+        // Kỳ năm sau [today.AddYears(1), +1 month) không trùng -> BookableForPeriod = true dù hôm nay đang OCCUPIED
+        var nextYearStart = today.AddYears(1);
+        var futureUnits = await svc.GetUnitsByFacilityIdAsync(fid, nextYearStart, 1);
+        var uNext = Assert.Single(futureUnits);
+        Assert.Equal("OCCUPIED", uNext.Status);
+        Assert.Equal(old.EndDate, uNext.CurrentContractEndDate);
+        Assert.True(uNext.BookableForPeriod);
+        Assert.Null(uNext.PeriodUnavailableReason);
+
+        // Nếu năm sau có thêm một reservation + assignment giữ chỗ đè lên kỳ tìm kiếm -> BookableForPeriod = false nhưng vẫn không che lấp khoảng trống trước đó
+        var holder = await NewCustomerAsync(f, "holder03", "Trần Đặt Năm Sau");
+        var futureRes = new Reservation
+        {
+            CustomerId = holder.UserId,
+            FacilityId = fid,
+            UnitTypeId = f.Type.UnitTypeId,
+            StartDate = nextYearStart.AddDays(5),
+            ExpectedEndDate = nextYearStart.AddMonths(1).AddDays(5),
+            RentalPeriodMonths = 1,
+            EstimatedAmount = 1_000_000m,
+            RequiredDeposit = 1_000_000m,
+            QuotedMonthlyRate = 1_000_000m,
+            Status = "CONFIRMED",
+            CreatedAt = DateTime.UtcNow,
+        };
+        f.Db.Reservations.Add(futureRes);
+        await f.Db.SaveChangesAsync();
+        f.Db.UnitAssignments.Add(new UnitAssignment
+        {
+            ReservationId = futureRes.ReservationId,
+            UnitId = uNext.UnitId,
+            AssignedAt = DateTime.UtcNow,
+            Status = "ACTIVE",
+        });
+        f.Db.RentalContracts.Add(new RentalContract
+        {
+            ReservationId = futureRes.ReservationId,
+            CustomerId = holder.UserId,
+            UnitId = uNext.UnitId,
+            StartDate = futureRes.StartDate,
+            EndDate = futureRes.ExpectedEndDate,
+            AgreedMonthlyRate = 1_000_000m,
+            DepositAmount = 1_000_000m,
+            Status = "ACTIVE",
+            CreatedAt = DateTime.UtcNow,
+        });
+        await f.Db.SaveChangesAsync();
+
+        var blockedNextYear = Assert.Single(await svc.GetUnitsByFacilityIdAsync(fid, nextYearStart, 1));
+        Assert.False(blockedNextYear.BookableForPeriod);
+        Assert.NotNull(blockedNextYear.PeriodUnavailableReason);
+        Assert.Equal(today.AddDays(3), blockedNextYear.FreeFrom);
+    }
+
+    [Fact]
     public async Task Renewal_LockedWhenUnitAlreadyBookedByNextCustomer()
     {
         await using var f = await Fixture.CreateAsync();

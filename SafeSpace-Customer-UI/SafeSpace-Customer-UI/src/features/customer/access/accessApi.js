@@ -41,7 +41,15 @@ export function normAccess(dto) {
     location: dto.location || null,
     valid_from: dto.validFrom ? String(dto.validFrom).slice(0, 10) : null,
     valid_until: dto.validUntil ? String(dto.validUntil).slice(0, 10) : null,
+    // #59: xem mã trước ngày thuê được, nhưng chỉ mở cửa từ 00:00 ngày bắt đầu
+    usable_now: dto.usableNow !== false,
+    usable_from: dto.usableFrom ? String(dto.usableFrom).slice(0, 10) : (dto.validFrom ? String(dto.validFrom).slice(0, 10) : null),
   };
+}
+
+// DoorStateDto: { unitNumber, door: "OPEN" | "LOCKED", updatedAt, changed }
+export function normDoor(dto) {
+  return { unit: dto?.unitNumber || null, door: dto?.door === "OPEN" ? "OPEN" : "LOCKED", at: dto?.updatedAt || null, changed: Boolean(dto?.changed) };
 }
 
 // ScanResultDto: { result: "OPEN" | "DENIED", unitNumber, customerName, contractCode, scannedAt, reason }
@@ -76,8 +84,9 @@ export function directionsUrl({ lat, lng, address, name } = {}) {
 
 // Mã QR mở cửa khi chạy không có backend (chế độ trình duyệt): mã tham chiếu cố định theo hợp đồng, không chứa bí mật
 export function localAccessCode(contract) {
-  const digits = [...String(contract.contract_id)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 1000000, 7);
-  const backup = String(digits).padStart(6, "0");
+  // D51: PIN 6 số chỉ dùng 1–9 (bàn phím máy quét không có số 0)
+  let h = [...String(contract.contract_id)].reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) % 2147483647, 7);
+  const backup = Array.from({ length: 6 }, () => { h = (h * 48271) % 2147483647; return String(1 + (h % 9)); }).join("");
   return {
     code: `SSQR-${String(contract.contract_id).replace(/[^A-Za-z0-9]/g, "")}-${backup.slice(0, 4)}`,
     backup,
@@ -86,5 +95,6 @@ export function localAccessCode(contract) {
     location: contract.location || null,
     valid_from: contract.start_date,
     valid_until: contract.end_date,
+    usable_from: contract.start_date,
   };
 }

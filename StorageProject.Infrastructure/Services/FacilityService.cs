@@ -215,14 +215,16 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
     }
 
     /// <summary>
-    /// Lấy danh sách ô kho của cơ sở phục vụ hiển thị sơ đồ mặt bằng, kèm ngày ô dự kiến trống và cờ quá hạn (D41).
+    /// Lấy danh sách ô kho của cơ sở phục vụ hiển thị sơ đồ mặt bằng, kèm ngày hết hạn dự kiến, ngày trống và khả năng đặt theo kỳ (D41/#3).
     /// </summary>
     /// <param name="facilityId">ID cơ sở kho.</param>
+    /// <param name="startDate">Ngày bắt đầu kỳ thuê khách đang tìm (tuỳ chọn).</param>
+    /// <param name="months">Số tháng thuê dự kiến (tuỳ chọn).</param>
     /// <param name="ct">CancellationToken kiểm soát huỷ bỏ tác vụ.</param>
     /// <returns>Danh sách các ô kho thuộc cơ sở.</returns>
-    public async Task<IReadOnlyList<FacilityUnitDto>> GetUnitsByFacilityIdAsync(long facilityId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<FacilityUnitDto>> GetUnitsByFacilityIdAsync(long facilityId, DateOnly? startDate = null, int? months = null, CancellationToken ct = default)
     {
-        // D41: sơ đồ ô hiện "Trống từ dd/mm" cho ô đang thuê / chờ kiểm tra (ngày hết hạn + ngày đệm của chính sách).
+        // D41 & #3: sơ đồ ô hiện ngày hết hạn dự kiến, "Trống từ dd/mm" và kiểm tra khả dụng theo đúng khoảng ngày [startDate, endDate).
         var today = OpsRules.TodayLocal;
         var slots = await UnitAvailability.SlotsAsync(dbContext, facilityId, null, ct);
         var buffers = new Dictionary<long, int>();
@@ -230,8 +232,10 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
         {
             buffers[typeId] = await UnitAvailability.BufferDaysAsync(dbContext, facilityId, typeId, today, ct);
         }
-        var freeFrom = slots.ToDictionary(s => s.Unit.UnitId, s => UnitAvailability.FreeFrom(s, buffers[s.Unit.UnitTypeId], today));
-        var overdue = slots.Where(s => s.Holds.Any(h => h.Status == "OVERDUE")).Select(s => s.Unit.UnitId).ToHashSet();
+        var slotMap = slots.ToDictionary(s => s.Unit.UnitId);
+        var hasPeriod = startDate.HasValue && months is > 0;
+        var periodStart = startDate ?? today;
+        var periodEnd = hasPeriod ? periodStart.AddMonths(months!.Value) : periodStart.AddMonths(1);
 
         var units = await dbContext.StorageUnits
             .AsNoTracking()
@@ -239,11 +243,32 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
             .Where(u => u.FacilityId == facilityId && u.Status != "OUT_OF_SERVICE")
             .OrderBy(u => u.UnitNumber)
             .ToListAsync(ct);
-        return units.Select(u => new FacilityUnitDto(
+
+        return units.Select(u =>
+        {
+            if (!slotMap.TryGetValue(u.UnitId, out var slot))
+            {
+                return new FacilityUnitDto(
+                    u.UnitId, u.FacilityId, u.UnitTypeId, u.UnitNumber, u.Floor, u.Zone, u.LocationDescription,
+                    u.UnitType.Area, u.UnitType.ClimateControlled, u.Status,
+                    FreeFrom: null,
+                    Overdue: false,
+                    CurrentContractEndDate: null,
+                    BookableForPeriod: false,
+                    PeriodUnavailableReason: "Ô đang có yêu cầu bảo trì.");
+            }
+            var buffer = buffers[u.UnitTypeId];
+            var free = UnitAvailability.FreeFrom(slot, buffer, today);
+            var overdue = slot.Holds.Any(h => h.Status == "OVERDUE");
+            var currentEnd = UnitAvailability.CurrentContractEndDate(slot, today);
+            var reason = hasPeriod
+                ? UnitAvailability.UnavailableReason(slot, periodStart, periodEnd, buffer, today)
+                : (overdue ? "Ô đang quá hạn trả, chưa nhận đặt trước."
+                    : (slot.Holds.Count == 0 && u.Status == "RESERVED" ? "Ô đang được giữ cho đề xuất đổi kho." : null));
+            return new FacilityUnitDto(
                 u.UnitId, u.FacilityId, u.UnitTypeId, u.UnitNumber, u.Floor, u.Zone, u.LocationDescription,
                 u.UnitType.Area, u.UnitType.ClimateControlled, u.Status,
-                freeFrom.TryGetValue(u.UnitId, out var f) ? f : null,
-                overdue.Contains(u.UnitId)))
-            .ToList();
+                free, overdue, currentEnd, reason == null, reason);
+        }).ToList();
     }
 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Button, Dialog, Field, PageHeader } from "../../../shared/components/UI.jsx";
 import { go } from "../../../app/router.js";
-import { isPhone } from "../../../shared/utils/format.js";
+import { isEmail, isPhone } from "../../../shared/utils/format.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 
 export default function CustomerProfilePage() {
@@ -9,6 +9,8 @@ export default function CustomerProfilePage() {
   const { user } = data;
   const [name, setName] = useState(user.full_name);
   const [nameError, setNameError] = useState("");
+  const [email, setEmail] = useState(user.email || "");
+  const [emailError, setEmailError] = useState("");
   const [phone, setPhone] = useState(user.phone || "");
   const [phoneError, setPhoneError] = useState("");
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
@@ -19,6 +21,7 @@ export default function CustomerProfilePage() {
   const namePending = useRef(false);
   const passwordPending = useRef(false);
   useEffect(() => setName(user.full_name), [user.user_id, user.full_name]);
+  useEffect(() => setEmail(user.email || ""), [user.user_id, user.email]);
   useEffect(() => setPhone(user.phone || ""), [user.user_id, user.phone]);
 
   const saveName = async (e) => {
@@ -26,18 +29,25 @@ export default function CustomerProfilePage() {
     if (namePending.current) return;
     const fullName = name.trim();
     if (fullName.length < 2 || fullName.length > 100) return setNameError("Tên hiển thị cần từ 2 đến 100 ký tự.");
+    const emailValue = email.trim();
+    if (!emailValue || emailValue.length > 150 || !isEmail(emailValue)) return setEmailError("Email chưa đúng định dạng (VD: ten@example.com).");
     const phoneValue = phone.trim();
     if (phoneValue && !isPhone(phoneValue)) return setPhoneError("Số điện thoại chưa đúng định dạng (VD: 0901234567).");
     namePending.current = true;
     setSavingName(true);
     setNameError("");
+    setEmailError("");
     setPhoneError("");
     try {
-      const res = await dispatch("UPDATE_NAME", { name: fullName, phone: phoneValue });
-      if (!res.ok) return setNameError(res.error);
+      const res = await dispatch("UPDATE_NAME", { name: fullName, email: emailValue, phone: phoneValue });
+      if (!res.ok) {
+        if (/email/i.test(res.error || "")) return setEmailError(res.error);
+        return setNameError(res.error);
+      }
       setName(res.name);
+      if (res.email !== undefined) setEmail(res.email);
       if (res.phone !== undefined) setPhone(res.phone || "");
-      setDialog({ title: "Đã lưu thông tin", message: "Tên hiển thị và số điện thoại của bạn đã được cập nhật." });
+      setDialog({ title: "Đã lưu thông tin", message: "Tên hiển thị, email và số điện thoại của bạn đã được cập nhật." });
     } finally {
       namePending.current = false;
       setSavingName(false);
@@ -92,8 +102,8 @@ export default function CustomerProfilePage() {
           <Field label="Tên đăng nhập">
             <input readOnly value={user.username || ""} />
           </Field>
-          <Field label="Email">
-            <input readOnly value={user.email} />
+          <Field label="Email" error={emailError}>
+            <input type="email" inputMode="email" autoComplete="email" maxLength={150} disabled={savingName} value={email} placeholder="ten@example.com" onChange={(e) => { setEmail(e.target.value); setEmailError(""); }} />
           </Field>
           <Field label="Số điện thoại" error={phoneError}>
             <input type="tel" inputMode="tel" autoComplete="tel" maxLength={15} disabled={savingName} value={phone} placeholder="VD: 0901234567" onChange={(e) => { setPhone(e.target.value); setPhoneError(""); }} />

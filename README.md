@@ -114,6 +114,7 @@ Hệ thống đã tạo sẵn các tài khoản để kiểm thử quy trình:
 | **MANAGER** | `manager01` | `Manager@123` | Quản lý cơ sở SafeSpace Nguyễn Lương Bằng (`#/manager`) |
 | **OPERATIONS** | `ops01` | `Ops@123` | Quản lý vận hành kinh doanh |
 | **ADMIN** | `admin` | `Admin@123` | Quản trị viên hệ thống |
+| **Theo cơ sở (#60)** | `Staff_NLB`, `Manager_NLB`, `CustomerNLB01` | `Staff@123` / `Manager@123` / `Customer@123` | Mỗi cơ sở một bộ, thay `NLB` bằng mã: HL, PX, TT, PMH, BTH, NB, BC, TD, GV, TB, BTA. `Customer…01` là khách duy nhất, có 1–6 hợp đồng đang thuê tuỳ cơ sở (D55) |
 
 *(Bạn cũng có thể bấm nút **"Đăng ký"** trực tiếp trên giao diện để tạo tài khoản mới)*.
 

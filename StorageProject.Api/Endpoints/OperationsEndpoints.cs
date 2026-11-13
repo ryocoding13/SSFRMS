@@ -124,8 +124,11 @@ public static class OperationsEndpoints
             Run(async () => Results.Ok(await reports.GetUnitTypeReportAsync(Filter(from, to, facilityId, unitTypeId), ct))))
             .WithSummary("Các chỉ tiêu trên theo loại kho");
 
-        group.MapGet("/reports/revenue-trend", (int? months, long? facilityId, long? unitTypeId, IOperationsReportService reports, CancellationToken ct) =>
-            Run(async () => Results.Ok(await reports.GetRevenueTrendAsync(months ?? 6, facilityId, unitTypeId, ct))))
+        // #58: from/to (ngày bất kỳ trong tháng) → khoảng tháng đã chọn; không có thì months tháng gần nhất như cũ
+        group.MapGet("/reports/revenue-trend", (int? months, DateOnly? from, DateOnly? to, long? facilityId, long? unitTypeId, IOperationsReportService reports, CancellationToken ct) =>
+            Run(async () => Results.Ok(from.HasValue && to.HasValue
+                ? await reports.GetRevenueTrendRangeAsync(from.Value, to.Value, facilityId, unitTypeId, ct)
+                : await reports.GetRevenueTrendAsync(months ?? 6, facilityId, unitTypeId, ct))))
             .WithSummary("Tiền thu theo tháng (mặc định 6 tháng gần nhất)");
 
         group.MapGet("/reports/rental-status", (long? facilityId, long? unitTypeId, IOperationsReportService reports, CancellationToken ct) =>
@@ -140,7 +143,8 @@ public static class OperationsEndpoints
                 ClaimsPrincipal user, IOperationsReportService reports, CancellationToken ct) =>
             Run(async () =>
             {
-                var file = await reports.ExportCsvAsync(view ?? "facilities", Filter(from, to, facilityId, unitTypeId), months ?? 6, user.GetUserId(), ct);
+                var file = await reports.ExportCsvAsync(view ?? "facilities", Filter(from, to, facilityId, unitTypeId), months ?? 6, user.GetUserId(), ct,
+                    useRange: from.HasValue && to.HasValue && months == null);
                 return Results.File(file.Content, "text/csv; charset=utf-8", file.FileName);
             }))
             .WithSummary("Xuất CSV UTF-8: view = facilities | unit-types | revenue-trend, cùng bộ lọc với màn xem");

@@ -42,8 +42,8 @@ public sealed record RefundResult(
 /// </summary>
 public static class RefundPolicy
 {
-    public const decimal CancelFeeRate = 0.05m;
-    public const decimal EarlyStopKeepRate = 0.30m;
+    public const decimal CancelFeeRate = 0.00m;
+    public const decimal EarlyStopKeepRate = 0.00m;
     public const decimal HygieneFeeRate = 0.10m;
 
     public static RefundResult Calculate(RefundInput i)
@@ -57,7 +57,9 @@ public static class RefundPolicy
             return new RefundResult(i.RentPaid, i.Deposit - fee, fee, 0, 0);
         }
 
-        var fixedDeduction = i.Scenario == RefundScenario.EarlyStop
+        // D49: Dừng sớm sau StartDate hoàn 100% cọc nếu đạt chuẩn vệ sinh và không hư hỏng/quá hạn;
+        // nếu vi phạm vệ sinh/hư hỏng/quá hạn thì khấu trừ vào cọc như trả kho khi đến hạn.
+        var fixedDeduction = (i.Scenario == RefundScenario.EarlyStop && EarlyStopKeepRate > 0m)
             ? Money(i.Deposit * EarlyStopKeepRate)
             : i.HygieneViolation ? Money(i.Deposit * HygieneFeeRate) : 0m;
 
@@ -85,9 +87,20 @@ public static class RefundPolicy
     public static decimal UnusedRent(decimal rentPaid, DateOnly start, DateOnly end, DateOnly today)
     {
         var total = TotalMonths(start, end);
+        var begun = MonthsBegun(start, end, today);
+        return Money(rentPaid * (total - begun) / total);
+    }
+
+    /// <summary>
+    /// #57 / D49: số tháng thuê đã bắt đầu sử dụng tính từ 00:00 ngày nhận kho (tháng đã bắt đầu tính đủ).
+    /// Ví dụ đăng ký 3 tháng từ 20/09, trả 21/10 → đã bắt đầu 2 tháng, hoàn 1 tháng.
+    /// </summary>
+    public static int MonthsBegun(DateOnly start, DateOnly end, DateOnly today)
+    {
+        var total = TotalMonths(start, end);
         var begun = 0;
         while (begun < total && start.AddMonths(begun) <= today) begun++;
-        return Money(rentPaid * (total - begun) / total);
+        return begun;
     }
 
     /// <summary>

@@ -15,7 +15,12 @@ import { useOpsEndpoint } from "../../facility-operations/workflows/useOpsEndpoi
 
 import "../../../shared/styles/customer-detail.css";
 
-const CHOICE = { SELF_CLEAN: "Khách tự dọn dẹp kho thay cho phí vệ sinh", SELF_REPLACE: "Khách tự thay vật dụng tương đương thay cho phí hư hỏng", DISPUTE: "Khách khiếu nại nội dung biên bản" };
+const CHOICE = {
+  SELF_CLEAN: "Khách tự dọn dẹp kho thay cho phí vệ sinh",
+  SELF_REPLACE: "Khách tự thay vật dụng tương đương thay cho phí hư hỏng",
+  SELF_REMEDY: "Khách tự dọn dẹp và tự thay thế vật dụng",
+  DISPUTE: "Khách khiếu nại nội dung biên bản",
+};
 
 // D39/D40 · Cơ sở kiểm tra lại phương án khách chọn; đạt thì không trừ khoản tương ứng. Không được từ chối tự dọn.
 /**

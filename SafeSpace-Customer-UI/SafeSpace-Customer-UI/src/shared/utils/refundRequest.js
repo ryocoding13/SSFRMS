@@ -1,3 +1,4 @@
+import { bankLengthLabel, findBankRule } from "./bankCatalog.js";
 export const MAX_RETURN_PHOTOS = 5;
 export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 export const RETURN_SLOTS = ["09:00–09:30", "10:00–10:30", "14:00–14:30", "15:30–16:00"];
@@ -7,26 +8,37 @@ export const REFUND_METHODS = { BANK_TRANSFER: "BANK_TRANSFER", CASH: "CASH" };
 export const CASH_REFUND_DAYS = 30;
 export const CASH_REFUND_TERMS = `Nhận tại quầy trong ${CASH_REFUND_DAYS} ngày kể từ khi cơ sở duyệt chi, mang CCCD trùng tên hợp đồng. Quá ${CASH_REFUND_DAYS} ngày không đến nhận, bạn mất khoản hoàn. Trong thời hạn này bạn vẫn đổi được sang chuyển khoản.`;
 export const isCashRefund = bank => bank?.method === REFUND_METHODS.CASH || bank?.bankName === REFUND_METHODS.CASH;
-/** Kiểm lựa chọn nhận hoàn: tiền mặt cần khách xác nhận điều kiện 30 ngày; chuyển khoản cần tài khoản chính chủ. */
-export function validateRefundChoice(bank, expectedName) {
+/** Kiểm lựa chọn nhận hoàn: tiền mặt cần xác nhận điều kiện 30 ngày; chuyển khoản kiểm tra ngân hàng, định dạng số tài khoản và chủ tài khoản (không bắt trùng tên hợp đồng). */
+export function validateRefundChoice(bank) {
   if (bank?.method === REFUND_METHODS.CASH) return bank.cashAccepted === true ? "" : "Vui lòng xác nhận điều kiện nhận tiền mặt tại quầy.";
-  return validateRefundBank(bank, expectedName);
+  return validateRefundBank(bank);
 }
-/** Phần thân gửi BE khi huỷ đơn / trả kho: chuyển khoản giữ nguyên 3 trường cũ; tiền mặt gửi refundMethod = CASH. */
+/** Phần thân gửi BE khi huỷ đơn / trả kho: chuyển khoản giữ nguyên 3 trường; tiền mặt gửi refundMethod = CASH. */
 export const refundChoicePayload = bank => bank?.method === REFUND_METHODS.CASH ? { refundMethod: REFUND_METHODS.CASH } : cleanRefundBank(bank);
 /** RefundBankInput cho sự cố cơ sở (T13): tiền mặt gửi method = CASH. */
 export const refundBankInput = bank => bank?.method === REFUND_METHODS.CASH ? { method: REFUND_METHODS.CASH } : cleanRefundBank(bank);
 /** Bản lưu cục bộ / hiển thị của lựa chọn. */
 export const storedRefundChoice = bank => bank?.method === REFUND_METHODS.CASH ? { bankName: REFUND_METHODS.CASH, accountNumber: "", accountHolder: "" } : cleanRefundBank(bank);
 export const normalizeHolder = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[đĐ]/g, "D").trim().replace(/\s+/g, " ").toUpperCase();
-export function validateRefundBank(bank, expectedName) {
-  if (!bank?.bankName?.trim()) return "Vui lòng nhập tên ngân hàng.";
-  if (!/^\d{6,19}$/.test(String(bank?.accountNumber || ""))) return "Số tài khoản phải có từ 6 đến 19 chữ số.";
-  if (!bank?.accountHolder?.trim()) return "Vui lòng nhập tên chủ tài khoản.";
-  if (expectedName && normalizeHolder(bank.accountHolder) !== normalizeHolder(expectedName)) return "Tên chủ tài khoản phải trùng tên trên hợp đồng.";
+export function validateRefundBank(bank) {
+  const bankName = String(bank?.bankName || "").trim();
+  if (!bankName) return "Vui lòng chọn ngân hàng nhận tiền.";
+  const rule = findBankRule(bankName);
+  if (!rule) return "Ngân hàng chưa có trong danh sách hỗ trợ. Vui lòng chọn từ danh sách.";
+  const number = String(bank?.accountNumber || "").trim();
+  if (!/^\d+$/.test(number) || number.length < rule.min || number.length > rule.max) {
+    return `Số tài khoản ${rule.name} phải có ${bankLengthLabel(rule)} (giữ số 0 đầu).`;
+  }
+  const holder = String(bank?.accountHolder || "").trim();
+  if (!holder) return "Vui lòng nhập tên chủ tài khoản nhận tiền.";
+  if (holder.length > 150) return "Tên chủ tài khoản tối đa 150 ký tự.";
   return "";
 }
-export const cleanRefundBank = bank => ({ bankName: bank.bankName.trim(), accountNumber: bank.accountNumber, accountHolder: bank.accountHolder.trim().replace(/\s+/g, " ") });
+export const cleanRefundBank = bank => ({
+  bankName: findBankRule(bank.bankName)?.name || bank.bankName.trim(),
+  accountNumber: String(bank.accountNumber || "").trim(),
+  accountHolder: bank.accountHolder.trim().replace(/\s+/g, " "),
+});
 export function validateReturnPhotos(photos) {
   if (!Array.isArray(photos) || !photos.length) return "Vui lòng tải ít nhất một ảnh kho trống.";
   if (photos.length > MAX_RETURN_PHOTOS) return "Chỉ được tải tối đa 5 ảnh kho trống.";

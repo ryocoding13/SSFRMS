@@ -12,7 +12,7 @@ export default function RefundMethodFields({ value, onChange, disabled, expected
   const method = value.method === REFUND_METHODS.CASH ? REFUND_METHODS.CASH : REFUND_METHODS.BANK_TRANSFER;
   const pick = next => () => onChange({ ...value, method: next, cashAccepted: next === REFUND_METHODS.CASH ? value.cashAccepted === true : false });
   return <div className="refund-method">
-    <p className="hint refund-method__intro">Chọn cách nhận tiền hoàn. Chuyển khoản chỉ vào tài khoản chính chủ, trùng tên trên hợp đồng.</p>
+    <p className="hint refund-method__intro">Chọn cách nhận tiền hoàn. Chấp nhận tài khoản ngân hàng của chính bạn, người thân hoặc người nhận hộ.</p>
     <div className="refund-method__row">
       <span className="refund-method__label" id="refund-method-label">Nhận hoàn qua</span>
       <div className="refund-method__options" role="radiogroup" aria-labelledby="refund-method-label">

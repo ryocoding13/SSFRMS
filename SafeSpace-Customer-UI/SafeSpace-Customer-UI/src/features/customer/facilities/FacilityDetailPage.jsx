@@ -62,7 +62,7 @@ export default function FacilityDetailPage({ id, query }) {
     setUnitsError("");
     (async () => {
       try {
-        const list = await getFacilityUnits(facility.facility_id);
+        const list = await getFacilityUnits(facility.facility_id, { startDate: start, months });
         if (alive) {
           if (Array.isArray(list)) {
             setRealUnits(list);
@@ -81,7 +81,7 @@ export default function FacilityDetailPage({ id, query }) {
     return () => {
       alive = false;
     };
-  }, [getFacilityUnits, facility?.facility_id, view, reloadKey]);
+  }, [getFacilityUnits, facility?.facility_id, view, start, months, reloadKey]);
 
   const reloadUnits = () => {
     setReloadKey((k) => k + 1);
@@ -186,14 +186,16 @@ export default function FacilityDetailPage({ id, query }) {
   const types = offerTypes(facility);
   const sizes = facility.offers.filter((o) => o.type === offer?.type);
   const q = quote({ offer, months, start_date: start });
-  const unitBlocked = Boolean(unit && unit.status !== "FREE");
+  // #2: ô do hệ thống bố trí ở bước sau; ô xem trên sơ đồ không chặn việc đặt.
   const unitHasNoPrice = Boolean(view === "map" && unit && !unit.has_pricing && (!unit.monthly_rate || unit.monthly_rate <= 0));
   const soldOut = stock && !stock.available;
 
-  // Ở chế độ sơ đồ, đổi loại kho / diện tích sẽ chọn ô còn trống khớp lựa chọn (nếu có)
+  // Ở chế độ sơ đồ, đổi loại kho / diện tích sẽ ưu tiên ô trống hôm nay, hoặc ô khả dụng trong kỳ đang tìm
   const pickUnitFor = (key) => {
     if (view !== "map") return;
-    const hit = units.find((u) => u.offer_key === key && u.status === "FREE");
+    const hit =
+      units.find((u) => u.offer_key === key && u.status === "FREE") ||
+      units.find((u) => u.offer_key === key && u.bookable_for_period);
     if (hit) setUnitCode(hit.code);
   };
   const changeType = (type) => {
@@ -208,11 +210,10 @@ export default function FacilityDetailPage({ id, query }) {
     setError("");
     if (!offer) return setError("Cơ sở này chưa có loại kho phù hợp.");
     if (unitHasNoPrice) return setError("Ô kho này hiện chưa có giá thuê được cấu hình.");
-    if (unitBlocked) return setError("Ô này hiện không khả dụng. Vui lòng chọn một ô còn trống (màu xanh) trên sơ đồ.");
     if (!authed)
       return go(`login?next=${encodeURIComponent(`find/${facility.facility_id}${qs({ offer: offer.key, months, start, view: unit ? "map" : "", unit: unit?.code })}`)}`);
     setBusy(true);
-    const res = await dispatch("CREATE_RESERVATION", { facility_id: facility.facility_id, offer_key: offer.key, months, start_date: start, unit_code: unit?.code });
+    const res = await dispatch("CREATE_RESERVATION", { facility_id: facility.facility_id, offer_key: offer.key, months, start_date: start });
     setBusy(false);
     if (!res.ok) return setError(res.error);
     go(`checkout/${res.reservation_id}/confirm`);
@@ -270,7 +271,7 @@ export default function FacilityDetailPage({ id, query }) {
             {offer?.description && <p className="muted">{offer.description}</p>}
             <h4>Kiểm tra trước khi đặt</h4>
             <p className="muted">
-              Không lưu trữ vật liệu dễ cháy, hàng cấm hoặc thực phẩm dễ hỏng. Kho cụ thể sẽ được quản lý phân bổ theo nhu cầu đã xác nhận.
+              Không lưu trữ vật liệu dễ cháy, hàng cấm hoặc thực phẩm dễ hỏng. Hệ thống tự bố trí ô trống trong toàn bộ kỳ thuê theo lựa chọn của bạn và hiện ô đó trước khi bạn xác nhận.
             </p>
           </section>
           <section className="panel directions">
@@ -291,8 +292,24 @@ export default function FacilityDetailPage({ id, query }) {
             <div className="booking__unit">
               <p className="booking__eyebrow">Ô ĐANG CHỌN</p>
               <h2>Ô kho {unit.code} · {unit.position}</h2>
-              <p className={`unit-badge unit-badge--${UNIT_STATUS[unit.status].tone}`}>{UNIT_STATUS[unit.status].label}</p>
-              {unit.status !== "FREE" && (unit.overdue ? <p className="hint">Ô đang quá hạn trả, chưa nhận đặt trước.</p> : unit.free_from ? <p className="hint">Trống từ {dateLabel(unit.free_from)} · đặt trước được từ ngày này.</p> : null)}
+              <p className={`unit-badge unit-badge--${UNIT_STATUS[unit.status].tone}`}>
+                Hiện tại: {UNIT_STATUS[unit.status].label}
+              </p>
+              {unit.current_contract_end_date && (
+                <p className="hint">Ngày hết hạn dự kiến: <strong>{dateLabel(unit.current_contract_end_date)}</strong></p>
+              )}
+              {unit.bookable_for_period ? (
+                <p className="unit-badge unit-badge--free">
+                  Khả dụng trong kỳ ({dateLabel(start)} – {dateLabel(q?.end_date)})
+                </p>
+              ) : (
+                <p className="hint">
+                  {unit.period_unavailable_reason || (unit.overdue ? "Ô đang quá hạn trả, chưa nhận đặt trước." : unit.free_from ? `Trống từ ${dateLabel(unit.free_from)} · đặt trước được từ ngày này.` : "Không khả dụng trong khoảng ngày đang tìm.")}
+                </p>
+              )}
+              {unit.status !== "FREE" && unit.free_from && unit.bookable_for_period && (
+                <p className="hint">Trống từ {dateLabel(unit.free_from)} · đặt trước được từ ngày bạn chọn.</p>
+              )}
             </div>
           )}
           {offer ? (
@@ -303,7 +320,7 @@ export default function FacilityDetailPage({ id, query }) {
                 <p className="price price--xl">{money(q.monthly_rate)} / tháng</p>
               )}
               <p className="hint">
-                {unit ? `Giá của ô ${unit.code}. Chọn ô khác trên sơ đồ để xem giá tương ứng.` : "Giá thay đổi theo loại kho, diện tích và gói thuê bạn chọn."}
+                Giá theo loại kho, diện tích và gói thuê. Hệ thống tự bố trí ô trống cả kỳ ở bước tiếp theo{unit ? "; sơ đồ chỉ để xem tình trạng" : ""}.
               </p>
               <Field label="Loại kho">
                 <Select value={offer.type} onChange={(e) => changeType(e.target.value)}>
@@ -332,17 +349,13 @@ export default function FacilityDetailPage({ id, query }) {
               <DatePicker label="Ngày bắt đầu" value={start} min={today()} onChange={setStart} />
               <p className="hint hint--tight">Kết thúc dự kiến: {dateLabel(q.end_date)}</p>
               <h4>Chi phí dự kiến</h4>
-              {unitBlocked ? (
-                <p className="muted">Chọn một ô còn trống (màu xanh) trên sơ đồ để xem chi phí dự kiến.</p>
-              ) : (
-                <dl className="cost">
-                  <div><dt>Tiền thuê {months} tháng</dt><dd>{money(q.rent_total)}</dd></div>
-                  <div><dt>Tiền cọc</dt><dd>{money(q.deposit)}</dd></div>
-                  <div className="cost__total"><dt>Tổng ban đầu</dt><dd>{money(q.initial_total)}</dd></div>
-                </dl>
-              )}
-              <p className="hint">Cọc được xử lý khi kết thúc hợp đồng theo tình trạng kho và chính sách đã công bố.</p>
-              {soldOut && <Notice tone="error">Loại kho này đã hết chỗ trong kỳ thuê bạn chọn. Hãy đổi diện tích, ngày bắt đầu hoặc cơ sở khác.</Notice>}
+              <dl className="cost">
+                <div><dt>Tiền thuê {months} tháng</dt><dd>{money(q.rent_total)}</dd></div>
+                <div><dt>Tiền cọc</dt><dd>{money(q.deposit)}</dd></div>
+                <div className="cost__total"><dt>Tổng ban đầu</dt><dd>{money(q.initial_total)}</dd></div>
+              </dl>
+              <p className="hint hint--alert">Cọc được xử lý khi kết thúc hợp đồng theo tình trạng kho và chính sách đã công bố.</p>
+              {soldOut && <div className="booking__none"><strong>Không còn ô trống cho cả kỳ thuê</strong><p>Không có ô {UNIT_TYPES.find((t) => t.id === offer.type)?.label || "kho"} {offer.size_label} nào trống trong toàn bộ kỳ {dateLabel(start)} – {dateLabel(q.end_date)} tại cơ sở này. Đổi ngày bắt đầu, diện tích, gói thuê hoặc chọn cơ sở khác để hệ thống tìm lại. Bạn không cần chọn ô trên sơ đồ.</p></div>}
               {error && <Notice tone="error">{error}</Notice>}
             </>
           ) : (
@@ -350,8 +363,13 @@ export default function FacilityDetailPage({ id, query }) {
           )}
           <div className="booking__actions">
             {offer && (
-              <Button onClick={proceed} disabled={busy || soldOut || unitBlocked || unitHasNoPrice} className={unitBlocked || unitHasNoPrice ? "btn--muted" : ""}>
-                {unitBlocked ? "Ô này hiện không khả dụng" : unitHasNoPrice ? "Chưa có giá phù hợp" : busy ? "Đang tạo đơn…" : "Tiếp tục đặt chỗ"}
+              <Button
+                onClick={proceed}
+                disabled={busy || soldOut || unitHasNoPrice}
+                className={unitHasNoPrice ? "btn--muted" : ""}
+                title={soldOut ? "Chưa có ô trống cả kỳ cho lựa chọn này" : undefined}
+              >
+                {unitHasNoPrice ? "Chưa có giá phù hợp" : busy ? "Đang bố trí ô…" : "Tiếp tục đặt chỗ"}
               </Button>
             )}
             <a className="btn btn--outline" href={href(`find${qs({ type: query.get("type"), band: query.get("band") })}`)}>Chọn cơ sở khác</a>

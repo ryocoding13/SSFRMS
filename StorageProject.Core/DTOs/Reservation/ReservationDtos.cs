@@ -28,7 +28,8 @@ public record ReservationDto(
     DateTime CreatedAt,
     string PaymentMethod = "PAYOS",
     decimal? RefundAmount = null,
-    string? RefundStatus = null // PENDING (chờ quản lý chuyển khoản) | COMPLETED
+    string? RefundStatus = null, // PENDING (chờ quản lý chuyển khoản) | COMPLETED
+    string? ProposedUnitNumber = null // #2: ô hệ thống bố trí khi tạo đơn (activity_logs UNIT_PROPOSED)
 );
 
 /// <summary>C14a · Ước tính khi huỷ đơn đã thanh toán trước ngày bắt đầu (D27).</summary>
@@ -61,5 +62,6 @@ public record ReservationDetailDto(
     string PaymentMethod = "PAYOS",
     int? PolicyVersion = null,
     DateTime? PolicyAcceptedAt = null,
-    PolicyConsentDto? PolicyConsent = null
+    PolicyConsentDto? PolicyConsent = null,
+    string? ProposedUnitNumber = null // #2: ô hệ thống đã bố trí, hiện cho khách trước khi xác nhận
 );

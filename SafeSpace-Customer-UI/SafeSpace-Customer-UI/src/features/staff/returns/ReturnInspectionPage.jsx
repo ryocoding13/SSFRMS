@@ -10,10 +10,11 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { Button, Empty, Field, Icon, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import ReturnPhotoInput from "../../../shared/components/ReturnPhotoInput.jsx";
-import { cleaningFee, earlyStopKeep, isEarlyStop } from "../../../shared/utils/returnPolicy.js";
+import { cleaningFee } from "../../../shared/utils/returnPolicy.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
 import { validateInspection } from "../../facility-operations/settlements/settlementModel.js";
-import { OpsDemo, SettlementSummary } from "../../facility-operations/settlements/SettlementComponents.jsx";
+import { OpsDemo, SettlementTable } from "../../facility-operations/settlements/SettlementComponents.jsx";
+import { depositSidePreview, settlementOf } from "../../facility-operations/settlements/settlementModel.js";
 import { DamagePhotos, timeLabel } from "../../facility-operations/damage/DamageComponents.jsx";
 import "../../../shared/styles/customer-detail.css";
 
@@ -27,7 +28,7 @@ const READY = PROPOSALS[1];
 export const CHECKS = [
   { key: "items", label: "Đồ còn lại", options: [
     { value: "Đạt · không còn đồ", tone: "ok" },
-    { value: "Chưa đạt · còn ít đồ", tone: "warn", cleaning: true },
+    { value: "Đạt · còn ít đồ", tone: "ok" },
     { value: "Chưa đạt · còn nhiều đồ", tone: "warn", cleaning: true },
   ] },
   { key: "walls", label: "Tường, sàn và cửa", options: [
@@ -115,18 +116,17 @@ export function ReturnInspectionPage({ query }) {
   const [form, setForm] = useState(DEFAULT_FORM), [files, setFiles] = useState([]), [reading, setReading] = useState(false), [error, setError] = useState("");
   if (!r) return <main className="container page"><Empty title="Không tìm thấy lịch trả kho" text="Chọn đúng hồ sơ trong danh sách."><LinkButton to="staff/return">Danh sách trả kho</LinkButton></Empty></main>;
   const submitted = r.status === "SUBMITTED";
-  const moveOutPhotos = r.move_out_photos || r.moveOutPhotos || [];
   const flags = inspectionFlags(form);
-  // D27/D32: khách gửi trả trước ngày hết hạn → giữ 30% cọc thay cho phí vệ sinh cố định (RefundPolicy BE)
-  const contract = ops.contracts.find((c) => c.id === r.contract);
-  const moveOut = r.requested_at ? new Date(new Date(r.requested_at).getTime() + 7 * 3600000).toISOString().slice(0, 10) : null;
-  const early = isEarlyStop(contract?.end, moveOut), keep = early ? earlyStopKeep(r.deposit) : 0;
-  const keepLabel = `${keep.toLocaleString("vi-VN")} đ`;
   // D38: "Sẵn sàng cho thuê lại" chỉ khi đạt ≥ 2/3 tiêu chuẩn và không có khấu trừ (D32: ô cần vệ sinh/sửa giữ bảo trì)
   const charged = form.cleaning_required || (flags.damaged && Number(form.damage_fee) > 0);
   const canReady = flags.clean >= 2 && !charged;
   const proposal = form.proposal === READY && !canReady ? PROPOSALS[0] : form.proposal;
   const report = submitted ? r.report || {} : buildInspectionReport({ ...form, proposal }, r.deposit);
+  // D49 / #56: không giữ 30% cọc. #16: sau khi gửi, bảng đối soát lấy đúng số máy chủ tính (r.settlement);
+  // khi đang lập biên bản chỉ xem phần cọc dự kiến theo các khoản đang nhập.
+  const settlement = submitted && r.settlement
+    ? settlementOf(r.settlement)
+    : depositSidePreview(r.deposit, submitted ? report.cleaning_fee : cleaningFee(r.deposit, form.cleaning_required), Number(report.damage_fee) || 0, r.overdue_fee || 0);
   const blocked = saving || needsRefresh || reading || r.status !== "SCHEDULED", supported = source !== "api" || ops.inspection_evidence_supported === true;
   const change = (key, value) => { setForm((f) => ({ ...f, [key]: value })); setError(""); };
   // Chọn tình trạng: chưa đạt vệ sinh/còn đồ tự tick phí vệ sinh; trạng thái ô theo mức nặng nhất (người dùng vẫn đổi được)
@@ -158,7 +158,7 @@ export function ReturnInspectionPage({ query }) {
           : <ChoiceSelect key={c.key} label={c.label} value={form[c.key]} options={c.options} disabled={blocked} onChange={(v) => pick(c.key, v)} />)}
         <label className="customer-detail__choice inspect-cleaning">
           <input type="checkbox" checked={Boolean(report.cleaning_required)} disabled={blocked} onChange={(e) => { const on = e.target.checked; setForm((f) => ({ ...f, cleaning_required: on, proposal: on && (!f.proposal || f.proposal === READY) ? PROPOSALS[0] : f.proposal })); setError(""); }} />
-          <span><strong>Chưa đạt tiêu chuẩn vệ sinh · khấu trừ cố định 10% cọc</strong><small>{early ? `Trả trước hạn đã giữ 30% cọc (${keepLabel}) nên không cộng thêm phí vệ sinh; vẫn tick để ghi nhận cần vệ sinh.` : "Tự tick khi có mục chưa đạt tiêu chuẩn vệ sinh; bỏ tick nếu không tính phí."}</small></span>
+          <span><strong>Chưa đạt tiêu chuẩn vệ sinh · khấu trừ cố định 10% cọc</strong><small>Tự tick khi có mục chưa đạt tiêu chuẩn vệ sinh; bỏ tick nếu không tính phí.</small></span>
         </label>
         {submitted
           ? <Field label="Trạng thái ô sau kiểm tra"><input value={report.proposal || "Chưa có dữ liệu"} disabled readOnly /></Field>
@@ -170,8 +170,10 @@ export function ReturnInspectionPage({ query }) {
           {Array.isArray(report.photo_files) && report.photo_files.length > 0 && <p className="hint">Tệp đã gửi (mô phỏng chỉ lưu tên): {report.photo_files.map((f) => f.fileName).join(", ")}</p>}
           {report.fee_reason && <p className="hint">Lý do / ghi chú: {report.fee_reason}</p>}
         </> : <>
-          <ReturnPhotoInput files={files} onChange={setFiles} onReading={setReading} disabled={blocked} required={flags.damaged && Number(form.damage_fee) > 0} label="Tải ảnh hiện trạng / hư hỏng" />
-          {flags.damaged && <Field label="Mức khấu trừ hư hỏng (đ)" hint={`Hạng mục: ${flags.damageItem}. Có khấu trừ thì cần ít nhất 1 ảnh.`}>
+          <ReturnPhotoInput files={files} onChange={setFiles} onReading={setReading} disabled={blocked} required label="Tải ảnh hiện trạng / hư hỏng" />
+          {/* #14: ảnh hiện trạng bắt buộc khi nhân viên gửi biên bản; dữ liệu đã nhập vẫn được giữ */}
+          {files.length === 0 && <p className="hint inspect-photo-required">Cần tối thiểu 1 ảnh hiện trạng trước khi gửi biên bản. Nội dung đã nhập vẫn được giữ.</p>}
+          {flags.damaged && <Field label="Mức khấu trừ hư hỏng (đ)" hint={`Hạng mục: ${flags.damageItem}. Bắt buộc có ảnh bằng chứng hiện trạng.`}>
             <input inputMode="numeric" value={form.damage_fee} disabled={blocked} onChange={(e) => change("damage_fee", e.target.value.replace(/[^\d]/g, ""))} />
           </Field>}
           <Field label="Ghi chú thêm (không bắt buộc)">
@@ -183,16 +185,11 @@ export function ReturnInspectionPage({ query }) {
         {submitted ? <Notice>Đã gửi lúc {timeLabel(r.submitted_at)}. Chờ quản lý duyệt đối soát.</Notice> : <div className="customer-detail__actions">
           <Button variant="outline" disabled={blocked} onClick={saveDraft}>Lưu nháp</Button>
           <Button variant="outline" disabled={blocked} onClick={openDraft}>Mở nháp</Button>
-          <Button type="submit" disabled={blocked || !supported}>Gửi biên bản cho quản lý</Button>
+          <Button type="submit" disabled={blocked || !supported || files.length === 0}>Gửi biên bản</Button>
         </div>}
       </form>
       <div className="customer-detail__column">
-        <section className="panel customer-detail__card customer-detail__sidebar" aria-label="Ảnh kho trống do khách gửi">
-          <h2>Ảnh kho trống do khách gửi</h2>
-          <DamagePhotos photos={moveOutPhotos} emptyText="Khách hàng chưa đính kèm ảnh kho trống khi yêu cầu trả kho." />
-          <p className="hint">Ảnh do khách chụp và gửi khi đăng ký trả kho để chứng minh kho đã dọn trống.</p>
-        </section>
-        <SettlementSummary deposit={r.deposit} damage={report.damage_fee} cleaning={early ? 0 : submitted ? report.cleaning_fee : cleaningFee(r.deposit, form.cleaning_required)} overdue={r.overdue_fee} keep={early ? keep : undefined} />
+        <SettlementTable title="Khấu trừ dự kiến" settlement={settlement} report={submitted ? r.report : { fee_reason: form.fee_reason, damage_item: form.damage_item }} />
       </div>
     </div>
     <div className="workflow-links"><LinkButton to="staff/return" variant="outline">Danh sách trả kho</LinkButton></div>

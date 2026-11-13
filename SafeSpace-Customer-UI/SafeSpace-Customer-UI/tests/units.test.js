@@ -84,6 +84,39 @@ test("dữ liệu StorageUnit thực tế từ backend (GET /api/facilities/{id}
   assert.equal(units.find((u) => u.code === "K07").status, "RENTED");
   assert.equal(units.find((u) => u.code === "K08").status, "SERVICE");
   assert.equal(units.find((u) => u.code === "K09").status, "FREE");
+  assert.equal(units.find((u) => u.code === "K09").bookable_for_period, true);
+});
+
+test("Task #3: phân biệt trạng thái hiện tại, ngày hết hạn và khả năng đặt trong kỳ tương lai", () => {
+  const facilities = createFacilities();
+  const realUnits = [
+    {
+      unitNumber: "K01",
+      status: "OCCUPIED",
+      currentContractEndDate: "2026-12-20",
+      freeFrom: "2026-12-23",
+      overdue: false,
+      bookableForPeriod: true,
+      periodUnavailableReason: null,
+    },
+    {
+      unitNumber: "K02",
+      status: "OCCUPIED",
+      currentContractEndDate: "2026-12-20",
+      freeFrom: "2026-12-23",
+      overdue: false,
+      bookableForPeriod: false,
+      periodUnavailableReason: "Ô K02 đang được thuê đến 20/12/2026, nhận đặt từ 23/12/2026.",
+    },
+  ];
+  const units = unitsFor(facilities[0], null, realUnits);
+  const k01 = units.find((u) => u.code === "K01");
+  const k02 = units.find((u) => u.code === "K02");
+  assert.equal(k01.status, "RENTED");
+  assert.equal(k01.current_contract_end_date, "2026-12-20");
+  assert.equal(k01.bookable_for_period, true);
+  assert.equal(k02.bookable_for_period, false);
+  assert.match(k02.period_unavailable_reason, /20\/12\/2026/);
 });
 
 test("siteLabel hiển thị đúng tên cơ sở thực tế (ví dụ SafeSpace Nguyễn Lương Bằng), không đổi thành tên quận", async () => {

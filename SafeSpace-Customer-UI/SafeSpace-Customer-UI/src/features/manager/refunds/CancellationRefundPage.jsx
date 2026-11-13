@@ -21,11 +21,11 @@ import { CANCEL_FEE_LABEL, CANCEL_REFUND_SHORT } from "../../../shared/utils/pol
 // Figma M08 / M08a / M08a2 / M08-kết thúc / M07e: hoàn tiền đơn khách huỷ trước ngày bắt đầu thuê (D27).
 // Quản lý chuyển khoản thủ công ngoài hệ thống rồi xác nhận ở đây; thao tác không tự chuyển tiền.
 // Khách trả qua PayOS nên chỉ hoàn bằng chuyển khoản (Figma M08a ẩn lựa chọn tiền mặt)
-const METHODS = [["BANK_TRANSFER", "Chuyển khoản về tài khoản chính chủ khách khai báo"]];
+const METHOD_LOCKED = "Chuyển khoản về tài khoản khách đã khai báo";
 
 function RefundDialog({ refund, onClose, onDone }) {
   const { run } = useOps();
-  const [method, setMethod] = useState("BANK_TRANSFER");
+  const method = "BANK_TRANSFER";
   const [at,setAt]=useState(""),[confirmed,setChecked]=useState(false);
   const [ref, setRef] = useState("");
   const [error, setError] = useState("");
@@ -50,23 +50,13 @@ function RefundDialog({ refund, onClose, onDone }) {
           <div className="pay-rows__total"><dt>Số tiền hoàn</dt><dd className="pay-rows__amount tone-green">{amountLabel(refund.amount)}</dd></div>
         </dl>
       </div>
-      <fieldset className="radio-list">
-        <legend className="field__label">Cách hoàn tiền</legend>
-        {METHODS.map(([value, label]) => (
-          <label key={value} className={`radio-card${method === value ? " is-on" : ""}`}>
-            <input type="radio" name="refund-method" value={value} checked={method === value} onChange={() => { setMethod(value); setError(""); }} />
-            <strong>{label}</strong>
-          </label>
-        ))}
-      </fieldset>
-      {method === "BANK_TRANSFER" && (
-        <Field label="Mã giao dịch hoàn tiền" error={error && !ref.trim() ? error : ""}>
-          <input maxLength={40} value={ref} placeholder="Nhập mã giao dịch đã chuyển" onChange={(e) => { setRef(e.target.value); setError(""); }} />
-        </Field>
-      )}
+      <p className="hint">Hình thức hoàn cố định theo lựa chọn của khách: <strong>{METHOD_LOCKED}</strong>.</p>
+      <Field label="Mã giao dịch hoàn tiền" error={error && !ref.trim() ? error : ""}>
+        <input maxLength={40} value={ref} placeholder="Nhập mã giao dịch đã chuyển" onChange={(e) => { setRef(e.target.value); setError(""); }} />
+      </Field>
       {error && ref.trim() && <Notice tone="error">{error}</Notice>}
       <p className="hint">Sau khi xác nhận, đơn chuyển sang “Đã hoàn tiền” và khách nhận thông báo. Không thể hoàn tác.</p>
-      <InfoTiles items={[["Người nhận",refund.accountHolder||"Chưa có dữ liệu"],["Ngân hàng / tài khoản",refund.bankName&&refund.accountNumber?`${refund.bankName} · ••••${refund.accountNumber.slice(-4)}`:"Chưa có dữ liệu"]]}/><Field label="Thời gian chuyển · giờ Việt Nam *"><input type="datetime-local" max={vnDateTimeInput()} value={at} disabled={busy} onChange={e=>setAt(e.target.value)}/></Field><label className="customer-detail__choice"><input type="checkbox" checked={confirmed} disabled={busy} onChange={e=>setChecked(e.target.checked)}/><span>Đã chuyển đúng số tiền vào đúng tài khoản chính chủ</span></label>
+      <InfoTiles items={[["Người nhận",refund.accountHolder||"Chưa có dữ liệu"],["Ngân hàng / tài khoản",refund.bankName&&refund.accountNumber?`${refund.bankName} · ••••${refund.accountNumber.slice(-4)}`:"Chưa có dữ liệu"]]}/><Field label="Thời gian chuyển · giờ Việt Nam *"><input type="datetime-local" max={vnDateTimeInput()} value={at} disabled={busy} onChange={e=>setAt(e.target.value)}/></Field><label className="customer-detail__choice"><input type="checkbox" checked={confirmed} disabled={busy} onChange={e=>setChecked(e.target.checked)}/><span>Đã chuyển đúng số tiền vào đúng tài khoản nhận hoàn</span></label>
     </ConfirmDialog>
   );
 }
@@ -74,12 +64,13 @@ function RefundDialog({ refund, onClose, onDone }) {
 /**
  * Màn hình duyệt hoàn tiền cho các đơn đặt chỗ bị hủy trước ngày bắt đầu thuê.
  */
-export function CancellationRefundPage() {
+export function CancellationRefundPage({ embedded = false } = {}) {
   const { ops,source,needsRefresh,saving } = useOps();
   const refunds = ops.refunds || [];
   const [open, setOpen] = useState(null), [detail, setDetail] = useState(null), [confirmed, setConfirmed] = useState(null);
-  return <main className="container page workflow-page">
-    <PageHeaderBlock title="Hoàn tiền đơn huỷ" text="Các đơn huỷ trước ngày bắt đầu thuê. Hoàn về tài khoản chính chủ khách khai báo." />
+  const Wrap = embedded ? "section" : "main";
+  return <Wrap className={embedded ? "refund-center__section" : "container page workflow-page"}>
+    {embedded ? <h2 className="section-title">Hoàn tiền đơn huỷ</h2> : <PageHeaderBlock title="Hoàn tiền đơn huỷ" text="Các đơn huỷ trước ngày bắt đầu thuê. Hoàn về tài khoản chính chủ khách khai báo." />}
     {source==="api"&&ops.refund_evidence_supported!==true&&<Notice>Máy chủ chưa hỗ trợ lưu đủ tài khoản và bằng chứng chuyển tiền; chưa thể xác nhận đã hoàn.</Notice>}
     {confirmed && <Notice tone="success">Đã ghi nhận hoàn {money(confirmed.amount)} · {confirmed.id}.</Notice>}
     {refunds.map(r => <RecordCard key={r.id} title={r.customer} subtitle={`${r.id} · Huỷ: ${dateTimeLabel(r.cancelled_at)}`} status={r.status === "PENDING" ? "Chờ hoàn" : r.status==="PAID"?`Đã hoàn${r.paid_at ? ` · ${dateLabel(r.paid_at)}` : ""}`:"Chưa rõ trạng thái"} actions={<>
@@ -87,8 +78,8 @@ export function CancellationRefundPage() {
       <Button variant="outline" onClick={() => setDetail(r)}>Xem yêu cầu hoàn tiền</Button>
     </>}><strong className="refund-amount">Số tiền hoàn: {amountLabel(r.amount)}</strong>{r.fee > 0 && <p className="muted">{CANCEL_REFUND_SHORT}</p>}</RecordCard>)}
     {!refunds.length && <Notice>Chưa có đơn huỷ cần hoàn tiền.</Notice>}
-    <LinkButton to="manager/contracts" variant="outline">Về hợp đồng & quá hạn</LinkButton>
+    {!embedded && <LinkButton to="manager/refund" variant="outline">Về Hoàn tiền</LinkButton>}
     {detail && <Modal title={`${detail.customer} · ${detail.id}`} size="md" onClose={() => setDetail(null)}><InfoTiles items={[["Đã thanh toán", amountLabel(detail.paid)], ["Tiền thuê", amountLabel(detail.rent)], ["Tiền cọc", amountLabel(detail.deposit)], [CANCEL_FEE_LABEL, amountLabel(detail.fee)], ["Số tiền hoàn", amountLabel(detail.amount)]]} /><p>{detail.status === "PENDING" ? "Khoản hoàn đang chờ thực hiện; kiểm tra giao dịch trước khi xác nhận." : detail.status==="PAID"?`Đã ghi nhận hoàn tiền${detail.transaction_ref ? ` · ${detail.transaction_ref}` : ""}.`:"Chưa rõ trạng thái chuyển tiền."}</p><Button onClick={() => setDetail(null)}>Đóng chi tiết</Button></Modal>}
     {open && <RefundDialog refund={open} onClose={() => setOpen(null)} onDone={result => { setOpen(null); setConfirmed(result); }} />}
-  </main>;
+  </Wrap>;
 }
