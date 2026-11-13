@@ -14,7 +14,7 @@ import { directionsUrl } from "../access/accessApi.js";
 import { Button, Empty, Field, Icon, LinkButton, Notice } from "../../../shared/components/UI.jsx";
 import UnitMap from "../../../shared/components/UnitMap.jsx";
 import { RENTAL_PLANS, UNIT_TYPES, offerTypes, pickOffer, quote } from "../../../shared/utils/catalog.js";
-import { UNIT_STATUS, unitsFor } from "../../../shared/utils/units.js";
+import { UNIT_STATUS, unitBookableFrom, unitsFor } from "../../../shared/utils/units.js";
 import { dateLabel, money, today } from "../../../shared/utils/format.js";
 import { go, href, qs } from "../../../app/router.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
@@ -47,6 +47,11 @@ export default function FacilityDetailPage({ id, query }) {
     return (units.find((u) => u.code === want) || units.find((u) => u.status === "FREE") || units[0])?.code || null;
   });
   const unit = view === "map" ? units.find((u) => u.code === unitCode) || null : null;
+  // D62: đặt đúng ô đang có người thuê → lịch chỉ cho chọn từ ngày ô trống lại, các ngày trước làm mờ
+  const minStart = unitBookableFrom(unit, today());
+  useEffect(() => {
+    if (start < minStart) setStart(minStart);
+  }, [minStart]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset dữ liệu ô khi đổi cơ sở để chống race condition và không giữ ô của cơ sở cũ
   useEffect(() => {
@@ -188,7 +193,8 @@ export default function FacilityDetailPage({ id, query }) {
   const q = quote({ offer, months, start_date: start });
   // #2: ô do hệ thống bố trí ở bước sau; ô xem trên sơ đồ không chặn việc đặt.
   const unitHasNoPrice = Boolean(view === "map" && unit && !unit.has_pricing && (!unit.monthly_rate || unit.monthly_rate <= 0));
-  const soldOut = stock && !stock.available;
+  // Đặt đúng ô trên sơ đồ: chỉ xét ô đó (D60/D62), không báo "hết ô" theo loại kho
+  const soldOut = Boolean(stock && !stock.available && !unit);
 
   // Ở chế độ sơ đồ, đổi loại kho / diện tích sẽ ưu tiên ô trống hôm nay, hoặc ô khả dụng trong kỳ đang tìm
   const pickUnitFor = (key) => {
@@ -381,7 +387,12 @@ export default function FacilityDetailPage({ id, query }) {
                   ))}
                 </div>
               </div>
-              <DatePicker label="Ngày bắt đầu" value={start} min={today()} onChange={setStart} />
+              <DatePicker label="Ngày bắt đầu" value={start} min={minStart} onChange={setStart} />
+              {unit && minStart > today() && (
+                <p className="hint hint--tight">
+                  Ô {unit.code} đang có người thuê{unit.current_contract_end_date ? ` đến ${dateLabel(unit.current_contract_end_date)}` : ""} · chọn được ngày bắt đầu từ {dateLabel(minStart)}.
+                </p>
+              )}
               <p className="hint hint--tight">Kết thúc dự kiến: {dateLabel(q.end_date)}</p>
               <h4>Chi phí dự kiến</h4>
               <dl className="cost">
@@ -390,7 +401,7 @@ export default function FacilityDetailPage({ id, query }) {
                 <div className="cost__total"><dt>Tổng ban đầu</dt><dd>{money(q.initial_total)}</dd></div>
               </dl>
               <p className="hint hint--alert">Cọc được xử lý khi kết thúc hợp đồng theo tình trạng kho và chính sách đã công bố.</p>
-              {soldOut && <div className="booking__none"><strong>Không còn ô trống cho cả kỳ thuê</strong><p>Không có ô {UNIT_TYPES.find((t) => t.id === offer.type)?.label || "kho"} {offer.size_label} nào trống trong toàn bộ kỳ {dateLabel(start)} – {dateLabel(q.end_date)} tại cơ sở này. Đổi ngày bắt đầu, diện tích, gói thuê hoặc chọn cơ sở khác để hệ thống tìm lại. Bạn không cần chọn ô trên sơ đồ.</p></div>}
+              {soldOut && !unit && <div className="booking__none"><strong>Không còn ô trống cho cả kỳ thuê</strong><p>Không có ô {UNIT_TYPES.find((t) => t.id === offer.type)?.label || "kho"} {offer.size_label} nào trống trong toàn bộ kỳ {dateLabel(start)} – {dateLabel(q.end_date)} tại cơ sở này. Đổi ngày bắt đầu, diện tích, gói thuê hoặc chọn cơ sở khác để hệ thống tìm lại. Bạn không cần chọn ô trên sơ đồ.</p></div>}
               {error && <Notice tone="error">{error}</Notice>}
             </>
           ) : (

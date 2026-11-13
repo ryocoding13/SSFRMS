@@ -7,7 +7,7 @@ import { reduce, proposeUnit } from "../src/app/state/appReducer.js";
 import { unitBoardView, unitActions, incidentLink, BOARD_TABS } from "../src/features/manager/units/unitBoardModel.js";
 import { UNIT_TRANSITIONS } from "../src/features/facility-operations/state/facilityOperationsReducer.js";
 import { createOpsData } from "../src/features/facility-operations/data/facilityOperationsSeed.js";
-import { unitsFor } from "../src/shared/utils/units.js";
+import { unitsFor, unitBookableFrom } from "../src/shared/utils/units.js";
 
 const NOW = new Date("2026-11-12T09:00:00");
 const run = (state, payload) => reduce(state, { type: "CREATE_RESERVATION", payload }, { now: NOW, timeoutSeconds: 60 });
@@ -101,4 +101,16 @@ test("D56: chế độ EXACT giữ đúng ô khách chọn từ sơ đồ, bư�
   const review = readFileSync(new URL("../src/features/customer/payments/ReservationReviewPage.jsx", import.meta.url), "utf8");
   assert.match(review, /Ô bạn đã chọn/);
   assert.match(review, /Ô hệ thống bố trí cho bạn/);
+});
+
+test("D62: đặt đúng ô đang thuê → lịch làm mờ các ngày trước khi ô trống lại, không hiện hộp \"hết ô\"", () => {
+  const today = "2026-11-14";
+  assert.equal(unitBookableFrom({ status: "OCCUPIED", free_from: "2026-11-26" }, today), "2026-11-26");
+  assert.equal(unitBookableFrom({ status: "FREE", free_from: null }, today), today);
+  assert.equal(unitBookableFrom({ status: "OCCUPIED", free_from: null, overdue: true }, today), today); // quá hạn: vẫn chặn bằng lý do
+  assert.equal(unitBookableFrom({ status: "OCCUPIED", free_from: "2026-11-10" }, today), today);
+  assert.equal(unitBookableFrom(null, today), today); // chế độ tự bố trí
+  const detail = readFileSync(new URL("../src/features/customer/facilities/FacilityDetailPage.jsx", import.meta.url), "utf8");
+  assert.match(detail, /min=\{minStart\}/);
+  assert.match(detail, /soldOut && !unit &&/);
 });

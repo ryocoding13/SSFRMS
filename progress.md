@@ -1,3 +1,10 @@
+## 2026-11-14 — D62: lịch đặt đúng ô làm mờ ngày trước khi ô trống lại
+
+- `units.js`: thêm `unitBookableFrom(unit, today)`.
+- `FacilityDetailPage.jsx`: `DatePicker` dùng `min={minStart}`, tự dời ngày bắt đầu khi ô chọn còn người thuê, thêm dòng gợi ý dưới lịch; bỏ hộp đỏ "Không còn ô trống cho cả kỳ thuê" và không khoá nút theo loại kho khi đang chọn đúng ô.
+- `tests/luot4-units.test.js`: thêm test D62.
+- **Kiểm chứng:** `npm test` 225/225 PASS, `npm run test:render` PASS (178 route), `vite build` OK. Chưa chụp màn hình thật (mock API không trả `freeFrom`).
+
 ## 2026-11-13 — D61: dữ liệu demo chỉ còn customer01, nhân sự có họ tên thật
 
 - `DbSeeder.DemoFacilities.cs`: hợp đồng demo ở 12 cơ sở đứng tên `customer01`; thêm `DemoCustomerUsername`, `DemoStaffNames`, `RenamePlaceholder` (đổi tên tạm cũ, không đè tên admin đã sửa).
