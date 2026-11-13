@@ -183,6 +183,48 @@ public static class ManagerEndpoints
             return Results.Ok(units);
         });
 
+        // GET /api/manager/location-layout: Sơ đồ tầng và khu vực (Floor / Zone) hợp lệ của cơ sở quản lý
+        group.MapGet("/location-layout", async (ClaimsPrincipal user, IManagerService managerService, CancellationToken ct) =>
+        {
+            var role = user.GetUserRole();
+            if (!role.Equals("MANAGER", StringComparison.OrdinalIgnoreCase) && !role.Equals("ADMIN", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.Forbid();
+            }
+
+            try
+            {
+                var userId = user.GetUserId();
+                var layout = await managerService.GetLocationLayoutAsync(userId, null, ct);
+                return Results.Ok(layout);
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
+        // GET /api/manager/facilities/{id:long}/location-layout: Sơ đồ tầng và khu vực của một cơ sở cụ thể
+        group.MapGet("/facilities/{id:long}/location-layout", async (long id, ClaimsPrincipal user, IManagerService managerService, CancellationToken ct) =>
+        {
+            var role = user.GetUserRole();
+            if (!role.Equals("MANAGER", StringComparison.OrdinalIgnoreCase) && !role.Equals("ADMIN", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.Forbid();
+            }
+
+            try
+            {
+                var userId = user.GetUserId();
+                var layout = await managerService.GetLocationLayoutAsync(userId, id, ct);
+                return Results.Ok(layout);
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
         // POST /api/manager/units: Tạo ô kho mới tại cơ sở
         group.MapPost("/units", async (CreateStorageUnitRequest request, ClaimsPrincipal user, IManagerService managerService, CancellationToken ct) =>
         {

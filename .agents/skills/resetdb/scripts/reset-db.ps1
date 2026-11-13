@@ -9,6 +9,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = (Resolve-Path "$ScriptDir/../../../..").Path
 $SqlFile = Join-Path $ScriptDir "reset_db.sql"
@@ -28,7 +29,7 @@ if (-not (Test-Path $SqlFile)) {
 
 # 1. Execute SQL reset script to clean transactions & orphaned records
 Write-Host "[1/3] Cleaning up old transactions and resetting tables..." -ForegroundColor Yellow
-$result = sqlcmd -I -S $ServerInstance -d $Database -i $SqlFile -b
+$result = sqlcmd -I -S $ServerInstance -d $Database -i $SqlFile -f 65001 -b
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[ERROR] sqlcmd failed with exit code $LASTEXITCODE" -ForegroundColor Red
     Write-Host $result
@@ -60,7 +61,7 @@ UNION ALL
 SELECT 'storage_units', Status, COUNT(*) FROM storage_units GROUP BY Status;
 "@
 
-$summary = sqlcmd -S $ServerInstance -d $Database -Q $summarySql -h -1 -W
+$summary = sqlcmd -S $ServerInstance -d $Database -Q $summarySql -f 65001 -h -1 -W
 Write-Host "Operational Summary:" -ForegroundColor Cyan
 Write-Host $summary
 
@@ -73,7 +74,7 @@ SELECT
     MAX(PaidAt) as latest_paid
 FROM payments;
 "@
-$revResult = sqlcmd -S $ServerInstance -d $Database -Q $revSql -h -1 -W
+$revResult = sqlcmd -S $ServerInstance -d $Database -Q $revSql -f 65001 -h -1 -W
 Write-Host "Revenue & Time Range:" -ForegroundColor Cyan
 Write-Host $revResult
 
@@ -87,7 +88,7 @@ LEFT JOIN roles r ON ur.RoleId = r.RoleId AND r.RoleName = 'MANAGER'
 WHERE f.Status = 'ACTIVE' AND (r.RoleName = 'MANAGER' OR u.Username IS NULL)
 ORDER BY f.FacilityId;
 "@
-$managerResult = sqlcmd -S $ServerInstance -d $Database -Q $managerCheckSql -h -1 -W
+$managerResult = sqlcmd -S $ServerInstance -d $Database -Q $managerCheckSql -f 65001 -h -1 -W
 Write-Host "Facility Manager Assignment Coverage (12 facilities):" -ForegroundColor Cyan
 Write-Host $managerResult
 
