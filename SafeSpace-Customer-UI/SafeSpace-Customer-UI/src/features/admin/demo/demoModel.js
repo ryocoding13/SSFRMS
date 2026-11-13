@@ -33,7 +33,7 @@ export function paymentFormError({ paidAt, amount }, nowLocal) {
 // Lượt 6b · trang thẻ chọn Công cụ demo (Figma A-DEMO): [đường dẫn con, biểu tượng, tiêu đề, mô tả, ghi chú, chữ link]
 export const TOOLS = [
   ["scanner", "QR", "Máy quét", "Mô phỏng máy quét ở cửa kho: nhập PIN 6 số hoặc quét mã QR để mở cửa, bấm Đóng cửa, gọi hỗ trợ cho cơ sở.", "Chọn cơ sở và ô kho trước khi quét", "Mở máy quét →"],
-  ["price", "₫", "Chỉnh giá", "Đổi giá thuê tháng của hợp đồng và số tiền của giao dịch đã phát sinh để kiểm tra đối soát và báo cáo doanh thu.", "Tiền cọc chỉ xem, không chỉnh", "Chỉnh giá →"],
+  ["price", "₫", "Chỉnh giá", "Đổi giá thuê tháng của 4 loại kho trong từng cơ sở, giống Bảng giá thuê của Vận hành KD.", "Hợp đồng đang thuê giữ giá đã chốt", "Chỉnh giá →"],
   ["dates", "31", "Chỉnh ngày hợp đồng", "Đổi ngày bắt đầu, ngày hết hạn và ngày giao dịch. Có sẵn 4 kịch bản: chưa tới ngày thuê, đang thuê, sắp hết hạn, quá hạn.", "Trạng thái hợp đồng và ô kho tự tính lại", "Chỉnh ngày →"],
   ["door-logs", "≡", "Nhật ký cửa", "Xem các lần mở, đóng và từ chối ở từng ô; lọc theo cơ sở, ô kho, kết quả và ngày. Không hiện nguyên mã QR hay PIN.", "Mỗi lần mở, đóng, từ chối là một dòng", "Xem nhật ký →"],
 ];
@@ -73,3 +73,15 @@ export function doorLogLine(row) {
   if (row.reason) parts.push(`Lý do: ${row.reason}`);
   return parts.join(" · ");
 }
+
+// D57 · Chỉnh giá theo cơ sở
+export const digits = (v) => String(v ?? "").replace(/[^\d]/g, "");
+/** Lỗi của một ô giá mới; rỗng = không đổi. */
+export function rateError(value) {
+  const n = Number(digits(value));
+  if (!digits(value)) return "Giá không được để trống.";
+  if (!(n > 0)) return "Giá phải lớn hơn 0.";
+  if (n % 1000) return "Giá phải là bội số của 1.000 đ.";
+  return "";
+}
+

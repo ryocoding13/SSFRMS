@@ -160,9 +160,16 @@ export default function DoorScannerTool() {
           <section className="panel demo-tools__card">
             <h2>2 · Máy quét tại cửa {unit}</h2>
             <div className="demo-scan__stand">
+              <div className="demo-scan__plate" aria-hidden="true"><i /><i /><i /><i /></div>
               <div className="demo-scan" ref={pad} tabIndex={0} onKeyDown={onKey} aria-label={`Máy quét cửa ${unit}`}>
-                <p className="demo-scan__brand">SafeSpace Access</p>
-                <span className="demo-scan__cam" aria-hidden="true" />
+                <div className="demo-scan__top">
+                  <span className={`demo-scan__led${busy ? " is-busy" : ""}`}>{busy ? "ĐANG KIỂM TRA" : "SẴN SÀNG"}</span>
+                  <span className="demo-scan__grille" aria-hidden="true" />
+                  <span className="demo-scan__brand">SafeSpace</span>
+                </div>
+                <div className="demo-scan__reader" aria-hidden="true"><span className="demo-scan__lens" /><span className="demo-scan__beam" /></div>
+                <p className="demo-scan__reader-hint">Đưa mã QR vào đây</p>
+                <div className="demo-scan__bezel">
                 <div className={`demo-scan__screen ${screenCls}`} aria-live="assertive">
                   <p className="demo-scan__bar"><span>{unit || "—"}</span><span>{clock()}</span></p>
                   <strong>{screenTitle}</strong>
@@ -172,17 +179,19 @@ export default function DoorScannerTool() {
                   </> : <small>{screen === "OPEN" ? `${scan.customerName || ""} · ${scan.method === "QR" ? "QR" : "PIN"} · ${dateTimeLabel(scan.at).slice(-5)}`
                     : screen === "LOCKED" ? `Khoá lúc ${dateTimeLabel(door.updatedAt)}` : scan.reason}</small>}
                 </div>
+                </div>
                 <div className="demo-scan__keys">
-                  {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => <button type="button" key={d} disabled={busy} onClick={() => pressDigit(d)}>{d}</button>)}
-                  <button type="button" className="is-clear" disabled={busy} onClick={() => { setPin(""); setPinMsg(""); setScan(null); }}>C</button>
-                  <button type="button" disabled={busy} onClick={() => pressDigit("0")}>0</button>{/* Phím 0 bấm được như máy thật; PIN không có số 0 nên bấm OK sẽ báo lỗi (D53) */}
+                  {[["1", ""], ["2", "ABC"], ["3", "DEF"], ["4", "GHI"], ["5", "JKL"], ["6", "MNO"], ["7", "PQRS"], ["8", "TUV"], ["9", "WXYZ"]].map(([d, sub]) => <button type="button" key={d} aria-label={d} disabled={busy} onClick={() => pressDigit(d)}>{d}{sub && <small aria-hidden="true">{sub}</small>}</button>)}
+                  <button type="button" className="is-clear" aria-label="C" disabled={busy} onClick={() => { setPin(""); setPinMsg(""); setScan(null); }}>C<small aria-hidden="true">XOÁ</small></button>
+                  <button type="button" aria-label="0" disabled={busy} onClick={() => pressDigit("0")}>0</button>{/* Phím 0 bấm được như máy thật; PIN không có số 0 nên bấm OK sẽ báo lỗi (D53) */}
                   <button type="button" className="is-ok" disabled={busy} onClick={submitPin}>OK</button>
                 </div>
                 <button type="button" className="demo-scan__qr" disabled={busy || !unit} onClick={() => setPopup({ kind: "QR" })}><Icon name="qr" size={18} /> Mở cửa bằng QR</button>
                 <div className="demo-scan__row">
-                  <button type="button" className="is-help" disabled={busy || !unit} onClick={() => setPopup({ kind: "SUPPORT" })}>Gọi hỗ trợ</button>
-                  <button type="button" className="is-close" disabled={busy || !unit} onClick={() => setPopup({ kind: "CLOSE" })}>Đóng cửa</button>
+                  <button type="button" className="is-help" disabled={busy || !unit} onClick={() => setPopup({ kind: "SUPPORT" })}><i aria-hidden="true" />Gọi hỗ trợ</button>
+                  <button type="button" className="is-close" disabled={busy || !unit} onClick={() => setPopup({ kind: "CLOSE" })}><i aria-hidden="true" />Đóng cửa</button>
                 </div>
+                <p className="demo-scan__model" aria-hidden="true">MODEL SA-200 · CỬA KHO TỰ PHỤC VỤ</p>
               </div>
             </div>
           </section>

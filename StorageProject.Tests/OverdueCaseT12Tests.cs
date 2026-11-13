@@ -299,6 +299,44 @@ public sealed class OverdueCaseT12Tests : IAsyncDisposable
         Assert.Contains("ít nhất một ảnh", ex.Message);
     }
 
+    // D56: một bộ ảnh hiện trạng 1–10 tấm; nơi lưu giữ tự điền "Khu tạm giữ đồ quá hạn".
+    [Fact]
+    public async Task RecordRemovalAsync_SinglePhotoSet_AutoHoldingArea()
+    {
+        var (_, _, staff, _, overdueCase) = await SetupDataAsync(25);
+        var actor = new OpsActor(staff.UserId, false);
+        var req = new OverdueCaseActionRequest(
+            "RECORD_REMOVAL",
+            $"QH-{overdueCase.OverdueCaseId:D4}",
+            PerformedAt: DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            Inventory: "02 thùng giấy",
+            UnitStatus: "INSPECTION",
+            Confirmed: true,
+            Photos: [new EvidencePhotoUpload("kho.jpg", "image/jpeg", ValidJpegBase64), new EvidencePhotoUpload("khu-tam-giu.jpg", "image/jpeg", ValidJpegBase64)]);
+
+        var res = await _service.HandleOverdueCaseActionAsync(actor, req);
+
+        Assert.Equal("DONE", res.Status);
+        Assert.Equal(FacilityOpsService.OverdueHoldingArea, res.Record!.Location);
+        Assert.Equal(2, (res.Record.Photos ?? []).Count);
+    }
+
+    [Fact]
+    public async Task RecordRemovalAsync_NoPhotos_Or_MoreThan10_Rejected()
+    {
+        var (_, _, staff, _, overdueCase) = await SetupDataAsync(25);
+        var actor = new OpsActor(staff.UserId, false);
+        OverdueCaseActionRequest Req(int n) => new(
+            "RECORD_REMOVAL", $"QH-{overdueCase.OverdueCaseId:D4}",
+            PerformedAt: DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"), Inventory: "02 thùng giấy", UnitStatus: "INSPECTION", Confirmed: true,
+            Photos: Enumerable.Range(0, n).Select(i => new EvidencePhotoUpload($"a{i}.jpg", "image/jpeg", ValidJpegBase64)).ToList());
+
+        var none = await Assert.ThrowsAsync<ArgumentException>(() => _service.HandleOverdueCaseActionAsync(actor, Req(0)));
+        Assert.Contains("ít nhất một ảnh", none.Message);
+        var many = await Assert.ThrowsAsync<ArgumentException>(() => _service.HandleOverdueCaseActionAsync(actor, Req(11)));
+        Assert.Contains("tối đa 10", many.Message);
+    }
+
     [Fact]
     public async Task RecordRemovalAsync_Succeeds_UpdatesUnitStatus_SavesPhotos_SetsStatusDone()
     {
