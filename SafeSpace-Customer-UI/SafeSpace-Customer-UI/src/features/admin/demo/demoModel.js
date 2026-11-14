@@ -88,3 +88,11 @@ export function rateError(value) {
   return "";
 }
 
+
+/** Nhãn ô kho ở danh sách xổ / màn hình máy quét: "B-015 · Kho lạnh 15 m²" (short: "B-015 · Kho lạnh"). */
+export function unitOptionLabel(u, short = false) {
+  if (!u) return "";
+  const kind = u.climateControlled ? "Kho lạnh" : "Kho thường";
+  const area = Number(u.area ?? u.sizeM2);
+  return short || !(area > 0) ? `${u.unitNumber} · ${kind}` : `${u.unitNumber} · ${kind} ${area.toLocaleString("vi-VN")} m²`;
+}

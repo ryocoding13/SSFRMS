@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { startMockApi } from "../mock/mock-api.mjs";
-import { SCENARIOS, contractFormError, doorLogLine, expectedState, overdueDays, overdueFee, paymentFormError, pinError, scanScreen } from "../src/features/admin/demo/demoModel.js";
+import { SCENARIOS, contractFormError, doorLogLine, expectedState, overdueDays, overdueFee, paymentFormError, pinError, scanScreen, unitOptionLabel } from "../src/features/admin/demo/demoModel.js";
 import { notYetMessage, usableFromText } from "../src/shared/utils/access.js";
 
 const PORT = 5296, base = `http://localhost:${PORT}`;
@@ -132,4 +132,11 @@ test("mock: admin không nhận được IP của khách trong lịch sử đăn
     assert.equal(cus.ipAddress, null); assert.equal(cus.deviceInfo, null);
     assert.ok(adm.ipAddress);
   } finally { server.close(); }
+});
+
+test("máy quét mô phỏng: nhãn ô kho ở danh sách xổ và màn hình máy", () => {
+  assert.equal(unitOptionLabel({ unitNumber: "B-015", climateControlled: true, sizeM2: 15 }), "B-015 · Kho lạnh 15 m²");
+  assert.equal(unitOptionLabel({ unitNumber: "K01", climateControlled: false, sizeM2: 7.5 }), "K01 · Kho thường 7,5 m²");
+  assert.equal(unitOptionLabel({ unitNumber: "B-015", climateControlled: true, sizeM2: 15 }, true), "B-015 · Kho lạnh");
+  assert.equal(unitOptionLabel({ unitNumber: "K02" }), "K02 · Kho thường");
 });
