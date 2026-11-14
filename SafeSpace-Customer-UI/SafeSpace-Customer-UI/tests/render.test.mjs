@@ -102,7 +102,8 @@ try {
   memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: recordData }));
   const returningUnits = renderToStaticMarkup(React.createElement(App));
   assert.match(returningUnits, /<button[^>]*disabled[^>]*>Mã QR mở cửa<\/button>/);
-  assert.match(returningUnits, /<button[^>]*disabled[^>]*>Đóng cửa<\/button>/, "đã gửi trả kho thì không điều khiển cửa");
+  // Mục 61 (14/11): nút Đóng cửa chỉ còn ở trang chi tiết kho, không có trên thẻ danh sách
+  assert.ok(!returningUnits.includes(">Đóng cửa<"), "danh sách Kho của tôi không có nút Đóng cửa");
   const renewalData = createSeedData();
   const renewal = renewalData.renewals[0];
   const renewalPayment = renewalData.ledger.find(row => row.kind === "RENEWAL" && row.contract_id === renewal.contract_id);

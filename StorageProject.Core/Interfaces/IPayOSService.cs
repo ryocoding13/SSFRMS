@@ -21,4 +21,10 @@ public interface IPayOSService
 
     /// <summary>Tạo mã thanh toán VietQR cho khoản thu gia hạn hợp đồng (T03 / D32).</summary>
     Task<PayosCheckoutDto> CreateRenewalPaymentQrAsync(long customerId, long paymentId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Đối soát các đơn PayOS đang chờ (đặt chỗ và gia hạn) bằng cách hỏi thẳng PayOS; ghi nhận giống webhook.
+    /// Trả về số đơn vừa được ghi nhận thanh toán.
+    /// </summary>
+    Task<int> ReconcilePendingAsync(CancellationToken ct = default) => Task.FromResult(0);
 }

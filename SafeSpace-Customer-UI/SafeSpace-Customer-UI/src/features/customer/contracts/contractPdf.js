@@ -14,7 +14,19 @@ const MARGIN_TOP = 18;
 const MARGIN_BOTTOM = 20;
 const CONTENT_W = PAGE_W - MARGIN_X * 2;
 const CONTENT_H = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM;
-const SCALE = 2; // độ nét ảnh chụp
+const SCALE = 2; // độ nét ảnh chụp mong muốn
+// Giới hạn canvas của trình duyệt: Chrome/Edge tối đa 32.767 px mỗi cạnh, Safari (iPhone) tối đa ~16,7 triệu điểm ảnh.
+// Hợp đồng dài vượt giới hạn thì html2canvas trả ảnh rỗng/ném lỗi, nên hạ độ nét cho vừa.
+const MAX_CANVAS_SIDE = 32000;
+const MAX_CANVAS_AREA = 16_000_000;
+
+/** Độ nét lớn nhất (≤ SCALE) để ảnh chụp tờ hợp đồng w×h px CSS không vượt giới hạn canvas. */
+export function captureScale(width, height) {
+  if (!(width > 0 && height > 0)) return SCALE;
+  const bySide = MAX_CANVAS_SIDE / Math.max(width, height);
+  const byArea = Math.sqrt(MAX_CANVAS_AREA / (width * height));
+  return Math.max(0.5, Math.min(SCALE, bySide, byArea));
+}
 
 // Bố cục khi xuất: tờ rộng đúng vùng nội dung A4, bỏ viền / bóng của bản xem trên màn hình
 const EXPORT_CSS = `html,body{background:#fff!important;padding:0!important;margin:0!important}
@@ -61,7 +73,10 @@ export async function downloadContractPdf(frame, { code, fileName }) {
     const total = sheet.scrollHeight;
     const pages = pageBreaks(total, CONTENT_H * pxPerMm, safe, forced);
 
-    const shot = await html2canvas(sheet, { scale: SCALE, backgroundColor: "#ffffff", useCORS: true, logging: false });
+    const width = sheet.getBoundingClientRect().width;
+    const shot = await html2canvas(sheet, { scale: captureScale(width, total), backgroundColor: "#ffffff", useCORS: true, logging: false,
+      windowWidth: doc.documentElement.scrollWidth, windowHeight: Math.max(total, doc.documentElement.scrollHeight) });
+    if (!shot?.width || !shot?.height) throw new Error("Trình duyệt không chụp được tờ hợp đồng.");
     const ratio = shot.width / sheet.getBoundingClientRect().width; // px ảnh trên mỗi px CSS
     const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
     const pagePx = { w: Math.round(PAGE_W * pxPerMm * ratio), h: Math.round(PAGE_H * pxPerMm * ratio) };
@@ -71,6 +86,7 @@ export async function downloadContractPdf(frame, { code, fileName }) {
       canvas.width = pagePx.w;
       canvas.height = pagePx.h;
       const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Trình duyệt không cấp được vùng vẽ cho trang PDF.");
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       const sy = Math.round(from * ratio);
@@ -92,4 +108,11 @@ export async function downloadContractPdf(frame, { code, fileName }) {
   } finally {
     style.remove();
   }
+}
+
+/** Phương án dự phòng: mở hộp thoại In của tờ hợp đồng (mẫu đã có @page A4) để khách chọn "Lưu dưới dạng PDF". */
+export function printContract(frame) {
+  const win = frame?.contentWindow;
+  if (!win || typeof win.print !== "function") return false;
+  try { win.focus(); win.print(); return true; } catch { return false; }
 }

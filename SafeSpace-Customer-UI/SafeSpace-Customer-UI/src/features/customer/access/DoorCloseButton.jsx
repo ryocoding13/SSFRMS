@@ -2,6 +2,7 @@
  * Lượt 6 · Figma C06-cửa (D51, 12/11): nút "Đóng cửa" trong Kho của tôi.
  * Cửa không tự khoá; khách đóng bằng một lần xác nhận (không nhập lại QR/PIN).
  * Kết quả: popup "Đã đóng cửa …" hoặc "Chưa đóng được cửa" (giữ khả năng thử lại).
+ * Mục 61 (14/11): chỉ hiện ở trang chi tiết kho; cửa đã đóng thì nút bị khoá (trang truyền `disabled`).
  */
 import React, { useRef, useState } from "react";
 import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
@@ -9,7 +10,7 @@ import { Button } from "../../../shared/components/UI.jsx";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { dateTimeLabel } from "../../../shared/utils/format.js";
 
-export function DoorCloseButton({ c, disabled, variant = "outline" }) {
+export function DoorCloseButton({ c, disabled, variant = "outline", onClosed }) {
   const { services } = useApp();
   const [step, setStep] = useState(null); // confirm | done | failed
   const [busy, setBusy] = useState(false), [result, setResult] = useState(null), guard = useRef(false);
@@ -18,7 +19,7 @@ export function DoorCloseButton({ c, disabled, variant = "outline" }) {
     guard.current = true; setBusy(true);
     try {
       const out = await services.closeDoor(c);
-      if (out.ok) { setResult(out.door); setStep("done"); }
+      if (out.ok) { setResult(out.door); setStep("done"); onClosed?.(out.door); }
       else { setResult({ error: out.error }); setStep("failed"); }
     } catch { setResult({ error: "Mất kết nối tới máy chủ." }); setStep("failed"); }
     finally { guard.current = false; setBusy(false); }

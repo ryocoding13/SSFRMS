@@ -101,6 +101,8 @@ export function ReservationDetailPage({ id, mode = "confirmation" }) {
           paid && <Notice tone={contract ? "success" : "info"}>{contract ? "Hợp đồng và QR/PIN đã được cấp. Mã chỉ mở được trong kỳ thuê; chìa khóa vật lý nhận tại quầy." : "Đã ghi nhận thanh toán. Cơ sở đang xử lý phân bổ ô kho; hợp đồng và mã ra vào sẽ hiển thị khi hoàn tất."}</Notice>
         )}
         {contract && <LinkButton to={`units/${contract.contract_id}`} block>Xem hợp đồng & mã mở kho</LinkButton>}
+        {/* Mục 61: cho khách thấy email nhận thư hợp đồng; tài khoản demo có email giả thì sẽ không nhận được thư */}
+        {paid && !isDetail && data.user?.email && <p className="hint">Email xác nhận thanh toán và hợp đồng được gửi tới <b>{data.user.email}</b>. Sai email? Cập nhật trong <a href="#/profile">Tài khoản</a>.</p>}
         {waiting && <LinkButton to={`checkout/${r.reservation_id}`} block>Tiếp tục thanh toán</LinkButton>}
         {isDetail ? (
           <>

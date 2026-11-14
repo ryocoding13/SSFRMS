@@ -6,10 +6,10 @@
  * - Mã truy cập QR Code / PIN mở cửa kho (D22).
  * - Nút chức năng: Gia hạn hợp đồng, Đăng ký trả kho, Báo cáo sự cố / Yêu cầu hỗ trợ.
  */
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Button, DetailList, LinkButton, Notice, PageHeader, StatusTag, Tag } from "../../../shared/components/UI.jsx";
 import { typeLabel } from "../../../shared/utils/catalog.js";
-import { dateLabel, daysBetween, money, rangeLabel, today } from "../../../shared/utils/format.js";
+import { dateLabel, dateTimeLabel, daysBetween, money, rangeLabel, today } from "../../../shared/utils/format.js";
 import { CONTRACT_STATUS, LEDGER_STATUS } from "../../../shared/utils/status.js";
 import { contractOf, contractStatus, facilityOf, pendingRenewal, pendingReturn } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
@@ -29,9 +29,10 @@ import "../../../shared/styles/customer-detail.css";
  * @param {{ id: string|number }} props
  */
 export function RentedUnitDetailPage({ id }) {
-  const { data, retry } = useApp();
+  const { data, retry, services } = useApp();
   const [qrOpen, setQrOpen] = useState(false);
   const c = contractOf(data, id);
+  const door = useDoorState(services, c, Boolean(pendingReturn(data, id)));
   if (!c) return <NotFound />;
   const f = facilityOf(data, c.facility_id, c.facility_name);
   const renewal = pendingRenewal(data, id);
@@ -78,12 +79,13 @@ export function RentedUnitDetailPage({ id }) {
             <h2>QR, PIN & chìa khóa</h2>
             <DetailList items={[
               ["QR & PIN 6 số", ended || ret || c.end_date <= today() ? "Đã hết hiệu lực" : issued ? (prestart ? `Đã cấp · ${usableFromText(c.start_date).replace("Có thể mở cửa", "mở cửa")}` : `Đã cấp · hiệu lực từ ${dateLabel(c.start_date)}`) : "Chưa được cấp"],
+              ...(door.visible ? [["Trạng thái cửa", <DoorStatus door={door} />]] : []),
               ["Chìa khóa vật lý", c.handed_over ? "Đã nhận tại quầy" : "Gửi yêu cầu “Nhận chìa khóa” để cơ sở xếp lịch"],
               ...(pickupText ? [["Lịch nhận chìa khóa", pickupText]] : []),
             ]} />
             <p className="hint">{issued && !ended ? "Hợp đồng và mã ra vào đã được cấp. " : ""}QR và PIN chỉ mở được cửa trong kỳ thuê; mã tự hết hiệu lực khi hết hạn hoặc gửi trả kho thành công.</p>
             {/* D35–D36 · L13: trước ngày thuê không mở QR/PIN */}
-            {issued && !ended && <div className="customer-detail__actions"><Button disabled={Boolean(ret) || c.end_date <= today()} onClick={() => setQrOpen(true)}>{ret || c.end_date <= today() ? "QR đã hết hiệu lực" : "Mã QR mở cửa"}</Button>{!prestart && !ret && c.end_date > today() && <DoorCloseButton c={c} />}{prestart && <p className="hint">{usableFromText(c.start_date)}.</p>}</div>}
+            {issued && !ended && <div className="customer-detail__actions"><Button disabled={Boolean(ret) || c.end_date <= today()} onClick={() => setQrOpen(true)}>{ret || c.end_date <= today() ? "QR đã hết hiệu lực" : "Mã QR mở cửa"}</Button>{door.visible && <DoorCloseButton c={c} disabled={door.state?.door === "LOCKED"} onClosed={door.update} />}{prestart && <p className="hint">{usableFromText(c.start_date)}.</p>}</div>}
           </section>
           <section className="panel customer-detail__card">
             <h2>Chính sách áp dụng</h2>
@@ -122,7 +124,37 @@ export function RentedUnitDetailPage({ id }) {
         </aside>
       </div>
       <div className="workflow-links"><LinkButton to={`units/${encodeURIComponent(id)}/incident`} variant="outline">Hỗ trợ do sự cố cơ sở</LinkButton><LinkButton to={`units/${encodeURIComponent(id)}/deduction`} variant="outline">Xác nhận khấu trừ trả kho</LinkButton><LinkButton to={`units/${encodeURIComponent(id)}/renewal-status`} variant="outline">Theo dõi gia hạn</LinkButton><LinkButton to={`units/${encodeURIComponent(id)}/renew-other`} variant="outline">Gia hạn sang ô khác / sau nâng cấp</LinkButton><LinkButton to={`units/${encodeURIComponent(id)}/deposit`} variant="outline">Lịch khấu trừ cọc</LinkButton><LinkButton to={`units/${encodeURIComponent(id)}/progress`} variant="outline">Tiến độ trả kho / hoàn cọc</LinkButton><LinkButton to="payments/history" variant="outline">Lịch sử thanh toán</LinkButton><LinkButton to="policies" variant="outline">Chính sách cho thuê</LinkButton></div>
-      {qrOpen && <AccessQrModal c={c} facility={f} onClose={() => setQrOpen(false)} />}
+      {qrOpen && <AccessQrModal c={c} facility={f} onClose={() => { setQrOpen(false); door.reload(); }} />}
     </main>
   );
+}
+
+/**
+ * Mục 61 (14/11): trạng thái cửa (Đang mở / Đã đóng) hiện trong khối "QR, PIN & chìa khóa".
+ * Đọc từ máy chủ khi mở trang, mỗi 15 giây và khi quay lại tab; cửa đã đóng thì nút "Đóng cửa" bị khoá.
+ */
+function useDoorState(services, c, returning) {
+  const visible = Boolean(c && (c.access_issued ?? c.status !== "DRAFT") && contractStatus(c) !== "ENDED"
+    && c.start_date <= today() && c.end_date > today() && !returning);
+  const [state, setState] = useState(null);
+  const load = useCallback(async () => {
+    if (!visible || !services?.doorState) return;
+    try { const out = await services.doorState(c); if (out?.ok && out.door) setState(out.door); } catch { /* giữ trạng thái cũ */ }
+  }, [visible, services, c?.contract_id, c?.api_id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!visible) return undefined;
+    load();
+    const timer = setInterval(load, 15000);
+    const onVisible = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
+  }, [visible, load]);
+  return { visible, state, reload: load, update: (d) => setState((old) => ({ ...(old || {}), ...(d || {}), door: "LOCKED" })) };
+}
+
+function DoorStatus({ door }) {
+  if (!door.state) return <span className="hint">Đang kiểm tra…</span>;
+  const open = door.state.door === "OPEN";
+  return <span className="customer-detail__door"><Tag tone={open ? "amber" : "green"}>{open ? "Đang mở" : "Đã đóng"}</Tag>
+    {door.state.at && <span className="hint"> · cập nhật {dateTimeLabel(door.state.at)}</span>}</span>;
 }
