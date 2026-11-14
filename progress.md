@@ -1,3 +1,9 @@
+## 2026-11-14 — Máy quét mô phỏng 16:9: cảnh kho thường / kho lạnh theo ô đang chọn
+
+- Theo Figma "Bổ sung · 12/11 · Công cụ demo" vẽ lại 14/11 (4 ảnh nền của nhóm, khung 1440×810): `DoorSimulatorPage.jsx` chọn cảnh theo loại ô (`sceneKind` trong `demoModel.js`: `climateControlled` → kho lạnh, còn lại kho thường) và trạng thái cửa (đóng/mở). Ảnh mới `src/assets/demo/door-scene-{normal,cold}-{closed,open}.webp`; bỏ 2 ảnh cảnh cũ.
+- `door-simulator.css`: khung cảnh 16:9 (đơn vị 1/1440), hai ô Cơ sở / Ô kho lắp chìm trong dải khung thép trên cửa (nền tối trong suốt, viền sáng mảnh), danh sách xổ rộng bằng ô chọn; vùng bấm máy quét, bảng tên ô kho (tự giãn theo mã ô dài) và nút X theo vị trí mới. Ngoài khung 16:9 là nền tối.
+- **Kiểm chứng:** `npm test` 228/228 (thêm test `sceneKind`), `test:render` PASS 178 route, `vite build` OK; Chrome trên máy chủ giả: đổi ô TB-S-101 (kho thường) ↔ TB-M-103 (kho lạnh) đổi đúng cảnh và bảng tên, phóng to máy quét bình thường. Chưa thử với backend thật.
+
 ## 2026-11-14 — Mục 61: PDF hợp đồng, nút Đóng cửa, trạng thái cửa, email và PayOS không tự ghi nhận
 
 - **Tải PDF hợp đồng giấy:** `contractPdf.js` hạ độ nét ảnh chụp khi hợp đồng dài (giới hạn canvas: Chrome/Edge 32.767 px mỗi cạnh, Safari ~16,7 triệu điểm ảnh) và báo lỗi rõ khi trình duyệt không chụp được; `ContractPaperPage.jsx` in lỗi gốc ra console và mở hộp thoại In (mẫu có `@page A4`) để khách "Lưu dưới dạng PDF" khi tạo PDF trực tiếp thất bại. Bỏ câu "đã gửi kèm email" (D58: email không đính kèm tệp). Chưa tái hiện được đúng lỗi của HĐ-2026-0046 vì môi trường soạn patch không có backend thật; thử bằng Chrome với hợp đồng mẫu: tải PDF được, chặn thư viện html2canvas thì mở hộp thoại In.
