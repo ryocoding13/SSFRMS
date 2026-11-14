@@ -16,7 +16,6 @@ import { CONTRACT_STATUS } from "../../../shared/utils/status.js";
 import { contractStatus, facilityOf, pendingRenewal, pendingReturn } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { AccessQrModal } from "../access/AccessQrModal.jsx";
-import { DoorCloseButton } from "../access/DoorCloseButton.jsx";
 import { renewalView } from "./renewalStatusModel.js";
 
 /**
@@ -60,7 +59,6 @@ export function RentedUnitListPage() {
                     : <>
                       {/* #59: xem mã được cả trước ngày thuê (chỉ mở cửa từ 00:00 ngày bắt đầu) */}
                       <Button variant="outline" disabled={Boolean(pendingReturn(data, c.contract_id)) || c.end_date <= now} onClick={() => setQrContract(c)}>Mã QR mở cửa</Button>
-                      {!prestart && <DoorCloseButton c={c} disabled={Boolean(pendingReturn(data, c.contract_id)) || c.end_date <= now} />}
                     </>)}
                   <LinkButton to={`units/${c.contract_id}`}>Xem hợp đồng</LinkButton>
                 </>}>

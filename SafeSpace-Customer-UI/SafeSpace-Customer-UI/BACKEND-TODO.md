@@ -155,6 +155,7 @@ tên route + tên trường JSON là giao diện chạy ngay, không phải sử
 | P2 | `POST /api/reservations/{id}/pay-at-facility` → `ReservationDto` | Đạt | Giao diện gọi `confirm-transfer` (đã có) → đơn vẫn vào S09 chờ thu tiền |
 | P3 | `POST /api/payments/{id}/payos` → `PayosCheckoutDto`; `GET /api/payments/{id}` (đã có) để hỏi trạng thái | Đạt | Popup C11q báo "đang tạm gián đoạn, thanh toán tại quầy" |
 | P4 | Webhook PayOS — **đã có** `POST /api/payments/payos-webhook` (webhook đổi đơn sang `CONFIRMED`) | Đạt | — (giao diện hỏi trạng thái 3 giây/lần) |
+| P4b | **14/11 · mục 61:** đối soát khi webhook không về (backend chạy localhost): `GET /api/v1/reservations/{id}/status` hỏi thẳng PayOS (≤ 1 lần / 5 giây / đơn) và ghi nhận như webhook; `PayOSReconcileWorker` quét đơn đặt chỗ + khoản gia hạn PayOS đang chờ 10 giây/lần (`Worker:EnablePayOSReconcile`) | Thắng | — |
 | Q1 | `GET /api/contracts/{id}/access-qr` → `AccessQrDto` | Tiến | Popup C07q báo "Mã QR đang được cơ sở kích hoạt" |
 | Q2 | `POST /api/access/scan` `{ code }` → `ScanResultDto` (cho phép không đăng nhập — máy quét ở cửa) | Tiến | Màn `#/door` báo "Máy quét chưa kết nối được hệ thống" |
 | R1 | `GET /api/tickets/{id}` trả thêm `responses[]` | Ngọc Mai | C12 không hiện dòng phản hồi |

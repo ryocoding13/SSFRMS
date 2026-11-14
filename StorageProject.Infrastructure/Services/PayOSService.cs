@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -283,7 +284,15 @@ public class PayOSService(
         try { verified = await gateway.VerifyAsync(webhookBodyJson); }
         catch (Exception ex) { logger.LogWarning(ex, "PayOS signature verification failed"); return false; }
         if (verified == null) return true;
+        return await SettleAsync(verified, ct);
+    }
 
+    /// <summary>
+    /// Ghi nhận một khoản PayOS đã được xác thực (qua webhook có chữ ký, hoặc qua đối soát gọi API PayOS).
+    /// Cùng một mã đơn ghi nhận nhiều lần chỉ tính một lần (idempotent).
+    /// </summary>
+    private async Task<bool> SettleAsync(VerifiedReservationPayment verified, CancellationToken ct)
+    {
         var resId = await dbContext.Reservations.AsNoTracking().Where(r => r.OrderCode == verified.OrderCode)
             .Select(r => (long?)r.ReservationId).SingleOrDefaultAsync(ct);
 
@@ -393,7 +402,76 @@ public class PayOSService(
     public async Task<ReservationPaymentStatusDto?> GetReservationPaymentStatusAsync(long reservationId, CancellationToken ct = default)
     {
         var r = await dbContext.Reservations.AsNoTracking().SingleOrDefaultAsync(r => r.ReservationId == reservationId, ct);
-        return r == null ? null : new ReservationPaymentStatusDto(r.ReservationId, r.Status, r.PaidAt != null, r.PaidAt);
+        if (r == null) return null;
+        // Mục 61 (14/11): chạy backend trên máy cá nhân thì PayOS không gọi được webhook về localhost.
+        // Khi giao diện hỏi trạng thái (3 giây/lần), hỏi thẳng PayOS (tối đa 1 lần / 5 giây / đơn) và ghi nhận nếu đã trả.
+        if (r.Status == "PENDING_PAYMENT" && r.PaymentMethod == "PAYOS" && r.PaidAt == null && r.OrderCode is long orderCode
+            && Throttle(orderCode) && await ReconcileOrderAsync(orderCode, ct))
+        {
+            r = await dbContext.Reservations.AsNoTracking().SingleAsync(x => x.ReservationId == reservationId, ct);
+        }
+        return new ReservationPaymentStatusDto(r.ReservationId, r.Status, r.PaidAt != null, r.PaidAt);
+    }
+
+    private static readonly ConcurrentDictionary<long, DateTime> LastPolled = new();
+    private static readonly TimeSpan PollGap = TimeSpan.FromSeconds(5);
+
+    private static bool Throttle(long orderCode)
+    {
+        var now = DateTime.UtcNow;
+        if (LastPolled.TryGetValue(orderCode, out var last) && now - last < PollGap) return false;
+        LastPolled[orderCode] = now;
+        if (LastPolled.Count > 2000)
+            foreach (var old in LastPolled.Where(x => now - x.Value > TimeSpan.FromHours(1)).Select(x => x.Key).ToList())
+                LastPolled.TryRemove(old, out _);
+        return true;
+    }
+
+    /// <summary>
+    /// Hỏi PayOS trạng thái một mã đơn; đã thanh toán đủ thì ghi nhận như webhook. Trả về true nếu vừa ghi nhận.
+    /// </summary>
+    public async Task<bool> ReconcileOrderAsync(long orderCode, CancellationToken ct = default)
+    {
+        VerifiedReservationPayment? paid;
+        try { paid = await gateway.GetPaidAsync(orderCode); }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            logger.LogWarning("Chưa đối soát được đơn PayOS {OrderCode}. Loại lỗi: {ErrorType}.", orderCode, ex.GetType().Name);
+            return false;
+        }
+        if (paid is null) return false;
+        dbContext.ChangeTracker.Clear();
+        var settled = await SettleAsync(paid, ct);
+        if (settled) logger.LogInformation("Đối soát PayOS: đã ghi nhận thanh toán đơn {OrderCode}.", orderCode);
+        return settled;
+    }
+
+    /// <summary>
+    /// Quét các đơn PayOS còn chờ (đặt chỗ, gia hạn) và đối soát từng đơn. Gồm cả đơn vừa hết hạn giữ chỗ trong 30 phút
+    /// để tiền về muộn vẫn được ghi "cần kiểm tra hoàn thủ công" như luồng webhook.
+    /// </summary>
+    public async Task<int> ReconcilePendingAsync(CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        var recent = now.AddMinutes(-30);
+        var reservationOrders = await dbContext.Reservations.AsNoTracking()
+            .Where(r => r.PaymentMethod == "PAYOS" && r.PaidAt == null && r.OrderCode != null
+                && (r.Status == "PENDING_PAYMENT" || (r.Status == "EXPIRED" && !dbContext.ActivityLogs.Any(l => l.EntityType == "RESERVATION"
+                    && l.EntityId == r.ReservationId && l.Action == "PAYMENT_REVIEW_REQUIRED")))
+                && r.ExpiresAt > recent)
+            .Select(r => r.OrderCode!.Value).ToListAsync(ct);
+        var renewalOrders = await dbContext.PaymentCheckouts.AsNoTracking()
+            .Where(c => c.Provider == "PAYOS" && c.Status == "PENDING" && c.Payment.Status == "PENDING" && c.ExpiresAt > recent)
+            .Select(c => c.OrderCode).ToListAsync(ct);
+
+        var settled = 0;
+        foreach (var orderCode in reservationOrders.Concat(renewalOrders).Distinct())
+        {
+            ct.ThrowIfCancellationRequested();
+            if (await ReconcileOrderAsync(orderCode, ct)) settled++;
+        }
+        return settled;
     }
 
     private static async Task<CheckoutLink> CreateLinkWithRetryAsync(IPayOSGateway gateway, long orderCode, int amount, long reservationId, long expiresAt, string returnUrl, string cancelUrl, CancellationToken ct)

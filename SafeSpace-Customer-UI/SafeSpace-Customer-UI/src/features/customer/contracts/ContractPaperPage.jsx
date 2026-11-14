@@ -12,7 +12,7 @@ import { api } from "../../../shared/api/customerApi.js";
 import { contractOf, facilityOf } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { NotFound } from "./components/ContractNotFound.jsx";
-import { downloadContractPdf } from "./contractPdf.js";
+import { downloadContractPdf, printContract } from "./contractPdf.js";
 
 import "../../../shared/styles/customer-detail.css";
 import "./contract-paper.css";
@@ -53,8 +53,13 @@ export function ContractPaperPage({ id }) {
       const fileCode = String(c.contract_id).replace(/Đ/g, "D").replace(/[^\w-]+/g, "-");
       await downloadContractPdf(frame.current, { code: c.contract_id, fileName: `SafeSpace-${fileCode}.pdf` });
       setPdf({ busy: false, error: "" });
-    } catch {
-      setPdf({ busy: false, error: "Chưa tạo được tệp PDF. Vui lòng thử lại." });
+    } catch (error) {
+      // Ghi lỗi gốc để biết nguyên nhân (mục 61), rồi mở hộp thoại In để khách vẫn lưu được PDF.
+      console.error("[Hợp đồng giấy] Tạo PDF thất bại:", error);
+      const printed = printContract(frame.current);
+      setPdf({ busy: false, error: printed
+        ? "Trình duyệt chưa tạo được tệp PDF trực tiếp nên đã mở hộp thoại In. Chọn \"Lưu dưới dạng PDF\" để tải hợp đồng."
+        : `Chưa tạo được tệp PDF (${error?.message || "lỗi không rõ"}). Vui lòng thử lại.` });
     } finally {
       fit();
     }
@@ -84,7 +89,7 @@ export function ContractPaperPage({ id }) {
             sandbox="allow-same-origin allow-modals" srcDoc={state.html} onLoad={fit} />
         )}
       </section>
-      {issued && !offline && <p className="hint contract-paper__hint">Bản này cũng đã được gửi kèm email xác nhận thanh toán. Bấm "Tải PDF" để lưu hợp đồng về máy.</p>}
+      {issued && !offline && <p className="hint contract-paper__hint">Bấm "Tải PDF" để lưu hợp đồng về máy.</p>}
     </main>
   );
 }

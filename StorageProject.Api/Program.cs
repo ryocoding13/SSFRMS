@@ -203,6 +203,9 @@ if (builder.Configuration.GetValue<bool>("Worker:EnableOverdue", true))
     builder.Services.AddHostedService<OverdueWorker>();
 }
 builder.Services.AddHostedService<ExpiredRenewalWorker>();
+// Mục 61: đối soát PayOS khi webhook không về được (backend chạy localhost)
+if (builder.Configuration.GetValue<bool>("Worker:EnablePayOSReconcile", !builder.Environment.IsEnvironment("Testing")))
+    builder.Services.AddHostedService<PayOSReconcileWorker>();
 if (builder.Configuration.GetValue<bool>("Worker:EnableFacilityWorkflow", true))
 {
     builder.Services.AddHostedService<FacilityWorkflowWorker>(); // D40 tự chốt sau 48 giờ, D42 báo cáo 22:00

@@ -27,6 +27,9 @@ public sealed partial class CheckoutTests
         public VerifiedReservationPayment? Payment = new(12345, 4000000);
         public bool RejectSignature;
         public bool FailCancel;
+        public VerifiedReservationPayment? Polled; // đối soát: PayOS báo link đã PAID
+        public int Polls;
+        public Task<VerifiedReservationPayment?> GetPaidAsync(long code) { Polls++; return Task.FromResult(Polled?.OrderCode == code ? Polled : null); }
         public int Cancellations;
         public void EnsureConfigured() { }
         public Task CancelAsync(long id) { if (FailCancel) throw new InvalidOperationException(); Cancellations++; return Task.CompletedTask; }

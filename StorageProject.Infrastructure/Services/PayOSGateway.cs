@@ -51,6 +51,12 @@ public interface IPayOSGateway
     /// Xác thực dữ liệu Webhook gửi từ PayOS bằng ChecksumKey.
     /// </summary>
     Task<VerifiedReservationPayment?> VerifyAsync(string body);
+
+    /// <summary>
+    /// Hỏi thẳng PayOS trạng thái link theo mã đơn (đối soát khi webhook không về, ví dụ chạy backend trên máy cá nhân).
+    /// Trả về khoản đã thanh toán đủ, hoặc null nếu link chưa trả / không tồn tại.
+    /// </summary>
+    Task<VerifiedReservationPayment?> GetPaidAsync(long orderCode) => Task.FromResult<VerifiedReservationPayment?>(null);
 }
 
 /// <summary>
@@ -112,6 +118,18 @@ public sealed class SdkPayOSGateway(IConfiguration config) : IPayOSGateway
         var cancelled = await client.PaymentRequests.CancelAsync(orderCode, "Khach chon thanh toan tai cua hang");
         if (cancelled.Status.ToString().ToUpperInvariant() != "CANCELLED")
             throw new InvalidOperationException("Chưa huỷ được link PayOS. Vui lòng thử lại trước khi đổi phương thức.");
+    }
+
+    /// <summary>
+    /// Đối soát: đọc link thanh toán trên PayOS bằng API có xác thực (ClientId/ApiKey), chỉ nhận link đã PAID và trả đủ tiền.
+    /// </summary>
+    public async Task<VerifiedReservationPayment?> GetPaidAsync(long orderCode)
+    {
+        PayOS.Models.V2.PaymentRequests.PaymentLink link;
+        try { link = await Client().PaymentRequests.GetAsync(orderCode); }
+        catch (PayOS.Exceptions.NotFoundException) { return null; }
+        if (link.Status != PaymentLinkStatus.Paid || link.AmountPaid <= 0 || link.AmountPaid < link.Amount) return null;
+        return new VerifiedReservationPayment(link.OrderCode, link.AmountPaid, link.Transactions?.LastOrDefault()?.Reference);
     }
 
     /// <summary>
