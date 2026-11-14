@@ -1,49 +1,48 @@
-/* Máy quét mô phỏng · toàn cảnh kho (Figma 01–04 "Máy quét mô phỏng", 14/11/2026).
-   Cảnh kho theo khung 1190×810: mọi vị trí tính theo --u = 1/1190 chiều rộng cảnh để giữ đúng chỗ khi co giãn. */
-.door-sim { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; overflow: hidden; background: linear-gradient(180deg, #d8dee4, #f2f4f6); }
-.door-sim__stage { position: relative; width: min(100vw, calc(100vh * 1190 / 810)); aspect-ratio: 1190 / 810; container-type: inline-size; overflow: hidden; }
-.door-sim__stage * { --u: calc(100cqw / 1190); }
+/* Máy quét mô phỏng · toàn cảnh kho (Figma 01–04 kho thường / kho lạnh, 16:9, 14/11/2026).
+   Cảnh kho theo khung 1440×810: mọi vị trí tính theo --u = 1/1440 chiều rộng cảnh để giữ đúng chỗ khi co giãn. */
+.door-sim { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; overflow: hidden; background: #16181c; }
+.door-sim__stage { position: relative; width: min(100vw, calc(100vh * 16 / 9)); aspect-ratio: 16 / 9; container-type: inline-size; overflow: hidden; }
+.door-sim__stage * { --u: calc(100cqw / 1440); }
 .door-sim__scene { position: absolute; inset: 0; transition: filter .25s ease; }
 .door-sim__scene.is-blurred { filter: blur(8px); }
 .door-sim__photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; user-select: none; animation: door-sim-fade .3s ease-out both; }
 
-/* Hai ô chọn tối sát trên khung cửa */
-.door-sim__selects { position: absolute; left: calc(117 * var(--u)); top: calc(34 * var(--u)); width: calc(788 * var(--u)); height: calc(44 * var(--u));
-  display: grid; grid-template-columns: 1fr 1fr; gap: calc(6 * var(--u)); padding: calc(4 * var(--u)) calc(6 * var(--u)); border-radius: 5px; background: #21262e; box-sizing: border-box; }
+/* Hai ô chọn lắp chìm trong dải khung thép phía trên cửa (Figma: x 336–1104, y 93, cao 36) */
+.door-sim__selects { position: absolute; left: calc(336 * var(--u)); top: calc(93 * var(--u)); width: calc(768 * var(--u)); height: calc(36 * var(--u));
+  display: grid; grid-template-columns: 1fr 1fr; gap: calc(10 * var(--u)); }
 .door-sim__select { position: relative; min-width: 0; }
-.door-sim__select-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; height: 100%; padding: 0 calc(13 * var(--u)); border: 0; border-radius: 5px;
-  background: #30363d; color: #f5f7fc; font: 600 calc(15 * var(--u))/1 Inter, system-ui, sans-serif; text-align: left; cursor: pointer; transition: background-color .15s ease; }
+.door-sim__select-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; height: 100%; padding: 0 calc(14 * var(--u)); border: 1px solid rgba(255,255,255,.14); border-radius: calc(6 * var(--u));
+  background: rgba(15,18,23,.62); box-shadow: inset 0 1px 3px rgba(0,0,0,.45); color: #f5f7fc; font: 600 calc(15 * var(--u))/1 Inter, system-ui, sans-serif; text-align: left; cursor: pointer; transition: background-color .15s ease; }
 .door-sim__select-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .door-sim__select-btn i { font-style: normal; font-size: calc(20 * var(--u)); line-height: .6; padding-bottom: calc(8 * var(--u)); }
-.door-sim__select-btn:hover:not(:disabled), .door-sim__select-btn[aria-expanded="true"] { background: #3a414a; }
+.door-sim__select-btn:hover:not(:disabled), .door-sim__select-btn[aria-expanded="true"] { background: rgba(30,35,43,.82); }
 .door-sim__select-btn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
 .door-sim__select-btn:disabled { cursor: default; }
-.door-sim__list { position: absolute; left: calc(-6 * var(--u) + 0px); right: 0; top: calc(39 * var(--u)); z-index: 2; display: grid; gap: calc(2 * var(--u)); margin: 0; padding: calc(4 * var(--u));
+.door-sim__list { position: absolute; left: 0; right: 0; top: calc(40 * var(--u)); z-index: 2; display: grid; gap: calc(2 * var(--u)); margin: 0; padding: calc(4 * var(--u));
   list-style: none; border-radius: 5px; background: #21262e; box-shadow: 0 12px 28px rgba(0,0,0,.35); max-height: calc(262 * var(--u)); overflow-y: auto; animation: door-sim-drop .15s ease-out both; }
-.door-sim__select:first-child .door-sim__list { left: 0; }
-.door-sim__list button { display: block; width: 100%; height: calc(40 * var(--u)); padding: 0 calc(11 * var(--u)); border: 0; border-radius: 5px; background: #30363d; color: #f5f7fc;
-  font: 400 calc(15 * var(--u))/1 Inter, system-ui, sans-serif; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background-color .12s ease; }
+.door-sim__list button { display: block; width: 100%; height: calc(32 * var(--u)); padding: 0 calc(12 * var(--u)); border: 0; border-radius: 5px; background: #30363d; color: #f5f7fc;
+  font: 400 calc(14 * var(--u))/1 Inter, system-ui, sans-serif; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background-color .12s ease; }
 .door-sim__list button:hover, .door-sim__list button:focus-visible { background: #3e4650; outline: none; }
 .door-sim__list button.is-active { box-shadow: inset 3px 0 0 #60a5fa; }
 .door-sim__list-empty { padding: calc(10 * var(--u)); color: #aab3c0; font-size: calc(14 * var(--u)); }
 
 /* Nút X và vùng bấm máy quét nhỏ trên tường */
-.door-sim__x { position: absolute; z-index: 3; left: calc(1114 * var(--u)); top: calc(28 * var(--u)); width: calc(48 * var(--u)); height: calc(48 * var(--u)); display: grid; place-items: center;
+.door-sim__x { position: absolute; z-index: 3; left: calc(1366 * var(--u)); top: calc(28 * var(--u)); width: calc(48 * var(--u)); height: calc(48 * var(--u)); display: grid; place-items: center;
   border: 0; border-radius: 13px; background: #6b7280; color: #f3f4f6; cursor: pointer; opacity: .6; transition: opacity .15s ease, background-color .15s ease; }
 .door-sim__x:hover, .door-sim__x:focus-visible { opacity: 1; background: #4b5563; }
 .door-sim__x:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
 /* Bảng tên ô kho trên tường, giữa mép trên cửa và máy quét; chữ đổi theo ô đang chọn */
-.door-sim__sign { position: absolute; left: calc(912 * var(--u)); top: calc(202 * var(--u)); width: calc(92 * var(--u)); height: calc(50 * var(--u));
-  display: grid; align-content: center; justify-items: center; gap: calc(2 * var(--u)); border: 1px solid #6b7280; border-radius: calc(4 * var(--u));
+.door-sim__sign { position: absolute; left: calc(1177 * var(--u)); top: calc(300 * var(--u)); transform: translateX(-50%); min-width: calc(57 * var(--u)); padding: 0 calc(8 * var(--u)); height: calc(31 * var(--u)); box-sizing: border-box;
+  display: grid; align-content: center; justify-items: center; gap: calc(1 * var(--u)); border: 1px solid #6b7280; border-radius: calc(3 * var(--u));
   background: linear-gradient(180deg, #292e36, #1a1c21); box-shadow: 0 calc(3 * var(--u)) calc(6 * var(--u)) rgba(0,0,0,.35); color: #f7f7f9; pointer-events: none;
   background-image: radial-gradient(circle, #8c949e 0 calc(2 * var(--u)), transparent calc(2.2 * var(--u))), radial-gradient(circle, #8c949e 0 calc(2 * var(--u)), transparent calc(2.2 * var(--u))),
     radial-gradient(circle, #8c949e 0 calc(2 * var(--u)), transparent calc(2.2 * var(--u))), radial-gradient(circle, #8c949e 0 calc(2 * var(--u)), transparent calc(2.2 * var(--u))), linear-gradient(180deg, #292e36, #1a1c21);
-  background-size: calc(4 * var(--u)) calc(4 * var(--u)), calc(4 * var(--u)) calc(4 * var(--u)), calc(4 * var(--u)) calc(4 * var(--u)), calc(4 * var(--u)) calc(4 * var(--u)), 100% 100%;
-  background-position: calc(5 * var(--u)) calc(5 * var(--u)), calc(83 * var(--u)) calc(5 * var(--u)), calc(5 * var(--u)) calc(41 * var(--u)), calc(83 * var(--u)) calc(41 * var(--u)), 0 0;
+  background-size: calc(3 * var(--u)) calc(3 * var(--u)), calc(3 * var(--u)) calc(3 * var(--u)), calc(3 * var(--u)) calc(3 * var(--u)), calc(3 * var(--u)) calc(3 * var(--u)), 100% 100%;
+  background-position: calc(3 * var(--u)) calc(3 * var(--u)), calc(100% - 6 * var(--u)) calc(3 * var(--u)), calc(3 * var(--u)) calc(25 * var(--u)), calc(100% - 6 * var(--u)) calc(25 * var(--u)), 0 0;
   background-repeat: no-repeat; }
-.door-sim__sign small { font-size: calc(9 * var(--u)); font-weight: 600; letter-spacing: .18em; color: #9ea8b8; line-height: 1; }
-.door-sim__sign strong { font-size: calc(min(20, 135 / var(--n, 5)) * var(--u)); font-weight: 700; line-height: 1.1; white-space: nowrap; max-width: 92%; overflow: hidden; text-overflow: ellipsis; }
-.door-sim__hotspot { position: absolute; left: calc(912 * var(--u)); top: calc(293 * var(--u)); width: calc(89 * var(--u)); height: calc(148 * var(--u)); border: 0; border-radius: 15px;
+.door-sim__sign small { font-size: calc(6 * var(--u)); font-weight: 600; letter-spacing: .18em; color: #9ea8b8; line-height: 1; }
+.door-sim__sign strong { font-size: calc(min(13, 96 / var(--n, 5)) * var(--u)); font-weight: 700; line-height: 1.1; white-space: nowrap; }
+.door-sim__hotspot { position: absolute; left: calc(1150 * var(--u)); top: calc(362 * var(--u)); width: calc(56 * var(--u)); height: calc(114 * var(--u)); border: 0; border-radius: calc(8 * var(--u));
   background: transparent; cursor: zoom-in; transition: box-shadow .2s ease; }
 .door-sim__hotspot:hover, .door-sim__hotspot:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(96,165,250,.85), 0 0 24px rgba(96,165,250,.55); }
 .door-sim__status { position: absolute; left: 50%; bottom: calc(24 * var(--u)); transform: translateX(-50%); margin: 0; padding: 8px 16px; border-radius: 999px; background: rgba(15,23,42,.78); color: #fff; font-size: 14px; white-space: nowrap; }

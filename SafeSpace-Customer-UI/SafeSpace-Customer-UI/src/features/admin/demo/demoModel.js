@@ -96,3 +96,8 @@ export function unitOptionLabel(u, short = false) {
   const area = Number(u.area ?? u.sizeM2);
   return short || !(area > 0) ? `${u.unitNumber} · ${kind}` : `${u.unitNumber} · ${kind} ${area.toLocaleString("vi-VN")} m²`;
 }
+
+/** Cảnh máy quét theo loại ô: kho lạnh → "cold" (cửa trượt cách nhiệt), còn lại → "normal" (cửa cuốn). */
+export function sceneKind(u) {
+  return u?.climateControlled ? "cold" : "normal";
+}

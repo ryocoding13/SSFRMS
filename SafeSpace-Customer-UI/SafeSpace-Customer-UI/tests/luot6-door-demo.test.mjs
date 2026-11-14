@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { startMockApi } from "../mock/mock-api.mjs";
-import { SCENARIOS, contractFormError, doorLogLine, expectedState, overdueDays, overdueFee, paymentFormError, pinError, scanScreen, unitOptionLabel } from "../src/features/admin/demo/demoModel.js";
+import { SCENARIOS, contractFormError, doorLogLine, expectedState, overdueDays, overdueFee, paymentFormError, pinError, scanScreen, unitOptionLabel, sceneKind } from "../src/features/admin/demo/demoModel.js";
 import { notYetMessage, usableFromText } from "../src/shared/utils/access.js";
 
 const PORT = 5296, base = `http://localhost:${PORT}`;
@@ -139,4 +139,10 @@ test("máy quét mô phỏng: nhãn ô kho ở danh sách xổ và màn hình m�
   assert.equal(unitOptionLabel({ unitNumber: "K01", climateControlled: false, sizeM2: 7.5 }), "K01 · Kho thường 7,5 m²");
   assert.equal(unitOptionLabel({ unitNumber: "B-015", climateControlled: true, sizeM2: 15 }, true), "B-015 · Kho lạnh");
   assert.equal(unitOptionLabel({ unitNumber: "K02" }), "K02 · Kho thường");
+});
+
+test("Máy quét 16:9 (14/11): ô kho lạnh dùng cảnh kho lạnh, ô thường dùng cảnh kho thường", () => {
+  assert.equal(sceneKind({ unitNumber: "K02", climateControlled: true }), "cold");
+  assert.equal(sceneKind({ unitNumber: "K01", climateControlled: false }), "normal");
+  assert.equal(sceneKind(undefined), "normal");
 });

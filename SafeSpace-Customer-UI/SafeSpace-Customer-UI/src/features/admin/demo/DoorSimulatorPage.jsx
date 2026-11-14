@@ -15,12 +15,16 @@ import { useApp } from "../../../app/state/AppProvider.jsx";
 import { href } from "../../../app/router.js";
 import { Icon } from "../../../shared/components/UI.jsx";
 import { dateTimeLabel } from "../../../shared/utils/format.js";
-import { PIN_LENGTH, pinError, scanScreen, unitOptionLabel } from "./demoModel.js";
+import { PIN_LENGTH, pinError, scanScreen, sceneKind, unitOptionLabel } from "./demoModel.js";
 import QrScanDialog from "./QrScanDialog.jsx";
-import closedScene from "../../../assets/demo/door-scene-closed.webp";
-import openScene from "../../../assets/demo/door-scene-open.webp";
+import normalClosed from "../../../assets/demo/door-scene-normal-closed.webp";
+import normalOpen from "../../../assets/demo/door-scene-normal-open.webp";
+import coldClosed from "../../../assets/demo/door-scene-cold-closed.webp";
+import coldOpen from "../../../assets/demo/door-scene-cold-open.webp";
 import "./demo-tools.css";
 import "./door-simulator.css";
+
+const SCENES = { normal: { closed: normalClosed, open: normalOpen }, cold: { closed: coldClosed, open: coldOpen } };
 
 const KEYS = [["1", ""], ["2", "ABC"], ["3", "DEF"], ["4", "GHI"], ["5", "JKL"], ["6", "MNO"], ["7", "PQRS"], ["8", "TUV"], ["9", "WXYZ"]];
 const clock = () => new Date().toTimeString().slice(0, 5);
@@ -154,6 +158,8 @@ export default function DoorSimulatorPage() {
   const closeZoom = () => { setZoomed(false); setQr(false); setPin(""); setPinMsg(""); setScreen({ kind: "IDLE" }); refreshDoor(); };
 
   const isOpen = door?.door === "OPEN";
+  // Figma 16:9 (14/11): ô kho lạnh dùng cảnh cửa trượt kho lạnh, ô thường dùng cảnh cửa cuốn
+  const kind = sceneKind(unitRow);
   const text = screenText(screen, unit);
   const facilityOptions = (facilities || []).map((f) => ({ value: String(f.facilityId), label: f.name, selected: String(f.facilityId) === String(facilityId) }));
   const unitOptions = (units || []).map((u) => ({ value: u.unitNumber, label: unitOptionLabel(u), selected: u.unitNumber === unit }));
@@ -161,8 +167,8 @@ export default function DoorSimulatorPage() {
   return (
     <main className="door-sim" aria-label="Máy quét mô phỏng">
       <div className="door-sim__stage" ref={stage}>
-        <div className={`door-sim__scene${zoomed ? " is-blurred" : ""}`} aria-hidden={zoomed || undefined}>
-          <img className="door-sim__photo" src={isOpen ? openScene : closedScene} alt={`Cửa kho ${unit || ""} ${isOpen ? "đang mở" : "đang đóng"}`} draggable="false" />
+        <div className={`door-sim__scene is-${kind}${zoomed ? " is-blurred" : ""}`} aria-hidden={zoomed || undefined}>
+          <img className="door-sim__photo" src={SCENES[kind][isOpen ? "open" : "closed"]} alt={`Cửa ${kind === "cold" ? "kho lạnh" : "kho thường"} ${unit || ""} ${isOpen ? "đang mở" : "đang đóng"}`} draggable="false" />
           {unit && <div className="door-sim__sign" style={{ "--n": unit.length }} aria-label={`Bảng tên ô kho ${unit}`}><small>Ô KHO</small><strong>{unit}</strong></div>}
           <div className="door-sim__selects">
             <SceneSelect name="Cơ sở" label="Cơ sở" value={facilities ? facilityName || "Chưa có cơ sở" : "Đang tải…"} options={facilityOptions} disabled={zoomed || !facilities?.length}
