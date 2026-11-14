@@ -18,7 +18,7 @@ import AuditLogPage from "./logs/AuditLogPage.jsx";
 import DemoToolsPage from "./demo/DemoToolsPage.jsx";
 import ContractToolPage from "./demo/ContractToolPage.jsx";
 import RatesToolPage from "./demo/RatesToolPage.jsx";
-import DoorScannerTool from "./demo/DoorScannerTool.jsx";
+import DoorSimulatorPage from "./demo/DoorSimulatorPage.jsx";
 import DoorLogPage from "./demo/DoorLogPage.jsx";
 import PermissionListPage from "./permissions/PermissionListPage.jsx";
 import AdminLayout from "./AdminLayout.jsx";
@@ -32,6 +32,9 @@ export default function AdminRoutes({ parts }) {
   // a: tên chức năng đang truy cập (users, new, logs,...).
   // b: tham số bổ sung, thường là ID người dùng.
   const [a, b] = parts;
+
+  // Máy quét mô phỏng (Figma 14/11): toàn cảnh kho phủ kín màn hình, không có thanh điều hướng quản trị
+  if (a === "demo" && b === "scanner") return <DoorSimulatorPage />;
 
   // tab xác định mục menu đang được chọn trong AdminShell.
   // Mặc định là chuỗi rỗng.
@@ -72,9 +75,9 @@ export default function AdminRoutes({ parts }) {
     body = <AuditLogPage />;
 
   // Lượt 6b: Công cụ demo — #/admin/demo là trang thẻ chọn; mỗi công cụ một trang con (không có hàng tab)
-  } else if (a === "demo" && (!b || ["scanner", "price", "dates", "door-logs"].includes(b))) {
+  } else if (a === "demo" && (!b || ["price", "dates", "door-logs"].includes(b))) {
     tab = "demo";
-    body = !b ? <DemoToolsPage /> : b === "scanner" ? <DoorScannerTool /> : b === "door-logs" ? <DoorLogPage /> : b === "price" ? <RatesToolPage /> : <ContractToolPage key={b} mode={b} />;
+    body = !b ? <DemoToolsPage /> : b === "door-logs" ? <DoorLogPage /> : b === "price" ? <RatesToolPage /> : <ContractToolPage key={b} mode={b} />;
 
   // TRƯỜNG HỢP 6: URL không khớp với chức năng nào.
   // Hiển thị thông báo không tìm thấy trang.

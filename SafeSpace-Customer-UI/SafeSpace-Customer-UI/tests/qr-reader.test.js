@@ -35,9 +35,15 @@ test("chỉ báo không có camera khi thật sự không mở được, không 
   assert.equal(cameraErrorState({ name: "NotAllowedError" }), "blocked");
   assert.equal(cameraErrorState({ name: "NotReadableError" }), "busy");
   assert.equal(cameraErrorState({ name: "NotFoundError" }), "missing");
-  const src = readFileSync(new URL("../src/features/admin/demo/DoorScannerTool.jsx", import.meta.url), "utf8");
-  assert.doesNotMatch(src, /typeof window\.BarcodeDetector !== "function"\) return setState/, "không bỏ qua bước xin quyền camera");
-  assert.match(src, /createQrReader/);
+  // 14/11: máy quét chuyển sang màn toàn cảnh kho (DoorSimulatorPage); hộp camera tách thành QrScanDialog
+  const dialog = readFileSync(new URL("../src/features/admin/demo/QrScanDialog.jsx", import.meta.url), "utf8");
+  const src = readFileSync(new URL("../src/features/admin/demo/DoorSimulatorPage.jsx", import.meta.url), "utf8");
+  assert.doesNotMatch(dialog, /typeof window\.BarcodeDetector !== "function"\) return setState/, "không bỏ qua bước xin quyền camera");
+  assert.match(dialog, /createQrReader/);
   assert.match(src, /pressDigit\("0"\)/, "phím 0 bấm được (D53)");
   assert.match(src, /adminApi\.scan\(code, unit, facilityId\)/, "máy quét gửi kèm cơ sở");
+  assert.match(src, /className="door-sim__sign"[^>]*>.*\{unit\}<\/strong>/, "bảng tên trên tường đổi theo ô đang chọn");
+  const routes = readFileSync(new URL("../src/features/admin/AdminRoutes.jsx", import.meta.url), "utf8");
+  assert.match(routes, /b === "scanner"\) return <DoorSimulatorPage \/>/, "máy quét mô phỏng phủ kín màn, không bọc AdminLayout");
+  assert.doesNotMatch(routes, /DoorScannerTool/, "bỏ màn máy quét cũ");
 });

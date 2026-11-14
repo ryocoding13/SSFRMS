@@ -1,0 +1,71 @@
+/* Máy quét mô phỏng · toàn cảnh kho (Figma 01–04 "Máy quét mô phỏng", 14/11/2026).
+   Cảnh kho theo khung 1190×810: mọi vị trí tính theo --u = 1/1190 chiều rộng cảnh để giữ đúng chỗ khi co giãn. */
+.door-sim { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; overflow: hidden; background: linear-gradient(180deg, #d8dee4, #f2f4f6); }
+.door-sim__stage { position: relative; width: min(100vw, calc(100vh * 1190 / 810)); aspect-ratio: 1190 / 810; container-type: inline-size; overflow: hidden; }
+.door-sim__stage * { --u: calc(100cqw / 1190); }
+.door-sim__scene { position: absolute; inset: 0; transition: filter .25s ease; }
+.door-sim__scene.is-blurred { filter: blur(8px); }
+.door-sim__photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; user-select: none; animation: door-sim-fade .3s ease-out both; }
+
+/* Hai ô chọn tối sát trên khung cửa */
+.door-sim__selects { position: absolute; left: calc(117 * var(--u)); top: calc(34 * var(--u)); width: calc(788 * var(--u)); height: calc(44 * var(--u));
+  display: grid; grid-template-columns: 1fr 1fr; gap: calc(6 * var(--u)); padding: calc(4 * var(--u)) calc(6 * var(--u)); border-radius: 5px; background: #21262e; box-sizing: border-box; }
+.door-sim__select { position: relative; min-width: 0; }
+.door-sim__select-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; height: 100%; padding: 0 calc(13 * var(--u)); border: 0; border-radius: 5px;
+  background: #30363d; color: #f5f7fc; font: 600 calc(15 * var(--u))/1 Inter, system-ui, sans-serif; text-align: left; cursor: pointer; transition: background-color .15s ease; }
+.door-sim__select-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.door-sim__select-btn i { font-style: normal; font-size: calc(20 * var(--u)); line-height: .6; padding-bottom: calc(8 * var(--u)); }
+.door-sim__select-btn:hover:not(:disabled), .door-sim__select-btn[aria-expanded="true"] { background: #3a414a; }
+.door-sim__select-btn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+.door-sim__select-btn:disabled { cursor: default; }
+.door-sim__list { position: absolute; left: calc(-6 * var(--u) + 0px); right: 0; top: calc(39 * var(--u)); z-index: 2; display: grid; gap: calc(2 * var(--u)); margin: 0; padding: calc(4 * var(--u));
+  list-style: none; border-radius: 5px; background: #21262e; box-shadow: 0 12px 28px rgba(0,0,0,.35); max-height: calc(262 * var(--u)); overflow-y: auto; animation: door-sim-drop .15s ease-out both; }
+.door-sim__select:first-child .door-sim__list { left: 0; }
+.door-sim__list button { display: block; width: 100%; height: calc(40 * var(--u)); padding: 0 calc(11 * var(--u)); border: 0; border-radius: 5px; background: #30363d; color: #f5f7fc;
+  font: 400 calc(15 * var(--u))/1 Inter, system-ui, sans-serif; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background-color .12s ease; }
+.door-sim__list button:hover, .door-sim__list button:focus-visible { background: #3e4650; outline: none; }
+.door-sim__list button.is-active { box-shadow: inset 3px 0 0 #60a5fa; }
+.door-sim__list-empty { padding: calc(10 * var(--u)); color: #aab3c0; font-size: calc(14 * var(--u)); }
+
+/* Nút X và vùng bấm máy quét nhỏ trên tường */
+.door-sim__x { position: absolute; z-index: 3; left: calc(1114 * var(--u)); top: calc(28 * var(--u)); width: calc(48 * var(--u)); height: calc(48 * var(--u)); display: grid; place-items: center;
+  border: 0; border-radius: 13px; background: #6b7280; color: #f3f4f6; cursor: pointer; opacity: .6; transition: opacity .15s ease, background-color .15s ease; }
+.door-sim__x:hover, .door-sim__x:focus-visible { opacity: 1; background: #4b5563; }
+.door-sim__x:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+/* Bảng tên ô kho trên tường, giữa mép trên cửa và máy quét; chữ đổi theo ô đang chọn */
+.door-sim__sign { position: absolute; left: calc(912 * var(--u)); top: calc(202 * var(--u)); width: calc(92 * var(--u)); height: calc(50 * var(--u));
+  display: grid; align-content: center; justify-items: center; gap: calc(2 * var(--u)); border: 1px solid #6b7280; border-radius: calc(4 * var(--u));
+  background: linear-gradient(180deg, #292e36, #1a1c21); box-shadow: 0 calc(3 * var(--u)) calc(6 * var(--u)) rgba(0,0,0,.35); color: #f7f7f9; pointer-events: none;
+  background-image: radial-gradient(circle, #8c949e 0 calc(2 * var(--u)), transparent calc(2.2 * var(--u))), radial-gradient(circle, #8c949e 0 calc(2 * var(--u)), transparent calc(2.2 * var(--u))),
+    radial-gradient(circle, #8c949e 0 calc(2 * var(--u)), transparent calc(2.2 * var(--u))), radial-gradient(circle, #8c949e 0 calc(2 * var(--u)), transparent calc(2.2 * var(--u))), linear-gradient(180deg, #292e36, #1a1c21);
+  background-size: calc(4 * var(--u)) calc(4 * var(--u)), calc(4 * var(--u)) calc(4 * var(--u)), calc(4 * var(--u)) calc(4 * var(--u)), calc(4 * var(--u)) calc(4 * var(--u)), 100% 100%;
+  background-position: calc(5 * var(--u)) calc(5 * var(--u)), calc(83 * var(--u)) calc(5 * var(--u)), calc(5 * var(--u)) calc(41 * var(--u)), calc(83 * var(--u)) calc(41 * var(--u)), 0 0;
+  background-repeat: no-repeat; }
+.door-sim__sign small { font-size: calc(9 * var(--u)); font-weight: 600; letter-spacing: .18em; color: #9ea8b8; line-height: 1; }
+.door-sim__sign strong { font-size: calc(min(20, 135 / var(--n, 5)) * var(--u)); font-weight: 700; line-height: 1.1; white-space: nowrap; max-width: 92%; overflow: hidden; text-overflow: ellipsis; }
+.door-sim__hotspot { position: absolute; left: calc(912 * var(--u)); top: calc(293 * var(--u)); width: calc(89 * var(--u)); height: calc(148 * var(--u)); border: 0; border-radius: 15px;
+  background: transparent; cursor: zoom-in; transition: box-shadow .2s ease; }
+.door-sim__hotspot:hover, .door-sim__hotspot:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(96,165,250,.85), 0 0 24px rgba(96,165,250,.55); }
+.door-sim__status { position: absolute; left: 50%; bottom: calc(24 * var(--u)); transform: translateX(-50%); margin: 0; padding: 8px 16px; border-radius: 999px; background: rgba(15,23,42,.78); color: #fff; font-size: 14px; white-space: nowrap; }
+
+/* Máy quét phóng to: cảnh kho mờ + lớp tối 49% */
+.door-sim__zoom { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; background: rgba(10, 23, 43, .49); animation: door-sim-fade .2s ease-out both; }
+.door-sim__device { position: relative; display: grid; place-items: center; padding: 28px 22px; transform-origin: center; animation: door-sim-zoom .22s ease-out both; }
+.door-sim__plate { position: absolute; inset: 0; border-radius: 30px; background: linear-gradient(180deg, #464a50, #303338); box-shadow: 0 30px 60px rgba(0,0,0,.35), 0 4px 10px rgba(0,0,0,.25); }
+.door-sim__plate i { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: linear-gradient(135deg, #c8ccd2, #7e868e); box-shadow: inset 0 1px 1px rgba(0,0,0,.4); }
+.door-sim__plate i::after { content: ""; position: absolute; left: 2px; right: 2px; top: 5px; height: 2px; background: #3c4046; }
+.door-sim__plate i:nth-child(1) { top: 10px; left: 10px; } .door-sim__plate i:nth-child(2) { top: 10px; right: 10px; }
+.door-sim__plate i:nth-child(3) { bottom: 10px; left: 10px; } .door-sim__plate i:nth-child(4) { bottom: 10px; right: 10px; }
+.door-sim .demo-scan__screen { min-height: 150px; align-content: start; }
+.door-sim .demo-scan__screen.is-open { background: linear-gradient(180deg, #06241d, #041a15); }
+.door-sim .demo-scan__screen.is-open strong { color: #6ee7b7; font-size: 22px; }
+.door-sim .demo-scan__screen strong { font-size: 15px; }
+.door-sim .demo-scan__qr-hint { margin-top: -6px; color: #7daaff !important; font-weight: 600; }
+.door-sim .demo-scan__row button { gap: 6px; }
+.door-sim .demo-scan__row .is-close.is-idle { border-color: #6b5a33; color: #c9cdd4; }
+.door-sim .demo-scan__row .is-close.is-idle i { background: #8a6d2c; box-shadow: none; }
+
+@keyframes door-sim-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes door-sim-drop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes door-sim-zoom { from { opacity: 0; scale: .9; } to { opacity: 1; scale: 1; } }
+@media (prefers-reduced-motion: reduce) { .door-sim *, .door-sim__scene { animation: none !important; transition: none !important; } }

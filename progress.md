@@ -2170,3 +2170,10 @@
 - Kiểm chứng: FE `npm test` 219/219 (TZ Asia/Ho_Chi_Minh), test:business 14/14, test:workflows 12/12, test:render 178 route PASS, check:structure PASS, build PASS. **Chưa build/chạy `dotnet test`** (môi trường không tải được .NET SDK/NuGet) — cần CI hoặc máy thành viên. Chưa xem màn bằng trình duyệt (không tải được Chromium). Chưa kiểm SQL Server.
 - Bổ sung cùng ngày: ngày nhận chìa khóa không được trước ngày bắt đầu thuê (BE + FE + chế độ trình duyệt). Công cụ demo thêm kịch bản quá hạn 12/21 ngày, bỏ hồ sơ quá hạn mở theo ngày cũ và chạy ngay tiến trình quá hạn sau khi chỉnh. FE `npm test` 220/220, render 178 route, build PASS; BE vẫn chưa build được trong môi trường AI.
 - Còn treo: cách hiểu `EndDate` (xem D59). Không commit/push/PR/merge; không đổi trạng thái tính năng.
+
+## 2026-11-14 — Máy quét mô phỏng dạng toàn cảnh kho (Figma 01–04, 14/11)
+
+- `#/admin/demo/scanner` thay màn máy quét cũ (`DoorScannerTool.jsx` đã xoá) bằng `DoorSimulatorPage.jsx`: toàn cảnh kho phủ kín màn, không có thanh điều hướng; hai ô Cơ sở / Ô kho tối trên khung cửa xổ danh sách thật (`/api/facilities`, `/api/facilities/{id}/units`); bấm máy quét nhỏ → máy phóng to, cảnh mờ; PIN, QR, Đóng cửa, Gọi hỗ trợ dùng API hiện có (`/api/access/scan`, `/door`, `/door/close`, `/support`); kết quả/lỗi hiện trên màn hình máy, đóng cửa và gọi hỗ trợ xác nhận bằng OK/C trên máy (giữ bước xác nhận D51). X ở máy → cảnh kho theo trạng thái cửa (ảnh mở/đóng); X ở cảnh kho (nền xám, mờ) → Công cụ demo.
+- Bảng tên ô kho trên tường (giữa mép trên cửa và máy quét, khớp Figma) hiện mã ô đang chọn và đổi theo khi chuyển ô/cơ sở; mã dài tự thu nhỏ chữ.
+- Hộp camera QR tách thành `QrScanDialog.jsx`; ảnh cảnh kho lấy từ Figma (`src/assets/demo/door-scene-*.webp`).
+- Kiểm chứng: `npm test` 226/226, test:render 178 route, check:structure, build PASS; xem bằng Chrome trên máy chủ giả (`dev:mock`) và chặn API mở cửa để thấy trạng thái mở. Chưa thử với backend thật/SQL Server, chưa thử camera thật.
