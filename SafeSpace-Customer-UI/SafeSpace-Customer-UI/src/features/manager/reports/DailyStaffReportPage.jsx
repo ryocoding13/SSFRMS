@@ -27,7 +27,7 @@ export function DailyStaffReportPage({ embedded = false } = {}) {
   const task = t => `${KIND[t.kind] || t.kind} · ${t.label || t.reference}${t.late ? " · quá hạn" : ""}`;
   const Wrap = embedded ? "section" : "main";
   return <Wrap className={embedded ? "daily-report-embedded" : "container page workflow-page"}>
-    {embedded ? <><h2 className="section-title">Công việc nhân viên trong ngày</h2><p className="muted">Việc nhân viên chưa xong và đã làm trong ngày (hệ thống ghi lúc 22:00). Việc xếp theo thời gian tạo; quá 3 ngày chỉ gắn nhãn.</p></> : <PageHeader title="Báo cáo cuối ngày" description="Việc nhân viên chưa xong và đã làm trong ngày. Việc xếp theo thời gian tạo; quá 3 ngày chỉ gắn nhãn." />}
+    {embedded ? <><h2 className="section-title">Công việc nhân viên trong ngày</h2><p className="muted">Việc nhân viên chưa xong và đã làm trong ngày (chốt lúc 22:00).</p></> : <PageHeader title="Báo cáo cuối ngày" description="Việc nhân viên chưa xong và đã làm trong ngày." />}
     <DatePicker label="Ngày báo cáo" value={date} min={addDays(today(), -90)} max={today()} onChange={setDate} />
     <WorkflowState load={load}>
       {rows.map(s => <RecordCard key={s.staffId} title={`${s.fullName} · ${s.staffId}`} subtitle={s.oldestPendingSince ? `Việc chưa xong cũ nhất từ ${s.oldestPendingSince}` : "Không còn việc tồn"}

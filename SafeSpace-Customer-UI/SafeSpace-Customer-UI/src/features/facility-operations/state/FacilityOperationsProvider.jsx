@@ -38,8 +38,8 @@ function readOps() {
 }
 
 const UNSUPPORTED = {
-  UPDATE_UNIT_STATUS: "Máy chủ chưa hỗ trợ đổi trạng thái ô kho. Cập nhật backend có PUT /api/staff/units/{mã}/status rồi thử lại.",
-  CONFIRM_FEE_COLLECTION: "Máy chủ chưa hỗ trợ ghi nhận thu phí tại quầy (POST /api/ops/fees/{mã}/confirm). Chưa lưu khoản thu này; không thu thêm tiền của khách.",
+  UPDATE_UNIT_STATUS: "Chưa đổi được trạng thái ô kho. Vui lòng thử lại sau.",
+  CONFIRM_FEE_COLLECTION: "Chưa ghi nhận được khoản thu này; không thu thêm tiền của khách. Vui lòng thử lại sau.",
 };
 
 // Nhật ký / thông báo trong ca chỉ giữ ở trình duyệt (backend chưa có API thông báo)
@@ -142,7 +142,7 @@ export function OpsProvider({ children, notify, mode = "local", onApiError, role
           onApiError?.(e);
           // Route chưa có trên backend: ASP.NET trả 404/405 không kèm nội dung → báo rõ thay vì "Không tìm thấy dữ liệu."
           const missing = e instanceof ApiError && (e.status === 404 || e.status === 405) && !e.data;
-          const error = missing ? UNSUPPORTED[type] || "Máy chủ chưa hỗ trợ thao tác này." : e?.message || "Thao tác không thành công.";
+          const error = missing ? UNSUPPORTED[type] || "Thao tác này chưa thực hiện được. Vui lòng thử lại sau." : e?.message || "Thao tác không thành công.";
           notify?.(error, "error");
           return { ok: false, error };
         }

@@ -93,7 +93,7 @@ export function FacilityReportDetailPage({ query }) {
       <header className="page-header page-header--tight">
         <div>
           <h1>{name}</h1>
-          <p className="muted">Mở là thấy ngay biểu đồ tăng trưởng và báo cáo chi tiết, cùng cơ sở và cùng khoảng thời gian.</p>
+          <p className="muted">Doanh thu và tình hình cho thuê của cơ sở theo khoảng thời gian đã chọn.</p>
         </div>
       </header>
       <ReportFilterBar range={range} today={now} busy={exporting} onApply={(r) => set(r)}
@@ -110,7 +110,7 @@ export function FacilityReportDetailPage({ query }) {
             <div className="stat"><span>Hợp đồng quá hạn</span><strong className={kpi.overdue ? "danger" : ""}>{kpi.overdue}</strong>{kpi.overdueDiff == null ? <small className="muted">Chưa có số liệu cùng kỳ</small> : <small className={kpi.overdueDiff <= 0 ? "ok" : "danger"}>{kpi.overdueDiff === 0 ? "Không đổi" : `${kpi.overdueDiff < 0 ? "▼" : "▲"} ${Math.abs(kpi.overdueDiff)} so với cùng kỳ`}</small>}</div>
           </div>
           <ColumnChart title="Tăng trưởng doanh thu theo tháng" subtitle={`${name} · ${rangeText(range)}`} items={trend}
-            footer={`Tổng ${trend.length} tháng: ${money(trendTotal(data.trend.months))} · khớp thẻ tổng quan và bảng chi tiết bên dưới.`} />
+            footer={`Tổng ${trend.length} tháng: ${money(trendTotal(data.trend.months))}.`} />
           <section className="panel report-chart-card">
             <header><h2>Báo cáo chi tiết</h2><p className="muted">Cùng phạm vi {rangeText(range).split(" · ")[0]} · tổng doanh thu {money(trendTotal(data.trend.months))}</p></header>
             <div className="table-wrap">
@@ -146,7 +146,7 @@ export function FacilityReportDetailPage({ query }) {
             ))}
           </div>
         )}
-      <p className="hint">Khoản chờ thu là khoản chưa thanh toán còn hiệu lực (tiền thuê, gia hạn đã duyệt). Không có công nợ ngoài cọc (D32).</p>
+      <p className="hint">Khoản chờ thu là khoản chưa thanh toán còn hiệu lực (tiền thuê, gia hạn chờ thanh toán). Không có công nợ ngoài cọc.</p>
       <div className="ops-actions"><LinkButton to={`business/reports${qs({ from: range.from, to: range.to })}`} variant="outline">Về báo cáo hệ thống</LinkButton></div>
     </main>
   );

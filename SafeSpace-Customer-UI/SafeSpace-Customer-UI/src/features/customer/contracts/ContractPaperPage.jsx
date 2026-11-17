@@ -79,7 +79,7 @@ export function ContractPaperPage({ id }) {
         {!issued ? (
           <Notice>Hợp đồng chưa được phát hành. Hợp đồng giấy có sau khi thanh toán xong và hệ thống cấp ô kho.</Notice>
         ) : offline ? (
-          <Notice>Hợp đồng giấy được tạo từ máy chủ SafeSpace. Bản xem này chưa kết nối máy chủ nên chưa hiển thị được hợp đồng.</Notice>
+          <Notice>Chưa hiển thị được hợp đồng giấy. Vui lòng thử lại sau.</Notice>
         ) : state.error ? (
           <Notice tone="error">{state.error}</Notice>
         ) : state.loading ? (

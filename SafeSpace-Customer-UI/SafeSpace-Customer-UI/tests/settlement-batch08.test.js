@@ -37,7 +37,7 @@ test('M07 chặn biên bản thiếu và phản hồi/khắc phục chưa đóng
 });
 test('API chưa hỗ trợ ảnh/bằng chứng hoàn không được gửi dù form hợp lệ',()=>{
  const report={items:'Trống',walls:'Tốt',keys:'Đã nhận',proposal:'Sẵn sàng cho thuê lại',damage_fee:0},file={type:'image/png',size:100};
- assert.throws(()=>opsMutationCheck('SUBMIT_RETURN',{id:'TK-1',report,files:[file]},{returns:[{id:'TK-1',status:'SCHEDULED',deposit:1000}]},'api','STAFF'),/chưa hỗ trợ/);
+ assert.throws(()=>opsMutationCheck('SUBMIT_RETURN',{id:'TK-1',report,files:[file]},{returns:[{id:'TK-1',status:'SCHEDULED',deposit:1000}]},'api','STAFF'),/Chưa thể gửi biên bản/);
  assert.throws(()=>opsMutationCheck('CONFIRM_REFUND',{id:'x'},{},'local','STAFF'),/Vai trò/);
 });
 test('receipt 200 thiếu board/trạng thái/evidence không báo thành công',()=>{

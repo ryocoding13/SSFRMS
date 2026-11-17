@@ -81,7 +81,7 @@ export function RentalPolicyEditorPage() {
       <WorkflowState load={load}>
         {!valid && !draft ? (
           <Notice tone="error">
-            Máy chủ chưa cung cấp đầy đủ nội dung/phiên bản chính sách. Không dùng bản mặc định để công bố.
+            Chưa tải được đầy đủ nội dung chính sách. Vui lòng tải lại trước khi công bố.
             <Button onClick={load.reload}>Tải lại</Button>
           </Notice>
         ) : (
@@ -112,22 +112,22 @@ export function RentalPolicyEditorPage() {
                     <DetailList
                       items={[
                         ["Phiên bản đang đọc", policyVersionLabel(policy)],
-                        ["Nội dung", draft ? "Đang chỉnh sửa · Chưa công bố" : "Bản máy chủ đã lưu"],
+                        ["Nội dung", draft ? "Đang chỉnh sửa · Chưa công bố" : "Bản đã lưu"],
                       ]}
                     />
                     <p className="hint">
-                      Máy chủ cấp số phiên bản và thời điểm khi lưu. Công bố tạo phiên bản mới có hiệu lực ngay.
+                      Công bố tạo phiên bản mới có hiệu lực ngay.
                     </p>
                     {draft && load.data?.version > draft.version && (
                       <Notice tone="warn">
-                        Bản máy chủ đã thay đổi (người khác vừa công bố phiên bản mới). Nội dung bạn đang soạn vẫn được bảo lưu an toàn.
+                        Vừa có người công bố phiên bản mới. Nội dung bạn đang soạn vẫn được giữ.
                         <Button
                           onClick={() => {
                             setDraft(null);
                             setAck(false);
                           }}
                         >
-                          Dùng bản máy chủ vừa tải
+                          Dùng bản mới nhất
                         </Button>
                       </Notice>
                     )}

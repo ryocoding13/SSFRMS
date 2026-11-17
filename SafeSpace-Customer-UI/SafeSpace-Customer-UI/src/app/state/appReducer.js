@@ -328,7 +328,7 @@ const handlers = {
   CANCEL_RENEWAL(state, p, ctx) {
     const r = state.renewals.find((x) => x.renewal_id === p.renewal_id);
     if (!r) fail("Không tìm thấy yêu cầu gia hạn.", "NOT_FOUND");
-    if (r.status !== "PENDING") fail("Chỉ huỷ được yêu cầu gia hạn đang chờ quản lý duyệt.");
+    if (r.status !== "PENDING") fail("Chỉ huỷ được yêu cầu gia hạn đang chờ xác nhận.");
     let next = {
       ...state,
       renewals: state.renewals.map((x) => (x.renewal_id === r.renewal_id ? { ...x, status: "CANCELLED", cancelled_at: iso(ctx.now) } : x)),
@@ -392,7 +392,7 @@ const handlers = {
     if (!c || ["ENDED", "RETURN_PENDING"].includes(c.status) || c.start_date > localDate(ctx.now)) fail("Hợp đồng chưa thể đăng ký trả kho.");
     const pending = hasPending(state, c.contract_id);
     if (state.returns.some(r => r.contract_id === c.contract_id && !["CANCELLED", "REJECTED"].includes(r.status))) fail("Đã có yêu cầu trả kho đang chờ xử lý.");
-    if (pending.renewal) fail("Hợp đồng đang có yêu cầu gia hạn chờ duyệt.");
+    if (pending.renewal) fail("Hợp đồng đang có yêu cầu gia hạn chờ xử lý.");
     const dateError = visitDateError(p.date, c.end_date, localDate(ctx.now), "trả kho", c.start_date);
     if (dateError) fail(dateError);
     const invalid = validateRefundChoice(p.bank, c.customer_name || state.user?.full_name);

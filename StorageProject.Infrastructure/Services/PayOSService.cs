@@ -457,7 +457,8 @@ public class PayOSService(
         var recent = now.AddMinutes(-30);
         var reservationOrders = await dbContext.Reservations.AsNoTracking()
             .Where(r => r.PaymentMethod == "PAYOS" && r.PaidAt == null && r.OrderCode != null
-                && (r.Status == "PENDING_PAYMENT" || (r.Status == "EXPIRED" && !dbContext.ActivityLogs.Any(l => l.EntityType == "RESERVATION"
+                // Đơn bị huỷ vì hết giờ giữ chỗ (giao diện gọi huỷ) cũng đối soát: tiền về muộn phải được ghi cần hoàn thủ công.
+                && (r.Status == "PENDING_PAYMENT" || ((r.Status == "EXPIRED" || r.Status == "CANCELLED") && !dbContext.ActivityLogs.Any(l => l.EntityType == "RESERVATION"
                     && l.EntityId == r.ReservationId && l.Action == "PAYMENT_REVIEW_REQUIRED")))
                 && r.ExpiresAt > recent)
             .Select(r => r.OrderCode!.Value).ToListAsync(ct);

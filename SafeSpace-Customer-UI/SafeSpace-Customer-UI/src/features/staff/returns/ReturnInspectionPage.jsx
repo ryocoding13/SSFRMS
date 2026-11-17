@@ -13,7 +13,7 @@ import ReturnPhotoInput from "../../../shared/components/ReturnPhotoInput.jsx";
 import { cleaningFee } from "../../../shared/utils/returnPolicy.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
 import { validateInspection } from "../../facility-operations/settlements/settlementModel.js";
-import { OpsDemo, SettlementTable } from "../../facility-operations/settlements/SettlementComponents.jsx";
+import { SettlementTable } from "../../facility-operations/settlements/SettlementComponents.jsx";
 import { depositSidePreview, settlementOf } from "../../facility-operations/settlements/settlementModel.js";
 import { DamagePhotos, timeLabel } from "../../facility-operations/damage/DamageComponents.jsx";
 import "../../../shared/styles/customer-detail.css";
@@ -149,7 +149,6 @@ export function ReturnInspectionPage({ query }) {
   return <main className="container page customer-records customer-detail">
     <p className="customer-records__breadcrumb">SafeSpace / Nhân viên / Kiểm tra trả kho</p>
     <PageHeader title={`Kiểm tra trả kho ${r.unit}`} description={`${r.customer} · Khách gửi trả kho: ${timeLabel(r.requested_at)}. Phí quá hạn dừng tại thời điểm gửi thành công.`}><Tag tone="amber">{submitted ? "Đã gửi biên bản" : "Chờ kiểm tra"}</Tag></PageHeader>
-    <OpsDemo source={source} />
     <div className="customer-detail__grid">
       <form className="panel customer-detail__card inspect-form" onSubmit={submit} noValidate>
         <div className="inspect-form__head"><h2>Biên bản kiểm tra</h2>{!submitted && <Button variant="soft" icon="check" disabled={blocked} onClick={allOk}>Tất cả đạt tiêu chuẩn</Button>}</div>
@@ -180,7 +179,7 @@ export function ReturnInspectionPage({ query }) {
             <textarea rows={2} maxLength={300} placeholder="VD: khách xác nhận bỏ lại 1 thùng carton" value={form.note} disabled={blocked} onChange={(e) => change("note", e.target.value)} />
           </Field>
         </>}
-        {!supported && <Notice>Máy chủ chưa hỗ trợ lưu đủ ảnh và phí kiểm kê; chưa thể gửi biên bản.</Notice>}
+        {!supported && <Notice>Chưa thể gửi biên bản lúc này. Vui lòng thử lại sau.</Notice>}
         {error && <Notice tone="error">{error}</Notice>}
         {submitted ? <Notice>Đã gửi lúc {timeLabel(r.submitted_at)}. Chờ quản lý duyệt đối soát.</Notice> : <div className="customer-detail__actions">
           <Button variant="outline" disabled={blocked} onClick={saveDraft}>Lưu nháp</Button>

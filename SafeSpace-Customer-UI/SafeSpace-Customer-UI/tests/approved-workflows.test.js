@@ -79,7 +79,7 @@ test("API chưa có endpoint luôn từ chối đọc/ghi, không trả dữ li�
   const original = globalThis.fetch;
   globalThis.fetch = async () => new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
   try {
-    await assert.rejects(loadWorkflow("overdue"), /chưa cung cấp/);
+    await assert.rejects(loadWorkflow("overdue"), /Chưa tải được dữ liệu/);
     await assert.rejects(saveWorkflow("overdue", "RECORD_REMOVAL", {}), /chưa được ghi nhận/);
   } finally { globalThis.fetch = original; }
 });

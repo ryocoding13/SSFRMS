@@ -41,7 +41,7 @@ export function PolicyStatusPage() {
     const content = isRemove
       ? "Chỉ xoá bản DRAFT chưa áp dụng."
       : isActivate
-      ? "Kích hoạt chính sách nháp để bắt đầu áp dụng vào hệ thống tính toán tự động."
+      ? "Kích hoạt bản nháp để bắt đầu áp dụng chính sách."
       : "Giữ lịch sử phiên bản và phạm vi chính sách hiện hành.";
 
     const out = await runChange({

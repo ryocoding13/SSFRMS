@@ -58,7 +58,7 @@ export function CheckoutPage({ id }) {
 
   useEffect(() => {
     if (pending && deadline && remaining <= 0) {
-      dispatch("EXPIRE_RESERVATION", { reservation_id: id }).then(() => go(`checkout/${id}/failed`, { replace: true }));
+      dispatch("EXPIRE_RESERVATION", { reservation_id: id }).then((res) => go(res?.status === "PAID" ? `confirmation/${id}` : `checkout/${id}/failed`, { replace: true }));
     }
   }, [remaining <= 0, pending]); // eslint-disable-line react-hooks/exhaustive-deps
 

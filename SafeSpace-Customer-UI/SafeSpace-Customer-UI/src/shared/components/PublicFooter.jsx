@@ -32,7 +32,7 @@ export function PublicFooter({ hours = "06:00–22:00", address = "Số 12 Nguy�
           </nav>
           <div className="home-footer__contact">
             <strong>Liên hệ &amp; hỗ trợ khẩn cấp</strong>
-            <a className="home-footer__hotline" href={`tel:${SUPPORT_HOTLINE.replace(/\s/g, "")}`}>Hotline: {SUPPORT_HOTLINE}</a>
+            <p className="home-footer__hotline">Hotline: {SUPPORT_HOTLINE}</p>
             <p className="home-footer__note">Quên mật khẩu và cả email đăng ký? Gọi hotline để xác minh danh tính và khôi phục tài khoản.</p>
             <p>{addressLabel}</p>
           </div>

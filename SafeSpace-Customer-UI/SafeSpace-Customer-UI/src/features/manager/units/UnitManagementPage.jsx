@@ -64,7 +64,7 @@ export function UnitStatusDialog({ unit, onClose }) {
           </label>
         ))}
       </fieldset>
-      <p className="hint">Chỉ hiện các trạng thái được phép chuyển: Trống ↔ Bảo trì. Ô đang có khách thuê ghi nhận hư hỏng, bảo trì bằng “Ghi nhận sự cố”; trạng thái sử dụng luôn theo hợp đồng.</p>
+      <p className="hint">Chỉ đổi được giữa Trống và Bảo trì. Ô đang có khách thuê dùng “Ghi nhận sự cố”.</p>
       <Field label="Lý do (bắt buộc)" error={err}>
         <textarea rows={3} maxLength={255} value={reason} placeholder="Ví dụ: Hỏng khoá cửa, chờ thợ sửa" onChange={(e) => { setReason(e.target.value); setErr(""); }} />
       </Field>
@@ -205,7 +205,7 @@ function UnitFormDialog({ unit, onClose }) {
       </Field>
 
       <div className="form-pair">
-        <Field label="Tầng" error={isLegacyFloor ? "Vị trí cũ ngoài danh mục cấu hình; chọn lại tầng hợp lệ nếu muốn đổi" : undefined}>
+        <Field label="Tầng" error={isLegacyFloor ? "Vị trí cũ không còn trong danh sách; chọn lại tầng nếu muốn đổi" : undefined}>
           <Select value={form.floor} onChange={onFloorChange} disabled={layoutLoading}>
             <option value="">-- Chọn tầng --</option>
             {isLegacyFloor && (
@@ -220,7 +220,7 @@ function UnitFormDialog({ unit, onClose }) {
             ))}
           </Select>
         </Field>
-        <Field label="Khu vực / Dãy" error={isLegacyZone ? "Vị trí cũ ngoài danh mục cấu hình; chọn lại khu vực hợp lệ nếu muốn đổi" : undefined}>
+        <Field label="Khu vực / Dãy" error={isLegacyZone ? "Vị trí cũ không còn trong danh sách; chọn lại khu vực nếu muốn đổi" : undefined}>
           <Select value={form.zone} onChange={set("zone")} disabled={layoutLoading || !form.floor}>
             <option value="">-- Chọn khu vực / dãy --</option>
             {isLegacyZone && (
@@ -311,7 +311,7 @@ export function UnitManagementPage({ query }) {
     <main className="container page unit-board">
       <p className="customer-records__breadcrumb">SafeSpace / Quản lý cơ sở / Danh sách kho</p>
       <header className="page-header page-header--tight unit-board__head">
-        <div><h1>Danh sách kho — {ops.facility.name}</h1><p className="muted">Sử dụng lấy theo hợp đồng, không đổi tay thành trống. Trạng thái cửa cập nhật theo mô phỏng, chưa kết nối thiết bị thật.</p></div>
+        <div><h1>Danh sách kho — {ops.facility.name}</h1><p className="muted">Trạng thái sử dụng theo hợp đồng, không đổi tay thành trống.</p></div>
         <Tag tone="blue">{rows.length} ô · {rented} có người thuê</Tag>
       </header>
       <Button variant="outline" className="btn--sm btn--fit" onClick={() => setForm({})}>+ Thêm ô kho</Button>

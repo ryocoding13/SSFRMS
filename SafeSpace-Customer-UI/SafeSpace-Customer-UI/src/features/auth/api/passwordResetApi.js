@@ -7,16 +7,16 @@
  */
 import { request } from "../../../shared/api/httpClient.js";
 
-async function call(path, body) {
+async function call(path, body, unavailable) {
   try { return await request(path, { method: "POST", body, auth: false }); }
   catch (error) {
     if (error.status === 405 || (error.status === 404 && !error.data?.code && !error.data?.error)) {
-      throw new Error("Máy chủ chưa hỗ trợ đặt lại mật khẩu qua email. Vui lòng liên hệ quản trị viên.");
+      throw new Error(unavailable);
     }
     throw error;
   }
 }
 export const passwordResetApi = {
-  request: email => call("/api/auth/password-reset/request", { email }),
-  confirm: body => call("/api/auth/password-reset/confirm", body),
+  request: email => call("/api/auth/password-reset/request", { email }, "Chưa gửi được mã đặt lại mật khẩu. Vui lòng thử lại sau hoặc gọi hotline."),
+  confirm: body => call("/api/auth/password-reset/confirm", body, "Chưa đặt lại được mật khẩu. Vui lòng thử lại sau hoặc gọi hotline."),
 };

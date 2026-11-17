@@ -74,7 +74,6 @@ export function CancelReservationPage({ id }) {
       <form className="customer-detail__column" onSubmit={submit}>
         {paid && <section className="panel customer-detail__card"><h2>Nhận tiền hoàn</h2><RefundMethodFields value={bank} onChange={setBank} disabled={busy || !allowed} expectedName={expectedName} facility={facility} /></section>}
         <section className="panel customer-detail__card"><h2>Lý do huỷ</h2><Field label="Lý do (không bắt buộc)"><input maxLength={255} value={reason} onChange={e => setReason(e.target.value)} disabled={busy || !allowed} /></Field>
-          {support.demo && <Notice>Chế độ mô phỏng: thao tác chỉ lưu trong trình duyệt, không chuyển tiền thật.</Notice>}
           {paid && !support.ready && <Notice>{support.loading ? "Đang kiểm tra chức năng hoàn tiền…" : support.error || "Chức năng huỷ đơn đã thanh toán đang được cập nhật. Vui lòng liên hệ cơ sở để được hỗ trợ."}</Notice>}
           {paid && support.error && <Button variant="outline" onClick={support.reload}>Tải lại</Button>}
           {!allowed && <Notice>Đơn này không còn đủ điều kiện huỷ. {c && <a href={`#/units/${encodeURIComponent(c.contract_id)}`}>Xem hợp đồng và yêu cầu trả kho</a>}</Notice>}

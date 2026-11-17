@@ -8,7 +8,7 @@ import { useApp } from "../../../app/state/AppProvider.jsx";
 import "../../../shared/styles/rental-policy.css";
 
 export function RentalPolicyPage({ query = new URLSearchParams() }) {
-  const { data, authed, mode, retry } = useApp();
+  const { data, authed, retry } = useApp();
   const [tab, setTab] = useState(query.get("tab") === "contract" ? "contract" : "current");
   const [selected, setSelected] = useState(query.get("contract") || "");
   const [record, setRecord] = useState(query.get("renewal") || "initial");
@@ -32,14 +32,12 @@ export function RentalPolicyPage({ query = new URLSearchParams() }) {
         {tab === "contract" && <section className="panel rental-policy__card"><Field label="Bằng chứng muốn xem"><select value={record} onChange={e => setRecord(e.target.value)}><option value="initial">Khi đặt chỗ / ký hợp đồng ban đầu</option>{(data.renewals || []).filter(r => r.contract_id === contract.contract_id && normalizePolicyConsent(r.policy_consent)).map(r => <option key={r.renewal_id} value={r.renewal_id}>Yêu cầu gia hạn {r.renewal_id} · {r.months} tháng</option>)}</select></Field></section>}
         {load.loading && <section className="panel rental-policy__card" role="status">Đang tải đúng phiên bản chính sách…</section>}
         {load.error && <section className="panel rental-policy__card"><Notice tone="error">{load.error}</Notice><Button variant="outline" onClick={load.reload}>Thử lại</Button></section>}
-        {tab === "contract" && !consent && <section className="panel rental-policy__card"><h2>Chưa có bằng chứng đồng ý</h2><p>Hồ sơ này không có bản ghi đồng ý được lưu. Máy chủ chưa cung cấp phiên bản và thời điểm đồng ý cho hồ sơ này. Không dùng bản hiện hành để thay cho bản bạn đã đồng ý.</p><Button variant="outline" onClick={() => retry?.()}>Tải lại hồ sơ</Button></section>}
+        {tab === "contract" && !consent && <section className="panel rental-policy__card"><h2>Chưa có bằng chứng đồng ý</h2><p>Chưa tải được thông tin đồng ý chính sách của hồ sơ này. Vui lòng tải lại hoặc liên hệ cơ sở.</p><Button variant="outline" onClick={() => retry?.()}>Tải lại hồ sơ</Button></section>}
         {policy && POLICY_SECTIONS.map(([key, title], index) => <section className="panel rental-policy__card" key={key}><h2>{String(index + 1).padStart(2, "0")} · {title}</h2><p>{policy.sections[key]}</p></section>)}
       </div>
       <aside className="rental-policy__aside">
-        {tab === "contract" && <section className="panel rental-policy__card"><h2>Bằng chứng đồng ý</h2><DetailList items={[["Hợp đồng", contract.contract_id], ["Hồ sơ", renewal ? `Yêu cầu gia hạn ${renewal.renewal_id}` : "Đặt chỗ ban đầu"], ["Phiên bản", consent ? policyVersionLabel({version:consent.version,displayVersion:policy?.displayVersion || consent.displayVersion}) : "Chưa có thông tin"], ["Thời điểm", consent ? dateTimeLabel(consent.accepted_at) : "Chưa có thông tin"], ["Kênh", consent ? "Khách xác nhận trên tài khoản" : "Chưa có thông tin"]]} /><LinkButton to={`units/${encodeURIComponent(contract.contract_id)}`} variant="outline">Mở hợp đồng</LinkButton>{renewal && <p className="hint">Đồng ý chính sách không đồng nghĩa yêu cầu đã được duyệt hoặc thanh toán.</p>}</section>}
+        {tab === "contract" && <section className="panel rental-policy__card"><h2>Bằng chứng đồng ý</h2><DetailList items={[["Hợp đồng", contract.contract_id], ["Hồ sơ", renewal ? `Yêu cầu gia hạn ${renewal.renewal_id}` : "Đặt chỗ ban đầu"], ["Phiên bản", consent ? policyVersionLabel({version:consent.version,displayVersion:policy?.displayVersion || consent.displayVersion}) : "Chưa có thông tin"], ["Thời điểm", consent ? dateTimeLabel(consent.accepted_at) : "Chưa có thông tin"], ["Kênh", consent ? "Khách xác nhận trên tài khoản" : "Chưa có thông tin"]]} /><LinkButton to={`units/${encodeURIComponent(contract.contract_id)}`} variant="outline">Mở hợp đồng</LinkButton></section>}
         {policy && <section className="panel rental-policy__card"><h2>Các mốc cần nhớ</h2><ul className="rental-policy__milestones"><li><strong>Ngày cuối hợp đồng</strong><span>Dùng đến 23:59 theo giờ Việt Nam</span></li><li><strong>Quá hạn ngày 1</strong><span>Xem tỷ lệ và cách tính trong mục Quá hạn</span></li><li><strong>Ngày 10–14</strong><span>Cơ sở nhắc khách theo chính sách</span></li><li><strong>Ngày 20</strong><span>Xem quy định xử lý đồ trong chính sách</span></li></ul></section>}
-        {mode === "local" && <Notice>Chế độ mô phỏng FE: bản lưu và bằng chứng trên trình duyệt này.</Notice>}
-        {tab === "contract" && <Notice>Bản lưu thể hiện nội dung bạn đã đồng ý. Phạm vi áp dụng chính sách và các thay đổi bắt buộc thực hiện theo quy định đang có hiệu lực của hệ thống.</Notice>}
       </aside>
     </div>}
   </main>;

@@ -41,4 +41,15 @@ public sealed partial class CheckoutTests
         Assert.Equal(polls, f.Gateway.Polls);
         Assert.Equal(2, await f.Db.Payments.CountAsync());
     }
+
+    [Fact] public async Task ReconcileFlagsPaymentArrivingAfterExpiryCancel() {
+        await using var f = await Fixture.Create();
+        // Giao diện huỷ đơn khi hết giờ giữ chỗ nhưng khách đã trả tiền ở những giây cuối.
+        f.Order.Status = "CANCELLED"; f.Order.CancelledAt = DateTime.UtcNow; await f.Db.SaveChangesAsync();
+        f.Gateway.Polled = new(12345, 4000000);
+        Assert.Equal(1, await f.PayOS.ReconcilePendingAsync());
+        Assert.Empty(await f.Db.Payments.ToListAsync()); // không ghi tiền thuê cho đơn đã huỷ
+        Assert.Single(await f.Db.ActivityLogs.Where(l => l.Action == "PAYMENT_REVIEW_REQUIRED").ToListAsync());
+        Assert.Equal(0, await f.PayOS.ReconcilePendingAsync()); // đã ghi cần kiểm tra thì không hỏi lại
+    }
 }

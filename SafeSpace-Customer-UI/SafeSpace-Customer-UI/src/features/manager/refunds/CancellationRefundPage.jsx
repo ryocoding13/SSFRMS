@@ -71,7 +71,7 @@ export function CancellationRefundPage({ embedded = false } = {}) {
   const Wrap = embedded ? "section" : "main";
   return <Wrap className={embedded ? "refund-center__section" : "container page workflow-page"}>
     {embedded ? <h2 className="section-title">Hoàn tiền đơn huỷ</h2> : <PageHeaderBlock title="Hoàn tiền đơn huỷ" text="Các đơn huỷ trước ngày bắt đầu thuê. Hoàn về tài khoản chính chủ khách khai báo." />}
-    {source==="api"&&ops.refund_evidence_supported!==true&&<Notice>Máy chủ chưa hỗ trợ lưu đủ tài khoản và bằng chứng chuyển tiền; chưa thể xác nhận đã hoàn.</Notice>}
+    {source==="api"&&ops.refund_evidence_supported!==true&&<Notice>Chưa thể xác nhận đã hoàn lúc này. Vui lòng thử lại sau.</Notice>}
     {confirmed && <Notice tone="success">Đã ghi nhận hoàn {money(confirmed.amount)} · {confirmed.id}.</Notice>}
     {refunds.map(r => <RecordCard key={r.id} title={r.customer} subtitle={`${r.id} · Huỷ: ${dateTimeLabel(r.cancelled_at)}`} status={r.status === "PENDING" ? "Chờ hoàn" : r.status==="PAID"?`Đã hoàn${r.paid_at ? ` · ${dateLabel(r.paid_at)}` : ""}`:"Chưa rõ trạng thái"} actions={<>
       {r.status === "PENDING" && <Button disabled={saving||needsRefresh||!knownMoney(r.amount)||r.amount<=0||(source==="api"&&ops.refund_evidence_supported!==true)} onClick={() => setOpen(r)}>Xác nhận đã hoàn</Button>}

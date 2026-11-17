@@ -86,7 +86,7 @@ export default function PaymentListPage() {
           <LinkButton to="policies" variant="outline">Chính sách cho thuê</LinkButton>
         </aside>
       </div>
-      {paid && <Notice tone="success">Đã nhận thanh toán gia hạn qua mã QR. Kỳ thuê được cập nhật theo kết quả máy chủ.</Notice>}
+      {paid && <Notice tone="success">Đã nhận thanh toán gia hạn qua mã QR. Kỳ thuê mới đã được cập nhật.</Notice>}
       {detail && (
         <ConfirmDialog
           title="Chi tiết giao dịch"

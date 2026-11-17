@@ -122,7 +122,7 @@ export function ReturnDeductionPage({ id }) {
   return <main className="container page customer-records customer-detail">
     <p className="customer-records__breadcrumb">SafeSpace / Khách hàng / Kho của tôi / {id}</p>
     <PageHeader title={`Xác nhận khấu trừ trả kho · Kho ${c.unit_number}`} description="Nhân viên đã kiểm tra kho. Xem các khoản trừ vào cọc rồi xác nhận để hoàn tất hoàn cọc.">{d && <Tag tone={tone}>{pill}</Tag>}</PageHeader>
-    {load.demo ? <Notice>Chế độ mô phỏng chưa có biên bản trả kho thật. Vui lòng dùng chế độ kết nối máy chủ.</Notice>
+    {load.demo ? <Notice>Chức năng này chưa có dữ liệu trong chế độ thử nghiệm.</Notice>
       : load.loading ? <Notice>Đang tải biên bản…</Notice>
       : load.error ? <><Notice tone="error">{load.error}</Notice><Button variant="outline" onClick={load.reload}>Tải lại</Button></>
       : !d ? <Empty title="Chưa có biên bản trả kho" text="Nhân viên gửi biên bản trong 3 ngày sau khi bạn gửi yêu cầu trả kho." />

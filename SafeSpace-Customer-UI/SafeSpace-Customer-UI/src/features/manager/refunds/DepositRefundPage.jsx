@@ -80,7 +80,7 @@ function TransferForm({item,load,ask}) {
       <Notice>
         {isCash
           ? "Khách hàng đã chọn nhận tiền mặt tại quầy cơ sở. Kiểm tra CCCD trùng tên hợp đồng trước khi chi tiền và lưu phiếu chi."
-          : "Khách đã chọn nhận chuyển khoản ngân hàng (khóa theo lựa chọn của khách). Chuyển đúng số tiền vào tài khoản nhận hoàn rồi nhập mã giao dịch thật."}
+          : "Khách đã chọn nhận chuyển khoản ngân hàng. Chuyển đúng số tiền vào tài khoản nhận hoàn rồi nhập mã giao dịch."}
       </Notice>
 
       <DetailList
@@ -124,7 +124,7 @@ function TransferForm({item,load,ask}) {
         </Field>
       </div>
 
-      {!isCash && <p className="hint">Nhập sau khi chuyển tiền, lấy từ giao dịch ngân hàng thực tế. Khác mã hồ sơ nội bộ {item.id}; hệ thống không tự sinh mã này.</p>}
+      {!isCash && <p className="hint">Nhập mã giao dịch ngân hàng sau khi chuyển tiền.</p>}
       <label className="customer-detail__choice">
         <input
           type="checkbox"

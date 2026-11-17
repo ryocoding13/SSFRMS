@@ -6,7 +6,7 @@ export async function recordReservationConsent(api, reservationId, customerId, v
   const dto = await api.acceptReservationPolicy(reservationId, policy.version);
   const consent = normalizePolicyConsent(dto);
   if (!consent || consent.version !== policy.version || String(consent.customer_id) !== String(customerId) || !Number.isSafeInteger(Number(consent.consent_id)) || Number(consent.consent_id) <= 0 || consent.demo) {
-    throw new Error("Máy chủ chưa xác nhận đầy đủ bằng chứng đồng ý. Chưa mở thanh toán; hãy kiểm tra lại hoặc liên hệ cơ sở.");
+    throw new Error("Chưa ghi nhận được xác nhận đồng ý chính sách nên chưa mở thanh toán. Vui lòng thử lại.");
   }
   return consent;
 }

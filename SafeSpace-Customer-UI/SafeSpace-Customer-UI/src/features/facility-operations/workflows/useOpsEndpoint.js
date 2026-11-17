@@ -19,13 +19,13 @@ export function useOpsEndpoint(path) {
     setLoading(true); setError(""); setErrorStatus(0);
     try { const res = await request(path); if (n === seq.current) setData(res); }
     catch (e) {
-      if (n === seq.current) { setError([404, 405].includes(e.status) ? "Máy chủ chưa cung cấp dữ liệu cho chức năng này." : e.message); setErrorStatus(e.status || 0); }
+      if (n === seq.current) { setError([404, 405].includes(e.status) ? "Chưa tải được dữ liệu. Vui lòng thử lại sau." : e.message); setErrorStatus(e.status || 0); }
       onApiError?.(e);
     } finally { if (n === seq.current) setLoading(false); }
   }, [demo, path, onApiError]);
   useEffect(() => { reload(); return () => { seq.current++; }; }, [reload]);
   const post = useCallback(async (url, body) => {
-    if (demo) return { ok: false, error: "Chế độ mô phỏng không ghi được thao tác này. Vui lòng dùng chế độ kết nối máy chủ." };
+    if (demo) return { ok: false, error: "Chế độ thử nghiệm không ghi được thao tác này." };
     if (guard.current) return { ok: false, error: "Đang lưu, vui lòng chờ." };
     guard.current = true; setBusy(true);
     try { const res = await request(url, { method: "POST", body }); await reload(); return { ok: true, result: res }; }

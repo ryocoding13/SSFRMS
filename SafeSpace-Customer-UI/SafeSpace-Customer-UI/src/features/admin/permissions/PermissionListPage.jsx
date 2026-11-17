@@ -12,7 +12,7 @@ import {useLoad} from "../utils/adminUtils.js";
 import {useApp} from "../../../app/state/AppProvider.jsx";
 import {Button,Empty,Notice,PageHeader} from "../../../shared/components/UI.jsx";
 import {ROLE_SCOPE,roleLabel,sortRoles} from "../../../shared/utils/roles.js";
-const descriptions={CUSTOMER:"Đặt kho, thanh toán, quản lý hợp đồng và gửi hỗ trợ",STAFF:"Thu tiền tại kho, xác minh, giao chìa khóa, kiểm tra và hỗ trợ khách",MANAGER:"Phân bổ kho, phân công, duyệt gia hạn và xử lý hoàn tiền",OPERATIONS:"Quản lý cơ sở, giá thuê, chính sách và báo cáo",ADMIN:"Quản lý tài khoản, gán vai trò, cơ sở phụ trách và xem nhật ký"};
+const descriptions={CUSTOMER:"Đặt kho, thanh toán, quản lý hợp đồng và gửi hỗ trợ",STAFF:"Thu tiền tại kho, xác minh, giao chìa khóa, kiểm tra và hỗ trợ khách",MANAGER:"Quản lý ô kho, hợp đồng, quá hạn, sự cố và hoàn tiền",OPERATIONS:"Quản lý cơ sở, giá thuê, chính sách và báo cáo",ADMIN:"Quản lý tài khoản, gán vai trò, cơ sở phụ trách và xem nhật ký"};
 /**
  * Bảng hiển thị ma trận vai trò, phạm vi dữ liệu và danh sách quyền hạn tương ứng.
  * @param {{ roles: Array }} props

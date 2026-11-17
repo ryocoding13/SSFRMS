@@ -146,7 +146,9 @@ export default function Header({ page }) {
           </nav>
           <div className="header__user">
             {authed ? (
-              <a className="header__name" href={href("profile")} title="Tài khoản của tôi">{user.full_name}</a>
+              <a className={`header__name${customer ? " header__name--role" : ""}`} href={href("profile")} title="Tài khoản của tôi">
+                {customer ? <><strong>{user.full_name}</strong><small>Khách hàng</small></> : user.full_name}
+              </a>
             ) : (
               <a className="header__name" href={href("login")}>Đăng nhập</a>
             )}

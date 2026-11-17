@@ -219,7 +219,7 @@ try {
   const paperHtml = renderToStaticMarkup(React.createElement(App));
   assert.ok(paperHtml.includes(`Hợp đồng giấy · ${paperContract.contract_id}`));
   assert.ok(paperHtml.includes("Quay lại hợp đồng") && paperHtml.includes("Tải PDF"));
-  assert.ok(paperHtml.includes("chưa kết nối máy chủ"));
+  assert.ok(paperHtml.includes("Chưa hiển thị được hợp đồng giấy"));
   window.location.hash = "#/units";
   memory.set(STORAGE_KEY, JSON.stringify({ version: 5, authed: true, data: reviewData }));
   // Exercise actual LocalProvider services: guards also apply to direct calls, not only disabled buttons.

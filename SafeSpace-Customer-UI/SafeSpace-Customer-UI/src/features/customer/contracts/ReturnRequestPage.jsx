@@ -83,7 +83,6 @@ export function ReturnRequestPage({ id }) {
         </fieldset>
         <section className="panel customer-detail__card"><h2>2 · Nhận tiền hoàn</h2>
           <RefundMethodFields value={bank} onChange={setBank} expectedName={expectedName} disabled={busy || blocked} facility={facility} />
-          {support.demo && <Notice>Chế độ mô phỏng: lịch trả kho và thông tin nhận hoàn lưu trong trình duyệt.</Notice>}
           {!support.ready && <Notice>{support.loading ? "Đang kiểm tra chức năng gửi trả kho…" : support.error || "Chức năng gửi trả kho đang được cập nhật. Vui lòng liên hệ cơ sở để được hỗ trợ."}</Notice>}
           {support.error && <Button variant="outline" onClick={support.reload}>Tải lại</Button>}
           {blocked && <Notice>Chưa thể gửi thêm: hợp đồng chưa bắt đầu, đã kết thúc hoặc đang có yêu cầu gia hạn/trả kho. <a href={`#/units/${encodeURIComponent(id)}`}>Xem hợp đồng</a></Notice>}

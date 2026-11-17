@@ -61,7 +61,7 @@ test('chặn hợp đồng đã kết thúc/trả kho/quá hạn; ảnh chỉ me
 });
 test('API thiếu endpoint không fallback; payload không nhận số tiền/owner tự gán',async()=>{
  const original=globalThis.fetch,calls=[];globalThis.fetch=async(url,options)=>{calls.push({url,body:options.body&&JSON.parse(options.body)});return new Response('{}',{status:404});};
- try {await assert.rejects(loadIncidents('customer'),/chưa hỗ trợ/);await assert.rejects(saveIncidentAction('manager',draft()[0],'SEND_INCIDENT_PROPOSAL',{expectedVersion:1,...sendPayload,ownerId:999,refund:0},manager,NOW),/chưa hỗ trợ/);assert.ok(calls[1].url.endsWith('/api/ops/incidents'));assert.equal(calls[1].body.ownerId,undefined);assert.equal(calls[1].body.refund,undefined);assert.equal(calls[1].body.expectedTargetVersion,1);}finally{globalThis.fetch=original;}
+ try {await assert.rejects(loadIncidents('customer'),/Chưa ghi nhận được thay đổi/);await assert.rejects(saveIncidentAction('manager',draft()[0],'SEND_INCIDENT_PROPOSAL',{expectedVersion:1,...sendPayload,ownerId:999,refund:0},manager,NOW),/Chưa ghi nhận được thay đổi/);assert.ok(calls[1].url.endsWith('/api/ops/incidents'));assert.equal(calls[1].body.ownerId,undefined);assert.equal(calls[1].body.refund,undefined);assert.equal(calls[1].body.expectedTargetVersion,1);}finally{globalThis.fetch=original;}
 });
 test('receipt thiếu/sai trạng thái/owner/version/giá không báo thành công; đúng thì nhận',async()=>{
  const original=globalThis.fetch,item=draft()[0],payload={expectedVersion:1,...sendPayload},result=proposed()[0];

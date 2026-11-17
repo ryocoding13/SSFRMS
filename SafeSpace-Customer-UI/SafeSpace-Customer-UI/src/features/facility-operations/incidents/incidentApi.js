@@ -26,7 +26,7 @@ export function normalizeIncident(value) {
   return {...value,photos:Array.isArray(value.photos)?value.photos:[],candidates:Array.isArray(value.candidates)?value.candidates:[]};
 }
 const pathFor=scope=>{if(scope==="customer")return "/api/incidents";if(scope==="manager")return "/api/ops/incidents";throw new Error("Phạm vi không hợp lệ.");};
-const explain=error=>[404,405].includes(error.status)?new ApiError("Máy chủ chưa hỗ trợ luồng sự cố cơ sở. Chưa ghi nhận thay đổi; vui lòng liên hệ cơ sở.",error.status):error;
+const explain=error=>[404,405].includes(error.status)?new ApiError("Chưa ghi nhận được thay đổi. Vui lòng thử lại sau.",error.status):error;
 export async function loadIncidents(scope) {
   try{const data=await request(pathFor(scope));if(!Array.isArray(data?.items))throw new Error("Danh sách sự cố từ máy chủ không hợp lệ.");return data.items.map(normalizeIncident);}catch(error){throw explain(error);}
 }
