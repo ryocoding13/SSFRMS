@@ -41,6 +41,9 @@ public partial class FacilityOpsService
             .Include(o => o.Contract).ThenInclude(c => c.Customer)
             .Include(o => o.AssignedStaff)
             .Where(o => o.Contract.Unit.FacilityId == facility.FacilityId)
+            // D32/D63: khách đã gửi trả kho thì việc tiếp theo là kiểm tra trả kho, không còn xử lý đồ quá hạn.
+            // Ẩn hồ sơ chưa lập biên bản để nhân viên không thấy hai việc cho cùng một ô; hồ sơ đã có biên bản vẫn giữ.
+            .Where(o => o.Status == "RESOLVED" || o.Contract.Status != "RETURN_PENDING")
             .OrderByDescending(o => o.OverdueCaseId)
             .ToListAsync(ct);
 
