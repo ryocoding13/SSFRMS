@@ -34,13 +34,13 @@ export function CancelRenewalButton({ renewal, contract }) {
   return <>
     <Button variant="outline" className="customer-detail__task-secondary" disabled={busy} onClick={() => { setError(""); setStage("confirm"); }}>Huỷ yêu cầu</Button>
     {stage === "confirm" && <ConfirmDialog tone="danger" title={`Huỷ yêu cầu gia hạn ${renewal.renewal_id}?`} busy={busy} label="Huỷ yêu cầu" hint=""
-      text="Yêu cầu đang chờ quản lý duyệt sẽ bị huỷ. Kỳ thuê hiện tại giữ nguyên."
+      text="Yêu cầu gia hạn đang chờ xác nhận sẽ bị huỷ. Kỳ thuê hiện tại giữ nguyên."
       rows={[["Kho", `${contract.unit_number} · ${contract.contract_id}`], ["Kỳ thuê hiện tại", `đến ${dateLabel(contract.end_date)}`], ["Sau khi huỷ", "Gửi được trả kho hoặc gia hạn mới"]]}
       onCancel={() => setStage(null)} onConfirm={send} />}
     {stage === "success" && <ConfirmDialog tone="success" title={`Đã huỷ yêu cầu gia hạn ${renewal.renewal_id}`} cancelLabel={null} hint="" label="Về hợp đồng"
       text="Nút Trả kho đã mở lại. Bạn có thể gửi trả kho hoặc gửi yêu cầu gia hạn mới." onCancel={() => setStage(null)} onConfirm={() => setStage(null)} />}
     {stage === "failure" && <ConfirmDialog tone="failure" title="Chưa huỷ được yêu cầu gia hạn" hint="" cancelLabel="Đóng" label="Tải lại"
-      text={`${error ? `${error} ` : ""}Có thể quản lý vừa duyệt yêu cầu này. Tải lại để xem trạng thái mới; yêu cầu đã duyệt thì thanh toán trước hạn hoặc để tự hết hiệu lực sau 24 giờ.`}
+      text={`${error ? `${error} ` : ""}Có thể yêu cầu vừa được xác nhận. Tải lại để xem trạng thái mới; yêu cầu đã xác nhận thì thanh toán trước hạn hoặc để tự hết hiệu lực sau 24 giờ.`}
       onCancel={() => setStage(null)} onConfirm={() => { setStage(null); retry?.(); }} />}
   </>;
 }

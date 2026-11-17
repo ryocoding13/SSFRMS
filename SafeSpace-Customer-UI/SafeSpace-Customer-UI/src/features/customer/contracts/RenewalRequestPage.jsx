@@ -60,7 +60,6 @@ export function RenewalRequestPage({ id }) {
           <legend>Chọn số tháng *</legend>
           {RENTAL_PLANS.map(m => <label className="customer-detail__choice" key={m}><input type="radio" name="renewal-months" value={m} checked={months === m} onChange={() => { setMonths(m); setError(""); }} /><span>{m} tháng{months === m ? ` · ${dateLabel(c.end_date)} – ${dateLabel(addMonths(c.end_date, m))}` : ""}</span></label>)}
         </fieldset>
-        {policy.demo && <Notice>Chế độ mô phỏng FE: bằng chứng đồng ý chỉ lưu trong trình duyệt.</Notice>}
         <label className="customer-detail__choice"><input type="checkbox" checked={accepted} disabled={!policyReady || busy || blocked} onChange={e => setAcceptedVersion(e.target.checked ? String(version) : null)} /><span>Tôi đã đọc và đồng ý <a href="#/policies" target="_blank" rel="noreferrer">chính sách hiện hành</a>{policyReady ? ` (${policy.data.displayVersion || version})` : ""} cho kỳ gia hạn.</span></label>
         {!policyReady && <Notice>{policy.loading ? "Đang tải chính sách…" : "Chưa tải được phiên bản chính sách hợp lệ. Vui lòng tải lại trước khi gửi gia hạn."}</Notice>}
         {policy.error && <Button variant="outline" onClick={policy.reload}>Tải lại chính sách</Button>}

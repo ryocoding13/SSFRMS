@@ -22,7 +22,7 @@ export const setToken = (t) => {
 };
 
 const DEFAULT_MESSAGES = {
-  0: "Không kết nối được máy chủ. Vui lòng kiểm tra backend đang chạy.",
+  0: "Không kết nối được máy chủ. Vui lòng kiểm tra mạng và thử lại.",
   401: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
   403: "Tài khoản không có quyền thực hiện thao tác này.",
   404: "Không tìm thấy dữ liệu.",

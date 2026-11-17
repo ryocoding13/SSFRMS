@@ -40,7 +40,7 @@ export function AccessQrModal({ c, facility, onClose }) {
       <p className="modal__text modal__text--sub">{where}</p>
       {/* #59: xem được mã trước ngày thuê nhưng chỉ mở cửa từ 00:00 ngày bắt đầu; đến ngày tự chuyển "Đang có hiệu lực" */}
       {a && (a.usable_now === false
-        ? <div className="access-qr__state"><Tag tone="amber">Chưa đến ngày sử dụng</Tag><strong>{usableFromText(a.usable_from || a.valid_from || c.start_date)}</strong><span>Trước thời điểm này, QR và PIN chưa mở được cửa, kể cả khi bạn đã xem hoặc lưu mã.</span></div>
+        ? <div className="access-qr__state"><Tag tone="amber">Chưa đến ngày sử dụng</Tag><strong>{usableFromText(a.usable_from || a.valid_from || c.start_date)}</strong><span>Trước thời điểm này, QR và PIN chưa mở được cửa.</span></div>
         : <div className="access-qr__state"><Tag tone="green">Đang có hiệu lực</Tag><span>Cửa giữ mở sau khi quét đến khi bạn bấm “Đóng cửa” trong Kho của tôi hoặc trên máy quét.</span></div>)}
       {state.status === "unsupported" ? (
         <Notice>Mã QR mở cửa đang được cơ sở kích hoạt. Vui lòng liên hệ nhân viên trực để kiểm tra hợp đồng.</Notice>

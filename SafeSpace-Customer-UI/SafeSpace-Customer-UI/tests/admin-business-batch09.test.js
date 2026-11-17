@@ -22,7 +22,7 @@ test('đổi vai trò dùng một thao tác nguyên tử, không gán/gỡ nối
  await assert.rejects(roleActionChecked({...api,user:async()=>user},user,'change',4,2),e=>e.uncertain);
 });
 test('API đổi vai trò 404 không fallback các endpoint gán/gỡ',async()=>{
- const old=globalThis.fetch,calls=[];globalThis.fetch=async(url,opt)=>{calls.push([url,opt.method]);return new Response('{}',{status:404});};try{await assert.rejects(adminApi.changeRole(3,{previousRoleId:2,roleId:4}),/chưa hỗ trợ/);assert.equal(calls.length,1);assert.ok(calls[0][0].endsWith('/api/admin/users/3/role-change'));}finally{globalThis.fetch=old;}
+ const old=globalThis.fetch,calls=[];globalThis.fetch=async(url,opt)=>{calls.push([url,opt.method]);return new Response('{}',{status:404});};try{await assert.rejects(adminApi.changeRole(3,{previousRoleId:2,roleId:4}),/Chưa đổi được vai trò/);assert.equal(calls.length,1);assert.ok(calls[0][0].endsWith('/api/admin/users/3/role-change'));}finally{globalThis.fetch=old;}
 });
 test('cấp lại/gỡ kiểm vai trò tồn tại và giữ các vai trò khác',async()=>{
  let current={userId:3,roles:[{roleId:2},{roleId:5}]};const api={assignRole:async(_,id)=>current.roles.push({roleId:id}),revokeRole:async(_,id)=>{current.roles=current.roles.filter(r=>r.roleId!==id);},user:async()=>current};

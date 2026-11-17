@@ -60,8 +60,8 @@ test("D32: chốt trả kho tạo chờ hoàn, không trừ trường công nợ
 
 test("quản lý không còn duyệt / từ chối gia hạn thủ công (#23)", () => {
   let s = createOpsData(T);
-  assert.match(run(s, "DECIDE_RENEWAL", { id: "GH-0077", approve: false, reason: "Không dùng nữa" }).error.message, /đã bỏ/);
-  assert.match(run(s, "DECIDE_RENEWAL", { id: "GH-0208", approve: true }).error.message, /đã bỏ/);
+  assert.match(run(s, "DECIDE_RENEWAL", { id: "GH-0077", approve: false, reason: "Không dùng nữa" }).error.message, /xác nhận tự động/);
+  assert.match(run(s, "DECIDE_RENEWAL", { id: "GH-0208", approve: true }).error.message, /xác nhận tự động/);
 });
 
 test("phân công việc hỗ trợ cho nhân viên → yêu cầu chuyển sang đang xử lý", () => {

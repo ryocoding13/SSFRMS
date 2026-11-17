@@ -2191,3 +2191,11 @@
 - Bảng tên ô kho trên tường (giữa mép trên cửa và máy quét, khớp Figma) hiện mã ô đang chọn và đổi theo khi chuyển ô/cơ sở; mã dài tự thu nhỏ chữ.
 - Hộp camera QR tách thành `QrScanDialog.jsx`; ảnh cảnh kho lấy từ Figma (`src/assets/demo/door-scene-*.webp`).
 - Kiểm chứng: `npm test` 226/226, test:render 178 route, check:structure, build PASS; xem bằng Chrome trên máy chủ giả (`dev:mock`) và chặn API mở cửa để thấy trạng thái mở. Chưa thử với backend thật/SQL Server, chưa thử camera thật.
+
+## 2026-11-17 — Dọn ghi chú màn hình (D63), vai trò khách, hotline, rà email và thanh toán
+
+- FE: viết lại / bỏ khoảng 100 ghi chú dành cho dev trên màn (lệnh chạy, `VITE_USE_API`, đường dẫn API, "máy chủ chưa hỗ trợ", "(D32)", giải thích cách tính nội bộ); bỏ ghi chú "Chế độ mô phỏng FE" lặp trên từng màn, giữ dải báo chung "Chế độ thử nghiệm"; đổi chữ gia hạn còn ghi "quản lý duyệt" theo D50. Thanh đầu trang của khách hiện "Khách hàng" dưới họ tên; hotline chân trang thành chữ thường.
+- Thanh toán (FE): khi hết giờ giữ chỗ PayOS, giao diện hỏi `/api/v1/reservations/{id}/status` (máy chủ đối soát thẳng PayOS) trước khi gọi huỷ — trước đây có thể huỷ đơn khách vừa trả tiền ở những giây cuối khi webhook chưa về (chạy máy cá nhân). Hỏi trạng thái thanh toán 3 giây/lần cũng gọi `/status` trước nên xác nhận nhanh hơn khi không có webhook.
+- Thanh toán (BE): `ReconcilePendingAsync` đối soát cả đơn PayOS vừa bị huỷ (`CANCELLED`, trong 30 phút) để tiền về muộn được ghi `PAYMENT_REVIEW_REQUIRED` như đơn `EXPIRED`; thêm test `ReconcileFlagsPaymentArrivingAfterExpiryCancel`.
+- Email: đặt lại mật khẩu — lỗi "Mật khẩu mới phải khác mật khẩu hiện tại" trước đây bị FE hiểu là sai mã và đẩy về bước nhập mã; nay hiện ngay dưới ô mật khẩu. Thư hợp đồng sửa câu QR/PIN cho đúng D51 (xem được ngay, mở cửa từ 00:00 ngày bắt đầu). Rà hàng đợi email (hợp đồng, xác nhận đã nhận tiền, nhắc gia hạn, quá hạn, OTP): không thấy lỗi khác.
+- Kiểm chứng: FE `npm test` 231/231 (TZ Asia/Ho_Chi_Minh), test:business 15/15, test:workflows 12/12, test:render 178 route PASS, check:structure PASS, build PASS; xem thanh đầu trang và chân trang bằng Chrome trên `dev:mock`. **Chưa build/chạy `dotnet test`** (môi trường AI không tải được .NET SDK) — cần CI hoặc máy thành viên. Chưa thử PayOS thật.

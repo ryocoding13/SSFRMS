@@ -56,7 +56,7 @@ export function ReservationReviewPage({ id }) {
             <p className="hint">
               {reservation.allocation_mode === "EXACT"
                 ? `Hệ thống giữ chính xác ô ${reservation.unit_code} cho bạn trong toàn bộ kỳ ${dateLabel(reservation.start_date)} – ${dateLabel(reservation.end_date)}.`
-                : `Trống trong toàn bộ kỳ ${dateLabel(reservation.start_date)} – ${dateLabel(reservation.end_date)} · không trùng hợp đồng hoặc lượt đặt khác. Bạn không cần chọn ô trên sơ đồ.`}
+                : `Trống trong toàn bộ kỳ ${dateLabel(reservation.start_date)} – ${dateLabel(reservation.end_date)}.`}
             </p>
             <a className="policy-review__read" href={`#/find/${reservation.facility_id}?view=map&unit=${encodeURIComponent(reservation.unit_code)}&offer=${encodeURIComponent(reservation.offer_key || "")}`}>Xem vị trí ô trên sơ đồ →</a>
           </> : <p className="muted">Hệ thống bố trí ô trống cả kỳ theo loại kho và diện tích bạn chọn; mã ô hiện ở đây ngay khi có.</p>}
@@ -73,11 +73,10 @@ export function ReservationReviewPage({ id }) {
         {policy.error && <Notice tone="error">{policy.error}<Button variant="outline" onClick={() => { setAcceptedVersion(null); policy.reload(); }}>Thử lại</Button></Notice>}
         {ready && <p className="hint">Bản hiện hành: {policyVersionLabel(policy.data)}</p>}
         <label className="policy-review__consent"><input type="checkbox" checked={accepted} disabled={!ready || busy || !pending || Boolean(expired)} onChange={e => { setAcceptedVersion(e.target.checked ? policy.data.version : null); setError(""); }} /><span>Tôi đã đọc và đồng ý với Chính sách thuê kho</span></label>
-        {mode === "local" && <Notice>Chế độ mô phỏng: xác nhận chỉ lưu trên trình duyệt này.</Notice>}
         {error && <Notice tone="error">{error}</Notice>}
         {(!pending || expired) && <Notice>Đơn không còn chờ thanh toán hoặc đã hết hạn giữ chỗ. Vui lòng kiểm tra trạng thái đơn.</Notice>}
         <Button type="submit" block disabled={!accepted || busy || !pending || Boolean(expired)}>{busy ? "Đang lưu xác nhận…" : "Tiếp tục thanh toán"}</Button>
-        <p className="hint">Sự đồng ý được lưu cùng đơn, phiên bản chính sách và thời điểm xác nhận. Nhân viên không xác nhận thay bạn.</p>
+        <p className="hint">Bạn có thể xem lại chính sách đã đồng ý trong mục Chính sách.</p>
         <LinkButton to={`reservations/${encodeURIComponent(id)}`} variant="outline">Xem đơn đặt chỗ</LinkButton>
       </form>
     </div>

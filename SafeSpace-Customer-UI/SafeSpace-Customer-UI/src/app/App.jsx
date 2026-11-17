@@ -177,7 +177,7 @@ function Shell() {
   }, [isAdmin, isOps, businessAllowed, roles, route.page]);
 
   const businessBody = mode !== "api" ? (
-    <main className="container page"><Empty title="Khu vận hành kinh doanh cần kết nối máy chủ" text="Chạy npm run dev:business để xem giao diện khi chưa có backend, hoặc bật chế độ API và chạy máy chủ của bạn." /></main>
+    <main className="container page"><Empty title="Khu vận hành kinh doanh chưa sẵn sàng" text="Chưa kết nối được hệ thống. Vui lòng thử lại sau." /></main>
   ) : authed && !businessAllowed ? (
     <main className="container page"><Empty title="Bạn không có quyền truy cập" text="Tài khoản hiện tại không được phép xem nội dung này. Khu này dành cho tài khoản Quản lý vận hành kinh doanh."><LinkButton to={homeFor(roles)}>Về tổng quan</LinkButton></Empty></main>
   ) : null;
@@ -185,7 +185,7 @@ function Shell() {
   const adminBody =
     mode !== "api" ? (
       <main className="container page">
-        <Empty title="Khu quản trị cần kết nối máy chủ" text="Bật VITE_USE_API=true và chạy backend SSFRMS để quản lý tài khoản, vai trò và nhật ký.">
+        <Empty title="Khu quản trị chưa sẵn sàng" text="Chưa kết nối được hệ thống. Vui lòng thử lại sau.">
           <LinkButton to="home">Về trang chủ</LinkButton>
         </Empty>
       </main>
@@ -201,7 +201,7 @@ function Shell() {
     <div className={`app${!isAdminPage && !isOpsPage && !isBusinessPage ? " customer-app" : ""}${["profile", "support"].includes(route.page) ? " app--auth-support" : ""}`}>
       <a className="skip" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>Chuyển đến nội dung</a>
       {!(isAdminPage && !adminBody && authed) && !(isOpsPage && authed && opsAllowed) && !(isBusinessPage && !businessBody && authed) && <Header page={route.page} />}
-      {(WORKFLOW_DEMO || mode === "local") && <p className="demo-banner" role="status">MÔ PHỎNG FE · Dữ liệu thử nghiệm, không thanh toán / chuyển tiền thật.</p>}
+      {(WORKFLOW_DEMO || mode === "local") && <p className="demo-banner" role="status">Chế độ thử nghiệm · Dữ liệu mẫu, không thanh toán hoặc chuyển tiền thật.</p>}
       {/* Khu khách hàng: đổi key theo đường dẫn để mỗi trang dựng lại.
           Khu Nhân viên/Quản lý/Vận hành KD/Quản trị: giữ key theo khu để header, menu và dữ liệu vận hành
           không bị dựng lại (mất dữ liệu → hiện "Đang tải…" → giật) mỗi lần bấm; nội dung từng trang dựng lại trong *Routes. */}

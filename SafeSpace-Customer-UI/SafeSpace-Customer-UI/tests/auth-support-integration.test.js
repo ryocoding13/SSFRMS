@@ -51,7 +51,7 @@ test('Đặt lại mật khẩu giữ đúng lỗi email chưa đăng ký và ph
     }), { status: 404 });
     await assert.rejects(passwordResetApi.request('customer@example.invalid'), /Email chưa đăng ký/);
     globalThis.fetch = async () => new Response(null, { status: 404 });
-    await assert.rejects(passwordResetApi.request('customer@example.invalid'), /chưa hỗ trợ đặt lại mật khẩu/);
+    await assert.rejects(passwordResetApi.request('customer@example.invalid'), /Chưa gửi được mã đặt lại mật khẩu/);
   } finally {
     globalThis.fetch = original;
   }

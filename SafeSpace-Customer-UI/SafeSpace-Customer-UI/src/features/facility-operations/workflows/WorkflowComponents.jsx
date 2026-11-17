@@ -4,7 +4,7 @@ import { Button, Empty, Modal, Notice, Tag } from "../../../shared/components/UI
 
 // errorView: chữ trạng thái lỗi tải theo Figma của từng màn ({ title, text, label }); 403 khi tải = dữ liệu ngoài cơ sở phụ trách (Figma QUYEN02)
 export function WorkflowState({ load, children, errorView }) {
-  return <>{load.demo && <Notice>Chế độ mô phỏng FE · Dữ liệu lưu trong trình duyệt, không phải giao dịch thật.</Notice>}
+  return <>
     {load.needsRefresh&&<Notice tone="error">Chưa xác minh kết quả. Tải lại trước khi gửi tiếp; không chuyển tiền lần nữa.<Button disabled={load.busy} onClick={load.reload}>Tải lại dữ liệu</Button></Notice>}
     {load.loading ? <p role="status">Đang tải dữ liệu…</p> : load.error ? (
       load.errorStatus === 403 ? <Empty title="Dữ liệu ngoài cơ sở phụ trách" text="Không thể xem hoặc thao tác hồ sơ thuộc cơ sở khác."><Button variant="outline" onClick={load.reload}>Tải lại dữ liệu</Button></Empty>

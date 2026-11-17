@@ -97,7 +97,7 @@ export function CashRefundPage({ query }) {
   const onSwitch = async (id, bank) => { await load.switchToBank(id, bank); await load.reload(); };
   return <main className="container page customer-records customer-detail">
     <p className="customer-records__breadcrumb">SafeSpace / Khách hàng / Thanh toán & lịch hẹn / Hoàn tiền mặt</p>
-    {load.demo ? <><PageHeader title="Nhận tiền hoàn tại quầy" description="Khoản hoàn bạn chọn nhận tiền mặt." /><Notice>Chế độ mô phỏng chưa có khoản hoàn tiền mặt. Vui lòng dùng chế độ kết nối máy chủ.</Notice></>
+    {load.demo ? <><PageHeader title="Nhận tiền hoàn tại quầy" description="Khoản hoàn bạn chọn nhận tiền mặt." /><Notice>Chức năng này chưa có dữ liệu trong chế độ thử nghiệm.</Notice></>
       : load.loading ? <Notice>Đang tải…</Notice>
       : load.error ? <><Notice tone="error">{load.error}</Notice><Button variant="outline" onClick={load.reload}>Tải lại</Button></>
       : selected ? <CashRefundDetail key={selected.id} item={selected} expectedName={expectedName} onSwitch={onSwitch} />

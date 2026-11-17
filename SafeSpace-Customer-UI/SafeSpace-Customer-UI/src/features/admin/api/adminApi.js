@@ -70,7 +70,7 @@ export const adminApi = {
 
   // Gán một vai trò cho người dùng (POST /api/admin/users/{userId}/roles)
   // Đề xuất atomic replacement; không fallback assign rồi revoke.
-  changeRole: async(userId,body)=>{try{return await request(`/api/admin/users/${userId}/role-change`,{method:"POST",body});}catch(error){if([404,405].includes(error.status))throw new ApiError("Máy chủ chưa hỗ trợ đổi vai trò trong một thao tác. Chưa đổi vai trò; không gán rồi gỡ thay thế.",error.status);throw error;}},
+  changeRole: async(userId,body)=>{try{return await request(`/api/admin/users/${userId}/role-change`,{method:"POST",body});}catch(error){if([404,405].includes(error.status))throw new ApiError("Chưa đổi được vai trò. Vui lòng thử lại sau.",error.status);throw error;}},
   assignRole: (userId, roleId) => request(`/api/admin/users/${userId}/roles`, { method: "POST", body: { roleId } }),
 
   // Thu hồi một vai trò khỏi người dùng (DELETE /api/admin/users/{userId}/roles/{roleId})

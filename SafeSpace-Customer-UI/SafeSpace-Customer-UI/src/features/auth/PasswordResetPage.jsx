@@ -112,8 +112,9 @@ export function PasswordResetPage() {
       setPassword(""); setConfirm(""); setCode(""); setDemoCode("");
       setStep("done");
     } catch (ex) {
-      // Mã sai/hết hạn: quay lại bước nhập mã, giữ mật khẩu đã nhập.
-      if (ex.status === 400 || /mã/i.test(ex.message || "")) { setStep("code"); setErrors({ code: "Mã chưa đúng hoặc đã hết hạn. Nhập mã mới nhất hoặc bấm Gửi lại mã." }); }
+      // Mã sai/hết hạn: quay lại bước nhập mã. Lỗi về mật khẩu mới (trùng mật khẩu cũ…) hiện ngay ở ô mật khẩu.
+      if (/mã xác nhận/i.test(ex.message || "")) { setStep("code"); setErrors({ code: "Mã chưa đúng hoặc đã hết hạn. Nhập mã mới nhất hoặc bấm Gửi lại mã." }); }
+      else if (ex.status === 400 && /mật khẩu/i.test(ex.message || "")) setErrors({ password: ex.message });
       else setErrors({ form: ex.message });
     } finally {
       pending.current = false;

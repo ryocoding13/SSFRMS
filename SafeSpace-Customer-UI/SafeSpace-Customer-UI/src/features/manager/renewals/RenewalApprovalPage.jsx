@@ -7,7 +7,7 @@
  * - Trường hợp gia hạn chuyển sang ô khác (D46 / D46b): Kiểm tra và giữ ô mới, tính cọc chênh.
  */
 import React from "react";
-import { LinkButton, Notice, Tag } from "../../../shared/components/UI.jsx";
+import { LinkButton, Tag } from "../../../shared/components/UI.jsx";
 import { dateLabel } from "../../../shared/utils/format.js";
 import { unitMoveText } from "./renewalApprovalModel.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
@@ -22,7 +22,6 @@ export function RenewalApprovalPage() {
   return (
     <main className="container page">
       <PageHeaderBlock title="Gia hạn hợp đồng" text="Hệ thống tự động xác nhận các gia hạn hợp lệ để khách thanh toán trực tiếp." />
-      <Notice>Quản lý không còn bước duyệt/từ chối gia hạn thủ công. Mọi yêu cầu gia hạn hợp lệ được xác nhận tự động khi khách gửi và mở thanh toán trong 24 giờ.</Notice>
       {done.length > 0 && (
         <>
           <h2 className="section-title">Lịch sử gia hạn</h2>

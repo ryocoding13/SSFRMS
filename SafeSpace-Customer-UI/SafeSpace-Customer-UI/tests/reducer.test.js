@@ -107,7 +107,7 @@ test("3.2: gia hạn tự động xác nhận không huỷ theo luồng chờ du
   s.renewals = [];
   s.ledger = s.ledger.filter((l) => l.kind !== "RENEWAL");
   const a = run(s, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 3 });
-  assert.match(run(a.state, "CANCEL_RENEWAL", { renewal_id: a.state.renewals[0].renewal_id }).error.message, /chờ quản lý duyệt/);
+  assert.match(run(a.state, "CANCEL_RENEWAL", { renewal_id: a.state.renewals[0].renewal_id }).error.message, /chờ xác nhận/);
 
   const legacyPending = {
     ...s,
@@ -118,7 +118,7 @@ test("3.2: gia hạn tự động xác nhận không huỷ theo luồng chờ du
   assert.equal(b.state.renewals[0].status, "CANCELLED");
   assert.ok(!b.state.ledger.some((l) => l.status === "RENEWAL_PENDING" && l.contract_id === "HĐ-2026-0086"));
   assert.doesNotMatch(run(b.state, "REQUEST_RETURN", { contract_id: "HĐ-2026-0086", date: T, slot: "09:00–09:30" }).error?.message || "", /gia hạn/);
-  assert.match(run(b.state, "CANCEL_RENEWAL", { renewal_id: "GH-9999" }).error.message, /chờ quản lý duyệt/);
+  assert.match(run(b.state, "CANCEL_RENEWAL", { renewal_id: "GH-9999" }).error.message, /chờ xác nhận/);
 });
 
 test("trả kho: tạo lịch hẹn chờ xác nhận, không đổi trạng thái hợp đồng", () => {

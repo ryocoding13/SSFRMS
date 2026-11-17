@@ -3,8 +3,8 @@ const parseTime = value => { if (!value || typeof value !== "string") return nul
 export const POLICY_KEYS = ["payment", "access", "renewal", "overdue", "return", "cancellation", "support"];
 export const validPolicyVersion = v => Number.isSafeInteger(Number(v)) && Number(v) > 0;
 export function requireRentalPolicy(value, expectedVersion) {
-  if (!validPolicyVersion(value?.version) || !value?.sections || POLICY_KEYS.some(key => !String(value.sections[key] || "").trim())) throw new Error("Máy chủ chưa cung cấp đầy đủ nội dung và phiên bản chính sách.");
-  if (expectedVersion != null && Number(value.version) !== Number(expectedVersion)) throw new Error("Máy chủ trả sai phiên bản chính sách. Chưa thể hiển thị bản đã đồng ý.");
+  if (!validPolicyVersion(value?.version) || !value?.sections || POLICY_KEYS.some(key => !String(value.sections[key] || "").trim())) throw new Error("Chưa tải được đầy đủ nội dung chính sách. Vui lòng tải lại.");
+  if (expectedVersion != null && Number(value.version) !== Number(expectedVersion)) throw new Error("Chưa tải được đúng phiên bản chính sách bạn đã đồng ý. Vui lòng tải lại.");
   return { ...value, version: Number(value.version) };
 }
 export const policyVersionLabel = policy => policy?.displayVersion || (validPolicyVersion(policy?.version) ? `Phiên bản ${policy.version}` : "Chưa có phiên bản");

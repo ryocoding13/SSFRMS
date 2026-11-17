@@ -11,7 +11,7 @@ export const ENGINE_SECTIONS = [
     category: 'ENGINE',
     tone: 'green',
     badge: 'Tự động áp dụng',
-    description: 'Các tham số tự động thực thi trong tính tiền cọc, phí phạt quá hạn và số ngày đệm kho trống.',
+    description: 'Các mức dùng để tính tiền cọc, phí quá hạn và số ngày đệm giữa hai lượt thuê.',
     fields: [
       { key: 'deposit', label: 'Mức đặt cọc mặc định', type: 'DEPOSIT', numeric: true, readOnly: true, suffix: '', hint: 'Cố định bằng 1 tháng tiền thuê toàn hệ thống.' },
       { key: 'overdue', label: 'Tỷ lệ phí phạt quá hạn', type: 'OVERDUE', numeric: true, suffix: '% cọc / ngày', placeholder: '5', hint: 'Từ 0.01% đến 100% cọc ban đầu mỗi ngày trễ.' },
@@ -47,7 +47,7 @@ export const SYSTEM_ENFORCED_POLICIES = [
     label: 'Hạn thanh toán yêu cầu gia hạn',
     value: '24 giờ kể từ khi duyệt',
     reference: 'D11/D32 · RenewalApproval',
-    description: 'Khách hàng có 24 giờ để thanh toán gia hạn sau khi yêu cầu được phê duyệt.',
+    description: 'Khách hàng có 24 giờ để thanh toán gia hạn sau khi gửi yêu cầu.',
   },
   {
     key: 'penalty_cap',

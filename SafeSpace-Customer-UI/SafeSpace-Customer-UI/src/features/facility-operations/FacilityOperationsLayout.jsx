@@ -122,7 +122,7 @@ export default function FacilityOperationsLayout({ role, active, subActive, chil
       </StickyHeader>
       {mode === "api" && source === "local" && (
         <p className="ops-banner" role="status">
-          Chưa kết nối được dữ liệu vận hành của cơ sở. Thao tác trên màn hình này đang được lưu tạm trên trình duyệt.
+          Mất kết nối dữ liệu của cơ sở. Thao tác lúc này chỉ lưu tạm trên máy, vui lòng tải lại trang.
         </p>
       )}
       {/* #7: không còn hàng ô/tab nào dưới navbar; chức năng con mở từ thẻ việc và nút trong trang */}

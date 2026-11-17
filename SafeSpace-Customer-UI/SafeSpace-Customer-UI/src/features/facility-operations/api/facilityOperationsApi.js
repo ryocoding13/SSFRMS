@@ -122,7 +122,7 @@ export async function fetchLocationLayout(facilityId) {
 
 export async function callAction(type, payload, shouldContinue=()=>true) {
   const make = OPS_ACTIONS[type];
-  if (!make) throw new Error("Máy chủ chưa hỗ trợ thao tác này; dữ liệu chưa được thay đổi.");
+  if (!make) throw new Error("Thao tác này chưa thực hiện được; dữ liệu chưa thay đổi.");
   const [method, path, body] = make(payload);
   if(type==="SUBMIT_RETURN"&&payload.files?.length){body.photos=[];for(const file of payload.files){await verifyPhotoFile(file);body.photos.push(await readPhotoData(file));}}
   if(!shouldContinue())throw new Error("Phiên làm việc đã thay đổi. Chưa gửi thao tác.");

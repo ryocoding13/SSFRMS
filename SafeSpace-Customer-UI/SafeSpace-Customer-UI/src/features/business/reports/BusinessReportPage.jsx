@@ -165,7 +165,7 @@ export default function BusinessReportPage({ query }) {
       <header className="page-header page-header--tight system-report__head">
         <div>
           <h1>Báo cáo hệ thống</h1>
-          <p className="muted">Bộ lọc áp dụng cho thẻ tổng quan, cả hai biểu đồ, bảng chi tiết và file xuất. Số tiền hiển thị đầy đủ, không rút gọn.</p>
+          <p className="muted">Bộ lọc áp dụng cho toàn bộ báo cáo và file xuất.</p>
         </div>
         {data && <span className="tag tag--blue">{(data.current.facilities || []).length} cơ sở</span>}
       </header>
@@ -184,7 +184,7 @@ export default function BusinessReportPage({ query }) {
           </div>
           <ColumnChart title="Doanh thu theo cơ sở" subtitle={`${rangeText(range).split(" · ")[0]} · so sánh ${facilities.length} cơ sở trong cùng kỳ`} items={facilities} emptyText="Chưa có cơ sở phù hợp bộ lọc." />
           <ColumnChart title="Tăng trưởng doanh thu theo tháng" subtitle="Toàn hệ thống · trục tháng đổi theo khoảng đã chọn" items={trend}
-            footer={`Tổng ${trend.length} tháng: ${money(trendTotal(data.trend.months))} · khớp thẻ tổng quan và bảng chi tiết.${range.to === now.slice(0, 7) ? ` ${monthLabel(range.to)} tính đến ${now.split("-").reverse().join("/")}.` : ""}`} />
+            footer={`Tổng ${trend.length} tháng: ${money(trendTotal(data.trend.months))}.${range.to === now.slice(0, 7) ? ` ${monthLabel(range.to)} tính đến ${now.split("-").reverse().join("/")}.` : ""}`} />
           <div className="chips system-report__analysis" role="group" aria-label="Phân tích chi tiết theo">
             {ANALYSIS.map(([k, label]) => <button type="button" key={k || "fac"} className={`chip chip--dark${analysis === k ? " is-on" : ""}`} aria-pressed={analysis === k} onClick={() => set({ view: k })}>{label}</button>)}
           </div>

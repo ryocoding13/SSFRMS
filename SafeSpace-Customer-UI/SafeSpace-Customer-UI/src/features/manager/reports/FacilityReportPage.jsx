@@ -68,7 +68,7 @@ export function FacilityReportPage({ query = new URLSearchParams() } = {}) {
             <div className="stat"><span>Doanh thu TB / kho đang thuê</span><strong className="tone-blue">{money(cur.value / Math.max(1, rented))}</strong><small className="muted">Tháng {cur.label}</small></div>
             <div className="stat"><span>Tỷ lệ lấp đầy hiện tại</span><strong className="tone-blue">{occ}%</strong><small className="muted">{rented}/{ops.units.length} ô</small></div>
           </div>
-          {missing && <p className="hint">Đang dùng số liệu 6 tháng gần nhất của bảng vận hành; tháng ngoài khoảng đó hiện 0 đ.</p>}
+          {missing && <p className="hint">Chỉ có số liệu 6 tháng gần nhất; các tháng trước đó hiển thị 0 đ.</p>}
           <ColumnChart title="Tăng trưởng doanh thu theo tháng" subtitle="Trục tháng đổi theo khoảng đã chọn"
               items={rows.map((r) => ({ key: r.key, label: r.label, value: r.value, highlight: r.key === now.slice(0, 7) }))}
               footer={`Tổng ${rows.length} tháng: ${money(total)}.`} />

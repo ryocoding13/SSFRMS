@@ -196,7 +196,7 @@ public sealed class CustomerEmailDelivery(AppDbContext db, ISmtpMailTransport ma
                     ? $"Hợp đồng thuê kho {document.Code} của bạn đã được phát hành."
                     : $"SafeSpace đã nhận đủ thanh toán và phát hành hợp đồng thuê kho {document.Code} cho bạn.",
                 rows,
-                "Bạn xem và tải hợp đồng giấy (PDF) bất cứ lúc nào trong ứng dụng SafeSpace: Kho của tôi → Xem hợp đồng → Xem hợp đồng giấy. Mã QR/PIN mở cửa có trong ứng dụng từ ngày bắt đầu thuê; chìa khoá vật lý nhận tại quầy sau khi xác minh.",
+                "Bạn xem và tải hợp đồng giấy (PDF) bất cứ lúc nào trong ứng dụng SafeSpace: Kho của tôi → Xem hợp đồng → Xem hợp đồng giấy. Mã QR/PIN đã có trong ứng dụng và mở được cửa từ 00:00 ngày bắt đầu thuê; chìa khóa vật lý nhận tại quầy sau khi xác minh.",
                 LinkTo("Xem hợp đồng giấy", FrontendLink($"units/{code}/contract")));
             body = builder.ToMessageBody();
         }
@@ -277,7 +277,7 @@ public sealed class CustomerEmailDelivery(AppDbContext db, ISmtpMailTransport ma
 
     /// <summary>
     /// Link mở đúng màn trong ứng dụng. Trả null khi web chạy ở localhost: khách mở thư trên máy khác
-    /// (điện thoại) không vào được, nên thư không hiện nút mà hướng dẫn mở tệp đính kèm.
+    /// (điện thoại) không vào được, nên thư không hiện nút mà hướng dẫn mở ứng dụng (D58: thư không đính kèm tệp).
     /// </summary>
     private string? FrontendLink(string route)
     {

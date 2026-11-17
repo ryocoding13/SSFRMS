@@ -60,12 +60,12 @@ export function isReturnSettlementReady(board,contract) {
 export function opsMutationCheck(type,payload,ops,source,role) {
  const staff=["VERIFY_CUSTOMER","RECORD_KEY_RECEIPT","SUBMIT_RETURN"].includes(type),manager=["CONFIRM_REFUND","CONFIRM_RESERVATION_REFUND","CONFIRM_DEPOSIT_REFUND"].includes(type);
  if((staff&&!["STAFF","MANAGER"].includes(role))||(manager&&role!=="MANAGER"))throw new Error("Vai trò không được thực hiện thao tác này.");
- if(type==="VERIFY_CUSTOMER") {if(!["original_valid","photo_ok","info_ok","booking_matched"].every(k=>payload[k]===true))throw new Error("Đánh dấu đủ bốn mục đối chiếu.");if(source==="api"&&ops.verification_checklist_supported!==true)throw new Error("Máy chủ chưa hỗ trợ xác minh bằng checklist.");}
+ if(type==="VERIFY_CUSTOMER") {if(!["original_valid","photo_ok","info_ok","booking_matched"].every(k=>payload[k]===true))throw new Error("Đánh dấu đủ bốn mục đối chiếu.");if(source==="api"&&ops.verification_checklist_supported!==true)throw new Error("Chưa thể xác minh lúc này. Vui lòng thử lại sau.");}
  if(type==="RECORD_KEY_RECEIPT")validateKeyReceipt(ops,payload);
- if(type==="SUBMIT_RETURN") {validateInspection(ops.returns.find(r=>r.id===payload.id),payload.report,payload.files);if(source==="api"&&ops.inspection_evidence_supported!==true)throw new Error("Máy chủ chưa hỗ trợ lưu đủ ảnh và khấu trừ kiểm kê. Chưa gửi biên bản.");}
+ if(type==="SUBMIT_RETURN") {validateInspection(ops.returns.find(r=>r.id===payload.id),payload.report,payload.files);if(source==="api"&&ops.inspection_evidence_supported!==true)throw new Error("Chưa thể gửi biên bản lúc này. Vui lòng thử lại sau.");}
  if(type==="CONFIRM_REFUND") {const c=ops.contracts.find(c=>c.id===payload.id),r=ops.returns.find(r=>r.contract===payload.id);if(!canFinalizeReturn(ops,c,r))throw new Error("Chưa đủ biên bản hoặc phản hồi/khắc phục chưa xử lý xong.");if(source==="api"&&r.damage_workflow_resolved!==true)throw new Error("Máy chủ chưa xác nhận đã giải quyết phản hồi/khắc phục.");}
  if(type==="CONFIRM_DEPOSIT_REFUND")transferProof(ops.deposit_refunds?.find(r=>r.id===payload.id),payload);
- if(type==="CONFIRM_RESERVATION_REFUND") {const item=ops.refunds?.find(r=>r.id===payload.id);transferProof(item,payload);if(source==="api"&&ops.refund_evidence_supported!==true)throw new Error("Máy chủ chưa hỗ trợ lưu tài khoản và bằng chứng chuyển tiền. Chưa ghi nhận đã hoàn.");}
+ if(type==="CONFIRM_RESERVATION_REFUND") {const item=ops.refunds?.find(r=>r.id===payload.id);transferProof(item,payload);if(source==="api"&&ops.refund_evidence_supported!==true)throw new Error("Chưa thể ghi nhận đã hoàn lúc này. Vui lòng thử lại sau.");}
 }
 export function opsReceiptCheck(type,payload,res,board) {
  if(!board)throw new Error("Chưa tải lại được kết quả sau thao tác. Tải lại trước khi gửi tiếp.");

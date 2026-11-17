@@ -721,3 +721,13 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Khách đã chọn một ô cụ thể trên sơ đồ mà ô đó đang thuê / đang giữ: ô **Ngày bắt đầu** chỉ cho chọn từ ngày ô trống lại (`free_from` = hết hạn đơn trước + ngày đệm). Các ngày trước đó vẫn hiện trên lịch nhưng **làm mờ, không bấm được**; ngày đang chọn tự dời tới ngày sớm nhất hợp lệ. Dưới lịch ghi "Ô … đang có người thuê đến … · chọn được ngày bắt đầu từ …".
 - Ở chế độ đặt đúng ô **không hiện hộp đỏ "Không còn ô trống cho cả kỳ thuê"** và nút đặt không bị khoá vì số ô trống theo loại kho; chỉ xét chính ô đã chọn. Hộp này vẫn giữ cho chế độ tự bố trí.
 - Ô quá hạn trả (không có `free_from`) giữ như cũ: không nhận đặt trước, hiện lý do.
+
+## D63 — 17/11/2026: Dọn ghi chú màn hình, vai trò dưới tên khách, hotline chữ thường — Đã chốt
+
+> Vector chốt ngày 17/11/2026. Bổ sung D32 (mục Giao diện: "màn không ghi mã nội bộ") và D50 (#1 hotline, #23 bỏ quản lý duyệt gia hạn); giữ nguyên lịch sử ở trên. Không đổi API, không đổi database (D48).
+
+- **Ghi chú trên màn hình viết cho người dùng, không viết cho dev:** bỏ hoặc viết lại câu nhắc lệnh chạy, biến môi trường, đường dẫn API, "backend", "máy chủ chưa hỗ trợ…", mã quyết định (D32) và các câu giải thích cách hệ thống tính. Thông báo lỗi giữ hướng dẫn cho người dùng ("Vui lòng thử lại sau", "Tải lại trước khi gửi tiếp").
+- **Chế độ thử nghiệm (mock/offline):** giữ một dải báo chung ở đầu trang ("Chế độ thử nghiệm · Dữ liệu mẫu, không thanh toán hoặc chuyển tiền thật.") để người kiểm thử nhận biết (AGENTS.md mục 5); bỏ các ghi chú "Chế độ mô phỏng FE" lặp lại trên từng màn.
+- **Gia hạn (D50 #23):** chữ hiển thị không còn "chờ quản lý duyệt" / "cơ sở duyệt và chốt giá"; dùng "chờ xác nhận" / "đã được xác nhận".
+- **Màn khách hàng:** dưới họ tên trên thanh đầu trang hiện vai trò "Khách hàng" (giống thẻ vai trò của nhân viên, quản lý, admin).
+- **Hotline ở chân trang** hiện chữ thường cùng màu các dòng khác, không còn là liên kết `tel:`. Số hotline giữ theo D50.

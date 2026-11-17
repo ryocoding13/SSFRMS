@@ -169,7 +169,7 @@ const ACTIONS = {
 
   // M03 — giữ handler để trả lỗi rõ ràng nếu UI/API cũ gọi duyệt/từ chối gia hạn thủ công
   DECIDE_RENEWAL() {
-    fail("Chức năng quản lý duyệt gia hạn đã bỏ. Hệ thống tự động xác nhận gia hạn hợp lệ để khách thanh toán trực tiếp.");
+    fail("Gia hạn hợp lệ được hệ thống xác nhận tự động.");
   },
 
   // M05

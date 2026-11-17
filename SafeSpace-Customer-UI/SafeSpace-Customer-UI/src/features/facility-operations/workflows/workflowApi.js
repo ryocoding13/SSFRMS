@@ -5,10 +5,10 @@ const RESOURCES = { customerRefunds: "/api/deposit-refunds", overdue: "/api/ops/
 export async function loadWorkflow(resource) {
   if (!RESOURCES[resource]) throw new Error("Nguồn dữ liệu không hợp lệ.");
   try { return await request(RESOURCES[resource], { auth: resource !== "policy" }); }
-  catch (error) { if ([404, 405].includes(error.status)) throw new Error("Máy chủ chưa cung cấp dữ liệu cho chức năng này. Vui lòng thử lại sau hoặc liên hệ cơ sở."); throw error; }
+  catch (error) { if ([404, 405].includes(error.status)) throw new Error("Chưa tải được dữ liệu. Vui lòng thử lại sau."); throw error; }
 }
 export async function saveWorkflow(resource, action, payload) {
   if (!RESOURCES[resource]) throw new Error("Nguồn dữ liệu không hợp lệ.");
   try { return await request(`${RESOURCES[resource]}/actions`, { method: "POST", body: { action, ...payload } }); }
-  catch (error) { if ([404, 405].includes(error.status)) throw new Error("Máy chủ chưa hỗ trợ lưu màn này. Dữ liệu chưa được ghi nhận."); throw error; }
+  catch (error) { if ([404, 405].includes(error.status)) throw new Error("Chưa lưu được. Dữ liệu chưa được ghi nhận."); throw error; }
 }

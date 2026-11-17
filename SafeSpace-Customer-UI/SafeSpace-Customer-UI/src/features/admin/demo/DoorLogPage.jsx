@@ -36,7 +36,7 @@ export default function DoorLogPage() {
   const isToday = filter.from === today() && filter.to === today();
   return (
     <main className="container page demo-tools">
-      <DemoHead title="Nhật ký cửa" description="Ghi mỗi lần mở, đóng và từ chối. Không hiển thị nguyên mã QR hay PIN. Cửa không tự khoá nên không có sự kiện tự khoá.">
+      <DemoHead title="Nhật ký cửa" description="Ghi mỗi lần mở, đóng và từ chối. Không hiển thị nguyên mã QR hay PIN.">
         <Tag tone="gray">{isToday ? "Hôm nay" : `${dateLabel(filter.from)} – ${dateLabel(filter.to)}`} · {data.total} sự kiện</Tag>
       </DemoHead>
       <section className="panel demo-log__filter" aria-label="Bộ lọc nhật ký cửa">

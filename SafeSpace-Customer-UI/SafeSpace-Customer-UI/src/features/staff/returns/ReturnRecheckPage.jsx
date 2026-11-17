@@ -27,7 +27,7 @@ const CHOICE = {
  * Màn hình nhân viên nghiệm thu lại ô kho sau khi khách hàng tự khắc phục tồn đọng.
  */
 export function ReturnRecheckPage() {
-  const { ops, reload, source } = useOps();
+  const { ops, reload } = useOps();
   const api = useOpsEndpoint(null);
   const [form, setForm] = useState(null), [error, setError] = useState("");
   const items = ops.returns.filter(r => CHOICE[r.deduction_status]);
@@ -40,7 +40,6 @@ export function ReturnRecheckPage() {
   };
   return <main className="container page workflow-page">
     <PageHeader title="Kiểm tra lại sau trả kho" description="Khách đã chọn tự dọn, tự thay hoặc khiếu nại. Kiểm tra lại tại kho; đạt thì không trừ khoản tương ứng vào cọc." />
-    {source !== "api" && <Notice>Chế độ mô phỏng chưa có phản hồi khấu trừ thật của khách.</Notice>}
     {items.map(r => <RecordCard key={r.id} title={`${r.id} · ${r.customer}`} subtitle={`Kho ${r.unit} · ${r.contract}`} status="Chờ kiểm tra lại"
       actions={<Button disabled={api.busy} onClick={() => setForm({ item: r, cleaningPassed: false, replacementPassed: false, note: "" })}>Ghi kết quả</Button>}>
       <p>{CHOICE[r.deduction_status]}</p><p className="muted">Cọc {money(r.deposit)}{r.deduction_photos?.length ? ` · khách gửi ${r.deduction_photos.length} ảnh` : ""}</p>

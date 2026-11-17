@@ -33,7 +33,7 @@ export function PaymentStatusPage({ id }) {
         <div className="customer-detail__actions"><Button variant="outline" disabled={checking || !result || paid || !canPayLedger(row)} onClick={() => setPaying(true)}>Mở mã QR thanh toán</Button><Button disabled={checking || paid} onClick={check}>{checking ? "Đang kiểm tra…" : "Kiểm tra trạng thái"}</Button></div>
         <LinkButton to="payments" variant="outline">Về thanh toán</LinkButton>
       </section>
-      <aside className="panel customer-detail__card"><h2>Lưu ý</h2><p className="hint">Thanh toán gia hạn trong 24 giờ sau khi được duyệt và trước ngày hết hạn. Quá hạn, yêu cầu hết hiệu lực. Máy chủ quyết định phiên QR còn hợp lệ; không chuyển tiền lại khi chưa kiểm tra.</p><div className="customer-detail__actions"><LinkButton to="policies" variant="outline">Xem chính sách</LinkButton></div></aside>
+      <aside className="panel customer-detail__card"><h2>Lưu ý</h2><p className="hint">Thanh toán gia hạn trong 24 giờ sau khi gửi và trước ngày hết hạn. Quá hạn, yêu cầu hết hiệu lực. Không chuyển tiền lại khi chưa kiểm tra trạng thái.</p><div className="customer-detail__actions"><LinkButton to="policies" variant="outline">Xem chính sách</LinkButton></div></aside>
     </div>
     {paying && <PayosModal target={{ kind: "payment", item: row }} title="Thanh toán gia hạn" onClose={() => setPaying(false)} onPaid={() => { setPaying(false); setResult({ paid: true }); }} />}
   </main>;

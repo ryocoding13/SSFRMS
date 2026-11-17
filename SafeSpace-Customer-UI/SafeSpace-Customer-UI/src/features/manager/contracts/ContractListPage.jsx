@@ -48,7 +48,7 @@ function SettledCase({ ops, contract }) {
       <div className="customer-detail__actions"><Tag tone={tone}>{label}</Tag></div>
       <div className="customer-detail__grid">
         <div className="customer-detail__column">
-          {ret ? <InspectionReview ret={ret} /> : <Notice>Biên bản cũ hơn 30 ngày không còn trên bảng việc; xem lại tại khoản hoàn.</Notice>}
+          {ret ? <InspectionReview ret={ret} /> : <Notice>Biên bản cũ hơn 30 ngày xem lại tại mục Hoàn tiền.</Notice>}
           {refund && (
             <section className="panel customer-detail__card">
               <h2>Khoản hoàn {refund.id}</h2>

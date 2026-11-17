@@ -17,6 +17,7 @@ import { submitCancellation, submitReturnRequest } from "../../shared/api/refund
 import { readPhotoData, verifyPhotoFile } from "../../shared/utils/refundRequest.js";
 import { submitRenewalWithConsent } from "../../shared/api/renewalConsentApi.js";
 import { api } from "../../shared/api/customerApi.js";
+import { paidBeforeExpiry } from "../../shared/api/paymentStatus.js";
 import { ApiError, setToken } from "../../shared/api/httpClient.js";
 import { isUnsupported, localAccessCode, normAccess, normCancelPreview, normDoor, normPayos, normScan } from "../../features/customer/access/accessApi.js";
 import { notYetMessage } from "../../shared/utils/access.js";
@@ -312,6 +313,7 @@ const EMPTY_REMOTE = { reservations: [], reservationDetails: {}, contracts: [], 
 const fail = (error, code) => ({ ok: false, error, code });
 const readOverlay = (userId) => ({ ...emptyOverlay(), ...(readJson(overlayKey(userId)) || {}) });
 
+
 function ApiProvider({ children }) {
   const [session, setSession] = useState(() => {
     const s = readSession();
@@ -479,10 +481,11 @@ function ApiProvider({ children }) {
         if (cancelling.current.has(r.reservationId)) continue;
         cancelling.current.add(r.reservationId);
         const seconds = refs.current.overlay.holds[r.reservationId] ? paymentTimeoutSeconds : 24 * 3600;
-        api
-          .cancelReservation(r.reservationId, `Quá ${timeoutLabel(seconds)} chưa thanh toán`)
-          .catch(() => {})
-          .then(() => loadCustomer().catch(() => {}));
+        paidBeforeExpiry(r.reservationId).then(async (paid) => {
+          if (paid === false) await api.cancelReservation(r.reservationId, `Quá ${timeoutLabel(seconds)} chưa thanh toán`).catch(() => {});
+          else if (paid === null) cancelling.current.delete(r.reservationId);
+          await loadCustomer().catch(() => {});
+        });
       }
     };
     const id = setInterval(tick, 5000);
@@ -661,8 +664,14 @@ function ApiProvider({ children }) {
             const r = d.reservations.find((x) => x.reservation_id === p.reservation_id);
             if (!r) return fail("Không tìm thấy đơn đặt chỗ.", "NOT_FOUND");
             if (!r.transfer_confirmed_at && ["PENDING_PAYMENT", "CANCELLED"].includes(r.status)) {
+              // Khách có thể vừa trả tiền ở những giây cuối: hỏi máy chủ trước khi huỷ.
+              const paid = cancelling.current.has(r.api_id) ? false : await paidBeforeExpiry(r.api_id);
+              if (paid) {
+                await loadCustomer().catch(() => {});
+                return { ok: true, status: "PAID" };
+              }
               updateOverlay((o) => ({ ...o, expired: { ...o.expired, [r.api_id]: Date.now() } }));
-              if (!cancelling.current.has(r.api_id)) {
+              if (paid === false && !cancelling.current.has(r.api_id)) {
                 cancelling.current.add(r.api_id);
                 api
                   .cancelReservation(r.api_id, `Quá ${timeoutLabel(r.timeout_seconds || paymentTimeoutSeconds)} chưa thanh toán`)
@@ -694,7 +703,7 @@ function ApiProvider({ children }) {
             const { dto, acknowledged } = await submitRenewalWithConsent(api, c.api_id, months, p.policy_consent);
             if (!acknowledged) {
               await loadCustomer();
-              return fail("Máy chủ đã nhận gia hạn nhưng chưa xác nhận bằng chứng đồng ý. Kiểm tra Theo dõi gia hạn hoặc liên hệ cơ sở trước khi gửi lại.");
+              return fail("Đã gửi gia hạn nhưng chưa ghi nhận được xác nhận đồng ý chính sách. Kiểm tra Theo dõi gia hạn trước khi gửi lại.");
             }
             remember("Gia hạn đã được xác nhận", `Kho ${c.unit_number} · mở thanh toán để kéo dài hợp đồng.`, "payments", `Gia hạn ${c.unit_number} đã xác nhận — chờ thanh toán`);
             await loadCustomer();
@@ -703,7 +712,7 @@ function ApiProvider({ children }) {
           case "CANCEL_RENEWAL": {
             const r = d.renewals.find((x) => x.renewal_id === p.renewal_id);
             if (!r) return fail("Không tìm thấy yêu cầu gia hạn.", "NOT_FOUND");
-            if (r.status !== "PENDING") return fail("Chỉ huỷ được yêu cầu gia hạn đang chờ quản lý duyệt.");
+            if (r.status !== "PENDING") return fail("Chỉ huỷ được yêu cầu gia hạn đang chờ xác nhận.");
             await api.cancelRenewal(r.api_id);
             const c = d.contracts.find((x) => x.contract_id === r.contract_id);
             remember("Đã huỷ yêu cầu gia hạn", `${r.renewal_id} · Kho ${c?.unit_number ?? ""}`.trim(), `units/${r.contract_id}`, `Yêu cầu gia hạn ${r.renewal_id} đã huỷ`);
@@ -796,7 +805,7 @@ function ApiProvider({ children }) {
           // C11fc: backend chưa có API chọn trả phí tại quầy → ghi trong trình duyệt; nhân viên thu ở S09f
           case "CHOOSE_RENEWAL_AT_COUNTER": {
             const renewal = d.renewals.find(x => x.renewal_id === p.renewal_id);
-            if (!renewal || renewal.status !== "APPROVED") return fail("Yêu cầu chưa được duyệt hoặc đã thanh toán.");
+            if (!renewal || renewal.status !== "APPROVED") return fail("Yêu cầu chưa được xác nhận hoặc đã thanh toán.");
             await api.chooseRenewalCounter(renewal.api_id);
             await loadCustomer();
             return { ok: true };
@@ -870,6 +879,12 @@ function ApiProvider({ children }) {
             const paid = p?.status === "PAID";
             if (paid) await loadCustomer().catch(() => {});
             return { ok: true, paid };
+          }
+          // /status nhờ máy chủ đối soát thẳng với PayOS (khi chạy máy cá nhân webhook không về được).
+          const quick = await api.reservationStatus(item.api_id).catch(() => null);
+          if (quick?.isPaid) {
+            await loadCustomer().catch(() => {});
+            return { ok: true, paid: true, cancelled: false };
           }
           const r = await api.reservation(item.api_id);
           const status = String(r?.status || "");

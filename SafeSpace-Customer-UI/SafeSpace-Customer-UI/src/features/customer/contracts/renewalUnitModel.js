@@ -1,7 +1,7 @@
 // D46 / D46b · Gia hạn sang ô khác và gia hạn sau nâng cấp miễn phí (D41). Hàm thuần, có test.
 
 export const UNIT_MOVE_STATUS = {
-  REQUESTED: ["Chờ cơ sở duyệt", "amber"],
+  REQUESTED: ["Chờ xác nhận", "amber"],
   HELD: ["Đã giữ ô · chờ thanh toán", "blue"],
   PAID: ["Đang chuyển sang ô mới", "blue"],
   MOVED: ["Đã chuyển · chờ kiểm tra ô cũ", "green"],

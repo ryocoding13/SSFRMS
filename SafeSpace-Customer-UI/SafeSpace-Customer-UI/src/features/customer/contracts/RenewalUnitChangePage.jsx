@@ -23,7 +23,7 @@ import "../../../shared/styles/customer-detail.css";
 // D46 / D46b · Figma C08-D41a (gia hạn sang ô khác) và C08-D41b (gia hạn sau nâng cấp miễn phí).
 // Khách chọn ô trống cụ thể; ô được giữ khi quản lý duyệt; khoản thanh toán gộp tiền gia hạn + cọc chênh.
 function choiceText(x, c) {
-  if (x.kind === "KEEP") return `Giữ ô ${x.unitNumber} · giá của ô này theo bảng giá, chốt khi duyệt · không phải chuyển đồ`;
+  if (x.kind === "KEEP") return `Giữ ô ${x.unitNumber} · giá của ô này theo bảng giá · không phải chuyển đồ`;
   const deposit = x.depositTopUp > 0 ? `cọc thêm ${money(x.depositTopUp)}` : "không thu thêm cọc";
   const type = x.kind === "ORIGINAL_TYPE" ? " · về loại đã đặt ban đầu" : "";
   return `Ô ${x.unitNumber}${x.typeName ? ` · ${x.typeName}` : ""}${type} · ${money(x.monthlyRate)}/tháng · ${deposit}`;
@@ -74,7 +74,7 @@ export function RenewalUnitChangePage({ id }) {
     <p className="customer-records__breadcrumb">SafeSpace / Khách hàng / Kho của tôi / {id} / Gia hạn</p>
     <PageHeader title={title} description={upgraded ? "Bạn đang dùng ô lớn hơn được nâng cấp miễn phí. Chọn giữ ô này với giá của ô lớn, hoặc chuyển về loại đã đặt ban đầu." : "Ô hiện tại đã có khách đặt cho kỳ sau. Chọn một ô trống cùng loại để gia hạn; ô được giữ và mở thanh toán ngay khi bạn xác nhận."}>
       <Tag tone="blue">Hết hạn {dateLabel(c.end_date)}</Tag></PageHeader>
-    {load.demo ? <Notice>Chế độ mô phỏng chưa có danh sách ô trống thật. Vui lòng dùng chế độ kết nối máy chủ.</Notice>
+    {load.demo ? <Notice>Chức năng này chưa có dữ liệu trong chế độ thử nghiệm.</Notice>
       : load.loading ? <Notice>Đang tải ô trống…</Notice>
       : load.error ? <><Notice tone="error">{load.error}</Notice><Button variant="outline" onClick={load.reload}>Tải lại</Button></>
       : choices.length === 0 ? <Empty title="Hiện không còn ô trống phù hợp" text="Liên hệ cơ sở để được hỗ trợ, hoặc gửi trả kho trước ngày hết hạn."><LinkButton to={`units/${encodeURIComponent(id)}`} variant="outline">Về hợp đồng</LinkButton></Empty>
@@ -106,7 +106,7 @@ export function RenewalUnitChangePage({ id }) {
       text={choice.kind === "KEEP" ? "Gia hạn được xác nhận ngay theo bảng giá ô hiện tại để bạn thanh toán trong 24 giờ." : "Ô mới được giữ ngay cho bạn khi xác nhận gia hạn. Sau khi thanh toán, bạn tự chuyển đồ trong 3 ngày cuối kỳ cũ."}
       rows={[["Ô kỳ mới", choice.kind === "KEEP" ? c.unit_number : choice.unitNumber], ["Kỳ gia hạn", `${months} tháng · đến ${dateLabel(addMonths(c.end_date, months))}`], ...(choice.kind === "KEEP" ? [] : [["Tổng thanh toán", money(est.total)]])]} />}
     {result?.ok && <ConfirmDialog title={choice?.kind === "KEEP" || !choice ? "Đã gửi yêu cầu gia hạn" : `Đã gửi yêu cầu gia hạn sang ô ${choice.unitNumber}`} tone="success" cancelLabel={null} hint="" label="Về hợp đồng"
-      text="Cơ sở duyệt và chốt giá; bạn thanh toán trong 24 giờ sau khi được duyệt." onCancel={() => go(`units/${encodeURIComponent(id)}`)} onConfirm={() => go(`units/${encodeURIComponent(id)}`)} />}
+      text="Gia hạn đã được xác nhận. Vui lòng thanh toán trong 24 giờ." onCancel={() => go(`units/${encodeURIComponent(id)}`)} onConfirm={() => go(`units/${encodeURIComponent(id)}`)} />}
     {result && !result.ok && <ConfirmDialog title={result.taken ? "Ô vừa có người đặt" : "Chưa gửi được yêu cầu"} tone="failure" hint="" label={result.taken ? "Chọn ô khác" : "Thử lại"}
       text={result.taken ? "Ô bạn chọn không còn trống. Danh sách ô đã được tải lại, vui lòng chọn ô khác." : result.message} onCancel={() => setResult(null)} onConfirm={() => { setResult(null); if (!result.taken && choice) setConfirm(true); }} />}
   </main>;

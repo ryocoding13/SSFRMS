@@ -78,7 +78,7 @@ export function UnitChangePage({ id }) {
   return <main className="container page customer-records customer-detail">
     <p className="customer-records__breadcrumb">SafeSpace / Khách hàng / Đặt chỗ / {orderId}</p>
     <PageHeader title={`Đề xuất đổi kho trước ngày nhận · Đơn ${orderId}`} description={item ? `Kho ${item.oldUnit} bạn đặt nhận ngày ${vnDate(item.startDate)} chưa sẵn sàng. Chọn một phương án để vẫn nhận kho đúng ngày.` : "Khách thuê trước chưa trả kho hoặc kho chưa kiểm tra đạt tiêu chuẩn trước ngày nhận của bạn."}>{item && <Tag tone={item.status === "OPEN" ? "amber" : "green"}>{pill}</Tag>}</PageHeader>
-    {load.demo ? <Notice>Chế độ mô phỏng chưa có đề xuất đổi kho. Vui lòng dùng chế độ kết nối máy chủ.</Notice>
+    {load.demo ? <Notice>Chức năng này chưa có dữ liệu trong chế độ thử nghiệm.</Notice>
       : load.loading ? <Notice>Đang tải…</Notice>
       : load.error ? <><Notice tone="error">{load.error}</Notice><Button variant="outline" onClick={load.reload}>Tải lại</Button></>
       : !item ? <Empty title="Không có đề xuất đổi kho" text="Kho của bạn sẵn sàng theo lịch." />

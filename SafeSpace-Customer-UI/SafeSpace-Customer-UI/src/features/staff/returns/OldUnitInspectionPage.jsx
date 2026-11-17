@@ -96,7 +96,7 @@ export function OldUnitInspectionPage({ embedded = false } = {}) {
             <DetailList items={[["Cọc đang giữ", money(x.depositHeld)], ["Quá hạn · không tính", "0 đ"],
               ["Chưa đạt tiêu chuẩn vệ sinh · 10% cọc", calc.cleaning ? `− ${money(calc.cleaning)}` : "0 đ"], ["Hư hỏng có bằng chứng", calc.damageTaken ? `− ${money(calc.damageTaken)}` : "0 đ"], ["Tổng khấu trừ", money(calc.total)]]} />
             <div className="summary-total"><span>Cọc còn giữ cho ô mới</span><strong>{money(calc.left)}</strong></div>
-            <p className="hint">Không hoàn cọc lúc này. Khấu trừ tối đa bằng cọc đang giữ, không bắt khách bù cọc. Số tiền chính thức do máy chủ chốt.</p>
+            <p className="hint">Không hoàn cọc lúc này. Khấu trừ tối đa bằng cọc đang giữ, không bắt khách bù cọc.</p>
           </aside>
         </div>}
       </RecordCard>)}
