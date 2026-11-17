@@ -11,6 +11,8 @@ export const knownMoney=value=>typeof value==="number"&&Number.isFinite(value)&&
 export function actualVnTime(value,now=new Date()) {
  const at=typeof value==="string"&&/^\d{4}-\d{2}-\d{2}T.*Z$/.test(value)&&Number.isFinite(Date.parse(value))?new Date(value).toISOString():parseVnDeadline(value);if(Date.parse(at)>now.getTime())throw new Error("Thời gian thực tế không được ở tương lai.");return at;
 }
+/** D42/D47: khoản hoàn khách chọn nhận tiền mặt — quản lý duyệt & giao ở "Hoàn tiền mặt tại quầy", nhân viên chi. */
+export const isCashRefund = (r) => r?.method === "CASH" || r?.bankName === "CASH";
 export function transferProof(item,payload,now=new Date()) {
  if(!item||item.status!=="PENDING"||!knownMoney(item.amount)||item.amount<=0)throw new Error("Khoản hoàn chưa có số tiền hợp lệ hoặc không còn chờ xử lý.");
  if(!item.customer)throw new Error("Thiếu tên khách trên hợp đồng.");
