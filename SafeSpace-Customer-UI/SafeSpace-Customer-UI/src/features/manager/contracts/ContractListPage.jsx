@@ -52,9 +52,9 @@ function SettledCase({ ops, contract }) {
           {refund && (
             <section className="panel customer-detail__card">
               <h2>Khoản hoàn {refund.id}</h2>
-              <p className="muted">Mã hồ sơ nội bộ · {refund.method === "CASH" ? "Tiền mặt tại quầy" : `Chuyển khoản ${refund.bankName || ""}`} · {amountLabel(refund.amount)}</p>
-              <p className="muted">{refund.status === "PAID" ? `Đã hoàn · mã giao dịch ngân hàng ${refund.transactionRef || "chưa có"}` : "Đang chờ hoàn: nhập mã giao dịch ngân hàng sau khi chuyển tiền."}</p>
-              <div className="customer-detail__actions"><LinkButton to={`manager/deposit-refunds${qs({ id: refund.id })}`}>Mở khoản hoàn</LinkButton></div>
+              <p className="muted">{refund.method === "CASH" ? "Tiền mặt tại quầy" : `Chuyển khoản ${refund.bankName || ""}`} · {amountLabel(refund.amount)}</p>
+              <p className="muted">{refund.status === "PAID" ? (refund.method === "CASH" ? "Đã chi tiền mặt cho khách" : `Đã hoàn · mã giao dịch ngân hàng ${refund.transactionRef || "chưa có"}`) : refund.method === "CASH" ? "Đang chờ chi: duyệt và giao nhân viên ở mục Hoàn tiền mặt tại quầy." : "Đang chờ hoàn: nhập mã giao dịch ngân hàng sau khi chuyển tiền."}</p>
+              <div className="customer-detail__actions"><LinkButton to={refund.method === "CASH" ? `manager/refund${qs({ kind: "cash" })}` : `manager/deposit-refunds${qs({ id: refund.id })}`}>Mở khoản hoàn</LinkButton></div>
             </section>
           )}
         </div>
@@ -113,6 +113,9 @@ export function ContractListPage({ query }) {
   const settlementReady = source === "local" || supportsReturnPolicy(ops);
   const [returning, setReturning] = useState(false);
   const visibleContracts = ops.contracts.filter((c) => c.state !== "RETURNED" || isReturnSettlementReady(ops, c));
+  // Hợp đồng đã có hồ sơ trả kho chỉ hiện ở "Hồ sơ trả kho" phía trên, không lặp lại ở danh sách Hợp đồng.
+  const returnContracts = new Set((ops.returns || []).map((r) => r.contract));
+  const listedContracts = visibleContracts.filter((c) => !returnContracts.has(c.id));
   const sel = query.get("id") ? visibleContracts.find((c) => c.id === query.get("id")) : null;
   const [note, setNote] = useState("");
   const detailRef = useRef(null);
@@ -123,7 +126,7 @@ export function ContractListPage({ query }) {
       <PageHeaderBlock title="Hợp đồng & xử lý quá hạn" text="Theo dõi hạn thuê, đối soát trả kho và yêu cầu cần duyệt tại cơ sở." />
       <ReturnCases ops={ops} />
       <h2 className="section-title">Hợp đồng</h2>
-      <div className="customer-detail__column">{visibleContracts.map(c=>{const [label,tone]=CONTRACT_STATE(c);return <RecordCard key={c.id} title={`${c.id} · ${c.customer}`} subtitle={`Kho ${c.unit} · hết hạn ${dateLabel(c.end)}`} status={label} actions={<>{c.state==="OVERDUE"&&<LinkButton to={`manager/overdue${qs({contract:c.id})}`}>Xử lý quá hạn</LinkButton>}<LinkButton to={`manager/contracts${qs({id:c.id})}`} variant={c.state==="OVERDUE"?"outline":undefined}>{c.state==="RETURNED"?"Duyệt đối soát":"Xem hồ sơ"}</LinkButton></>}><p>{c.state==="RETURNED"?"Biên bản đã gửi · khấu trừ tối đa bằng cọc":"Theo dõi hạn thuê và lịch sử liên hệ khách"}</p></RecordCard>;})}</div>
+      <div className="customer-detail__column">{!listedContracts.length&&<Empty title="Không có hợp đồng cần theo dõi" text="Hợp đồng đang trả kho xem ở Hồ sơ trả kho phía trên."/>}{listedContracts.map(c=>{const [label,tone]=CONTRACT_STATE(c);return <RecordCard key={c.id} title={`${c.id} · ${c.customer}`} subtitle={`Kho ${c.unit} · hết hạn ${dateLabel(c.end)}`} status={label} actions={<>{c.state==="OVERDUE"&&<LinkButton to={`manager/overdue${qs({contract:c.id})}`}>Xử lý quá hạn</LinkButton>}<LinkButton to={`manager/contracts${qs({id:c.id})}`} variant={c.state==="OVERDUE"?"outline":undefined}>{c.state==="RETURNED"?"Duyệt đối soát":"Xem hồ sơ"}</LinkButton></>}><p>{c.state==="RETURNED"?"Biên bản đã gửi · khấu trừ tối đa bằng cọc":"Theo dõi hạn thuê và lịch sử liên hệ khách"}</p></RecordCard>;})}</div>
       {query.get("id")&&!sel&&<Empty title="Không tìm thấy hợp đồng" text="Chọn đúng hồ sơ thuộc cơ sở phụ trách."/>}
       {sel && (
         <section className="panel form-card contract-detail" ref={detailRef}>

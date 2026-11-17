@@ -13,7 +13,7 @@ export function useChangeFlow() {
   const t=changeFlowTexts({action,scope,...texts});
   try {
    if(confirm&&!(await step({kind:"confirm",danger,title:t.confirmTitle,rows:[["Thao tác",action],["Phạm vi",scope],["Nội dung",content]]})))return {ok:false,cancelled:true};
-   if(!alive.current)return {ok:false,cancelled:true};setState({kind:"saving",title:"Đang lưu thay đổi",text:"Vui lòng chờ máy chủ xác nhận."});
+   if(!alive.current)return {ok:false,cancelled:true};setState({kind:"saving",title:"Đang lưu thay đổi",text:"Vui lòng chờ trong giây lát."});
    const result=await perform(()=>alive.current);
    if(!alive.current)return {ok:false,cancelled:true};setState(null);
    if(result===false)return {ok:false,cancelled:true};

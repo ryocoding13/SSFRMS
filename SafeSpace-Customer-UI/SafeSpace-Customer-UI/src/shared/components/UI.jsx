@@ -10,6 +10,7 @@
  * - PageHeader: Tiêu đề trang chuẩn mực.
  */
 import React, { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { href } from "../../app/router.js";
 
 const paths = {
@@ -217,7 +218,7 @@ export function Modal({ title, children, onClose, size = "sm", label, tone, plac
       }
     };
   }, []);
-  return (
+  const overlay = (
     <div className={placement === "drawer" ? "overlay overlay--drawer" : "overlay"} onMouseDown={(e) => e.target === e.currentTarget && modalStack[modalStack.length - 1] === ref.current && closeRef.current?.()}>
       <section ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-label={label} className={`modal modal--${size}${tone ? ` modal--${tone}` : ""}`}>
         <h2 id={titleId}>{title}</h2>
@@ -225,6 +226,8 @@ export function Modal({ title, children, onClose, size = "sm", label, tone, plac
       </section>
     </div>
   );
+  // Gắn popup thẳng vào <body>: khối cha có hiệu ứng (transform) không còn giam nền mờ trong khung trang, popup phủ kín cả thanh đầu trang (D54).
+  return typeof document !== "undefined" && document.body?.nodeType === 1 ? createPortal(overlay, document.body) : overlay;
 }
 
 export function Dialog({ title, message, actionLabel = "Đã hiểu", onClose }) {

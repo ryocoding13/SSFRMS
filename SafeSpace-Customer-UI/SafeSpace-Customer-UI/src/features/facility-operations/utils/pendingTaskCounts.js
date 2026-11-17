@@ -1,4 +1,4 @@
-import { isReturnSettlementReady } from "../settlements/settlementModel.js";
+import { isCashRefund, isReturnSettlementReady } from "../settlements/settlementModel.js";
 
 // Derive badges from the same work queues as each page; never store a second counter.
 export function pendingTaskCounts(ops, role, me) {
@@ -58,7 +58,7 @@ export function pendingTaskCounts(ops, role, me) {
   const managerCashRefunds = count(ops.cash_refunds, r => r.status === "WAITING_APPROVAL");
   // Xung đột đặt kho: hệ thống tự đề xuất đổi ô cho khách; quản lý chỉ cần xử lý khi không còn ô tương đương (NONE).
   const unitConflicts = count(ops.unit_conflicts, c => c.status === "OPEN" && c.option === "NONE");
-  const depositRefunds = count(ops.deposit_refunds, r => r.status === "PENDING");
+  const depositRefunds = count(ops.deposit_refunds, r => r.status === "PENDING" && !isCashRefund(r));
   const refunds = count(ops.refunds, r => r.status === "PENDING");
 
   // #7 (12/11): navbar quản lý = Tổng quan · Danh sách kho · Hợp đồng & quá hạn · Hoàn tiền · Báo cáo.
