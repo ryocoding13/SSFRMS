@@ -183,6 +183,18 @@ public sealed class OverdueCaseT12Tests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task GetOverdueCasesAsync_HidesCaseAfterCustomerRequestsReturn()
+    {
+        var (_, manager, _, contract, _) = await SetupDataAsync(25);
+        contract.Status = "RETURN_PENDING"; // khách đã gửi trả kho (D32)
+        await _db.SaveChangesAsync();
+
+        var list = await _service.GetOverdueCasesAsync(new OpsActor(manager.UserId, true));
+
+        Assert.Empty(list); // chỉ còn việc kiểm tra trả kho, không còn việc xử lý đồ quá hạn
+    }
+
+    [Fact]
     public async Task GetOverdueCasesAsync_ReturnsCasesForFacility()
     {
         var (facility, manager, staff, contract, overdueCase) = await SetupDataAsync(25);
