@@ -7,6 +7,7 @@
  * - Thanh toán: PAY_ORDER, ADD_PAYMENT, REFUND_SETTLEMENT
  * - Hỗ trợ: CREATE_TICKET, REPLY_TICKET
  */
+import { noticeKey } from "../../shared/utils/notices.js";
 import { requireRentalPolicy } from "../../shared/utils/rentalPolicy.js";
 import { storedRefundChoice, validateRefundChoice } from "../../shared/utils/refundRequest.js";
 import { isReturnFee, NO_RETURN_COLLECTION, visitDateError } from "../../shared/utils/returnPolicy.js";
@@ -483,12 +484,16 @@ const handlers = {
     return { state: { ...state, user: { ...state.user, password: p.next } }, result: {} };
   },
 
+  // Đã đọc thì xoá khỏi chuông (18/11); nhớ khoá để thông báo sinh từ máy chủ không quay lại.
   MARK_READ(state, p) {
     const all = !p.ids;
+    const read = state.notifications.filter((n) => all || p.ids.includes(n.id));
+    const keys = read.map(noticeKey).filter(Boolean);
     return {
       state: {
         ...state,
-        notifications: state.notifications.map((n) => (all || p.ids.includes(n.id) ? { ...n, read: true } : n)),
+        notifications: state.notifications.filter((n) => !(all || p.ids.includes(n.id))),
+        dismissedNotices: [...keys, ...(state.dismissedNotices || []).filter((k) => !keys.includes(k))].slice(0, 500),
       },
       result: {},
     };

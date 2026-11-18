@@ -77,7 +77,7 @@ public partial class FacilityOpsService
         var facility = await FacilityOfAsync(actor, ct);
         var paymentId = ParseCode(request.Id, "HC-", "khoản hoàn cọc");
         if (!request.Confirmed) throw new ArgumentException("Cần xác nhận đã chuyển đúng số tiền hoặc đã chi tiền mặt cho khách.");
-        var reference = TransactionRefOf(request.TransactionRef);
+        var reference = OptionalTransactionRefOf(request.TransactionRef);
 
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"deposit-refund:{paymentId}", ct);
         var p = await DepositRefundQuery().AsSplitQuery()
@@ -108,8 +108,8 @@ public partial class FacilityOpsService
             }
         }
 
-        var paidAt = TransferTimeOf(request.TransferredAt, p.CreatedAt, "chốt đối soát");
-        await EnsureUniqueTransactionRefAsync(reference, p.PaymentId, ct);
+        var paidAt = request.TransferredAt is null ? NowUtc : TransferTimeOf(request.TransferredAt, p.CreatedAt, "chốt đối soát");
+        if (reference != null) await EnsureUniqueTransactionRefAsync(reference, p.PaymentId, ct);
 
         p.Status = "PAID";
         p.PaidAt = paidAt;

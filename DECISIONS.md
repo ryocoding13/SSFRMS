@@ -731,3 +731,28 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - **Gia hạn (D50 #23):** chữ hiển thị không còn "chờ quản lý duyệt" / "cơ sở duyệt và chốt giá"; dùng "chờ xác nhận" / "đã được xác nhận".
 - **Màn khách hàng:** dưới họ tên trên thanh đầu trang hiện vai trò "Khách hàng" (giống thẻ vai trò của nhân viên, quản lý, admin).
 - **Hotline ở chân trang** hiện chữ thường cùng màu các dòng khác, không còn là liên kết `tel:`. Số hotline giữ theo D50.
+
+## D64 — 18/11/2026: Xác nhận hoàn tiền không cần mã giao dịch; trả kho chỉ chọn ngày — Đã chốt
+
+> Người dùng (Thắng) chốt ngày 18/11/2026, Figma đã sửa trước (M-ĐS-CHỐT chuyển khoản + bản tiền mặt, M08a/M08a2, D30-15). Thay ý "nhập mã giao dịch ngân hàng" ở mục 21 (D50), dòng "Chuyển khoản: quản lý … nhập mã giao dịch" và các dòng D27/D32 yêu cầu mã giao dịch, thời điểm chuyển cho bước xác nhận hoàn.
+
+- Khách điền thông tin nhận hoàn (chuyển khoản: ngân hàng, số tài khoản, chủ tài khoản; hoặc tiền mặt tại quầy). Quản lý thấy đủ thông tin đó và **chỉ bấm xác nhận**: "Xác nhận đã chuyển khoản" hoặc "Xác nhận đã trả tiền mặt". **Không nhập mã giao dịch, không nhập thời gian chuyển**; máy chủ ghi thời điểm xác nhận làm ngày hoàn.
+- Áp dụng cho hoàn cọc sau trả kho và hoàn tiền đơn huỷ (M08). Vẫn giữ: xác nhận một lần (409 khi bấm lặp), khoá phương thức theo lựa chọn khách, kiểm tra tài khoản nhận đủ thông tin.
+- API giữ nguyên trường `transactionRef`/`transferredAt` nhưng **không bắt buộc**; có gửi mã (dữ liệu cũ) thì vẫn kiểm tra ≤ 100 ký tự và không trùng. Khách không còn thấy dòng "Mã giao dịch" ở theo dõi khoản hoàn.
+- Trả kho: khách chỉ chọn **ngày** mong muốn trả kho, không chọn giờ hay buổi sáng/chiều (giữ đúng mục 9 / D59).
+
+## D65 — 18/11/2026: Mốc "Sắp hết hạn" còn 10 ngày — Đã chốt
+
+> Người dùng (Thắng) chốt ngày 18/11/2026. Thay mốc 30 ngày của D11 (và mốc 14 ngày của Công cụ demo / bảng kho quản lý).
+
+- Hợp đồng chỉ chuyển "Sắp hết hạn" (EXPIRING) khi còn **≤ 10 ngày** tới ngày kết thúc; còn hơn 10 ngày là "Đang thuê". Áp dụng thống nhất cho khách (Kho của tôi, tổng quan), quản lý, Công cụ demo và tiến trình quét hằng ngày.
+- Tiến trình quét hằng ngày đưa hợp đồng EXPIRING còn hơn 10 ngày (đánh theo mốc cũ hoặc vừa gia hạn) về lại ACTIVE. Email nhắc gia hạn giữ nguyên mốc 3 ngày.
+
+## D66 — 18/11/2026: Mỗi cơ sở một nhân viên — bỏ giao việc; quản lý tự xác nhận đã trả tiền mặt — Đã chốt
+
+> Người dùng (Thắng) chốt ngày 18/11/2026, chọn phương án (a). Thay phần "quản lý duyệt chi tiền mặt và giao nhân viên, nhân viên tick 4 mục và chi" của D42/D44, phần "quản lý phân công nhân viên xử lý đồ quá hạn" và trang M06 Phân công công việc.
+
+- Mỗi cơ sở mặc định 1 nhân viên; **không có thao tác giao việc** nào cho nhân viên.
+- **Hoàn tiền mặt tại quầy:** bỏ bước "Duyệt & giao" và ô chọn nhân viên. Khoản tiền mặt chờ khách đến nhận ngay khi được tạo; khi khách nhận đủ tiền, **quản lý bấm "Xác nhận đã trả tiền mặt"** (Figma M-ĐS-CHỐT · tiền mặt), không nhập mã giao dịch. Hạn nhận 30 ngày tính từ lúc tạo khoản (khoản cũ đã duyệt vẫn tính từ lần duyệt). Nhân viên chỉ còn gọi nhắc khách ở ngày 10, 20, 25.
+- **Xử lý đồ quá hạn từ ngày 20:** bỏ bước quản lý phân công; hồ sơ hiện thẳng ở "Công việc xử lý đồ quá hạn" của nhân viên cơ sở.
+- Bỏ trang M06 "Phân công công việc" (đã ẩn khỏi menu từ #7). Yêu cầu hỗ trợ giữ cách hiện tại: nhân viên của cơ sở thấy và nhận xử lý, không cần giao.

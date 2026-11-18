@@ -11,7 +11,7 @@ test('hoàn tiền cần đủ tài khoản hợp lệ, số tiền, mã giao d�
  assert.throws(()=>transferProof(item,{...proof,method:'CASH'},now));
  assert.throws(()=>transferProof({...item,method:'CASH',bankName:'CASH'},{...proof,method:'BANK_TRANSFER'},now));
  for(const patch of [{amount:undefined},{amount:0},{amount:-1},{status:'PAID'},{accountHolder:''},{accountNumber:'123'},{bankName:''}])assert.throws(()=>transferProof({...item,...patch},proof,now));
- for(const patch of [{transactionRef:''},{confirmed:false},{transferredAt:'2026-10-29T10:00'},{transferredAt:'2026-02-30T10:00'}])assert.throws(()=>transferProof(item,{...proof,...patch},now));
+ for(const patch of [{confirmed:false},{transferredAt:'2026-10-29T10:00'},{transferredAt:'2026-02-30T10:00'}])assert.throws(()=>transferProof(item,{...proof,...patch},now));
 });
 test('thiếu hồ sơ xác minh hoặc checklist không được nhận chìa khóa; không đổi ô/ngày',()=>{
  const ops=createOpsData('2026-10-28'),h=ops.handovers.find(h=>h.status==='WAITING'),p={id:h.id,identity_checked:true,condition_checked:true,key_delivered:true};
@@ -55,4 +55,12 @@ test('ngày xử lý thực tế phải đủ mốc, đúng cơ sở/phân công
  assert.doesNotThrow(()=>validateRemoval(r,{...p,location:'',beforePhotos:undefined,afterPhotos:undefined,photos:[photo]},{},a,now));
  assert.throws(()=>validateRemoval(r,{...p,photos:Array(11).fill(photo)},{},a,now),/tối đa 10/);
  assert.throws(()=>validateRemoval(r,{...p,photos:[]},{},a,now),/ít nhất (1|một) ảnh/);assert.throws(()=>validateRemoval(r,{...p,confirmed:false},{},a,now));
+});
+
+test('D64: xác nhận hoàn tiền không cần mã giao dịch và thời gian chuyển', () => {
+ const item={id:'HC-1',status:'PENDING',amount:500000,customer:'Nguyen Van A',bankName:'Vietcombank',accountNumber:'0071001234567',accountHolder:'NGUYEN VAN A'};
+ const now=new Date('2026-11-18T03:00:00Z');
+ const out=transferProof(item,{confirmed:true},now);
+ assert.equal(out.transactionRef,null); assert.equal(out.transferredAt,now.toISOString()); assert.equal(out.method,'BANK_TRANSFER');
+ assert.throws(()=>transferProof(item,{confirmed:false},now));
 });

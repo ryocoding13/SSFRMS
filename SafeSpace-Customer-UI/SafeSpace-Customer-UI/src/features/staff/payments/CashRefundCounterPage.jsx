@@ -16,7 +16,6 @@ import { RecordCard, WorkflowEmpty, WorkflowState } from "../../facility-operati
 import { useOpsEndpoint } from "../../facility-operations/workflows/useOpsEndpoint.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
 import { CASH_STATUS, CASH_SOURCE, cashPath } from "../../facility-operations/workflows/cashRefundModel.js";
-import { useMe } from "../hooks/useStaffIdentity.js";
 
 const CALL_RESULTS = {
   APPOINTMENT: "Khách hẹn đến quầy · ghi ngày hẹn",
@@ -24,27 +23,17 @@ const CALL_RESULTS = {
   SWITCH_TO_BANK: "Khách muốn đổi sang chuyển khoản",
   WRONG_NUMBER: "Sai số điện thoại · báo quản lý",
 };
-const PAY_CHECKS = [
-  ["identityChecked", "CCCD trùng tên trên hợp đồng"],
-  ["codeChecked", "Khách đọc đúng mã đơn và số điện thoại"],
-  ["amountCounted", "Đã đếm đủ tiền trước mặt khách"],
-  ["signed", "Khách đã nhận tiền và ký sổ chi tại quầy"],
-];
 
-// Figma S10 / S10b · D42/D44: nhân viên gọi nhắc (ngày 10, 20, 25) và chi tiền hoàn tại quầy sau khi quản lý duyệt.
+// Figma S10b · D42/D44/D66: nhân viên chỉ gọi nhắc khách (ngày 10, 20, 25); quản lý xác nhận đã trả tiền mặt.
 /**
  * Màn hình nhân viên thực hiện chi trả tiền mặt cho khách hàng tại cơ sở.
  */
 export function CashRefundCounterPage() {
   const { reload: reloadOps } = useOps() || {};
   const load = useOpsEndpoint("/api/ops/cash-refunds");
-  const me = useMe();
-  const [call, setCall] = useState(null), [pay, setPay] = useState(null), [error, setError] = useState("");
-  const items = (Array.isArray(load.data) ? load.data : []).filter(r =>
-    ["READY", "REMIND", "APPOINTMENT"].includes(r.status) &&
-    (!r.staffId && !r.staff_id || !me?.staff_id || (r.staffId || r.staff_id) === me.staff_id)
-  );
-  const close = () => { setCall(null); setPay(null); setError(""); };
+  const [call, setCall] = useState(null), [error, setError] = useState("");
+  const items = (Array.isArray(load.data) ? load.data : []).filter(r => ["WAITING_APPROVAL", "READY", "REMIND", "APPOINTMENT"].includes(r.status));
+  const close = () => { setCall(null); setError(""); };
   const saveCall = async () => {
     if (call.result === "APPOINTMENT" && !call.appointmentDate) return setError("Chọn ngày khách hẹn đến quầy.");
     const deadline = String(call.item?.deadlineDate || "").slice(0, 10);
@@ -52,28 +41,18 @@ export function CashRefundCounterPage() {
     const res = await load.post(cashPath(call.item.id, "calls"), { result: call.result, appointmentDate: call.result === "APPOINTMENT" ? call.appointmentDate : null, note: call.note.trim() || null });
     if (res.ok) { close(); await reloadOps?.(); } else setError(res.error);
   };
-  const savePay = async () => {
-    if (PAY_CHECKS.some(([k]) => !pay[k])) return setError("Tick đủ 4 mục trước khi xác nhận đã chi.");
-    const { item, ...checks } = pay;
-    const res = await load.post(cashPath(item.id, "pay"), checks);
-    if (res.ok) { close(); await reloadOps?.(); } else setError(res.error);
-  };
   return <main className="container page workflow-page">
-    <PageHeader title="Chi tiền hoàn tại quầy" description="Khoản quản lý đã duyệt. Gọi nhắc khách ở ngày 10, 20 và 25; quá 30 ngày khách chưa đến nhận thì mất khoản hoàn." />
+    <PageHeader title="Gọi nhắc nhận tiền hoàn" description="Khách chọn nhận tiền mặt tại quầy. Gọi nhắc khách ở ngày 10, 20 và 25; khi khách đến, quản lý xác nhận đã trả tiền. Quá 30 ngày khách chưa đến nhận thì mất khoản hoàn." />
     <WorkflowState load={load}>
       {items.map(r => {
-        const staffCode = r.staffId || r.staff_id;
-        const staffName = r.staffName || r.staff_name;
-        const isOther = staffCode && me?.staff_id && staffCode !== me.staff_id;
         return <RecordCard key={r.id} title={`${r.id} · ${r.customer}`} subtitle={`${CASH_SOURCE[r.source] || r.source} ${r.reference} · ${r.phone || "Chưa có SĐT"}`}
           status={CASH_STATUS[r.status]?.[0] || r.status}
-          actions={isOther ? <span className="hint">Đã giao cho {staffName || staffCode}</span> : <><Button variant="outline" disabled={load.busy} onClick={() => setCall({ item: r, result: "APPOINTMENT", appointmentDate: "", note: "" })}>Ghi cuộc gọi</Button>
-            <Button disabled={load.busy} onClick={() => setPay({ item: r })}>Chi tiền</Button></>}>
+          actions={<Button variant="outline" disabled={load.busy} onClick={() => setCall({ item: r, result: "APPOINTMENT", appointmentDate: "", note: "" })}>Ghi cuộc gọi</Button>}>
           <strong className="price money-total">{money(r.amount)}</strong>
-          <p className="muted">Hạn nhận {r.deadlineDate ? vnDate(r.deadlineDate) : "Chưa có thông tin"}{staffName ? ` · nhân viên: ${staffName}` : staffCode ? ` · nhân viên: ${staffCode}` : ""}{r.daysSinceApproved != null ? ` · ngày ${r.daysSinceApproved} sau khi duyệt` : ""}{r.appointmentDate ? ` · khách hẹn ${r.appointmentDate}` : ""}{r.lastCall ? ` · lần gọi trước: ${r.lastCall}` : ""}</p>
+          <p className="muted">Hạn nhận {r.deadlineDate ? vnDate(r.deadlineDate) : "Chưa có thông tin"}{r.daysSinceApproved != null ? ` · ngày ${r.daysSinceApproved} kể từ khi chốt hoàn` : ""}{r.appointmentDate ? ` · khách hẹn ${r.appointmentDate}` : ""}{r.lastCall ? ` · lần gọi trước: ${r.lastCall}` : ""}</p>
         </RecordCard>;
       })}
-      {!items.length && <WorkflowEmpty title="Không có khoản chờ chi" text="Khoản tiền mặt quản lý đã duyệt và phân công cho bạn sẽ hiện ở đây." />}
+      {!items.length && <WorkflowEmpty title="Không có khoản cần gọi nhắc" text="Khoản khách chọn nhận tiền mặt tại quầy sẽ hiện ở đây." />}
     </WorkflowState>
     {call && <Modal title={`Kết quả cuộc gọi · ${call.item.id}`} onClose={close}>
       <fieldset className="choice-list">{Object.entries(CALL_RESULTS).map(([k, label]) => <label key={k} className="choice-list__item"><input type="radio" name="call" checked={call.result === k} onChange={() => setCall({ ...call, result: k })} /><span>{label}</span></label>)}</fieldset>
@@ -82,12 +61,6 @@ export function CashRefundCounterPage() {
       <p className="hint">Có ngày hẹn thì hệ thống tạm dừng gọi nhắc. Khách muốn đổi sang chuyển khoản tự đổi trong tài khoản trong thời hạn 30 ngày.</p>
       {error && <Notice tone="error">{error}</Notice>}
       <div className="modal__actions"><Button variant="outline" onClick={close}>Để sau</Button><Button disabled={load.busy} onClick={saveCall}>Lưu kết quả gọi</Button></div>
-    </Modal>}
-    {pay && <Modal title={`Chi tiền hoàn · ${pay.item.id}`} onClose={close}>
-      <p className="modal__text">Chi {money(pay.item.amount)} cho {pay.item.customer}. Không chi nếu chưa đối chiếu đủ.</p>
-      <fieldset className="choice-list">{PAY_CHECKS.map(([k, label]) => <label key={k} className="choice-list__item"><input type="checkbox" checked={!!pay[k]} onChange={e => setPay({ ...pay, [k]: e.target.checked })} /><span>{label}</span></label>)}</fieldset>
-      {error && <Notice tone="error">{error}</Notice>}
-      <div className="modal__actions"><Button variant="outline" onClick={close}>Quay lại</Button><Button disabled={load.busy} onClick={savePay}>Xác nhận đã chi</Button></div>
     </Modal>}
   </main>;
 }

@@ -377,18 +377,19 @@ public partial class FacilityOpsService
         long? staffId = assigned != null && long.TryParse(Read(assigned, "staffId"), out var s) ? s : null;
         if (p.Status == "PAID") return new CashState("PAID", approved?.LoggedAt, staffId, null, 0, null, null, lastCall, paid);
         var forfeited = list.LastOrDefault(l => l.Action == FlowAction.CashForfeited);
-        if (approved == null) return new CashState("WAITING_APPROVAL", null, null, null, 0, null, null, lastCall, null);
+        // D66 (18/11): không còn bước duyệt & giao nhân viên; hạn 30 ngày tính từ lúc tạo khoản hoàn (hoặc lần duyệt cũ nếu có).
+        var startAt = approved?.LoggedAt ?? DateTime.SpecifyKind(p.CreatedAt, DateTimeKind.Utc);
 
-        var approvedDay = DateOnly.FromDateTime(approved.LoggedAt + VnOffset);
+        var approvedDay = DateOnly.FromDateTime(startAt + VnOffset);
         var deadline = approvedDay.AddDays(CashRefundDays);
         var days = today.DayNumber - approvedDay.DayNumber;
         DateOnly? appointment = lastCall != null && DateOnly.TryParseExact(Read(lastCall, "appointmentDate"), "yyyy-MM-dd", Invariant, System.Globalization.DateTimeStyles.None, out var a) ? a : null;
         // D44: quá 30 ngày (tính từ lần duyệt đầu) chưa nhận → khách mất khoản hoàn; hết hạn hiện ngay, worker ghi sổ sau.
         if (forfeited != null || p.Status == "CANCELLED" || days > CashRefundDays)
-            return new CashState("FORFEITED", approved.LoggedAt, staffId, deadline, days, null, appointment, lastCall, forfeited);
+            return new CashState("FORFEITED", startAt, staffId, deadline, days, null, appointment, lastCall, forfeited);
         if (appointment.HasValue && appointment.Value >= today)
         {
-            return new CashState("APPOINTMENT", approved.LoggedAt, staffId, deadline, days, null, appointment, lastCall, null);
+            return new CashState("APPOINTMENT", startAt, staffId, deadline, days, null, appointment, lastCall, null);
         }
         // Mốc gọi nhắc gần nhất đã tới mà chưa gọi sau mốc đó.
         int? milestone = CashReminderDays.Where(d => days >= d).Select(d => (int?)d).LastOrDefault();
@@ -397,10 +398,10 @@ public partial class FacilityOpsService
             var milestoneUtc = UtcFromLocal(approvedDay.AddDays(milestone.Value), 0);
             if (lastCall == null || lastCall.LoggedAt < milestoneUtc)
             {
-                return new CashState("REMIND", approved.LoggedAt, staffId, deadline, days, milestone, appointment, lastCall, null);
+                return new CashState("REMIND", startAt, staffId, deadline, days, milestone, appointment, lastCall, null);
             }
         }
-        return new CashState("READY", approved.LoggedAt, staffId, deadline, days, null, appointment, lastCall, null);
+        return new CashState("READY", startAt, staffId, deadline, days, null, appointment, lastCall, null);
     }
 
     /// <summary>Xác định nguồn gốc và chủ thể của khoản tiền hoàn mặt.</summary>
@@ -546,9 +547,13 @@ public partial class FacilityOpsService
         return (await ToCashDtosAsync([p], ct))[0];
     }
 
-    /// <summary>D42 · S10: Nhân viên xác nhận đã chi tiền mặt cho khách sau khi tick đủ 4 mục kiểm tra.</summary>
+    /// <summary>
+    /// D42/D66: Quản lý cơ sở xác nhận đã trả tiền mặt cho khách tại quầy (không còn bước duyệt & giao nhân viên,
+    /// không nhập mã giao dịch). Giao diện gửi đủ 4 mục đối chiếu khi quản lý bấm xác nhận.
+    /// </summary>
     public async Task<CashRefundDto> PayCashRefundAsync(OpsActor actor, string id, CashRefundPayRequest request, CancellationToken ct = default)
     {
+        RequireManager(actor);
         if (!(request.IdentityChecked && request.CodeChecked && request.AmountCounted && request.Signed))
         {
             throw new ArgumentException("Tick đủ 4 mục kiểm tra trước khi xác nhận đã chi.");

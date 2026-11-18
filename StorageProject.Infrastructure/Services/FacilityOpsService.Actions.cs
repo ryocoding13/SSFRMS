@@ -601,7 +601,7 @@ public partial class FacilityOpsService
 
     /// <summary>
     /// M08 · Quản lý ghi bằng chứng đã chuyển khoản hoàn cho đơn đã huỷ (khoản REFUND ghi lúc khách huỷ).
-    /// D32: chỉ hoàn vào tài khoản chính chủ khách khai khi huỷ; cần mã giao dịch, thời điểm chuyển thực tế và xác nhận.
+    /// D32/D64: hoàn vào tài khoản khách khai khi huỷ; chỉ cần xác nhận (mã giao dịch và thời điểm chuyển không bắt buộc).
     /// </summary>
     public async Task<decimal> ConfirmReservationRefundAsync(OpsActor actor, string id, OpsReservationRefundRequest request, CancellationToken ct = default)
     {
@@ -610,7 +610,7 @@ public partial class FacilityOpsService
         var method = (request.Method ?? "BANK_TRANSFER").Trim().ToUpperInvariant();
         if (method != "BANK_TRANSFER") throw new ArgumentException("Hoàn tiền chỉ chuyển khoản vào tài khoản chính chủ của khách.");
         if (!request.Confirmed) throw new ArgumentException("Cần xác nhận đã chuyển đúng số tiền vào đúng tài khoản.");
-        var reference = TransactionRefOf(request.TransactionRef);
+        var reference = OptionalTransactionRefOf(request.TransactionRef);
 
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"reservation-refund:{facility.FacilityId}:{id}", ct);
         var r = await ReservationAsync(facility.FacilityId, id, ct);
@@ -627,8 +627,8 @@ public partial class FacilityOpsService
         {
             throw new InvalidOperationException("Đơn huỷ chưa có tài khoản nhận hoàn hợp lệ. Liên hệ khách bổ sung trước khi chuyển tiền.");
         }
-        var paidAt = TransferTimeOf(request.TransferredAt, r.CancelledAt ?? pending.CreatedAt, "huỷ đơn");
-        await EnsureUniqueTransactionRefAsync(reference, pending.PaymentId, ct);
+        var paidAt = request.TransferredAt is null ? NowUtc : TransferTimeOf(request.TransferredAt, r.CancelledAt ?? pending.CreatedAt, "huỷ đơn");
+        if (reference != null) await EnsureUniqueTransactionRefAsync(reference, pending.PaymentId, ct);
 
         pending.Status = "PAID"; pending.PaidAt = paidAt; pending.UpdatedAt = NowUtc;
         pending.TransactionReference = reference;
@@ -642,6 +642,13 @@ public partial class FacilityOpsService
     // ------------------------------------------------------------------
     // Bằng chứng chuyển tiền dùng chung cho M08 (đơn huỷ) và hoàn cọc sau trả kho
     // ------------------------------------------------------------------
+
+    /// <summary>
+    /// D64 (18/11): quản lý chỉ bấm xác nhận đã chuyển / đã trả tiền mặt, không bắt nhập mã giao dịch.
+    /// Có gửi mã (dữ liệu cũ) thì vẫn kiểm tra độ dài; để trống thì không lưu mã.
+    /// </summary>
+    internal static string? OptionalTransactionRefOf(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : TransactionRefOf(value);
 
     /// <summary>Chuẩn hoá và kiểm tra định dạng mã giao dịch ngân hàng.</summary>
     internal static string TransactionRefOf(string? value)

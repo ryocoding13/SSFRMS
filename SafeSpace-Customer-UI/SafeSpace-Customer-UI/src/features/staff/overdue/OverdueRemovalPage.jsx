@@ -38,7 +38,7 @@ export function OverdueRemovalPage() {
       { confirmLabel: "Lưu biên bản", successTitle: "Đã lưu biên bản xử lý đồ", failTitle: "Chưa lưu được biên bản", doneLabel: "Về công việc trong ngày", onDone: () => go("staff") });
   };
   return <main className="container page workflow-page overdue-removal"><PageHeader title="Công việc xử lý đồ quá hạn" description={`Lập biên bản sau khi đã chuyển đồ tới ${OVERDUE_HOLDING_AREA}.`} /><WorkflowState load={load}>
-    {(load.data || []).map(item => <RecordCard key={item.id} title={`${item.customer} · Kho ${item.unit}`} subtitle={`${item.contractId} · Phụ trách: ${item.assignee || "Chưa phân công"}`} status={item.status === "DONE" ? "Đã lưu biên bản" : "Chờ thực hiện"} actions={<Button variant={selected === item.id ? "outline" : "primary"} onClick={() => open(item)}>{selected === item.id ? "Thu gọn" : item.record ? "Xem biên bản" : "Lập biên bản"}</Button>}>
+    {(load.data || []).map(item => <RecordCard key={item.id} title={`${item.customer} · Kho ${item.unit}`} subtitle={item.contractId} status={item.status === "DONE" ? "Đã lưu biên bản" : "Chờ thực hiện"} actions={<Button variant={selected === item.id ? "outline" : "primary"} onClick={() => open(item)}>{selected === item.id ? "Thu gọn" : item.record ? "Xem biên bản" : "Lập biên bản"}</Button>}>
       {selected === item.id && (item.record
         ? <InfoTiles items={[["Nhân viên", item.record.staff], ["Tình trạng đồ", item.record.inventory], ["Nơi lưu giữ", item.record.location], ["Thời gian", item.record.performedAt], ["Ảnh hiện trạng", `${recordPhotos(item.record)} ảnh`]]} />
         : <form className="overdue-removal__form" onSubmit={e => submit(e, item)} noValidate>
@@ -61,6 +61,6 @@ export function OverdueRemovalPage() {
           {error && <p role="alert" className="tone-red">{error}</p>}
           <div className="overdue-removal__actions"><Button type="submit" disabled={load.busy || load.needsRefresh || reading}>Lưu biên bản</Button></div>
         </form>)}
-    </RecordCard>)}{!load.data?.length && !load.error && <WorkflowEmpty title="Không có kho quá hạn đến ngày 20" text="Khi có hợp đồng quá hạn đến ngày 20 và được phân công, việc xử lý đồ sẽ hiện ở đây."><LinkButton to="staff" variant="outline">Về công việc trong ngày</LinkButton></WorkflowEmpty>}
+    </RecordCard>)}{!load.data?.length && !load.error && <WorkflowEmpty title="Không có kho quá hạn đến ngày 20" text="Khi có hợp đồng quá hạn đến ngày 20, việc xử lý đồ sẽ hiện ở đây."><LinkButton to="staff" variant="outline">Về công việc trong ngày</LinkButton></WorkflowEmpty>}
   </WorkflowState>{dialog}</main>;
 }

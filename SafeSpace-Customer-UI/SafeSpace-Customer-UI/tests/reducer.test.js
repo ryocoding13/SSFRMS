@@ -132,7 +132,7 @@ test("trả kho: tạo lịch hẹn chờ xác nhận, không đổi trạng th�
   assert.match(run(s, "REQUEST_RETURN", { contract_id: "HĐ-2026-0142", date: "2026-09-20", slot: "09:00–09:30" }).error.message, /quá khứ/);
 });
 
-test("hợp đồng: trạng thái suy ra theo ngày (30 ngày → sắp hết hạn)", () => {
+test("hợp đồng: trạng thái suy ra theo ngày (≤ 10 ngày → sắp hết hạn, D65)", () => {
   const s = createSeedData(T);
   assert.equal(contractStatus(s.contracts[0], NOW), "ACTIVE");
   assert.equal(contractStatus(s.contracts[1], NOW), "EXPIRING");
@@ -268,4 +268,19 @@ test("huỷ đơn (C14a, D49): đơn đã thanh toán chưa nhận kho được 
   assert.equal(r.refund_amount, 4600000); // D49: bỏ phí huỷ 5% cọc, hoàn đủ tiền thuê + 100% cọc
   assert.equal(out.state.contracts.find((c) => c.reservation_id === r.reservation_id).status, "ENDED");
   assert.match(run(s, "CANCEL_RESERVATION", { reservation_id: "SS-20260615-0086" }).error.message, /nhận kho/);
+});
+
+test("chuông 18/11: đã đọc thì xoá khỏi chuông và nhớ khoá; quá hạn đổi số ngày thì khoá khác", async () => {
+  const { noticeKey } = await import("../src/shared/utils/notices.js");
+  const s = { ...createSeedData(T), notifications: [
+    { id: "SERVER-PAID-1", title: "a", detail: "x", created_at: "2026-11-17T01:00:00Z", read: false },
+    { id: "SERVER-OVERDUE-9-2026-11-05", title: "b", detail: "Quá hạn 12 ngày", created_at: "2026-11-18T01:00:00Z", read: false },
+  ] };
+  const one = run(s, "MARK_READ", { ids: ["SERVER-PAID-1"] }).state;
+  assert.deepEqual(one.notifications.map(n => n.id), ["SERVER-OVERDUE-9-2026-11-05"]);
+  assert.ok(one.dismissedNotices.includes("SERVER-PAID-1"));
+  const all = run(one, "MARK_READ", {}).state;
+  assert.equal(all.notifications.length, 0);
+  assert.ok(all.dismissedNotices.includes("SERVER-OVERDUE-9-2026-11-05|Quá hạn 12 ngày"));
+  assert.notEqual(noticeKey({ id: "SERVER-OVERDUE-9-2026-11-05", detail: "Quá hạn 13 ngày" }), "SERVER-OVERDUE-9-2026-11-05|Quá hạn 12 ngày");
 });

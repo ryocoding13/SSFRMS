@@ -2,7 +2,7 @@
  * RETURN REQUEST PAGE - ĐĂNG KÝ LỊCH TRẢ KHO (C08 / UC06)
  *
  * Thủ tục trả kho (Move-out):
- * - Chọn ngày hẹn trả kho thực tế và giờ kiểm kê dự kiến.
+ * - Chỉ chọn ngày hẹn trả kho (D64: không chọn giờ / buổi sáng chiều).
  * - Lựa chọn hình thức nhận hoàn tiền cọc (Chuyển khoản ngân hàng hoặc Tiền mặt tại quầy - D42).
  * - Lưu ý hướng dẫn dọn hết đồ đạc và bàn giao lại chìa khóa/thẻ từ.
  */

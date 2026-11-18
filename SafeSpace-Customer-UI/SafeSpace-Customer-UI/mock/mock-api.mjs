@@ -497,7 +497,7 @@ export function startMockApi(
         return send(200, page(rows));
       }
       // Lượt 6 · #45 #54: công cụ demo ngày & giá
-      const running = (c) => { const t = dateOnly(new Date()); if (c.status !== "ACTIVE") return c.status; if (c.endDate <= t) return "OVERDUE"; return (new Date(c.endDate) - new Date(t)) / 864e5 <= 14 ? "EXPIRING" : "ACTIVE"; };
+      const running = (c) => { const t = dateOnly(new Date()); if (c.status !== "ACTIVE") return c.status; if (c.endDate <= t) return "OVERDUE"; return (new Date(c.endDate) - new Date(t)) / 864e5 <= 10 ? "EXPIRING" : "ACTIVE"; };
       const overdueDays = (c) => { const t = dateOnly(new Date()); return c.status === "ACTIVE" && c.endDate <= t ? Math.round((new Date(t) - new Date(c.endDate)) / 864e5) : 0; };
       const demoDto = (c) => { const u = unit(c.unitId); return { contractId: c.contractId, contractCode: `HĐ-${c.startDate.slice(0, 4)}-${String(c.contractId).padStart(4, "0")}`, customerName: S.users.find((x) => x.userId === c.customerId)?.fullName, unitNumber: u.unitNumber, facilityName: fac(u.facilityId)?.name, startDate: c.startDate, endDate: c.endDate, agreedMonthlyRate: c.agreedMonthlyRate ?? c.monthlyRate ?? 0, depositAmount: c.depositAmount ?? 0, status: running(c), overdueDays: overdueDays(c), payments: S.payments.filter((p) => p.contractId === c.contractId).map((p) => ({ paymentId: p.paymentId, paymentType: p.paymentType, status: p.status, amount: p.amount, paidAt: p.paidAt ? dbTime(p.paidAt) : null, dueDate: p.dueDate || null })) }; };
       // D57 · Chỉnh giá theo cơ sở (demo): giá 4 loại kho của một cơ sở

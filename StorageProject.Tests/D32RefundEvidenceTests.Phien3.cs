@@ -242,27 +242,23 @@ public sealed partial class D32RefundEvidenceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => f.Ops.ConfirmDepositRefundAsync(f.ManagerActor,
             new DepositRefundActionRequest("CONFIRM_DEPOSIT_REFUND", listed.Id, 1, "FT1", DateTime.UtcNow, true)));
 
-        Assert.Equal("WAITING_APPROVAL", Assert.Single(await f.Ops.GetCashRefundsAsync(f.StaffActor)).Status);
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            f.Ops.PayCashRefundAsync(f.StaffActor, cashId, new CashRefundPayRequest(true, true, true, true)));
+        // D66 (18/11): không còn bước duyệt & giao nhân viên — khoản tiền mặt chờ khách đến nhận ngay, quản lý xác nhận đã trả
+        var waiting = Assert.Single(await f.Ops.GetCashRefundsAsync(f.ManagerActor));
+        Assert.Equal("READY", waiting.Status);
+        Assert.NotNull(waiting.DeadlineDate);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            f.Ops.ApproveCashRefundAsync(f.StaffActor, cashId, new OpsAssignRequest($"NV-{f.Staff.UserId:00}")));
-
-        var approved = await f.Ops.ApproveCashRefundAsync(f.ManagerActor, cashId, new OpsAssignRequest($"NV-{f.Staff.UserId:00}"));
-        Assert.Equal("READY", approved.Status);
-        Assert.NotNull(approved.DeadlineDate);
-
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            f.Ops.PayCashRefundAsync(f.StaffActor, cashId, new CashRefundPayRequest(true, true, false, true)));
-        var paid = await f.Ops.PayCashRefundAsync(f.StaffActor, cashId, new CashRefundPayRequest(true, true, true, true));
-        Assert.Equal("PAID", paid.Status);
-        Assert.Equal("Trần Nhân Viên", paid.PaidBy);
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
             f.Ops.PayCashRefundAsync(f.StaffActor, cashId, new CashRefundPayRequest(true, true, true, true)));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            f.Ops.PayCashRefundAsync(f.ManagerActor, cashId, new CashRefundPayRequest(true, true, false, true)));
+        var paid = await f.Ops.PayCashRefundAsync(f.ManagerActor, cashId, new CashRefundPayRequest(true, true, true, true));
+        Assert.Equal("PAID", paid.Status);
+        Assert.Equal(f.Manager.FullName, paid.PaidBy);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            f.Ops.PayCashRefundAsync(f.ManagerActor, cashId, new CashRefundPayRequest(true, true, true, true)));
         f.Db.ChangeTracker.Clear();
         var done = await f.Db.Payments.SingleAsync(p => p.PaymentId == payment.PaymentId);
         Assert.Equal("PAID", done.Status);
-        Assert.StartsWith($"CASH:{f.Staff.UserId}:", done.TransactionReference);
+        Assert.StartsWith($"CASH:{f.Manager.UserId}:", done.TransactionReference);
     }
 
     [Fact]
@@ -305,7 +301,7 @@ public sealed partial class D32RefundEvidenceTests
         // D44: quá 30 ngày chưa nhận → khách mất khoản hoàn; không chi, không đổi sang chuyển khoản
         Assert.Equal("FORFEITED", Assert.Single(await f.Ops.GetCashRefundsAsync(f.StaffActor)).Status);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            f.Ops.PayCashRefundAsync(f.StaffActor, cashId, new CashRefundPayRequest(true, true, true, true)));
+            f.Ops.PayCashRefundAsync(f.ManagerActor, cashId, new CashRefundPayRequest(true, true, true, true)));
         await Assert.ThrowsAsync<InvalidOperationException>(() => f.Ops.SwitchCashRefundToBankAsync(f.Customer.UserId, cashId,
             new RefundBankInput("Vietcombank", "0123456789", "NGUYEN VAN AN")));
         Assert.Equal(1, await f.Ops.ForfeitExpiredCashRefundsAsync());

@@ -9,7 +9,7 @@ namespace StorageProject.Tests;
 /// - Giữ chỗ online 15 phút
 /// - Giữ chỗ tại quầy cuối ngày hẹn (giờ VN)
 /// - Hạn thanh toán gia hạn (min(24h, ngày hết hạn))
-/// - Mốc EXPIRING 30 ngày
+/// - Mốc EXPIRING 10 ngày (D65)
 /// - Ngày đệm cho thuê lại RELET_BUFFER mặc định 3 ngày
 /// </summary>
 public class StandardizedOperationalParametersP2Tests
@@ -76,9 +76,9 @@ public class StandardizedOperationalParametersP2Tests
     }
 
     [Fact]
-    public void ExpiringThreshold_DefaultsTo30Days()
+    public void ExpiringThreshold_DefaultsTo10Days()
     {
-        Assert.Equal(30, OpsRules.DefaultExpiringThresholdDays);
+        Assert.Equal(10, OpsRules.DefaultExpiringThresholdDays);
     }
 }
 

@@ -63,13 +63,13 @@ public static partial class DbSeeder
 
     /// <summary>
     /// Thứ tự hợp đồng demo: (loại kho, bắt đầu cách hôm nay bao nhiêu ngày, số tháng). Cơ sở có N hợp đồng lấy N dòng đầu.
-    /// Mọi kỳ thuê đều còn hiệu lực; dòng 3 hết hạn trong khoảng 12 ngày để thử mốc "Sắp hết hạn" (14 ngày).
+    /// Mọi kỳ thuê đều còn hiệu lực; dòng 3 hết hạn trong khoảng 5–7 ngày để thử mốc "Sắp hết hạn" (10 ngày, D65).
     /// </summary>
     private static readonly (string Type, int DaysAgo, int Months)[] DemoOrderSlots =
     [
         ("NormalL", 8, 6),     // tháng này
         ("ColdM", 120, 6),     // 4 tháng trước
-        ("ColdL", 80, 3),      // ~2,5 tháng trước, sắp hết hạn
+        ("ColdL", 85, 3),      // ~2,8 tháng trước, sắp hết hạn
         ("NormalM", 155, 9),   // 5 tháng trước
         ("NormalM", 60, 12),   // 2 tháng trước
         ("NormalL", 35, 6),    // tháng trước

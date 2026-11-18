@@ -7,7 +7,7 @@ namespace StorageProject.Infrastructure.Services;
 
 /// <summary>
 /// T11 · Xử lý tự động hợp đồng quá hạn hàng ngày (D32):
-/// 1. Cập nhật hợp đồng sắp hết hạn (EXPIRING: trong vòng 30 ngày trước EndDate).
+/// 1. Cập nhật hợp đồng sắp hết hạn (EXPIRING: còn ≤ 10 ngày trước EndDate, D65).
 /// 2. Chuyển hợp đồng đã quá hạn sang OVERDUE khi qua ngày EndDate.
 /// 3. Tính phí quá hạn theo chính sách OVERDUE (mặc định 5% cọc ban đầu mỗi ngày trễ), tối đa 100% cọc.
 /// 4. Dừng tăng phí khi khách đã gửi yêu cầu trả kho (RETURN_PENDING).
@@ -29,11 +29,15 @@ public static class OverdueProcessor
         var nowUtc = DateTime.UtcNow;
         var today = DateOnly.FromDateTime(nowUtc + VnOffset);
 
-        // 1. ACTIVE sắp hết hạn trong 30 ngày -> EXPIRING (P2: OpsRules.DefaultExpiringThresholdDays). Cập nhật có điều kiện trong một câu lệnh để không ghi đè
+        // 1. ACTIVE còn ≤ 10 ngày (D65) -> EXPIRING (P2: OpsRules.DefaultExpiringThresholdDays). Cập nhật có điều kiện trong một câu lệnh để không ghi đè
         //    trạng thái khách vừa đổi (ví dụ vừa gửi trả kho) giữa lúc đọc và lúc lưu (S05).
         await dbContext.RentalContracts
             .Where(c => c.Status == "ACTIVE" && c.EndDate >= today && c.EndDate <= today.AddDays(OpsRules.DefaultExpiringThresholdDays))
             .ExecuteUpdateAsync(u => u.SetProperty(c => c.Status, "EXPIRING"), ct);
+        // D65: hợp đồng đã đánh EXPIRING theo mốc cũ 30 ngày (hoặc vừa gia hạn) mà còn hơn 10 ngày thì trở lại ACTIVE.
+        await dbContext.RentalContracts
+            .Where(c => c.Status == "EXPIRING" && c.EndDate > today.AddDays(OpsRules.DefaultExpiringThresholdDays))
+            .ExecuteUpdateAsync(u => u.SetProperty(c => c.Status, "ACTIVE"), ct);
         dbContext.ChangeTracker.Clear(); // ExecuteUpdate không qua tracker; đọc lại từ DB sau bước này
 
         await CustomerEmailDelivery.QueueRenewalRemindersAsync(dbContext, today, nowUtc, ct);

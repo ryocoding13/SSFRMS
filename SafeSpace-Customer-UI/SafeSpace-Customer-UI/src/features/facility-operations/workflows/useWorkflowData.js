@@ -74,7 +74,7 @@ export function useWorkflowData(resource) {
         try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* retained only in memory */ }
         setData(next[storageResource]); window.dispatchEvent(new Event("safespace-workflows"));
       } else {
-        let requestPayload=action==="CONFIRM_DEPOSIT_REFUND"?{...payload,transactionRef:payload.transactionRef.trim(),transferredAt:actualVnTime(payload.transferredAt)}:payload;
+        let requestPayload=action==="CONFIRM_DEPOSIT_REFUND"?{...payload,transactionRef:String(payload.transactionRef||"").trim()||null,transferredAt:payload.transferredAt?actualVnTime(payload.transferredAt):null}:payload;
         if(action==="RECORD_REMOVAL") {requestPayload={...payload,location:payload.location?.trim()||OVERDUE_HOLDING_AREA,photos:[],beforePhotos:undefined,afterPhotos:undefined};for(const file of removalPhotos(payload)){await verifyPhotoFile(file);requestPayload.photos.push(await readPhotoData(file));}}
         if(activeActor.current!==actorKey)throw new Error("Tài khoản đã thay đổi. Tải lại trước khi gửi.");
         if(action==="RECORD_REMOVAL")requestPayload.performedAt=actualVnTime(payload.performedAt);
@@ -96,7 +96,7 @@ export function useWorkflowData(resource) {
           }
           inquiryRequest.current = null;
         }
-        if(action==="CONFIRM_DEPOSIT_REFUND") {const item=result?.item;if(item?.id!==payload.id||item.status!=="PAID"||item.transactionRef!==payload.transactionRef.trim()||!Number.isFinite(Date.parse(item.paidAt))||item.amount!==data.find(r=>r.id===payload.id)?.amount||item.facilityId!==facilityId||!Number.isSafeInteger(item.version)||item.version<=data.find(r=>r.id===payload.id)?.version||["contractId","ownerId","customer","bankName","accountNumber","accountHolder"].some(k=>item[k]!==data.find(r=>r.id===payload.id)?.[k])){const error=new Error("Máy chủ chưa xác nhận bằng chứng chuyển tiền; tải lại trước khi gửi tiếp.");error.uncertain=true;throw error;}setData(previous=>previous.map(r=>r.id===item.id?item:r));}
+        if(action==="CONFIRM_DEPOSIT_REFUND") {const item=result?.item;if(item?.id!==payload.id||item.status!=="PAID"||(item.transactionRef||null)!==(String(payload.transactionRef||"").trim()||null)||!Number.isFinite(Date.parse(item.paidAt))||item.amount!==data.find(r=>r.id===payload.id)?.amount||item.facilityId!==facilityId||!Number.isSafeInteger(item.version)||item.version<=data.find(r=>r.id===payload.id)?.version||["contractId","ownerId","customer","bankName","accountNumber","accountHolder"].some(k=>item[k]!==data.find(r=>r.id===payload.id)?.[k])){const error=new Error("Máy chủ chưa xác nhận bằng chứng chuyển tiền; tải lại trước khi gửi tiếp.");error.uncertain=true;throw error;}setData(previous=>previous.map(r=>r.id===item.id?item:r));}
         else if(action==="RECORD_REMOVAL") {if(result?.item?.id!==payload.id||result.item.status!=="DONE"||!result.item.record?.savedAt||result.item.facilityId!==facilityId||!(result.item.record?.photos?.length||result.item.record?.afterPhotos?.length)){const error=new Error("Máy chủ chưa xác nhận biên bản và bằng chứng xử lý.");error.uncertain=true;throw error;}setData(previous=>previous.map(r=>r.id===result.item.id?result.item:r));}
         else if (resource === "inquiries") setData(previous => {
           const item = result.item;

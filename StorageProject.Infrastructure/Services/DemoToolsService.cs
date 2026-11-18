@@ -21,7 +21,7 @@ public class DemoToolsService(AppDbContext dbContext) : IDemoToolsService
     public const string PaymentEdited = "DEMO_PAYMENT_EDITED";
     private static readonly TimeSpan VnOffset = TimeSpan.FromHours(7);
     private static readonly string[] Running = ["ACTIVE", "EXPIRING", "OVERDUE"];
-    private const int ExpiringDays = 14;
+    private const int ExpiringDays = OpsRules.DefaultExpiringThresholdDays; // D65: 10 ngày
     private const decimal MaxAmount = 10_000_000_000m;
 
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow + VnOffset);

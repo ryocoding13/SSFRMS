@@ -7,7 +7,7 @@
  * - Sau thời hạn quy định, chuyển sang quy trình niêm phong và xử lý tài sản bỏ lại (S06).
  */
 import React, { useState } from "react";
-import { Button, Field, LinkButton, Notice, PageHeader } from "../../../shared/components/UI.jsx";
+import { Button, LinkButton, Notice, PageHeader } from "../../../shared/components/UI.jsx";
 import { dateLabel, money } from "../../../shared/utils/format.js";
 import { depositSchedule, policyRate } from "../../facility-operations/workflows/workflowModel.js";
 import { useWorkflowData } from "../../facility-operations/workflows/useWorkflowData.js";
@@ -17,10 +17,10 @@ import { InfoTiles, RecordCard, useWorkflowChange, WorkflowEmpty, WorkflowState 
  * Màn hình xử lý các ca vi phạm hợp đồng và nợ phí quá hạn.
  */
 export function OverdueCasePage({ query = new URLSearchParams() } = {}) {
-  const load = useWorkflowData("overdue"), policy = useWorkflowData("policy"), defaultRate = policyRate(policy.data), [selected, setSelected] = useState(""), [assignee, setAssignee] = useState(""), [error, setError] = useState("");
+  const load = useWorkflowData("overdue"), policy = useWorkflowData("policy"), defaultRate = policyRate(policy.data), [selected, setSelected] = useState("");
   const [dialog, ask] = useWorkflowChange(load);
   return <main className="container page workflow-page">
-    <PageHeader title="Hồ sơ quá hạn & xử lý đồ" description="Theo dõi khấu trừ cọc, phân công nhân viên và biên bản thực tế." />
+    <PageHeader title="Hồ sơ quá hạn & xử lý đồ" description="Theo dõi khấu trừ cọc và biên bản xử lý đồ thực tế." />
     <WorkflowState load={load}>
       {/* #7: mở từ nút "Xử lý quá hạn" trên hợp đồng → chỉ hiện hồ sơ của hợp đồng đó */}
       {query.get("contract") && <p className="hint">Đang xem hồ sơ của {query.get("contract")} · <a href="#/manager/overdue">Xem tất cả hồ sơ quá hạn</a></p>}
@@ -39,7 +39,7 @@ export function OverdueCasePage({ query = new URLSearchParams() } = {}) {
           title={`${item.customer} · Kho ${item.unit}`}
           subtitle={`${item.contractId} · Hết hạn ${dateLabel(item.endDate)}`}
           status={item.status === "DONE" ? "Đã lập biên bản" : `Quá hạn ${overdueDays} ngày`}
-          actions={<Button onClick={() => { setSelected(selected === item.id ? "" : item.id); setAssignee(item.assignee || ""); }}>Xem chi tiết</Button>}
+          actions={<Button onClick={() => setSelected(selected === item.id ? "" : item.id)}>Xem chi tiết</Button>}
         >
           <InfoTiles items={[
             ["Cọc ban đầu", money(item.deposit)],
@@ -57,16 +57,7 @@ export function OverdueCasePage({ query = new URLSearchParams() } = {}) {
                 ["Vị trí đưa đồ ra ngoài", item.record.location]
               ]} />
             ) : canAssign ? (
-              <form onSubmit={e => {
-                e.preventDefault();
-                if (!assignee.trim()) return setError("Nhập nhân viên phụ trách.");
-                ask("ASSIGN_REMOVAL", { id: item.id, assignee }, "Phân công xử lý đồ quá hạn?", "Nhân viên cần lập biên bản và ghi vị trí thực tế sau khi thực hiện.");
-              }}>
-                <Field label="Nhân viên phụ trách" error={error}>
-                  <input value={assignee} onChange={e => { setAssignee(e.target.value); setError(""); }} />
-                </Field>
-                <Button type="submit" disabled={load.busy}>Xác nhận phân công</Button>
-              </form>
+              <p>Đã đến mốc xử lý đồ. Nhân viên của cơ sở thấy việc này ở "Công việc xử lý đồ quá hạn" và lập biên bản; không cần phân công (D66).</p>
             ) : (
               <p>Chưa đến mốc xử lý đồ (ngày thứ {disposalDay} quá hạn). Cọc cạn vào ngày thứ {depletionDay}.</p>
             )}

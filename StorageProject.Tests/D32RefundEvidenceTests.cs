@@ -244,10 +244,11 @@ public sealed partial class D32RefundEvidenceTests
         // Task #20: khóa hình thức hoàn theo lựa chọn khách (BANK_TRANSFER không được đổi sang CASH)
         await Assert.ThrowsAsync<InvalidOperationException>(() => f.Ops.ConfirmDepositRefundAsync(f.ManagerActor, request with { Method = "CASH" }));
 
-        var paid = await f.Ops.ConfirmDepositRefundAsync(f.ManagerActor, request);
+        // D64 (18/11): quản lý chỉ bấm xác nhận, không nhập mã giao dịch / thời gian chuyển
+        var paid = await f.Ops.ConfirmDepositRefundAsync(f.ManagerActor, request with { TransactionRef = null, TransferredAt = null });
         Assert.Equal("PAID", paid.Status);
         Assert.Equal(2, paid.Version);
-        Assert.Equal("FT26302000001", paid.TransactionRef);
+        Assert.Null(paid.TransactionRef);
         Assert.NotNull(paid.PaidAt);
         // Gửi lại cùng yêu cầu (mạng lỗi, bấm lặp) không chuyển lần hai
         await Assert.ThrowsAsync<OpsConflictException>(() => f.Ops.ConfirmDepositRefundAsync(f.ManagerActor, request));

@@ -8,10 +8,7 @@ export function pendingTaskCounts(ops, role, me) {
   if (role === "STAFF") {
     const counterPayments = count(ops.payments, p => p.status === "PENDING");
     const renewalPayments = count(ops.counter_renewals, r => r.status === "PENDING");
-    const cashRefunds = count(ops.cash_refunds, r =>
-      ["READY", "REMIND", "APPOINTMENT"].includes(r.status) &&
-      (!r.staff_id && !r.staffId || !me?.staff_id || (r.staff_id || r.staffId) === me.staff_id)
-    );
+    const cashRefunds = count(ops.cash_refunds, r => r.status === "REMIND"); // D66: nhân viên chỉ gọi nhắc
     const reconcile = counterPayments + renewalPayments + cashRefunds;
 
     const verifications = count(ops.verifications, v => v.status === "TODO");
@@ -55,7 +52,7 @@ export function pendingTaskCounts(ops, role, me) {
 
   // MANAGER
   const overdueCases = count(ops.overdue_cases, c => c.status !== "DONE");
-  const managerCashRefunds = count(ops.cash_refunds, r => r.status === "WAITING_APPROVAL");
+  const managerCashRefunds = count(ops.cash_refunds, r => ["WAITING_APPROVAL", "READY", "REMIND", "APPOINTMENT"].includes(r.status)); // D66: chờ quản lý xác nhận đã trả
   // Xung đột đặt kho: hệ thống tự đề xuất đổi ô cho khách; quản lý chỉ cần xử lý khi không còn ô tương đương (NONE).
   const unitConflicts = count(ops.unit_conflicts, c => c.status === "OPEN" && c.option === "NONE");
   const depositRefunds = count(ops.deposit_refunds, r => r.status === "PENDING" && !isCashRefund(r));
