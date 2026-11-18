@@ -99,15 +99,15 @@ test("badge nhân viên và quản lý hiển thị đúng cho tất cả các t
 
   const staffBadges = pendingTaskCounts(opsStaff, "STAFF", meStaff);
   assert.equal(staffBadges["staff/renewal-payments"], 1);
-  assert.equal(staffBadges["staff/cash-refunds"], 2); // CH-01 và CH-03
+  assert.equal(staffBadges["staff/cash-refunds"], 1); // D66: nhân viên chỉ gọi nhắc (CH-02 · REMIND), không phân công
   assert.equal(staffBadges["staff/recheck"], 1); // TK-02
   assert.equal(staffBadges["staff/overdue"], 1);
   assert.equal(staffBadges["staff/inquiries"], 1);
-  assert.equal(staffBadges["staff/reconcile"], 4); // 1 payment + 1 renewal + 2 cash refunds
+  assert.equal(staffBadges["staff/reconcile"], 3); // 1 payment + 1 renewal + 1 gọi nhắc
   assert.equal(staffBadges["staff/verify"], 2); // 1 verify + 1 handover
   assert.equal(staffBadges["staff/return"], 3); // 1 scheduled + 1 recheck + 1 đồ quá hạn (#7: cùng trang Kiểm tra trả kho)
   assert.equal(staffBadges["staff/support"], 3); // 2 tickets (NV-01 + null) + 1 inquiry
-  assert.equal(staffBadges["staff"], 12); // 4 + 2 + 2 + 3 + 1 overdue
+  assert.equal(staffBadges["staff"], 11); // 3 + 2 + 2 + 3 + 1 overdue
 
   const opsManager = {
     allocations: [{ status: "PENDING" }],
@@ -126,13 +126,13 @@ test("badge nhân viên và quản lý hiển thị đúng cho tất cả các t
   assert.equal(mgrBadges["manager/allocate"], undefined);
   assert.equal(mgrBadges["manager/assign"], undefined);
   assert.equal(mgrBadges["manager/renewals"], undefined);
-  assert.equal(mgrBadges["manager/cash-refunds"], 1);
+  assert.equal(mgrBadges["manager/cash-refunds"], 2); // D66: mọi khoản chờ khách nhận đều chờ quản lý xác nhận đã trả
   assert.equal(mgrBadges["manager/deposit-refunds"], 1);
   assert.equal(mgrBadges["manager/unit-conflicts"], 1); // chỉ ca không còn ô tương đương; SWAP do khách tự chọn
   assert.equal(mgrBadges["manager/overdue"], 1);
   assert.equal(mgrBadges["manager/refunds"], 1);
   assert.equal(mgrBadges["manager/contracts"], 2); // 1 hợp đồng quá hạn + 1 hồ sơ quá hạn
-  assert.equal(mgrBadges["manager/refund"], 3); // 1 đơn huỷ + 1 hoàn cọc + 1 tiền mặt chờ duyệt
+  assert.equal(mgrBadges["manager/refund"], 4); // 1 đơn huỷ + 1 hoàn cọc + 2 tiền mặt chờ xác nhận đã trả (D66)
   assert.equal(mgrBadges["manager"], 2); // Tổng quan: 1 đơn chưa có ô + 1 ca không còn ô tương đương
 });
 

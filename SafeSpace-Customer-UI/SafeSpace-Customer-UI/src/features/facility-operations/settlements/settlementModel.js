@@ -26,11 +26,12 @@ export function transferProof(item,payload,now=new Date()) {
  if (!isCash) {
   const error=validateRefundBank({bankName:item.bankName,accountNumber:item.accountNumber,accountHolder:item.accountHolder},item.customer);if(error)throw new Error(error);
  }
- const ref=String(payload.transactionRef||payload.transaction_ref||"").trim();if(!ref||ref.length>100)throw new Error(isCash ? "Nhập mã phiếu chi không quá 100 ký tự." : "Nhập mã giao dịch không quá 100 ký tự.");
+ // D64 (18/11): không nhập mã giao dịch / thời gian; quản lý chỉ bấm xác nhận. Mã (nếu có, dữ liệu cũ) tối đa 100 ký tự.
+ const ref=String(payload.transactionRef||payload.transaction_ref||"").trim();if(ref.length>100)throw new Error("Mã giao dịch không quá 100 ký tự.");
  if(payload.confirmed!==true)throw new Error(isCash ? "Cần xác nhận đã chi tiền mặt cho khách hàng." : "Cần xác nhận đã chuyển đúng số tiền vào đúng tài khoản.");
- const paidAt=actualVnTime(payload.transferredAt,now);
+ const paidAt=payload.transferredAt?actualVnTime(payload.transferredAt,now):now.toISOString();
  if(item.inspectedAt&&Number.isFinite(Date.parse(item.inspectedAt))&&Date.parse(paidAt)<Math.floor(Date.parse(item.inspectedAt)/60000)*60000)throw new Error(isCash ? "Thời gian chi tiền không được trước khi chốt đối soát." : "Thời gian chuyển không được trước khi chốt đối soát.");
- return {transactionRef:ref,transferredAt:paidAt,confirmed:true,method:isCash?"CASH":"BANK_TRANSFER"};
+ return {transactionRef:ref||null,transferredAt:paidAt,confirmed:true,method:isCash?"CASH":"BANK_TRANSFER"};
 }
 export function validateKeyReceipt(ops,payload) {
  const h=ops.handovers.find(h=>h.id===payload.id);if(!h||h.status!=="WAITING")throw new Error("Lịch nhận chìa khóa không còn chờ xử lý.");
@@ -76,12 +77,13 @@ export function opsReceiptCheck(type,payload,res,board) {
  if(type==="SUBMIT_RETURN") {const r=board.returns?.find(r=>r.id===payload.id);if(r?.status!=="SUBMITTED"||!r.submitted_at||["damage_fee","cleaning_fee","cleaning_required","damage_item","fee_reason"].some(k=>r.report?.[k]!==payload.report[k])||(payload.files?.length&&!r.report?.photos?.length))throw new Error("Chưa xác nhận ảnh và các khoản khấu trừ đã được lưu đầy đủ.");}
  if(type==="CONFIRM_REFUND"&&(!knownMoney(res?.refund)||res?.refundStatus!=="PENDING"||!board.contracts?.some(c=>c.id===payload.id&&c.state==="CLOSED")))throw new Error("Chưa xác nhận khoản hoàn chờ chuyển tiền.");
  if(type==="CONFIRM_DEPOSIT_REFUND")transferProof(ops.deposit_refunds?.find(r=>r.id===payload.id),payload);
- if(type==="CONFIRM_RESERVATION_REFUND") {const r=board.refunds?.find(r=>r.id===payload.id);if(r?.status!=="PAID"||r.transaction_ref!==payload.transaction_ref?.trim()||!r.paid_at)throw new Error("Máy chủ chưa xác nhận bằng chứng chuyển tiền.");}
+ if(type==="CONFIRM_RESERVATION_REFUND") {const r=board.refunds?.find(r=>r.id===payload.id);if(r?.status!=="PAID"||(r.transaction_ref||null)!==(String(payload.transaction_ref||"").trim()||null)||!r.paid_at)throw new Error("Máy chủ chưa xác nhận bằng chứng chuyển tiền.");}
 }
 export function validateRemoval(item,payload,policy,actor,now=new Date()) {
  if(!item||item.status==="DONE")throw new Error("Biên bản đã được lưu; không gửi lại.");
  if(!actor.roles?.some(r=>["STAFF","MANAGER"].includes(r))||actor.facilityId!==item.facilityId)throw new Error("Hồ sơ không thuộc cơ sở phụ trách.");
- if(actor.roles.includes("STAFF")&&item.assignee!==actor.name)throw new Error("Bạn chưa được phân công hồ sơ này.");
+ // D66: mỗi cơ sở 1 nhân viên, không phân công; chỉ chặn khi hồ sơ cũ đã giao cho người khác.
+ if(actor.roles.includes("STAFF")&&item.assignee&&item.assignee!==actor.name)throw new Error("Hồ sơ đã giao cho nhân viên khác.");
  const performedAt=actualVnTime(payload.performedAt,now),day=new Intl.DateTimeFormat("sv-SE",{timeZone:"Asia/Ho_Chi_Minh"}).format(new Date(performedAt)),days=Math.floor((Date.parse(`${day}T00:00:00Z`)-Date.parse(`${item.endDate}T00:00:00Z`))/86400000),removalDay=Number.isSafeInteger(policy?.removalDay)&&policy.removalDay>=20?policy.removalDay:20;
  if(!Number.isFinite(days)||days<removalDay)throw new Error(`Chưa đến mốc ${removalDay} ngày quá hạn tại thời điểm thực hiện.`);
  if(!payload.inventory?.trim())throw new Error("Điền danh sách / tình trạng đồ.");

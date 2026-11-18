@@ -117,7 +117,7 @@ public partial class FacilityOpsService
             }
             if (c == null) return "ACTIVE";
             if (c.Status == "OVERDUE" || c.EndDate < today) return "OVERDUE";
-            if (c.Status == "EXPIRING" || c.EndDate <= today.AddDays(14)) return "EXPIRING";
+            if (c.EndDate <= today.AddDays(OpsRules.DefaultExpiringThresholdDays)) return "EXPIRING"; // D65: ≤ 10 ngày
             return "ACTIVE";
         }
 

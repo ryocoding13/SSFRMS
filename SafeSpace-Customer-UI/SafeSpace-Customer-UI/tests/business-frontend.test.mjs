@@ -178,7 +178,7 @@ test('P0 · chính sách: phân nhóm rõ ràng, bỏ ánh xạ RENEWAL=24 sang 
  assert.ok(ENGINE_SECTIONS[0].fields.some(f => f.key === 'deposit'));
  assert.ok(ENGINE_SECTIONS[0].fields.some(f => f.key === 'overdue'));
  assert.ok(ENGINE_SECTIONS[0].fields.some(f => f.key === 'relet'));
- assert.ok(SYSTEM_ENFORCED_POLICIES.some(f => f.key === 'expiring' && f.value.includes('30 ngày')));
+ assert.ok(SYSTEM_ENFORCED_POLICIES.some(f => f.key === 'expiring' && f.value.includes('10 ngày')));
  assert.ok(GUIDELINE_SECTIONS[0].fields.some(f => f.key === 'refund'));
 });
 

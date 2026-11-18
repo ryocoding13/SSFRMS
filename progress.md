@@ -1,3 +1,34 @@
+## 2026-11-18 — Chuông: mới nhất lên đầu, đã đọc thì xoá
+
+- `appReducer.MARK_READ`: thông báo đã đọc (bấm vào hoặc "Đã đọc tất cả") bị xoá khỏi chuông, khoá được nhớ trong `dismissedNotices` (tối đa 500, `shared/utils/notices.js`) để thông báo sinh từ dữ liệu máy chủ không quay lại sau khi tải lại. Thông báo quá hạn dùng khoá kèm nội dung nên số ngày quá hạn đổi thì hiện lại, lên đầu.
+- `AppProvider.loadCustomer` bỏ qua khoá đã đọc; chuông vẫn xếp mới nhất lên đầu. `Header`: "Không có thông báo mới", nút "Đã đọc tất cả · xoá khỏi chuông".
+- Kiểm chứng: `npm test` 233/233 (thêm test MARK_READ), `test:render` PASS, build OK; Chrome chế độ demo: bấm 1 thông báo → còn 4 sau tải lại, "Đã đọc tất cả" → 0 và vẫn 0 sau tải lại.
+
+## 2026-11-18 — Chuông không hiện thông báo quá hạn dù đã có email
+
+- Nguyên nhân: thông báo quá hạn lấy thời điểm 00:00 của ngày tính nên bị xếp dưới các thông báo khác trong ngày (hợp đồng, giữ chỗ, thanh toán), khách không thấy dù email quá hạn đã gửi.
+- `AppProvider.jsx`: thông báo `SERVER-OVERDUE-*` lần đầu xuất hiện và mỗi lần số ngày quá hạn đổi thì đưa lên đầu chuông, đánh dấu chưa đọc (cùng nhịp email). Không đổi mã thông báo nên không tạo trùng.
+- Kiểm chứng: `npm test` 232/232, `test:render` PASS, build OK. Chưa thử với backend thật.
+
+## 2026-11-18 — D66: bỏ giao việc nhân viên; quản lý xác nhận đã trả tiền mặt
+
+- FE: `CashRefundApprovalPage.jsx` bỏ "Duyệt & giao"/chọn nhân viên, thay bằng nút "Xác nhận đã trả tiền mặt" + popup (người nhận, số tiền); `CashRefundCounterPage.jsx` (nhân viên) chỉ còn ghi cuộc gọi nhắc; `StaffTasks`/`pendingTaskCounts`: nhân viên chỉ có việc gọi nhắc (REMIND), quản lý đếm mọi khoản chờ khách nhận. `OverdueCasePage` bỏ form phân công xử lý đồ; `OverdueRemovalPage` và `validateRemoval` không đòi phân công. Xoá trang M06 `manager/assignments`.
+- BE: `FacilityOpsService.Workflows.cs` — khoản tiền mặt không còn trạng thái chờ duyệt (hạn 30 ngày tính từ lúc tạo khoản), `PayCashRefundAsync` chỉ quản lý được xác nhận. Sửa test xUnit `D32RefundEvidenceTests.Phien3` theo luồng mới.
+- **Kiểm chứng:** `npm test` 232/232, `test:render` PASS (177 route, bỏ `manager/assign`), `vite build` OK, `test:workflow-actions` PASS. Chưa chạy `dotnet test` ở môi trường soạn patch.
+
+## 2026-11-18 — D65: "Sắp hết hạn" khi còn ≤ 10 ngày
+
+- FE: `appSelectors.contractStatus` dùng `EXPIRING_DAYS = 10` (trước 30); tổng quan khách ghi "Sắp hết hạn (10 ngày)"; Công cụ demo, máy chủ giả, dữ liệu mẫu và nội dung chính sách hệ thống đổi theo.
+- BE: `OpsRules.DefaultExpiringThresholdDays = 10`; `OverdueProcessor` thêm bước đưa EXPIRING còn > 10 ngày về ACTIVE; bảng kho quản lý (`FacilityOpsService.Board`) và `DemoToolsService` dùng chung mốc; seed demo dòng kho lạnh hết hạn sau ~5–7 ngày. Sửa test xUnit theo mốc mới.
+- **Kiểm chứng:** xem mục D64 cùng ngày (chạy chung một lượt). Chưa chạy `dotnet test` ở môi trường soạn patch.
+
+## 2026-11-18 — D64: xác nhận hoàn tiền không cần mã giao dịch; trả kho chỉ chọn ngày
+
+- Figma (sửa trước, viền đỏ): M-ĐS-CHỐT chuyển khoản + bản tiền mặt và popup, M08a/M08a2 bỏ ô mã giao dịch, D30-15 phía khách bỏ dòng mã giao dịch; popup "chưa nhập mã giao dịch" chuyển vào Lưu trữ.
+- FE: `DepositRefundPage.jsx` khối "Bước tiếp theo" hiện cách nhận, ngân hàng, số tài khoản, chủ tài khoản, số tiền + nút "Xác nhận đã chuyển khoản" (hoặc tiền mặt); `CancellationRefundPage.jsx` bỏ ô mã giao dịch, thời gian và ô tick. `settlementModel.transferProof` không bắt mã/thời gian; `useWorkflowData`, `opsReceiptCheck`, reducer M08 chấp nhận mã rỗng. Khách: `RefundTrackingPage` thay "Mã giao dịch" bằng "Ngày hoàn", `ReturnProgressPage` bỏ dòng mã. Trả kho đã chỉ có ô chọn ngày (không đổi giao diện, sửa chú thích).
+- BE: `FacilityOpsService.Actions.cs` / `.Refunds.cs` — `transactionRef`, `transferredAt` không bắt buộc (`OptionalTransactionRefOf`, trống thì ghi thời điểm xác nhận); có mã thì vẫn kiểm tra độ dài và trùng. Sửa test xUnit `D32RefundEvidenceTests` xác nhận không cần mã.
+- **Kiểm chứng:** `npm test` 232/232, `test:render` PASS 178 route, `check:structure` PASS, `vite build` OK, `test:workflow-actions` PASS trên Chrome (M08 và hoàn cọc chỉ bấm xác nhận, chặn xác nhận lại, khách thấy "Đã hoàn"). **Chưa build/chạy `dotnet test`** (môi trường soạn patch không có .NET SDK), chưa thử SQL Server thật.
+
 ## 2026-11-14 — Máy quét mô phỏng 16:9: cảnh kho thường / kho lạnh theo ô đang chọn
 
 - Theo Figma "Bổ sung · 12/11 · Công cụ demo" vẽ lại 14/11 (4 ảnh nền của nhóm, khung 1440×810): `DoorSimulatorPage.jsx` chọn cảnh theo loại ô (`sceneKind` trong `demoModel.js`: `climateControlled` → kho lạnh, còn lại kho thường) và trạng thái cửa (đóng/mở). Ảnh mới `src/assets/demo/door-scene-{normal,cold}-{closed,open}.webp`; bỏ 2 ảnh cảnh cũ.

@@ -242,7 +242,6 @@ const ACTIONS = {
     if (r.status !== "PENDING") fail("Khoản hoàn tiền này đã được xác nhận.");
     try{transferProof(r,payload,now);}catch(error){fail(error.message);}
     const ref = String(transaction_ref || "").trim();
-    if (method !== "CASH" && !ref) fail("Nhập mã giao dịch hoàn tiền.");
     const next = { ...state, refunds: patch(state.refunds, id, () => ({ status: "PAID", paid_at: iso(now), method: method || "BANK_TRANSFER", transaction_ref: ref || null })) };
     return { state: addLog(next, now, `Đã xác nhận hoàn ${money(r.amount)} · ${id}`, "manager/refunds", "MANAGER"), result: { id, refund: r.amount } };
   },

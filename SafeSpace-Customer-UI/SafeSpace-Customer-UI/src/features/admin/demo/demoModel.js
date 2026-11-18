@@ -16,7 +16,7 @@ export function expectedState(start, end, today) {
   if (!start || !end) return null;
   if (start > today) return "Chưa tới ngày thuê";
   if (end <= today) return `Quá hạn ${Math.round((Date.parse(today) - Date.parse(end)) / 86400000)} ngày`;
-  return Math.round((Date.parse(end) - Date.parse(today)) / 86400000) <= 14 ? "Sắp hết hạn" : "Đang thuê";
+  return Math.round((Date.parse(end) - Date.parse(today)) / 86400000) <= 10 ? "Sắp hết hạn" : "Đang thuê";
 }
 
 export function contractFormError({ start, end, rate }) {

@@ -43,7 +43,7 @@ const LAYOUT = [
 function createUnits(t) {
   const usage = {
     K01: ["Nguyễn Thị Mai", "WAITING_HANDOVER", addMonths(addDays(t, 6), 3)],
-    K02: ["Lê Văn Tùng", "EXPIRING", addDays(t, 14)],
+    K02: ["Lê Văn Tùng", "EXPIRING", addDays(t, 9)],
     K03: ["Trần Quốc Bảo", "OVERDUE", addDays(t, -3)],
     K04: ["Lê Văn An", "OVERDUE", addDays(t, -4)],
     K05: ["Võ Thị Hạnh", "WAITING_HANDOVER", addMonths(t, 3)],

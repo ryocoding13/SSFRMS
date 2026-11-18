@@ -85,7 +85,7 @@ function NotificationPopup({ onClose, anchorRef }) {
         <button type="button" className="popup__close" onClick={onClose} aria-label="Đóng thông báo">×</button>
       </div>
       {(data.notifications_error || error) && <div className="popup__empty" role="alert"><strong>Chưa tải được thông báo</strong><p>{error || "Kiểm tra kết nối rồi thử lại."}</p><button type="button" className="btn btn--outline" onClick={() => { setError(""); retry(); }}>Thử tải lại</button></div>}
-      <p className="popup__count">{unread ? `${unread} thông báo mới` : "Đã đọc tất cả"}</p>
+      <p className="popup__count">{unread ? `${unread} thông báo mới` : "Không có thông báo mới"}</p>
       <ul className="popup__list">
         {items.map((n) => (
           <li key={n.id}>
@@ -101,7 +101,7 @@ function NotificationPopup({ onClose, anchorRef }) {
       {items.length > 0 && !unread && <p className="popup__empty">Bạn đã xem hết thông báo hiện tại.</p>}
       {unread > 0 && (
         <button type="button" className="btn btn--outline popup__all" onClick={markAll}>
-          Đánh dấu tất cả đã đọc
+          Đã đọc tất cả · xoá khỏi chuông
         </button>
       )}
     </section>

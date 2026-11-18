@@ -22,12 +22,13 @@ export const facilityOf = (data, id, name) =>
   };
 export const contractOf = (data, id) => data.contracts.find((c) => c.contract_id === id);
 
-// Trạng thái hợp đồng suy ra theo ngày (ACTIVE → EXPIRING trong 30 ngày → OVERDUE)
+// Trạng thái hợp đồng suy ra theo ngày (ACTIVE → EXPIRING khi còn ≤ 10 ngày, D65 → OVERDUE)
+export const EXPIRING_DAYS = 10;
 export function contractStatus(c, now = new Date()) {
   if (c.status === "ENDED") return "ENDED";
   const left = daysBetween(localDate(now), c.end_date);
   if (left < 0) return "OVERDUE";
-  if (left <= 30) return "EXPIRING";
+  if (left <= EXPIRING_DAYS) return "EXPIRING";
   return "ACTIVE";
 }
 

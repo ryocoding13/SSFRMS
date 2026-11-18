@@ -24,8 +24,8 @@ export const SYSTEM_ENFORCED_POLICIES = [
   {
     key: 'expiring',
     label: 'Thông báo sắp hết hạn hợp đồng',
-    value: '30 ngày trước khi hết hạn',
-    reference: 'D11 · OverdueProcessor',
+    value: '10 ngày trước khi hết hạn',
+    reference: 'D65 · OverdueProcessor',
     description: 'Hệ thống tự động rà soát hàng ngày và gửi thông báo nhắc gia hạn đến khách hàng.',
   },
   {

@@ -85,14 +85,13 @@ export function staffTasks(ops, me, kind = "all") {
         }),
       );
     (ops.cash_refunds || [])
-      .filter((r) => ["READY", "REMIND", "APPOINTMENT"].includes(r.status) &&
-        (!r.staff_id && !r.staffId || !me?.staff_id || (r.staff_id || r.staffId) === me.staff_id))
+      .filter((r) => r.status === "REMIND") // D66: quản lý xác nhận đã trả tiền mặt; nhân viên chỉ gọi nhắc khách
       .forEach((r) =>
         list.push({
-          key: r.id, kind: "reconcile", status: ["Chờ chi tiền", "amber"], title: `Hoàn tiền ${r.id}`,
+          key: r.id, kind: "reconcile", status: ["Cần gọi nhắc", "amber"], title: `Hoàn tiền ${r.id}`,
           meta: `${r.customer} · ${r.reference || "Tiền mặt"}`,
-          when: `${money(r.amount)} · Chi tiền mặt tại quầy`,
-          cta: "Chi tiền", to: "staff/cash-refunds", sort: r.deadlineDate || r.deadline_date || "",
+          when: `${money(r.amount)} · Gọi nhắc khách đến nhận tiền mặt`,
+          cta: "Gọi nhắc", to: "staff/cash-refunds", sort: r.deadlineDate || r.deadline_date || "",
         }),
       );
   }

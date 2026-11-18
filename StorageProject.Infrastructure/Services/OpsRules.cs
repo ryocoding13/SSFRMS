@@ -95,7 +95,7 @@ public static class OpsRules
 
     // Mốc thời gian và tham số vận hành chuẩn hóa theo P2 (SSFRMS-Business-Policies-Audit-and-Refactor-Plan.md)
     public const int DefaultOnlineReservationHoldMinutes = 15; // Giữ chỗ trực tuyến 15 phút (D02)
-    public const int DefaultExpiringThresholdDays = 30; // Mốc sắp hết hạn EXPIRING 30 ngày (D11)
+    public const int DefaultExpiringThresholdDays = 10; // Mốc sắp hết hạn EXPIRING 10 ngày (D65, thay 30 ngày của D11)
     public const int DefaultRenewalPaymentDeadlineHours = 24; // Hạn thanh toán sau khi duyệt gia hạn 24 giờ (D11/D32)
     public const int DefaultReletBufferDays = 3; // Ngày đệm cho thuê lại 3 ngày (D41)
     public const decimal DefaultDepositMonths = 1.0m; // Mức cọc mặc định 1 tháng tiền thuê (D09/D16/D32)

@@ -244,10 +244,11 @@ public sealed partial class D32RefundEvidenceTests
         // Task #20: khóa hình thức hoàn theo lựa chọn khách (BANK_TRANSFER không được đổi sang CASH)
         await Assert.ThrowsAsync<InvalidOperationException>(() => f.Ops.ConfirmDepositRefundAsync(f.ManagerActor, request with { Method = "CASH" }));
 
-        var paid = await f.Ops.ConfirmDepositRefundAsync(f.ManagerActor, request);
+        // D64 (18/11): quản lý chỉ bấm xác nhận, không nhập mã giao dịch / thời gian chuyển
+        var paid = await f.Ops.ConfirmDepositRefundAsync(f.ManagerActor, request with { TransactionRef = null, TransferredAt = null });
         Assert.Equal("PAID", paid.Status);
         Assert.Equal(2, paid.Version);
-        Assert.Equal("FT26302000001", paid.TransactionRef);
+        Assert.Null(paid.TransactionRef);
         Assert.NotNull(paid.PaidAt);
         // Gửi lại cùng yêu cầu (mạng lỗi, bấm lặp) không chuyển lần hai
         await Assert.ThrowsAsync<OpsConflictException>(() => f.Ops.ConfirmDepositRefundAsync(f.ManagerActor, request));
@@ -364,14 +365,16 @@ public sealed partial class D32RefundEvidenceTests
         Assert.Equal("PENDING", refund.Status);
 
         var code = $"SS-{cancelled.CreatedAt.AddHours(7):yyyyMMdd}-{cancelled.ReservationId:0000}";
+        // Quản lý chỉ bấm xác nhận: chưa xác nhận thì từ chối; không cần mã giao dịch / thời gian chuyển
         await Assert.ThrowsAsync<ArgumentException>(() => f.Ops.ConfirmReservationRefundAsync(f.ManagerActor, code,
-            new OpsReservationRefundRequest("BANK_TRANSFER", "", DateTime.UtcNow, true)));
+            new OpsReservationRefundRequest("BANK_TRANSFER", null, null, false)));
         await f.Ops.ConfirmReservationRefundAsync(f.ManagerActor, code,
-            new OpsReservationRefundRequest("BANK_TRANSFER", "FT26302000099", DateTime.UtcNow, true));
+            new OpsReservationRefundRequest("BANK_TRANSFER", null, null, true));
         f.Db.ChangeTracker.Clear();
         var done = await f.Db.Payments.SingleAsync(p => p.PaymentId == refund.PaymentId);
         Assert.Equal("PAID", done.Status);
-        Assert.Equal("FT26302000099", done.TransactionReference);
+        Assert.NotNull(done.PaidAt);
+        Assert.Null(done.TransactionReference);
         await Assert.ThrowsAsync<InvalidOperationException>(() => f.Ops.ConfirmReservationRefundAsync(f.ManagerActor, code,
             new OpsReservationRefundRequest("BANK_TRANSFER", "FT26302000100", DateTime.UtcNow, true)));
     }

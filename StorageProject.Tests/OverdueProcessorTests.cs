@@ -274,7 +274,7 @@ public sealed class OverdueProcessorTests : IAsyncDisposable
             CustomerId = customer.UserId,
             UnitId = unit.UnitId,
             StartDate = today.AddDays(-60),
-            EndDate = today.AddDays(15), // Hết hạn trong 15 ngày tới
+            EndDate = today.AddDays(8), // Hết hạn trong 8 ngày tới (mốc 10 ngày, D65)
             DepositAmount = 1_000_000m,
             AgreedMonthlyRate = 1_000_000m,
             Status = "ACTIVE",

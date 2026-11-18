@@ -25,6 +25,7 @@ public sealed class DemoToolsRuleTests
     [InlineData(2026, 11, 9, "OVERDUE", 3)]
     [InlineData(2026, 11, 12, "OVERDUE", 0)]
     [InlineData(2026, 11, 20, "EXPIRING", 0)]
+    [InlineData(2026, 11, 23, "ACTIVE", 0)] // D65: còn 11 ngày chưa phải sắp hết hạn
     [InlineData(2027, 2, 12, "ACTIVE", 0)]
     public void Running_status_and_overdue_days_follow_end_date(int y, int m, int d, string status, int overdue)
     {

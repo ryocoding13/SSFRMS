@@ -24,7 +24,6 @@ import { RefundCenterPage } from "../manager/refunds/RefundCenterPage.jsx";
 
 import { Empty, LinkButton } from "../../shared/components/UI.jsx";
 import { UnitAllocationPage } from "../manager/allocations/UnitAllocationPage.jsx";
-import { StaffAssignmentPage } from "../manager/assignments/StaffAssignmentPage.jsx";
 import { ContractListPage } from "../manager/contracts/ContractListPage.jsx";
 import { CancellationRefundPage } from "../manager/refunds/CancellationRefundPage.jsx";
 import { ManagerResultPage } from "../manager/results/ManagerResultPage.jsx";
@@ -82,7 +81,6 @@ const MANAGER = {
   "": [ManagerDashboardPage, "manager"],
   units: [UnitManagementPage, "manager/units"],
   allocate: [UnitAllocationPage, "manager"], // chỉ còn cho đơn đã thanh toán mà hệ thống không bố trí được ô
-  assign: [StaffAssignmentPage, "manager"], // bỏ khỏi navbar: yêu cầu của khách hiện thẳng bên nhân viên
   renewals: [RenewalApprovalPage, "manager/renewals"],
   contracts: [ContractListPage, "manager/contracts"],
   refunds: [CancellationRefundPage, "manager/refund"],

@@ -13,6 +13,7 @@ import { defaultRentalPolicy } from "../../features/facility-operations/workflow
 import { isReturnFee, NO_RETURN_COLLECTION, visitDateError } from "../../shared/utils/returnPolicy.js";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { customerNotifications } from "../../features/customer/notifications/customerNotifications.js";
+import { noticeKey } from "../../shared/utils/notices.js";
 import { submitCancellation, submitReturnRequest } from "../../shared/api/refundRequestApi.js";
 import { readPhotoData, verifyPhotoFile } from "../../shared/utils/refundRequest.js";
 import { submitRenewalWithConsent } from "../../shared/api/renewalConsentApi.js";
@@ -394,13 +395,18 @@ function ApiProvider({ children }) {
     updateOverlay(o => {
       const byId = new Map(events.map(event => [event.id, event]));
       const ids = new Set(o.notifications.map(notice => notice.id));
-      const incoming = events.filter(event => !ids.has(event.id));
+      // Thông báo quá hạn: thời điểm của sự kiện là 00:00 nên bị xếp dưới các thông báo khác trong ngày và khách không thấy.
+      // Lần đầu phát hiện và mỗi lần số ngày quá hạn đổi → đưa lên đầu chuông, chưa đọc (cùng nhịp với email quá hạn).
+      const stamp = new Date().toISOString();
+      const isOverdue = id => typeof id === "string" && id.startsWith("SERVER-OVERDUE-");
+      const dismissed = new Set(o.dismissedNotices || []);
+      const incoming = events.filter(event => !ids.has(event.id) && !dismissed.has(noticeKey(event))).map(event => isOverdue(event.id) ? { ...event, created_at: stamp } : event);
       let updated = false;
       const existing = o.notifications.map(notice => {
-        const event = typeof notice.id === "string" && notice.id.startsWith("SERVER-OVERDUE-") ? byId.get(notice.id) : null;
+        const event = isOverdue(notice.id) ? byId.get(notice.id) : null;
         if (!event || event.detail === notice.detail) return notice;
         updated = true;
-        return { ...notice, detail: event.detail };
+        return { ...notice, detail: event.detail, created_at: stamp, read: false };
       });
       return incoming.length || updated ? { ...o, notifications: [...incoming, ...existing] } : o;
     });
@@ -585,6 +591,7 @@ function ApiProvider({ children }) {
         ...o,
         returns: next.returns,
         notifications: next.notifications,
+        dismissedNotices: next.dismissedNotices || o.dismissedNotices || [],
         activities: next.activities,
         appointments: [...next.appointments.filter((a) => !prev.appointments.some((x) => x.appointment_id === a.appointment_id)), ...o.appointments],
         name: next.user?.full_name !== prev.user?.full_name ? next.user.full_name : o.name,

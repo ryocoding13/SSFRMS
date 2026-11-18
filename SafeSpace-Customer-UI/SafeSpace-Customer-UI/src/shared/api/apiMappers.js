@@ -162,6 +162,7 @@ const EMPTY_OVERLAY = {
   returns: [],
   appointments: [],
   notifications: [],
+  dismissedNotices: [], // khoá thông báo đã đọc (đã xoá khỏi chuông) để không sinh lại từ dữ liệu máy chủ
   activities: [],
   name: null,
   phone: null,
@@ -194,6 +195,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
     returns: remote ? [] : [...overlay.returns],
     tickets: [],
     notifications: [...overlay.notifications],
+    dismissedNotices: [...(overlay.dismissedNotices || [])],
     activities: [...overlay.activities],
   };
   if (!remote) return base;
@@ -523,4 +525,3 @@ export function usernameFromEmail(email) {
   if (e.length <= 50) return e;
   return `${e.split("@")[0].slice(0, 40)}${Date.now().toString(36).slice(-6)}`;
 }
-

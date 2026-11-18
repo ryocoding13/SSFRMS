@@ -73,7 +73,7 @@ test("phân công việc hỗ trợ cho nhân viên → yêu cầu chuyển sang
   assert.equal(s.assignments.find((a) => a.id === "PC-03").status, "DONE");
 });
 
-test("M08 · xác nhận hoàn tiền đơn huỷ theo D27: cần mã giao dịch, chỉ một lần", () => {
+test("M08 · xác nhận hoàn tiền đơn huỷ: D64 không cần mã giao dịch, chỉ một lần", () => {
   let s = createOpsData(T);
   const pending = s.refunds.filter((r) => r.status === "PENDING");
   assert.equal(pending.length, 2);
@@ -82,7 +82,8 @@ test("M08 · xác nhận hoàn tiền đơn huỷ theo D27: cần mã giao dịc
     assert.equal(r.amount, r.rent + r.deposit - r.fee, `${r.id}: hoàn 100% thuê + 90% cọc`);
   }
   const id = pending[0].id;
-  assert.match(run(s, "CONFIRM_RESERVATION_REFUND", { id, method: "BANK_TRANSFER", transaction_ref: " " }).error.message, /mã giao dịch/);
+  assert.match(run(s, "CONFIRM_RESERVATION_REFUND", { id, method: "BANK_TRANSFER" }).error.message, /xác nhận/);
+  assert.ok(!run(s, "CONFIRM_RESERVATION_REFUND", { id, method: "BANK_TRANSFER", confirmed: true }).error, "D64: không nhập mã vẫn xác nhận được");
   const out = run(s, "CONFIRM_RESERVATION_REFUND", { id, method: "BANK_TRANSFER", transaction_ref: "FT26258904512",confirmed:true,transferredAt:"2026-09-14T01:00:00Z" });
   assert.ok(!out.error);
   s = out.state;
