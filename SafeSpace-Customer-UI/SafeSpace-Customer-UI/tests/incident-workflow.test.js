@@ -88,3 +88,12 @@ test('hai hồ sơ không giữ cùng ô; khách chọn kết thúc giải phón
  const declined=act(sent,'CHOOSE_INCIDENT_OPTION',{choice:'TERMINATE',refundBank:bank},customer);assert.equal(declined[1].candidates[0].status,'AVAILABLE');assert.equal(declined[1].candidates[0].reservedFor,undefined);
  assert.equal(applyIncidentAction(declined,'SEND_INCIDENT_PROPOSAL',{...sendPayload,id:declined[1].id,expectedVersion:1},manager,NOW)[1].status,'PROPOSED');
 });
+
+test("18/11: sự cố chỉ chọn ngày — đổi ngày sang thời điểm giờ VN cho máy chủ", async () => {
+  const { vnDayToDateTime } = await import("../src/features/facility-operations/damage/damageModel.js");
+  const now = new Date("2026-11-18T08:30:00Z"); // 15:30 giờ VN
+  assert.equal(vnDayToDateTime("2026-11-18", "start", now), "2026-11-18T15:30");
+  assert.equal(vnDayToDateTime("2026-11-17", "start", now), "2026-11-17T00:00");
+  assert.equal(vnDayToDateTime("2026-11-17", "end", now), "2026-11-17T23:59");
+  assert.equal(vnDayToDateTime("", "start", now), "");
+});

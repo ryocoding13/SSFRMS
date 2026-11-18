@@ -13,7 +13,7 @@ export function IncidentContract({item}) {
  return <aside className="panel customer-detail__card customer-detail__sidebar"><h2>Hợp đồng {item.contractId}</h2><DetailList items={[["Khách hàng",item.customer],["Kho hiện tại",item.currentUnit||item.oldUnit],["Kỳ thuê",`${dateLabel(item.startDate)} – ${dateLabel(item.endDate)}`],["Giá thuê / tháng",amountLabel(item.monthlyRate)],["Cọc đang giữ",amountLabel(item.deposit)]]}/></aside>;
 }
 export function IncidentRefund({item}) {
- return <div className="incident-refund"><DetailList items={[["Tháng đang thuê · 100%",amountLabel(item.currentMonthRent)],["Tháng chưa dùng · 100%",amountLabel(item.unusedRent)],["Tiền cọc · 100%",amountLabel(item.deposit)],["Tổng hoàn dự kiến",amountLabel(incidentRefund(item))]]}/><p className="hint">Không phạt dừng sớm, không tính theo số ngày còn lại. Số tiền do cơ sở đối chiếu; chưa xác nhận đã chuyển tiền.</p></div>;
+ return <div className="incident-refund"><DetailList items={[["Tháng đang thuê · 100%",amountLabel(item.currentMonthRent)],["Tháng chưa dùng · 100%",amountLabel(item.unusedRent)],["Tiền cọc · 100%",amountLabel(item.deposit)],["Tổng hoàn dự kiến",amountLabel(incidentRefund(item))]]}/><p className="hint">Số tiền do cơ sở đối chiếu; chưa xác nhận đã chuyển tiền.</p></div>;
 }
 export function IncidentRecord({item}) {
  return <section className="panel customer-detail__card"><h2>Ghi nhận sự cố</h2><DetailList items={[["Hồ sơ",item.id],["Ô bị ảnh hưởng",item.oldUnit],["Nguyên nhân",item.description||"Chưa có mô tả"],["Bắt đầu ảnh hưởng",incidentTime(item.affectedAt)]]}/><DamagePhotos photos={item.photos}/>{Array.isArray(item.files)&&item.files.length>0&&<p className="hint">Tệp ghi nhận: {item.files.map(f=>f.fileName).join(", ")}</p>}</section>;

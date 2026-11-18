@@ -46,6 +46,6 @@ export function SettlementTable({settlement:s,report,title="Bảng đối soát"
   <div className="settlement-table__row"><span>Tiền thuê được hoàn</span><strong>{s.partial?"Hiện sau khi gửi biên bản":amountLabel(s.rentRefund)}</strong></div>
   {!s.partial&&s.scenario&&<p className="hint">{early&&months?`Đã bắt đầu ${s.monthsCharged}/${s.monthsTotal} tháng (tính từ 00:00 ngày nhận kho) → tính tiền ${s.monthsCharged} tháng, hoàn ${s.monthsTotal-s.monthsCharged} tháng chưa bắt đầu.`:early?"Hoàn tiền thuê các tháng chưa bắt đầu sử dụng.":"Trả kho khi hết hạn: không có tháng thuê chưa sử dụng."}</p>}
   {!s.partial&&<div className="settlement-table__total"><span>Tổng tiền hoàn</span><strong>{amountLabel(s.total)}</strong></div>}
-  <p className="hint">Không giữ 30% cọc. Khấu trừ tối đa bằng cọc, không phát sinh khoản phải trả thêm.{s.official?"":" Số dự kiến trở thành chính thức khi quản lý chốt đối soát."}</p>
+  <p className="hint">Khấu trừ tối đa bằng cọc, không phát sinh khoản phải trả thêm.{s.official?"":" Số dự kiến trở thành chính thức khi quản lý chốt đối soát."}</p>
  </Box>;
 }
