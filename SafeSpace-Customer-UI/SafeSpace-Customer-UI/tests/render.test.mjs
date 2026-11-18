@@ -377,7 +377,7 @@ try {
   storeIncidents();seed(true,manager);
   window.location.hash="#/manager/incidents?id=SC-local-0086";
   let incidentHtml=renderToStaticMarkup(React.createElement(App));
-  for(const text of ["Gửi phương án cho khách","Lưu ghi nhận sự cố","datetime-local","Ảnh bằng chứng sự cố"])assert.ok(incidentHtml.includes(text),text);
+  for(const text of ["Gửi phương án cho khách","Lưu ghi nhận sự cố","Ngày bắt đầu ảnh hưởng","type=\"date\"","Ảnh bằng chứng sự cố"])assert.ok(incidentHtml.includes(text),text);assert.ok(!incidentHtml.includes("datetime-local"),"18/11: sự cố chỉ chọn ngày");
   assert.ok(!/type="radio"[^>]*checked/.test(incidentHtml));
   const sendIncident={id:incidentCases[0].id,expectedVersion:1,description:"Mái kho thấm nước",affectedAt:"2026-10-01T12:00",confirmed:true,proposal:"TRANSFER",targetUnitId:"unit-b016"};
   incidentCases=applyIncidentAction(incidentCases,"SEND_INCIDENT_PROPOSAL",sendIncident,incidentActor,incidentNow);storeIncidents();seed(true);

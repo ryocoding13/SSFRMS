@@ -1,3 +1,9 @@
+## 2026-11-18 — Sự cố chỉ chọn ngày; bỏ dòng nhắc chính sách đã bỏ
+
+- `IncidentManagementPage.jsx`: "Ngày bắt đầu ảnh hưởng" và "Ngày đã chuyển" chỉ chọn ngày (`type="date"`, tối đa hôm nay); `vnDayToDateTime` (damageModel) đổi sang thời điểm giờ VN cho máy chủ (hôm nay → giờ hiện tại; ngày trước → 00:00 hoặc 23:59). API không đổi.
+- Bỏ các câu nhắc chính sách đã bỏ: "Không giữ 30% cọc" (bảng đối soát, trang khấu trừ trả kho của khách), "không phạt dừng sớm" (sự cố: quản lý, khách, khối hoàn tiền).
+- Kiểm chứng: `check:structure` PASS, `npm test` 234/234 (thêm test `vnDayToDateTime`), `test:business` 15/15, `test:render` PASS 177 route, build OK, `test:workflow-actions` PASS.
+
 ## 2026-11-18 — Chuông: mới nhất lên đầu, đã đọc thì xoá
 
 - `appReducer.MARK_READ`: thông báo đã đọc (bấm vào hoặc "Đã đọc tất cả") bị xoá khỏi chuông, khoá được nhớ trong `dismissedNotices` (tối đa 500, `shared/utils/notices.js`) để thông báo sinh từ dữ liệu máy chủ không quay lại sau khi tải lại. Thông báo quá hạn dùng khoá kèm nội dung nên số ngày quá hạn đổi thì hiện lại, lên đầu.
