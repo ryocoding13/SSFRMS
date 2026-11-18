@@ -365,14 +365,16 @@ public sealed partial class D32RefundEvidenceTests
         Assert.Equal("PENDING", refund.Status);
 
         var code = $"SS-{cancelled.CreatedAt.AddHours(7):yyyyMMdd}-{cancelled.ReservationId:0000}";
+        // Quản lý chỉ bấm xác nhận: chưa xác nhận thì từ chối; không cần mã giao dịch / thời gian chuyển
         await Assert.ThrowsAsync<ArgumentException>(() => f.Ops.ConfirmReservationRefundAsync(f.ManagerActor, code,
-            new OpsReservationRefundRequest("BANK_TRANSFER", "", DateTime.UtcNow, true)));
+            new OpsReservationRefundRequest("BANK_TRANSFER", null, null, false)));
         await f.Ops.ConfirmReservationRefundAsync(f.ManagerActor, code,
-            new OpsReservationRefundRequest("BANK_TRANSFER", "FT26302000099", DateTime.UtcNow, true));
+            new OpsReservationRefundRequest("BANK_TRANSFER", null, null, true));
         f.Db.ChangeTracker.Clear();
         var done = await f.Db.Payments.SingleAsync(p => p.PaymentId == refund.PaymentId);
         Assert.Equal("PAID", done.Status);
-        Assert.Equal("FT26302000099", done.TransactionReference);
+        Assert.NotNull(done.PaidAt);
+        Assert.Null(done.TransactionReference);
         await Assert.ThrowsAsync<InvalidOperationException>(() => f.Ops.ConfirmReservationRefundAsync(f.ManagerActor, code,
             new OpsReservationRefundRequest("BANK_TRANSFER", "FT26302000100", DateTime.UtcNow, true)));
     }
