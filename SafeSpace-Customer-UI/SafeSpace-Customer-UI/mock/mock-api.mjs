@@ -140,7 +140,7 @@ const OPS_ROUTES = [
   ["POST", /^\/api\/(?:ops|manager)\/allocations\/([^/]+)$/, "MANAGER", "ALLOCATE", (b, id) => ({ id, unit: b?.unitCode })],
   ["PUT", /^\/api\/(?:ops|manager)\/assignments\/([^/]+)$/, "MANAGER", "ASSIGN", (b, id) => ({ id, staff: b?.staffId })],
   ["POST", /^\/api\/(?:ops|manager)\/contracts\/([^/]+)\/reminders$/, "MANAGER", "REMIND", (b, id) => ({ id, note: b?.note })],
-  ["POST", /^\/api\/(?:ops|manager)\/contracts\/([^/]+)\/refund$/, "MANAGER", "CONFIRM_REFUND", (b, id) => ({ id })],
+  ["POST", /^\/api\/(?:ops|manager)\/contracts\/([^/]+)\/refund$/, "MANAGER", "CONFIRM_REFUND", (b, id) => ({ id, payout: b?.payoutConfirmed === true })],
   ["POST", /^\/api\/(?:ops|manager)\/units$/, "MANAGER", "CREATE_UNIT", (b) => b],
   ["PUT", /^\/api\/(?:ops|manager)\/units\/([^/]+)$/, "MANAGER", "UPDATE_UNIT", (b, id) => ({ id, ...b })],
   ["POST", /^\/api\/(?:ops|manager)\/units\/([^/]+)\/lock$/, "MANAGER", "LOCK_UNIT", (b, id) => ({ id, reason: b?.reason })],
@@ -369,6 +369,24 @@ export function startMockApi(
     if (req.method === "GET" && path === "/api/facilities") return send(200, S.facilities);
     if (req.method === "GET" && path === "/api/unit-types") return send(200, S.unitTypes);
     if (req.method === "GET" && path === "/api/rates") return send(200, S.rates);
+    // D67: trạng thái ô tại ngày khách chọn (giả lập gần đúng UnitAvailability của máy chủ)
+    const mapStatusAt = (u, startDate) => {
+      const today = new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 10);
+      const day = startDate && startDate > today ? startDate : today;
+      const iso = (d) => (typeof d === "string" ? d.slice(0, 10) : new Date(d).toISOString().slice(0, 10));
+      const live = S.contracts.filter((c) => c.unitId === u.unitId && ["DRAFT", "ACTIVE", "EXPIRING", "OVERDUE", "RETURN_PENDING"].includes(c.status));
+      const at = live.find((c) => iso(c.startDate) <= day && day <= iso(c.endDate));
+      const holds = S.reservations.filter((r) => r.proposedUnitId === u.unitId && ["PENDING_PAYMENT", "PENDING_VERIFICATION", "PENDING_AT_FACILITY"].includes(r.status) && r.expiresAt && r.expiresAt > new Date() && !S.contracts.some((c) => c.reservationId === r.reservationId));
+      const holdAt = holds.find((r) => iso(r.startDate) <= day && day < iso(r.expectedEndDate));
+      const next = [...live.map((c) => iso(c.startDate)), ...holds.map((r) => iso(r.startDate))].filter((d) => d > day).sort()[0] || null;
+      if (["MAINTENANCE", "OUT_OF_SERVICE"].includes(u.status)) return { mapStatus: "SERVICE", bookableForPeriod: false, periodUnavailableReason: "Ô đang bảo trì, chưa nhận đặt." };
+      if (at) {
+        const free = new Date(`${iso(at.endDate)}T00:00:00Z`); free.setUTCDate(free.getUTCDate() + 3); // 3 ngày đệm như máy chủ
+        return { mapStatus: "RENTED", currentContractStartDate: iso(at.startDate), currentContractEndDate: iso(at.endDate), freeFrom: free.toISOString().slice(0, 10), bookableForPeriod: false, periodUnavailableReason: "Ô đã có hợp đồng trùng kỳ chọn." };
+      }
+      if (holdAt) return { mapStatus: "HELD", holdExpiresAt: holdAt.expiresAt.toISOString(), bookableForPeriod: false, periodUnavailableReason: "Ô đang được khách khác giữ chỗ để thanh toán." };
+      return { mapStatus: "FREE", nextBookedFrom: next, bookableForPeriod: !next };
+    };
     if (req.method === "GET" && (m = path.match(/^\/api\/facilities\/(\d+)\/units$/))) {
       const fid = Number(m[1]);
       const list = S.units.filter((u) => u.facilityId === fid && u.status !== "OUT_OF_SERVICE").map((u) => {
@@ -384,6 +402,7 @@ export function startMockApi(
           sizeM2: t?.area || 15,
           climateControlled: t?.climateControlled || false,
           status: u.status,
+          ...mapStatusAt(u, url.searchParams.get("startDate")),
         };
       });
       return send(200, list);
@@ -689,6 +708,8 @@ export function startMockApi(
       if (body?.accepted !== true || Number(body.policyVersion) !== S.rentalPolicy.version) return bad("Vui lòng đọc và đồng ý phiên bản chính sách hiện hành.");
       const consent={consentId:S.policyConsents.length+1,customerId:me,policyVersion:S.rentalPolicy.version,displayVersion:S.rentalPolicy.displayVersion,acceptedAt:new Date().toISOString(),channel:"WEB"};
       S.policyConsents.push({...consent,reservationId:reservation.reservationId});
+      // D67: đồng ý chính sách → giữ chỗ 24 giờ (chưa mở PayOS)
+      if (reservation.status === "PENDING_PAYMENT" && !reservation.payosOpened && (!reservation.expiresAt || reservation.expiresAt > new Date())) reservation.expiresAt = new Date(Date.now() + 24 * 3600000);
       return send(200,consent);
     }
     // ---- Đặt chỗ
@@ -700,7 +721,7 @@ export function startMockApi(
       return send(200, { ...resDto(r), checkInAppointmentAt: null, assignedUnitNumber: c ? unit(c.unitId).unitNumber : null, proposedUnitNumber: !c && r.proposedUnitId ? unit(r.proposedUnitId).unitNumber : null, contractId: c?.contractId ?? null, contractStatus: c?.status ?? null });
     }
     if (req.method === "POST" && path === "/api/reservations") {
-      if (body.rentalPeriodMonths <= 0) return bad("Thời hạn thuê phải lớn hơn 0 tháng.");
+      if (!(Number.isInteger(body.rentalPeriodMonths) && body.rentalPeriodMonths >= 1 && body.rentalPeriodMonths <= 99)) return bad("Số tháng thuê phải từ 1 đến 99.");
       if (!fac(body.facilityId)) return bad("Không tìm thấy cơ sở kho.");
       if (!ut(body.unitTypeId)) return bad("Không tìm thấy loại phòng kho.");
       if (body.startDate < dateOnly(new Date())) return bad("Ngày bắt đầu thuê không thể ở quá khứ.");
@@ -724,7 +745,7 @@ export function startMockApi(
         proposed = S.units.filter((u) => u.facilityId === body.facilityId && u.unitTypeId === body.unitTypeId && u.status === "AVAILABLE" && !heldUnits.has(u.unitId)).sort((a, b) => a.unitNumber.localeCompare(b.unitNumber))[0];
       }
       if (!proposed) return bad("Hiện tại đã hết kho trống cho loại kho và khoảng thời gian yêu cầu.");
-      const r = { reservationId: S.reservations.length + 1, proposedUnitId: proposed.unitId, allocationMode, customerId: me, facilityId: body.facilityId, unitTypeId: body.unitTypeId, startDate: body.startDate, expectedEndDate: endDate, rentalPeriodMonths: body.rentalPeriodMonths, quotedMonthlyRate: rate.monthlyRate, estimatedAmount: rate.monthlyRate * body.rentalPeriodMonths, requiredDeposit: rate.monthlyRate, status: "PENDING_PAYMENT", createdAt: new Date(), expiresAt: new Date(Date.now() + 24 * 3600000), cancelledAt: null, cancellationReason: null };
+      const r = { reservationId: S.reservations.length + 1, proposedUnitId: proposed.unitId, allocationMode, customerId: me, facilityId: body.facilityId, unitTypeId: body.unitTypeId, startDate: body.startDate, expectedEndDate: endDate, rentalPeriodMonths: body.rentalPeriodMonths, quotedMonthlyRate: rate.monthlyRate, estimatedAmount: rate.monthlyRate * body.rentalPeriodMonths, requiredDeposit: rate.monthlyRate, status: "PENDING_PAYMENT", createdAt: new Date(), expiresAt: new Date(Date.now() + 15 * 60000), cancelledAt: null, cancellationReason: null }; // D67: 15 phút để đọc chính sách
       S.reservations.push(r);
       return send(201, { ...resDto(r), createdAt: iso(r.createdAt), expiresAt: iso(r.expiresAt), proposedUnitNumber: proposed.unitNumber, allocationMode });
     }
@@ -776,6 +797,8 @@ export function startMockApi(
       // Đơn của khách đang chờ thanh toán → dùng chung PayOS giả lập (QR + webhook /__payos/paid) như /api/reservations/{id}/payos
       if (r && r.customerId === me) {
         if (r.status !== "PENDING_PAYMENT") return bad("Đơn đặt chỗ này không còn chờ thanh toán.");
+        // D67: chọn PayOS → giữ chỗ còn 15 phút kể từ lúc mở mã
+        if (!r.payosOpened) { r.payosOpened = true; const cap = new Date(Date.now() + 15 * 60000); if (!r.expiresAt || r.expiresAt > cap) r.expiresAt = cap; }
         return send(200, { reservationId: r.reservationId, ...payosOrder("reservation", r.reservationId, r.estimatedAmount + r.requiredDeposit, `SS${String(r.reservationId).padStart(4, "0")}`) });
       }
       const amount = body?.amount || (r ? (r.estimatedAmount + (r.requiredDeposit > 0 ? r.requiredDeposit : 0)) : 1000000);
@@ -828,7 +851,7 @@ export function startMockApi(
       return send(200, { ok: true });
     }
     if (req.method === "POST" && (m = path.match(/^\/api\/contracts\/(\d+)\/renewals$/))) {
-      if (!(body.renewalPeriodMonths > 0)) return bad("Thời gian gia hạn phải lớn hơn 0 tháng.");
+      if (!(Number.isInteger(body.renewalPeriodMonths) && body.renewalPeriodMonths >= 1 && body.renewalPeriodMonths <= 99)) return bad("Số tháng gia hạn phải từ 1 đến 99.");
       const c = S.contracts.find((x) => x.contractId === +m[1] && x.customerId === me);
       if (!c) return bad("Không tìm thấy hợp đồng hợp lệ.");
       if (c.status !== "ACTIVE") return bad(`Chỉ hợp đồng ở trạng thái 'ACTIVE' mới có thể gia hạn. Trạng thái hiện tại: ${c.status}`);

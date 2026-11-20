@@ -9,14 +9,14 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Button, DetailList, LinkButton, Notice, PageHeader, StatusTag, Tag } from "../../../shared/components/UI.jsx";
 import { typeLabel } from "../../../shared/utils/catalog.js";
-import { dateLabel, dateTimeLabel, daysBetween, money, rangeLabel, today } from "../../../shared/utils/format.js";
+import { addDays, dateLabel, dateTimeLabel, daysBetween, money, rangeLabel, today } from "../../../shared/utils/format.js";
 import { CONTRACT_STATUS, LEDGER_STATUS } from "../../../shared/utils/status.js";
 import { contractOf, contractStatus, facilityOf, pendingRenewal, pendingReturn } from "../../../app/state/appSelectors.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 import { NotFound } from "./components/ContractNotFound.jsx";
 import { AccessQrModal } from "../access/AccessQrModal.jsx";
 import { DoorCloseButton } from "../access/DoorCloseButton.jsx";
-import { usableFromText } from "../../../shared/utils/access.js";
+import { beforeReturnDay, usableFromText } from "../../../shared/utils/access.js";
 import { canCancel } from "../reservations/ReservationListPage.jsx";
 import { UnitMoveCard } from "./components/UnitMoveCard.jsx";
 import { CancelRenewalButton } from "./components/CancelRenewalButton.jsx";
@@ -38,6 +38,8 @@ export function RentedUnitDetailPage({ id }) {
   const renewal = pendingRenewal(data, id);
   const renewalPayment = renewal ? renewalView(data, renewal) : null;
   const ret = pendingReturn(data, id);
+  // D68: đã hẹn trả kho nhưng chưa tới ngày hẹn → QR/PIN vẫn dùng được
+  const keepAccess = beforeReturnDay(c, today());
   const rent = [...data.ledger].reverse().find((l) => l.contract_id === id && (l.kind === "RENT" || /-RENT$/.test(l.ref)));
   const pickup = data.appointments.find((a) => a.kind === "CHECK_IN" && (a.contract_id === id || (c.reservation_id && a.reservation_id === c.reservation_id)) && a.status !== "CANCELLED");
   const status = contractStatus(c);
@@ -78,14 +80,14 @@ export function RentedUnitDetailPage({ id }) {
           <section className="panel customer-detail__card">
             <h2>QR, PIN & chìa khóa</h2>
             <DetailList items={[
-              ["QR & PIN 6 số", ended || ret || c.end_date <= today() ? "Đã hết hiệu lực" : issued ? (prestart ? `Đã cấp · ${usableFromText(c.start_date).replace("Có thể mở cửa", "mở cửa")}` : `Đã cấp · hiệu lực từ ${dateLabel(c.start_date)}`) : "Chưa được cấp"],
+              ["QR & PIN 6 số", ended || (ret && !keepAccess) || c.end_date <= today() ? "Đã hết hiệu lực" : keepAccess ? `Dùng được đến hết ${dateLabel(addDays(c.return_date, -1))} (hẹn trả kho ${dateLabel(c.return_date)})` : issued ? (prestart ? `Đã cấp · ${usableFromText(c.start_date).replace("Có thể mở cửa", "mở cửa")}` : `Đã cấp · hiệu lực từ ${dateLabel(c.start_date)}`) : "Chưa được cấp"],
               ...(door.visible ? [["Trạng thái cửa", <DoorStatus door={door} />]] : []),
               ["Chìa khóa vật lý", c.handed_over ? "Đã nhận tại quầy" : "Gửi yêu cầu “Nhận chìa khóa” để cơ sở xếp lịch"],
               ...(pickupText ? [["Lịch nhận chìa khóa", pickupText]] : []),
             ]} />
             <p className="hint">{issued && !ended ? "Hợp đồng và mã ra vào đã được cấp. " : ""}QR và PIN chỉ mở được cửa trong kỳ thuê; mã tự hết hiệu lực khi hết hạn hoặc gửi trả kho thành công.</p>
             {/* D35–D36 · L13: trước ngày thuê không mở QR/PIN */}
-            {issued && !ended && <div className="customer-detail__actions"><Button disabled={Boolean(ret) || c.end_date <= today()} onClick={() => setQrOpen(true)}>{ret || c.end_date <= today() ? "QR đã hết hiệu lực" : "Mã QR mở cửa"}</Button>{door.visible && <DoorCloseButton c={c} disabled={door.state?.door === "LOCKED"} onClosed={door.update} />}{prestart && <p className="hint">{usableFromText(c.start_date)}.</p>}</div>}
+            {issued && !ended && <div className="customer-detail__actions"><Button disabled={(Boolean(ret) && !keepAccess) || c.end_date <= today()} onClick={() => setQrOpen(true)}>{(ret && !keepAccess) || c.end_date <= today() ? "QR đã hết hiệu lực" : "Mã QR mở cửa"}</Button>{door.visible && <DoorCloseButton c={c} disabled={door.state?.door === "LOCKED"} onClosed={door.update} />}{prestart && <p className="hint">{usableFromText(c.start_date)}.</p>}</div>}
           </section>
           <section className="panel customer-detail__card">
             <h2>Chính sách áp dụng</h2>
@@ -96,7 +98,8 @@ export function RentedUnitDetailPage({ id }) {
         <aside className="panel customer-detail__card customer-detail__sidebar">
           <h2>Bạn cần làm gì?</h2>
           {renewal && <Notice>{renewal.status === "PENDING" ? `Yêu cầu gia hạn thêm ${renewal.months} tháng đang được hệ thống kiểm tra.` : renewal.at_counter ? `Gia hạn thêm ${renewal.months} tháng đã xác nhận — chờ thu tại quầy.` : `Gia hạn thêm ${renewal.months} tháng đã xác nhận — chờ thanh toán.`}</Notice>}
-          {c.status === "RETURN_PENDING" && <Notice>Nhân viên gửi biên bản trả kho trong 3 ngày. Khi có biên bản, bạn có 48 giờ để xác nhận khoản khấu trừ. <a href={`#/units/${encodeURIComponent(id)}/deduction`}>Xem biên bản & xác nhận</a></Notice>}
+          {c.status === "RETURN_PENDING" && c.return_date && c.return_date > today() && <Notice>Bạn đã hẹn trả kho ngày {dateLabel(c.return_date)}. Trước ngày này bạn vẫn mở cửa kho bằng QR/PIN như bình thường; nhớ chuyển hết đồ ra trước ngày hẹn.</Notice>}
+          {c.status === "RETURN_PENDING" && !(c.return_date && c.return_date > today()) && <Notice>Nhân viên gửi biên bản trả kho trong 3 ngày. Khi có biên bản, bạn có 48 giờ để xác nhận khoản khấu trừ. <a href={`#/units/${encodeURIComponent(id)}/deduction`}>Xem biên bản & xác nhận</a></Notice>}
           {prestart && !ended && <Notice>Nếu kho chưa sẵn sàng 5 ngày trước ngày nhận, SafeSpace gửi đề xuất đổi kho. <a href={`#/units/${encodeURIComponent(id)}/unit-change`}>Xem đề xuất đổi kho</a></Notice>}
           {ret && <Notice>{ret.date ? `Yêu cầu trả kho ngày ${dateLabel(ret.date)} đang chờ cơ sở xác nhận.` : "Yêu cầu trả kho đã được ghi nhận; chưa có thông tin lịch kiểm tra."}</Notice>}
           <div className="customer-detail__task"><div><h3>Gia hạn</h3><p>{renewal ? (renewal.status === "PENDING" ? `${renewal.renewal_id} đang được kiểm tra · huỷ được trước khi xác nhận` : (renewal.at_counter ? `${renewal.renewal_id} chờ thu tại quầy · thanh toán trước hạn để gia hạn` : `${renewal.renewal_id} đã xác nhận · thanh toán trước hạn để gia hạn`)) : bookedFrom ? `Ô ${c.unit_number} đã có khách đặt từ ${dateLabel(bookedFrom)} · gia hạn sang ô khác còn trống.` : ret ? "Đã gửi trả kho nên không gia hạn được." : "Xác nhận gia hạn trước ngày hết hạn và thanh toán trong 24 giờ."}</p></div>

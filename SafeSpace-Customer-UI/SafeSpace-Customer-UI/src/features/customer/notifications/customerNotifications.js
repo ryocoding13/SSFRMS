@@ -6,7 +6,7 @@ const ddmm = value => { const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?
 // Giờ Việt Nam không kèm múi giờ từ BE → ISO để sắp xếp chuông.
 const vnIso = value => { const t = Date.parse(/[zZ]|[+-]\d{2}:\d{2}$/.test(String(value || "")) ? value : `${value}+07:00`); return Number.isFinite(t) ? new Date(t).toISOString() : undefined; };
 
-export function customerNotifications({ contracts = [], tickets = [], reservations = [], unitConflicts = [] }) {
+export function customerNotifications({ contracts = [], tickets = [], reservations = [], unitConflicts = [], refunds = [] }) {
   const events = [];
   const add = (id, title, detail, to, at) => events.push({ id: `SERVER-${id}`, title, detail, to, created_at: at || new Date().toISOString(), read: false });
   for (const r of reservations) {
@@ -22,7 +22,12 @@ export function customerNotifications({ contracts = [], tickets = [], reservatio
     }
     if (c.accessUpdatedAt) add(`ACCESS-${c.contractId}-${c.accessUpdatedAt}`, "Mã ra vào đã được cấp lại", `Kho ${c.unitNumber} · Xem QR/PIN mới trong hợp đồng. Mã cũ cùng loại đã bị vô hiệu hóa.`, to, c.accessUpdatedAt);
     if (c.handover?.handoverAt) add(`KEY-${c.contractId}-${c.handover.handoverAt}`, "Đã ghi nhận nhận chìa khóa", `Kho ${c.unitNumber} · Chìa khóa vật lý đã được nhận tại quầy.`, to, c.handover.handoverAt);
-    if (["RETURN_PENDING", "COMPLETED", "TERMINATED", "CANCELLED"].includes(c.status)) add(`CONTRACT-STATUS-${c.contractId}-${c.status}`, "Hợp đồng có cập nhật", `Kho ${c.unitNumber} · Xem trạng thái và thông tin xử lý.`, to, c.completedAt || c.createdAt);
+    // D68: thông báo rõ từng bước trả kho thay cho "Hợp đồng có cập nhật"
+    if (c.status === "RETURN_PENDING") add(`CONTRACT-STATUS-${c.contractId}-${c.status}`, "Đã nhận lịch trả kho",
+      `Kho ${c.unitNumber} · ${c.returnScheduledDate ? `Hẹn trả ngày ${dateLabel(c.returnScheduledDate)}; trước ngày này bạn vẫn dùng kho.` : "Nhân viên sẽ kiểm tra kho theo lịch hẹn."}`, to, c.createdAt);
+    else if (c.status === "COMPLETED") add(`CONTRACT-STATUS-${c.contractId}-${c.status}`, "Trả kho hoàn tất",
+      `Kho ${c.unitNumber} · Cơ sở đã chốt đối soát trả kho. Xem số tiền hoàn trong mục Hoàn cọc.`, "refunds", c.completedAt || c.createdAt);
+    else if (["TERMINATED", "CANCELLED"].includes(c.status)) add(`CONTRACT-STATUS-${c.contractId}-${c.status}`, "Hợp đồng có cập nhật", `Kho ${c.unitNumber} · Xem trạng thái và thông tin xử lý.`, to, c.completedAt || c.createdAt);
     for (const renewal of c.renewals || []) if (["APPROVED", "REJECTED", "CANCELLED", "PAID"].includes(renewal.status)) add(`RENEWAL-${renewal.renewalId}-${renewal.status}`, "Yêu cầu gia hạn có cập nhật", `Kho ${c.unitNumber} · Xem kết quả và khoản thanh toán gia hạn.`, to, renewal.approvedAt || renewal.requestedAt);
   }
   // D41 / D45 mục 11 (chốt 07/11: chỉ chuông, không email): đề xuất đổi kho trước ngày nhận và kết quả tự đổi.
@@ -33,6 +38,18 @@ export function customerNotifications({ contracts = [], tickets = [], reservatio
       `${x.contractId} · Chọn đổi ngang, nâng cấp miễn phí, dời ngày hoặc huỷ hoàn 100%${x.expiresAt ? ` trước ${ddmm(x.expiresAt)}` : ""}.`, to, vnIso(x.detectedAt));
     else if (["AUTO_SWAP", "AUTO_UPGRADE"].includes(x.resolution)) add(`UNIT-CHANGE-${x.id}-AUTO`, "Hệ thống đã tự đổi kho",
       `${x.contractId} · Quá 48 giờ chưa chọn, đơn chuyển sang ô ${x.newUnit || x.proposedUnit || "mới"}. QR/PIN cấp lại cho ô mới.`, to, vnIso(x.resolvedAt));
+  }
+  // D68: khách biết tiền hoàn đã đi đâu — chuyển khoản vào tài khoản nào, hay đã về quầy cơ sở chờ nhận
+  for (const r of Array.isArray(refunds) ? refunds : []) {
+    if (!r?.id || r.status !== "PAID" || !(Number(r.amount) > 0)) continue;
+    const contract = contracts.find((c) => contractCode(c) === r.contractId);
+    const place = contract?.facilityName ? ` ${contract.facilityName}` : "";
+    const cash = r.method === "CASH" || r.bankName === "CASH";
+    add(`REFUND-PAID-${r.id}`, cash ? "Tiền hoàn đã về quầy" : "Đã hoàn tiền",
+      cash
+        ? `${r.contractId} · Kho ${r.unit} · ${money(r.amount)} đã chuyển về quầy SafeSpace${place}. Mời bạn đến quầy nhận.`
+        : `${r.contractId} · Kho ${r.unit} · Đã chuyển khoản ${money(r.amount)} vào ${[r.bankName, r.accountNumber && `tài khoản ••••${String(r.accountNumber).slice(-4)}`].filter(Boolean).join(" · ") || "tài khoản đã khai báo"}.`,
+      "refunds", r.paidAt);
   }
   for (const t of tickets) {
     const response = t.responses?.at(-1);

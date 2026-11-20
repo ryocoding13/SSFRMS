@@ -66,9 +66,9 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
     /// <returns>Bản ghi gia hạn mới tạo ở trạng thái PENDING.</returns>
     public async Task<RenewalDto> RequestRenewalAsync(long customerId, long contractId, CreateRenewalRequest request, CancellationToken ct = default)
     {
-        if (request.RenewalPeriodMonths <= 0)
+        if (request.RenewalPeriodMonths < OpsRules.MinRentalMonths || request.RenewalPeriodMonths > OpsRules.MaxRentalMonths)
         {
-            throw new ArgumentException("Thời gian gia hạn phải lớn hơn 0 tháng.");
+            throw new ArgumentException("Số tháng gia hạn phải từ 1 đến 99.");
         }
 
         // Khoá theo hợp đồng để kiểm tra ô trống / giữ ô và tạo khoản thanh toán đồng bộ (Task #23: tự động duyệt không qua quản lý).

@@ -76,7 +76,7 @@ export function ReservationDetailPage({ id, mode = "confirmation" }) {
     if (r.cancel_reason) rows.push(["Lý do huỷ", r.cancel_reason]);
     if (r.refund_amount) rows.push(["Số tiền hoàn", money(r.refund_amount)]);
   }
-  if (atStore) rows.push(["Số tiền thanh toán (thuê + cọc)", money(r.initial_total)], ["Hạn giữ chỗ", "24 giờ kể từ khi đặt"]);
+  if (atStore) rows.push(["Số tiền thanh toán (thuê + cọc)", money(r.initial_total)], ["Hạn giữ chỗ", "24 giờ kể từ khi đồng ý chính sách"]);
   rows.push(["Trạng thái", statusText]);
 
   return (

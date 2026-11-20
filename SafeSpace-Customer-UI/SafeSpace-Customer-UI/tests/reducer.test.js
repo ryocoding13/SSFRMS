@@ -43,7 +43,11 @@ test("đặt chỗ: không tạo trùng khi bấm hai lần", () => {
 test("đặt chỗ: kiểm tra đầu vào", () => {
   const s = createSeedData(T);
   assert.match(book(s, { start_date: "2026-09-20" }).error.message, /quá khứ/);
-  assert.match(book(s, { months: 2 }).error.message, /1, 3 hoặc 6/);
+  // D67: số tháng thuê là số nguyên 1–99 (bỏ gói 1/3/6)
+  assert.match(book(s, { months: 0 }).error.message, /từ 1 đến 99/);
+  assert.match(book(s, { months: 100 }).error.message, /từ 1 đến 99/);
+  assert.match(book(s, { months: 2.5 }).error.message, /từ 1 đến 99/);
+  assert.ifError(book(s, { months: 2 }).error);
   // Figma 14/10: cơ sở nào cũng có kho lạnh → giả lập một cơ sở thiếu loại kho để kiểm tra thông báo
   const noCold = { ...s, facilities: s.facilities.map((f) => (f.facility_id === 8 ? { ...f, has_climate: false, offers: f.offers.filter((o) => o.type !== "climate") } : f)) };
   assert.match(book(noCold, { facility_id: 8, type: "climate" }).error.message, /chưa có loại kho/);
@@ -99,7 +103,8 @@ test("gia hạn: tự động xác nhận ngay (#23), tạo khoản chờ thanh 
   assert.equal(a.state.ledger.at(-1).amount, 3 * 1380000); // B-015: kho lạnh cỡ M tại Nguyễn Lương Bằng
   assert.match(run(a.state, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 1 }).error.message, /chờ thanh toán/);
   assert.match(run(a.state, "REQUEST_RETURN", { contract_id: "HĐ-2026-0086", date: T, slot: "09:00–09:30" }).error.message, /gia hạn/);
-  assert.match(run(s, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 2 }).error.message, /1, 3 hoặc 6/);
+  assert.match(run(s, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 0 }).error.message, /từ 1 đến 99/);
+  assert.match(run(s, "REQUEST_RENEWAL", { contract_id: "HĐ-2026-0086", months: 100 }).error.message, /từ 1 đến 99/);
 });
 
 test("3.2: gia hạn tự động xác nhận không huỷ theo luồng chờ duyệt; bản ghi PENDING cũ huỷ được", () => {

@@ -22,9 +22,9 @@ import { useApp } from "../../../app/state/AppProvider.jsx";
 import { NotFound } from "./components/ContractNotFound.jsx";
 import "../../../shared/styles/customer-detail.css";
 // D49 · Khoản hoàn dự kiến: trả sớm sau StartDate hoàn 100% cọc (trừ hư hỏng/vệ sinh nếu có sau kiểm tra) + hoàn tiền thuê tháng chưa bắt đầu.
-// Ngày tính là hôm nay vì BE lấy thời điểm khách gửi yêu cầu làm mốc dừng (ConfirmRefundAsync).
-function RefundPreview({ c, cash }) {
-  const deposit = Number(c.deposit), known = Number.isFinite(deposit) && deposit >= 0, now = today();
+// D68: trả kho là lịch hẹn — phí tính đến ngày hẹn trả, nên ước tính theo ngày khách chọn.
+function RefundPreview({ c, cash, date }) {
+  const deposit = Number(c.deposit), known = Number.isFinite(deposit) && deposit >= 0, now = date && date > today() ? date : today();
   const early = isEarlyStop(c.end_date, now), keep = early ? earlyStopKeep(deposit) : 0;
   const rent = early ? unusedRent(c.monthly_rate, c.start_date, c.end_date, now) : 0;
   const rows = [["Cọc ban đầu", known ? money(deposit) : "Chưa có dữ liệu"]];
@@ -45,7 +45,8 @@ export function ReturnRequestPage({ id }) {
   const { data, dispatch, mode } = useApp();
   const support = useRefundSupport("returnRequestSupported");
   const c = contractOf(data, id);
-  const [date, setDate] = useState(() => c ? contractVisitRange(c.end_date, today(), c.start_date).max : today());
+  // D68: ngày muốn trả kho mặc định là hôm nay (không phải ngày cuối hợp đồng)
+  const [date, setDate] = useState(() => (c ? contractVisitRange(c.end_date, today(), c.start_date).min || today() : today()));
   const [notes, setNotes] = useState("");
   const [bank, setBank] = useState(emptyRefundBank), [emptied, setEmptied] = useState(false);
   const [error, setError] = useState(""), [confirm, setConfirm] = useState(false), [busy, setBusy] = useState(false);
@@ -71,7 +72,7 @@ export function ReturnRequestPage({ id }) {
   };
   return <main className="container page customer-records customer-detail">
     <p className="customer-records__breadcrumb">SafeSpace / Khách hàng / Kho của tôi / {id}</p>
-    <PageHeader title={`Yêu cầu trả kho ${c.unit_number}`} description="Chuyển hết đồ ra ngoài trước khi gửi. Phí dừng ngay khi gửi thành công, không chờ lịch kiểm tra."><Tag tone={left >= 0 ? "blue" : "amber"}>{left >= 0 ? `Đang thuê · còn ${left} ngày` : `Quá hạn ${-left} ngày`}</Tag></PageHeader>
+    <PageHeader title={`Yêu cầu trả kho ${c.unit_number}`} description="Đặt lịch trả kho. Bạn vẫn dùng kho đến ngày hẹn; phí thuê tính đến ngày hẹn trả."><Tag tone={left >= 0 ? "blue" : "amber"}>{left >= 0 ? `Đang thuê · còn ${left} ngày` : `Quá hạn ${-left} ngày`}</Tag></PageHeader>
     <div className="customer-detail__grid">
       <form className="customer-detail__column" onSubmit={submit}>
         <fieldset className="panel customer-detail__card return-request__fields" disabled={busy || blocked}>
@@ -79,7 +80,7 @@ export function ReturnRequestPage({ id }) {
           <p className="hint">Bạn không cần chụp ảnh. Nhân viên cơ sở sẽ kiểm tra kho, chụp ảnh hiện trạng và gửi biên bản cho bạn.</p>
           <DatePicker label="Ngày mong muốn trả kho *" value={date} min={visit.min} max={visit.max} onChange={setDate} />
           <Field label="Ghi chú cho nhân viên (không bắt buộc)"><input maxLength={300} value={notes} onChange={e => setNotes(e.target.value)} /></Field>
-          <label className="customer-detail__choice"><input type="checkbox" checked={emptied} onChange={e => setEmptied(e.target.checked)} /><span>Tôi xác nhận đã chuyển hết đồ ra khỏi kho</span></label>
+          <label className="customer-detail__choice"><input type="checkbox" checked={emptied} onChange={e => setEmptied(e.target.checked)} /><span>{date > today() ? `Tôi sẽ chuyển hết đồ ra khỏi kho trước ngày ${dateLabel(date)}` : "Tôi xác nhận đã chuyển hết đồ ra khỏi kho"}</span></label>
         </fieldset>
         <section className="panel customer-detail__card"><h2>2 · Nhận tiền hoàn</h2>
           <RefundMethodFields value={bank} onChange={setBank} expectedName={expectedName} disabled={busy || blocked} facility={facility} />
@@ -92,8 +93,8 @@ export function ReturnRequestPage({ id }) {
       </form>
       <aside className="customer-detail__column customer-detail__sidebar">
         <section className="panel customer-detail__card"><h2>Hợp đồng {id}</h2><DetailList items={[["Kho", `${c.unit_number} · ${typeLabel(c.type)}${c.size_m2 ? ` ${c.size_m2} m²` : ""}`], ["Dùng đến hết", `${dateLabel(c.end_date)} · 23:59`], ["Cọc đang giữ", money(c.deposit)]]} /></section>
-        <RefundPreview c={c} cash={isCashRefund(bank)} />
-        <section className="panel customer-detail__card return-request__warning"><h2>Sau khi gửi thành công</h2><ul><li>Dừng tính phí quá hạn ngay.</li><li>QR/PIN khoá ngay, không mở lại.</li><li>Không thể huỷ yêu cầu.</li><li>Đồ còn lại do nhân viên dọn; cơ sở không nhận bảo quản.</li><li>Trong 3 ngày nhân viên gửi biên bản và tiền hoàn dự kiến; bạn có 48 giờ để xác nhận, quá hạn tự hoàn theo biên bản.</li></ul></section>
+        <RefundPreview c={c} date={date} cash={isCashRefund(bank)} />
+        <section className="panel customer-detail__card return-request__warning"><h2>Sau khi gửi thành công</h2><ul><li>Phí thuê tính đến ngày hẹn trả kho.</li><li>Trước ngày hẹn bạn vẫn mở cửa kho bằng QR/PIN như bình thường; QR/PIN khoá khi nhân viên kiểm tra vào ngày hẹn.</li><li>Không thể huỷ yêu cầu.</li><li>Đồ còn lại do nhân viên dọn; cơ sở không nhận bảo quản.</li><li>Trong 3 ngày nhân viên gửi biên bản và tiền hoàn dự kiến; bạn có 48 giờ để xác nhận, quá hạn tự hoàn theo biên bản.</li></ul></section>
       </aside>
     </div>
     {confirm && <ConfirmDialog title="Xác nhận gửi trả kho?" tone="warning" text="QR/PIN sẽ hết hiệu lực ngay khi gửi thành công, phí quá hạn dừng và bạn không thể huỷ yêu cầu. Nhân viên sẽ kiểm tra thực tế và chụp ảnh hiện trạng kho." rows={[["Kho", c.unit_number], ["Ngày mong muốn trả kho", dateLabel(date)], ...(isCashRefund(bank) ? [["Cách nhận hoàn", "Tiền mặt tại quầy · trong 30 ngày"]] : [["Ngân hàng", bank.bankName], ["Tài khoản", bank.accountNumber], ["Chủ tài khoản", bank.accountHolder]])]} busy={busy} onCancel={() => setConfirm(false)} onConfirm={send} label="Xác nhận trả kho" />}

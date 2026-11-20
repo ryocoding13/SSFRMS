@@ -78,15 +78,20 @@ test("đơn đặt chỗ: mã hiển thị, trạng thái, tổng ban đầu", (
   assert.equal(r2.timeout_seconds, 86400); // đơn tạo ngoài trình duyệt này: theo hạn 24h của backend
 });
 
-test("giữ chỗ trong trình duyệt: 60 giây, báo chuyển khoản → chờ đối soát, hết giờ → huỷ", () => {
+test("giữ chỗ trong trình duyệt: 60 giây khi máy chủ không trả hạn, báo chuyển khoản → chờ đối soát, hết giờ → huỷ", () => {
+  // D67: hạn giữ chỗ do máy chủ quyết định; mốc cục bộ chỉ dùng khi đơn không có expiresAt.
   const hold = { holds: { 2: NOW.getTime() - 10000 } };
-  assert.equal(compose(hold).reservations[1].status, "PENDING_PAYMENT");
-  assert.equal(compose(hold).reservations[1].timeout_seconds, 60);
-  const late = compose(hold, new Date(NOW.getTime() + 55000)).reservations[1];
+  assert.equal(compose(hold).reservations[1].timeout_seconds, 86400, "máy chủ có hạn 24 giờ thì không bị mốc cục bộ ghi đè");
+  const noExpiry = { ...remote, reservations: remote.reservations.map((r) => (r.reservationId === 2 ? { ...r, expiresAt: null } : r)) };
+  const composeLocal = (overlay = {}, now = NOW) => composeData({ catalog, remote: noExpiry, overlay, session, timeoutSeconds: 60, now });
+  assert.equal(composeLocal(hold).reservations[1].status, "PENDING_PAYMENT");
+  assert.equal(composeLocal(hold).reservations[1].timeout_seconds, 60);
+  const late = composeLocal(hold, new Date(NOW.getTime() + 55000)).reservations[1];
   assert.equal(late.status, "CANCELLED");
   assert.equal(late.cancel_reason, "Quá 1 phút chưa xác nhận");
-  assert.equal(reservationsToExpire({ remote, overlay: { holds: hold.holds, transfers: {} }, timeoutSeconds: 60, now: new Date(NOW.getTime() + 55000) }).length, 1);
-  const paid = compose({ ...hold, transfers: { 2: NOW.getTime() } }, new Date(NOW.getTime() + 55000));
+  assert.equal(reservationsToExpire({ remote: noExpiry, overlay: { holds: hold.holds, transfers: {} }, timeoutSeconds: 60, now: new Date(NOW.getTime() + 55000) }).length, 1);
+  assert.equal(reservationsToExpire({ remote, overlay: { holds: hold.holds, transfers: {} }, timeoutSeconds: 60, now: new Date(NOW.getTime() + 55000) }).length, 0);
+  const paid = composeLocal({ ...hold, transfers: { 2: NOW.getTime() } }, new Date(NOW.getTime() + 55000));
   assert.equal(paid.reservations[1].status, "PENDING_VERIFICATION");
   assert.deepEqual(paid.ledger.filter((l) => l.status === "PENDING_VERIFICATION").map((l) => l.amount).sort(), [500000, 500000]);
 });

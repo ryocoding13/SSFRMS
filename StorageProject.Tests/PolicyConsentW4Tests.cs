@@ -311,9 +311,9 @@ public sealed class PolicyConsentW4Tests
 
         var message = Assert.Single(mailbox.Messages);
         Assert.Equal(f.Customer.Email, message.Email);
-        // D58: thư không đính kèm tệp; khách xem hợp đồng giấy trong ứng dụng (cùng mẫu ToHtml)
+        // D68: thư đính kèm PDF hợp đồng dựng từ cùng mẫu ToHtml (thay D58 "không đính kèm")
         var multipart = Assert.IsAssignableFrom<Multipart>(message.Body);
-        Assert.DoesNotContain(multipart.OfType<MimePart>(), part => part.IsAttachment);
+        Assert.Single(multipart.OfType<MimePart>(), part => part.IsAttachment && part.ContentType.MimeType == "application/pdf");
         Assert.Contains(document.Code, document.ToHtml());
         Assert.Single(await f.Db.ActivityLogs.Where(log => log.Action == CustomerEmailDelivery.Sent).ToListAsync());
     }

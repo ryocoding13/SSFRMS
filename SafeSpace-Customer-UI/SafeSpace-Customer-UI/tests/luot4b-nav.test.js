@@ -10,7 +10,8 @@ const src = (p) => readFileSync(new URL(`../src/${p}`, import.meta.url), "utf8")
 test("#7: navbar quản lý không còn Phân bổ kho, Phân công; có Hoàn tiền", () => {
   const layout = src("features/facility-operations/FacilityOperationsLayout.jsx");
   const labels = (name) => [...layout.split(`export const ${name} = [`)[1].split("];")[0].matchAll(/\["[^"]+", "([^"]+)"\]/g)].map((m) => m[1]);
-  assert.deepEqual(labels("MANAGER_TABS"), ["Tổng quan", "Danh sách kho", "Hợp đồng & quá hạn", "Hoàn tiền", "Báo cáo"]);
+  // D68: bỏ tab "Hoàn tiền", đổi "Hợp đồng & quá hạn" thành "Biên bản & trả kho"
+  assert.deepEqual(labels("MANAGER_TABS"), ["Tổng quan", "Danh sách kho", "Biên bản & trả kho", "Báo cáo"]);
   assert.deepEqual(labels("STAFF_TABS"), ["Công việc ngày", "Thu tiền", "Xác minh", "Kiểm tra trả kho", "Hỗ trợ"]);
 });
 

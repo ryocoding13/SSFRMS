@@ -195,6 +195,7 @@ public partial class FacilityOpsService
 
     /// <summary>Đề xuất "cho thuê lại ngay" trên màn S04 — chỉ được chọn khi không có hư hỏng và không cần vệ sinh.</summary>
     internal const string ReadyToRelet = "Sẵn sàng cho thuê lại";
+    internal const string WaitForCleaning = "Chờ vệ sinh / kiểm tra trước khi cho thuê lại";
 
     /// <summary>
     /// Nhân viên gửi biên bản kiểm tra trả kho (S04).
@@ -237,6 +238,11 @@ public partial class FacilityOpsService
         {
             throw new ArgumentException("Đạt dưới 2/3 tiêu chuẩn nên chưa được chọn \"Sẵn sàng cho thuê lại\".");
         }
+        // D68: ô chỉ bảo trì khi ít nhất một mục không đạt hoặc có khấu trừ vệ sinh/hư hỏng.
+        // Đạt đủ 3/3 và không khấu trừ → luôn "Sẵn sàng cho thuê lại" (dù biểu mẫu gửi đề xuất khác).
+        var allPassed = InspectionStandard.PassedCount(items, walls, keys) == 3 && damageFee == 0 && !cleaningRequired;
+        if (allPassed) proposal = ReadyToRelet;
+        else if (proposal == ReadyToRelet) proposal = WaitForCleaning;
         // Task #8: nhân viên chịu trách nhiệm kiểm tra và bắt buộc gửi ít nhất 1 ảnh hiện trạng kho.
         var photos = EvidencePhotos.Decode(request.Photos, required: true, what: "hiện trạng trả kho");
 
@@ -244,6 +250,11 @@ public partial class FacilityOpsService
         var i = await InspectionAsync(facility.FacilityId, id, ct);
         if (i.Status == "COMPLETED") throw new InvalidOperationException("Biên bản trả kho đã được gửi.");
         if (i.Status == "CANCELLED") throw new InvalidOperationException("Lịch trả kho đã huỷ.");
+        // D68: trả kho là lịch hẹn — chưa tới ngày hẹn thì khách vẫn dùng kho, nhân viên chưa gửi biên bản được.
+        if (i.ScheduledAt is DateTime scheduledAt && DateOnly.FromDateTime(scheduledAt + VnOffset) > OpsRules.TodayLocal)
+        {
+            throw new InvalidOperationException($"Chưa đến ngày hẹn trả kho ({DateOnly.FromDateTime(scheduledAt + VnOffset):dd/MM/yyyy}). Khách vẫn dùng kho đến ngày này.");
+        }
         var contract = i.Contract;
         if (contract.Status is "COMPLETED" or "TERMINATED" or "CANCELLED")
         {
@@ -440,14 +451,40 @@ public partial class FacilityOpsService
     /// Hoàn tiền hai bước (T07): bước này chỉ tạo khoản REFUND PENDING ("Chờ hoàn"); quản lý ghi mã giao dịch
     /// ở màn hoàn cọc mới chuyển PAID. Ô cần vệ sinh / sửa giữ MAINTENANCE, không tự về AVAILABLE.
     /// </summary>
-    public async Task<OpsSettlementResult> ConfirmRefundAsync(OpsActor actor, string id, string? note = null, CancellationToken ct = default)
+    public async Task<OpsSettlementResult> ConfirmRefundAsync(OpsActor actor, string id, string? note = null, CancellationToken ct = default,
+        bool payoutConfirmed = false)
     {
         RequireManager(actor);
         var facility = await FacilityOfAsync(actor, ct);
         var contractId = ParseCode(id, "HĐ-", "hợp đồng");
         await using var tx = await CheckoutTransaction.BeginAsync(dbContext, $"contract-settlement:{contractId}", ct);
         var contract = await ContractAsync(facility.FacilityId, id, ct);
+        if (payoutConfirmed)
+        {
+            // D67: chuyển khoản thì phải có tài khoản nhận hợp lệ trước khi ghi đã chuyển (D64: không cần mã giao dịch).
+            var inspection = contract.ReturnInspections.Where(i => i.Status == "COMPLETED")
+                .OrderByDescending(i => i.InspectedAt ?? i.CreatedAt).FirstOrDefault();
+            if (inspection != null && inspection.RefundBankName != CashMethod
+                && !RefundBank.IsComplete(inspection.RefundBankName, inspection.RefundAccountNumber, inspection.RefundAccountHolder))
+            {
+                throw new InvalidOperationException("Khách chưa khai tài khoản nhận hoàn hợp lệ. Chốt đối soát trước, liên hệ khách bổ sung rồi xác nhận ở mục Hoàn tiền.");
+            }
+        }
         var result = await SettleReturnAsync(contract, facility.FacilityId, actor.UserId, note, ct);
+        if (payoutConfirmed && result.RefundStatus == "PENDING")
+        {
+            // D67: một nút — chốt đối soát và ghi luôn đã hoàn. Tiền mặt: bàn giao về quầy cơ sở, khách đến nhận lúc nào cũng được.
+            var refund = dbContext.Payments.Local.Single(p => p.ContractId == contract.ContractId && p.PaymentType == "REFUND" && p.Status == "PENDING");
+            var now = NowUtc;
+            refund.Status = "PAID";
+            refund.PaidAt = now;
+            refund.UpdatedAt = now;
+            var isCash = refund.PaymentMethod == CashMethod;
+            Log(actor.UserId, isCash ? "DEPOSIT_REFUND_CASH_PAID" : "DEPOSIT_REFUND_TRANSFERRED", LogEntity.Contract, contract.ContractId,
+                new { refund = refund.Amount, transactionRef = (string?)null, transferredAt = now, method = isCash ? CashMethod : "BANK_TRANSFER",
+                    settledTogether = true, cashHandedToCounter = isCash });
+            result = new OpsSettlementResult(result.Refund, "PAID");
+        }
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return result;
@@ -474,8 +511,8 @@ public partial class FacilityOpsService
         var now = NowUtc;
         // D39/D40: có khấu trừ thì chờ khách xác nhận (48 giờ) hoặc cơ sở kiểm tra lại phương án khách chọn.
         await RequireDeductionSettledAsync(inspection, actorId, now, ct);
-        // D32 / T09: Dừng tính phí quá hạn khi gửi trả kho thành công (inspection.CreatedAt là thời điểm khách gửi move-out).
-        var moveOutDate = DateOnly.FromDateTime((inspection.CreatedAt != default ? inspection.CreatedAt : (inspection.InspectedAt ?? now)) + VnOffset);
+        // D32 / T09 · D68: dừng tính phí tại ngày hẹn trả kho (không sớm hơn ngày khách gửi yêu cầu).
+        var moveOutDate = ReturnDayOf(inspection, now);
         // P1 / D32: Dùng chung bộ chọn policy OVERDUE và tính phí
         var calc = await OpsRules.CalculateContractOverdueAsync(dbContext, contract, moveOutDate, isSettled: false, ct);
         var overdueDays = calc.OverdueDays;
@@ -517,6 +554,8 @@ public partial class FacilityOpsService
         var nextBooked = !needsWork && await UnitAvailability.NextBookingAsync(dbContext, contract, ct) != null;
         SetUnitStatus(contract.Unit, needsWork ? "MAINTENANCE" : nextBooked ? "RESERVED" : "AVAILABLE", actorId ?? contract.CustomerId,
             needsWork ? $"Cần vệ sinh / sửa sau trả kho · {ContractCode(contract)}" : $"Đã trả kho, chốt hoàn cọc · {ContractCode(contract)}");
+        // D68: thư "Trả kho hoàn tất" — nội dung đọc trạng thái khoản hoàn lúc gửi (chốt kèm xác nhận hoàn thì ghi luôn đã hoàn)
+        CustomerEmailDelivery.QueueReturnSettled(dbContext, contract.ContractId, now);
         Log(actorId, LogAction.DepositRefunded, LogEntity.Contract, contract.ContractId, new
         {
             refund, refundStatus, scenario = scenario.ToString(), rentRefund = result.RentRefund, depositRefund = result.DepositRefund,
@@ -534,8 +573,12 @@ public partial class FacilityOpsService
     internal static (RefundScenario Scenario, RefundInput Input, bool CleaningRequired) SettlementInputOf(
         RentalContract contract, ReturnInspection inspection, decimal overdueFee, int overdueDays, DateTime nowUtc)
     {
-        var moveOutDate = DateOnly.FromDateTime((inspection.CreatedAt != default ? inspection.CreatedAt : (inspection.InspectedAt ?? nowUtc)) + VnOffset);
-        var returnDate = DateOnly.FromDateTime((inspection.InspectedAt ?? nowUtc) + VnOffset);
+        // D68: phí thuê tính đến ngày hẹn trả kho (khách dùng kho tới ngày đó); dữ liệu cũ không có lịch thì như trước.
+        var moveOutDate = ReturnDayOf(inspection, nowUtc);
+        // Nhân viên chỉ kiểm tra được từ ngày hẹn, nên tháng thuê tính tới ngày hẹn (kiểm tra trễ không tính thêm tiền khách).
+        var returnDate = inspection.ScheduledAt is DateTime sa
+            ? DateOnly.FromDateTime(sa + VnOffset)
+            : DateOnly.FromDateTime((inspection.InspectedAt ?? nowUtc) + VnOffset);
         var scenario = moveOutDate < contract.EndDate ? RefundScenario.EarlyStop : RefundScenario.NormalReturn;
         var rentPaid = contract.Payments.Where(p => p.PaymentType == "RENT" && p.Status == "PAID").Sum(p => p.Amount);
         // Biên bản cũ có thể chỉ lưu tình trạng hoặc phí vệ sinh.
@@ -543,6 +586,18 @@ public partial class FacilityOpsService
         var input = new RefundInput(scenario, contract.DepositAmount, rentPaid, contract.StartDate, contract.EndDate, returnDate,
             HygieneViolation: cleaningRequired, Overdue: overdueDays > 0, DamageFee: inspection.DamageFee, OverdueFee: overdueFee);
         return (scenario, input, cleaningRequired);
+    }
+
+    /// <summary>
+    /// D68: ngày dừng tính phí của một lần trả kho = ngày hẹn trả (giờ VN), không sớm hơn ngày khách gửi yêu cầu.
+    /// Dữ liệu cũ không có lịch hẹn thì dùng lúc gửi yêu cầu như D32.
+    /// </summary>
+    internal static DateOnly ReturnDayOf(ReturnInspection inspection, DateTime nowUtc)
+    {
+        var requested = DateOnly.FromDateTime((inspection.CreatedAt != default ? inspection.CreatedAt : (inspection.InspectedAt ?? nowUtc)) + VnOffset);
+        if (inspection.ScheduledAt is not DateTime sa) return requested;
+        var scheduled = DateOnly.FromDateTime(sa + VnOffset);
+        return scheduled > requested ? scheduled : requested;
     }
 
     /// <summary>#16: bảng đối soát (dự kiến hoặc chính thức) từ kết quả RefundPolicy.</summary>

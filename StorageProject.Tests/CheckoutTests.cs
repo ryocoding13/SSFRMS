@@ -146,7 +146,10 @@ public sealed partial class CheckoutTests
         var parts = Assert.IsAssignableFrom<Multipart>(message.Body);
         Assert.Contains(atCounter ? "Tại quầy" : "Trực tuyến qua PayOS", PlainText(message.Body));
         Assert.DoesNotContain("localhost", PlainText(message.Body)); // web chạy localhost: không gửi link, hướng dẫn mở trong ứng dụng
-        Assert.DoesNotContain(parts.OfType<MimePart>(), part => part.IsAttachment); // D58: không đính kèm tệp
+        // D68: đính kèm PDF hợp đồng tiếng Việt (thay D58 "không đính kèm tệp")
+        var attachment = Assert.Single(parts.OfType<MimePart>(), part => part.IsAttachment);
+        Assert.Equal("application/pdf", attachment.ContentType.MimeType);
+        Assert.EndsWith(".pdf", attachment.FileName);
         Assert.Contains("Xem hợp đồng giấy", PlainText(message.Body));
     }
 

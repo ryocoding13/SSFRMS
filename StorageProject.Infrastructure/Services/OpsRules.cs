@@ -95,6 +95,9 @@ public static class OpsRules
 
     // Mốc thời gian và tham số vận hành chuẩn hóa theo P2 (SSFRMS-Business-Policies-Audit-and-Refactor-Plan.md)
     public const int DefaultOnlineReservationHoldMinutes = 15; // Giữ chỗ trực tuyến 15 phút (D02)
+    public const int MinRentalMonths = 1; // D67: khách nhập số tháng thuê / gia hạn 1–99
+    public const int MaxRentalMonths = 99;
+    public const int DefaultPolicyAcceptedHoldHours = 24; // D67: đồng ý chính sách → giữ chỗ 24 giờ (tại quầy giữ nguyên mốc này)
     public const int DefaultExpiringThresholdDays = 10; // Mốc sắp hết hạn EXPIRING 10 ngày (D65, thay 30 ngày của D11)
     public const int DefaultRenewalPaymentDeadlineHours = 24; // Hạn thanh toán sau khi duyệt gia hạn 24 giờ (D11/D32)
     public const int DefaultReletBufferDays = 3; // Ngày đệm cho thuê lại 3 ngày (D41)
@@ -108,8 +111,13 @@ public static class OpsRules
     public static DateTime CalculateOnlineHoldDeadlineUtc(DateTime? fromUtc = null) =>
         (fromUtc ?? DateTime.UtcNow).AddMinutes(DefaultOnlineReservationHoldMinutes);
 
+    /// <summary>D67: hạn giữ chỗ sau khi khách đồng ý chính sách (và khi chọn thanh toán tại quầy): 24 giờ từ lúc đồng ý.</summary>
+    public static DateTime CalculatePolicyHoldDeadlineUtc(DateTime acceptedAtUtc) =>
+        acceptedAtUtc.AddHours(DefaultPolicyAcceptedHoldHours);
+
     /// <summary>
     /// Hạn giữ chỗ khi thanh toán tại quầy: hết ngày hẹn nhận kho theo giờ Việt Nam (UTC+7).
+    /// D67: luồng đặt chỗ không còn dùng mốc này (giữ 24 giờ từ lúc đồng ý chính sách).
     /// </summary>
     public static DateTime CalculateCounterHoldDeadlineUtc(DateOnly checkInDay) =>
         checkInDay.AddDays(1).ToDateTime(TimeOnly.MinValue) - ReportOffset;

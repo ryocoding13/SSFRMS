@@ -77,6 +77,35 @@ public static class UnitProposal
             .Where(p => p != null).Select(p => p!.UnitId).ToHashSet();
     }
 
+    /// <summary>D67: một ô đang được đơn khác giữ chỗ (khách đang thanh toán). ExpiresAt = null với đơn đã thanh toán chờ cấp ô.</summary>
+    public sealed record PendingHold(long UnitId, DateOnly StartDate, DateOnly EndDate, DateTime? ExpiresAt);
+
+    /// <summary>
+    /// D67: các ô đang được giữ cho đơn còn hiệu lực chưa phân bổ chính thức tại cơ sở (mọi kỳ), kèm hạn giữ chỗ
+    /// để sơ đồ hiện đồng hồ đếm ngược. Cùng điều kiện "còn hiệu lực" với <see cref="HeldByOthersAsync"/>.
+    /// </summary>
+    public static async Task<List<PendingHold>> PendingHoldsAsync(AppDbContext db, long facilityId, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var live = await db.Reservations.AsNoTracking()
+            .Where(r => r.FacilityId == facilityId
+                && (r.Status == "CONFIRMED" || ((r.Status == "PENDING_PAYMENT" || r.Status == "PENDING_VERIFICATION" || r.Status == "PENDING_AT_FACILITY")
+                                                && r.ExpiresAt > now))
+                && !r.UnitAssignments.Any(a => a.Status == "ACTIVE"))
+            .Select(r => new { r.ReservationId, r.Status, r.StartDate, r.ExpectedEndDate, r.ExpiresAt }).ToListAsync(ct);
+        if (live.Count == 0) return [];
+        var ids = live.Select(r => r.ReservationId).ToList();
+        var logs = await db.ActivityLogs.AsNoTracking()
+            .Where(l => l.Action == Action && l.EntityType == "RESERVATION" && l.EntityId != null && ids.Contains(l.EntityId.Value))
+            .Select(l => new { l.EntityId, l.LoggedAt, l.LogId, l.NewValue }).ToListAsync(ct);
+        var unitOf = logs.GroupBy(l => l.EntityId!.Value)
+            .ToDictionary(g => g.Key, g => Parse(g.OrderByDescending(l => l.LoggedAt).ThenByDescending(l => l.LogId).First().NewValue));
+        return live.Where(r => unitOf.TryGetValue(r.ReservationId, out var p) && p != null)
+            .Select(r => new PendingHold(unitOf[r.ReservationId]!.UnitId, r.StartDate, r.ExpectedEndDate,
+                r.Status == "CONFIRMED" ? null : r.ExpiresAt))
+            .ToList();
+    }
+
     /// <summary>
     /// Chọn ô cho đơn: ưu tiên ô đã đề xuất nếu còn khả dụng cả kỳ; nếu không, chọn ô khác theo <see cref="UnitAvailability.Pick"/>
     /// và bỏ qua ô đang đề xuất cho đơn khác. Riêng chế độ EXACT chỉ giữ đúng ô đó, không tự đổi ô.

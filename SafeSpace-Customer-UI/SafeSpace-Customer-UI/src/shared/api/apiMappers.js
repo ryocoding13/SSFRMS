@@ -215,8 +215,9 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
     if (status === "PENDING_PAYMENT") {
       if (overlay.transfers[id]) status = "PENDING_VERIFICATION";
       else {
-        const expires = hold ? new Date(hold + timeoutSeconds * 1000) : parseUtc(r.expiresAt);
-        timeout_seconds = hold ? timeoutSeconds : expires ? Math.round((expires - created) / 1000) : null;
+        // D67: máy chủ quyết định hạn giữ chỗ (đồng ý chính sách → 24 giờ, mở PayOS → 15 phút); mốc cục bộ chỉ dùng khi máy chủ không trả hạn.
+        const expires = parseUtc(r.expiresAt) || (hold ? new Date(hold + timeoutSeconds * 1000) : null);
+        timeout_seconds = parseUtc(r.expiresAt) ? holdSecondsOf(r, timeoutSeconds) : hold ? timeoutSeconds : null;
         expires_at = expires ? expires.toISOString() : null;
         if (overlay.expired[id] || (expires && expires <= now)) {
           status = "CANCELLED";
@@ -318,7 +319,9 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       api_status: c.status || null,
       // D41: ô đã có khách mới đặt từ ngày này → khoá gia hạn "Ô đã có khách đặt từ dd/mm"
       next_booking_from: c.nextBookingFrom ? dateOnly(c.nextBookingFrom) : null,
-      access_issued: ["ACTIVE", "EXPIRING", "OVERDUE"].includes(c.status),
+      // D68: trả kho là lịch hẹn — trước ngày hẹn khách vẫn dùng QR/PIN
+      return_date: c.returnScheduledDate ? dateOnly(c.returnScheduledDate) : null,
+      access_issued: ["ACTIVE", "EXPIRING", "OVERDUE"].includes(c.status) || (c.status === "RETURN_PENDING" && Boolean(c.returnScheduledDate)),
       overdue: c.overdue ? {
         policy_id: c.overdue.policyId,
         policy_scope: c.overdue.policyScope,
@@ -492,6 +495,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
         contract_id: c.contract_id,
         api_id: c.api_id,
         status: "PENDING",
+        ...(c.return_date ? { date: c.return_date } : {}), // D68: ngày hẹn trả kho khi máy chủ có
       });
     }
   }
@@ -514,9 +518,16 @@ export function reservationsToExpire({ remote, overlay, timeoutSeconds, now = ne
   return remote.reservations.filter((r) => {
     if (r.status !== "PENDING_PAYMENT" || overlay.transfers[r.reservationId]) return false;
     const hold = overlay.holds[r.reservationId];
-    const expires = hold ? new Date(hold + timeoutSeconds * 1000) : parseUtc(r.expiresAt);
+    const expires = parseUtc(r.expiresAt) || (hold ? new Date(hold + timeoutSeconds * 1000) : null);
     return expires && expires <= now;
   });
+}
+
+/** D67: độ dài khung giữ chỗ của đơn để ghi lý do huỷ: hơn 1 giờ là khung 24 giờ, còn lại là khung PayOS. */
+export function holdSecondsOf(r, timeoutSeconds) {
+  const expires = parseUtc(r?.expiresAt);
+  const created = parseUtc(r?.createdAt);
+  return expires && created && expires - created > 3600 * 1000 ? 24 * 3600 : timeoutSeconds;
 }
 
 // Tên đăng nhập backend (≤ 50 ký tự) sinh từ email để khách đăng nhập được bằng email như Figma

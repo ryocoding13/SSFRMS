@@ -72,13 +72,13 @@ public static class FacilityOpsEndpoints
             Run(async () => { await ops.RemindAsync(Actor(user), id, request, ct); return Done(); }))
             .WithSummary("M07 · Ghi lần nhắc khách (quá hạn / còn nợ)");
 
-        group.MapPost("/contracts/{id}/refund", (string id, OpsNoteRequest? request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+        group.MapPost("/contracts/{id}/refund", (string id, OpsSettleRequest? request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
             Run(async () =>
             {
-                var result = await ops.ConfirmRefundAsync(Actor(user), id, request?.Note, ct);
+                var result = await ops.ConfirmRefundAsync(Actor(user), id, request?.Note, ct, request?.PayoutConfirmed == true);
                 return Results.Ok(new { message = "Đã cập nhật.", refund = result.Refund, refundStatus = result.RefundStatus });
             }))
-            .WithSummary("M07 · Chốt quyết toán trả kho (D32): tạo khoản hoàn PENDING, đóng hợp đồng; ô cần vệ sinh giữ MAINTENANCE");
+            .WithSummary("M07 · Chốt quyết toán trả kho (D32): tạo khoản hoàn PENDING, đóng hợp đồng; ô cần vệ sinh giữ MAINTENANCE. D67: payoutConfirmed = true ghi luôn đã hoàn (chuyển khoản / bàn giao tiền mặt cho quầy)");
 
         group.MapPost("/reservations/{id}/refund", (string id, OpsReservationRefundRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
             Run(async () =>

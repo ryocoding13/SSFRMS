@@ -26,8 +26,8 @@ export const STAFF_TABS = [
 export const MANAGER_TABS = [
   ["manager", "Tổng quan"],
   ["manager/units", "Danh sách kho"],
-  ["manager/contracts", "Hợp đồng & quá hạn"],
-  ["manager/refund", "Hoàn tiền"],
+  // D68: hoàn tiền xác nhận ngay khi chốt đối soát → bỏ mục "Hoàn tiền"; khoản còn chờ mở từ "Biên bản & trả kho"
+  ["manager/contracts", "Biên bản & trả kho"],
   ["manager/report", "Báo cáo"],
 ];
 

@@ -10,6 +10,7 @@ import { facilityOf } from "../../../app/state/appSelectors.js";
 import { useNow } from "../../../shared/hooks/useBrowserEvents.js";
 import { go } from "../../../app/router.js";
 import { NotFound } from "../reservations/components/ReservationNotFound.jsx";
+import { PAY_METHODS } from "./CheckoutPage.jsx";
 import "../../../shared/styles/rental-policy.css";
 
 export function ReservationReviewPage({ id }) {
@@ -19,7 +20,9 @@ export function ReservationReviewPage({ id }) {
   const now = useNow(1000);
   const [acceptedVersion, setAcceptedVersion] = useState(null), [error, setError] = useState("");
   const [busy, setBusy] = useState(false), guard = useRef(false), generation = useRef(0);
-  useEffect(() => { generation.current++; setAcceptedVersion(null); setError(""); return () => { generation.current++; }; }, [id]);
+  // D68: khách chọn cách thanh toán ngay khi đồng ý chính sách (QR → trang mã QR 15 phút; tại cửa hàng → giữ 24 giờ, xong luôn)
+  const [method, setMethod] = useState(null);
+  useEffect(() => { generation.current++; setAcceptedVersion(null); setMethod(null); setError(""); return () => { generation.current++; }; }, [id]);
   if (!reservation) return <NotFound />;
   const facility = facilityOf(data, reservation.facility_id, reservation.facility_name);
   const ready = !policy.loading && !policy.error && policy.data;
@@ -30,13 +33,24 @@ export function ReservationReviewPage({ id }) {
     e.preventDefault();
     if (guard.current || !pending || expired) return;
     if (!accepted) return setError("Vui lòng đọc và đồng ý với Chính sách thuê kho trước khi tiếp tục.");
+    if (reservation.status === "PENDING_PAYMENT" && !method) return setError("Vui lòng chọn cách thanh toán.");
     const seq = generation.current;
     guard.current = true; setBusy(true); setError("");
     try {
       const out = await dispatch("ACCEPT_RESERVATION_POLICY", { reservation_id: id, policy_version: policy.data.version, accepted: true });
       if (seq !== generation.current) return;
       if (!out.ok) { setAcceptedVersion(null); setError(out.error); await policy.reload(); return; }
-      go(reservation.status === "PENDING_VERIFICATION" ? `confirmation/${id}` : `checkout/${id}`, { replace: true });
+      if (reservation.status === "PENDING_VERIFICATION") return go(`confirmation/${id}`, { replace: true });
+      if (method === "store") {
+        const paid = await dispatch("PAY_AT_FACILITY", { reservation_id: id });
+        if (seq !== generation.current) return;
+        if (!paid.ok) {
+          if (paid.code === "EXPIRED") return go(`checkout/${id}/failed`, { replace: true });
+          return setError(paid.error || "Chưa chuyển được sang thanh toán tại cửa hàng. Vui lòng thử lại.");
+        }
+        return go(`confirmation/${id}`, { replace: true });
+      }
+      go(`checkout/${id}`, { replace: true });
     } catch { if (seq === generation.current) setError("Chưa lưu được xác nhận. Dữ liệu vẫn được giữ; vui lòng thử lại."); }
     finally { guard.current = false; if (seq === generation.current) setBusy(false); }
   };
@@ -73,9 +87,25 @@ export function ReservationReviewPage({ id }) {
         {policy.error && <Notice tone="error">{policy.error}<Button variant="outline" onClick={() => { setAcceptedVersion(null); policy.reload(); }}>Thử lại</Button></Notice>}
         {ready && <p className="hint">Bản hiện hành: {policyVersionLabel(policy.data)}</p>}
         <label className="policy-review__consent"><input type="checkbox" checked={accepted} disabled={!ready || busy || !pending || Boolean(expired)} onChange={e => { setAcceptedVersion(e.target.checked ? policy.data.version : null); setError(""); }} /><span>Tôi đã đọc và đồng ý với Chính sách thuê kho</span></label>
+        {reservation.status === "PENDING_PAYMENT" && (
+          <fieldset className="policy-review__pay" disabled={busy || !pending || Boolean(expired)}>
+            <legend>Cách thanh toán *</legend>
+            <div className="pay-method" role="radiogroup" aria-label="Cách thanh toán">
+              {PAY_METHODS.map(([k, title, sub]) => (
+                <button type="button" role="radio" key={k} aria-checked={method === k} className={`pay-method__opt${method === k ? " is-on" : ""}`} onClick={() => { setMethod(k); setError(""); }}>
+                  <span className="pay-method__dot" aria-hidden="true" />
+                  <span><strong>{title}</strong><small>{sub}</small></span>
+                </button>
+              ))}
+            </div>
+            <p className="hint">{method === "store"
+              ? `Ô được giữ 24 giờ kể từ lúc bạn bấm xác nhận. Đến ${facility.name} thanh toán tiền mặt hoặc thẻ trong thời gian này; quá hạn đơn tự huỷ.`
+              : method === "qr" ? "Mã QR giữ chỗ 15 phút kể từ lúc tạo; hết giờ chưa thanh toán thì đơn tự huỷ và ô được trả lại." : "Thanh toán QR: giữ chỗ 15 phút · Tại cửa hàng: giữ chỗ 24 giờ."}</p>
+          </fieldset>
+        )}
         {error && <Notice tone="error">{error}</Notice>}
         {(!pending || expired) && <Notice>Đơn không còn chờ thanh toán hoặc đã hết hạn giữ chỗ. Vui lòng kiểm tra trạng thái đơn.</Notice>}
-        <Button type="submit" block disabled={!accepted || busy || !pending || Boolean(expired)}>{busy ? "Đang lưu xác nhận…" : "Tiếp tục thanh toán"}</Button>
+        <Button type="submit" block disabled={!accepted || busy || !pending || Boolean(expired)}>{busy ? "Đang lưu xác nhận…" : method === "store" ? "Xác nhận đặt chỗ · trả tại cửa hàng" : "Tiếp tục thanh toán"}</Button>
         <p className="hint">Bạn có thể xem lại chính sách đã đồng ý trong mục Chính sách.</p>
         <LinkButton to={`reservations/${encodeURIComponent(id)}`} variant="outline">Xem đơn đặt chỗ</LinkButton>
       </form>

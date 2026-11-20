@@ -10,7 +10,7 @@ import { useApp } from "../../../app/state/AppProvider.jsx";
 import { USE_API } from "../../../app/config/api.js";
 import { api } from "../../../shared/api/customerApi.js";
 import { today } from "../../../shared/utils/format.js";
-import { accessError, validateAccess } from "../../../shared/utils/access.js";
+import { accessError, beforeReturnDay, returnLockMessage, validateAccess } from "../../../shared/utils/access.js";
 
 /**
  * Hook quản lý trạng thái tải và dữ liệu mã QR mở cửa kho.
@@ -22,7 +22,7 @@ export function useAccessQr(id) {
   const getCredential = useCallback(async () => {
     const contract = data.contracts.find(c => c.contract_id === id);
     if (USE_API) {
-      if (contract?.status === "RETURN_PENDING") throw new Error("QR đã hết hiệu lực do đã gửi trả kho.");
+      if (contract?.status === "RETURN_PENDING" && !beforeReturnDay(contract, today())) throw new Error(returnLockMessage(contract));
       const targetId = contract?.api_id || id;
       const res = await api.accessQr(targetId);
       return {

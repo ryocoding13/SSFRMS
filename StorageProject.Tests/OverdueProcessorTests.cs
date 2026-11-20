@@ -181,7 +181,9 @@ public sealed class OverdueProcessorTests : IAsyncDisposable
         Assert.Equal(2, mailbox.Calls);
         Assert.Single(await _db.ActivityLogs.Where(l => l.Action == CustomerEmailDelivery.Sent).ToListAsync());
 
-        Assert.Empty(mailbox.Attachments); // D58: thư không đính kèm tệp
+        // D68: thư hợp đồng đính kèm đúng một tệp PDF hợp đồng (thay D58 "không đính kèm")
+        var pdf = Assert.Single(mailbox.Attachments);
+        Assert.StartsWith("%PDF", pdf);
         var document = await ContractDocuments.LoadAsync(_db, customer.UserId, contract.ContractId, default);
         var html = Assert.IsType<ContractDocument>(document).ToHtml();
         Assert.Contains("HỢP ĐỒNG THUÊ KHO LƯU TRỮ TỰ PHỤC VỤ", html);

@@ -31,16 +31,16 @@ export const SYSTEM_ENFORCED_POLICIES = [
   {
     key: 'online_hold',
     label: 'Hạn giữ chỗ thanh toán trực tuyến',
-    value: '15 phút',
-    reference: 'D02 · ReservationService',
-    description: 'Thời gian đếm ngược giữ kho kể từ lúc tạo đơn thanh toán trực tuyến.',
+    value: '24 giờ sau khi đồng ý chính sách · 15 phút khi thanh toán QR',
+    reference: 'D67 · RentalPolicyService / PayOSService',
+    description: 'Đồng ý chính sách thì ô được giữ 24 giờ; khách chọn thanh toán QR (PayOS) thì còn 15 phút kể từ lúc tạo mã.',
   },
   {
     key: 'counter_hold',
     label: 'Hạn giữ chỗ thanh toán tại quầy',
-    value: 'Đến hết ngày hẹn nhận kho',
-    reference: 'D02/D43 · PayOSService',
-    description: 'Đơn giữ chỗ tại quầy có hiệu lực đến 23:59:59 của ngày hẹn nhận kho theo giờ Việt Nam.',
+    value: '24 giờ kể từ khi đồng ý chính sách',
+    reference: 'D67 · PayOSService',
+    description: 'Đơn chọn thanh toán tại quầy được giữ 24 giờ kể từ lúc khách đồng ý chính sách; quá hạn chưa thanh toán thì đơn tự huỷ.',
   },
   {
     key: 'renewal_hold',

@@ -77,7 +77,7 @@ Chi tiết hợp đồng JSON: `BACKEND-TODO.md` mục "Cập nhật BE 29/10", 
 | `POST /api/ops/verifications/{id}` | STAFF, MANAGER | Checklist 4 mục (`originalDocumentValid`, `photoMatched`, `infoMatched`, `bookingMatched`) |
 | `POST /api/ops/keys/{id}/receipt` | STAFF, MANAGER | Checklist 3 mục nếu gửi |
 | `POST /api/ops/returns/{id}/inspection` | STAFF, MANAGER | Phí hư hỏng, vệ sinh 10% cọc, lý do, hạng mục, ảnh |
-| `POST /api/ops/contracts/{id}/refund` | MANAGER | Trả `{refund, refundStatus: PENDING \| NO_REFUND}` |
+| `POST /api/ops/contracts/{id}/refund` | MANAGER | Body `{note?, payoutConfirmed?}`. Trả `{refund, refundStatus: PENDING \| NO_REFUND}`; D67: `payoutConfirmed: true` chốt và ghi luôn đã hoàn → `refundStatus: PAID` (chuyển khoản cần tài khoản nhận hợp lệ; tiền mặt = bàn giao về quầy). D68: chốt xong xếp email "Trả kho hoàn tất" cho khách |
 | `GET /api/ops/deposit-refunds`, `POST /api/ops/deposit-refunds/actions` | MANAGER (GET cả STAFF) | `CONFIRM_DEPOSIT_REFUND`; 409 khi `expectedVersion` cũ |
 | `POST /api/ops/reservations/{id}/refund` | MANAGER | `{method, transactionRef, transferredAt, confirmed}` |
 | `GET /api/deposit-refunds` | CUSTOMER | Chỉ hồ sơ của mình |
