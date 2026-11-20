@@ -30,7 +30,7 @@ public interface IFacilityOpsService
     Task RejectRenewalAsync(OpsActor actor, string id, OpsRejectRequest request, CancellationToken ct = default);
     Task RemindAsync(OpsActor actor, string id, OpsNoteRequest request, CancellationToken ct = default);
     /// <summary>M07 · Chốt quyết toán trả kho: tạo khoản hoàn PENDING ("Chờ hoàn"), chưa ghi đã chuyển tiền (D32 / T07).</summary>
-    Task<OpsSettlementResult> ConfirmRefundAsync(OpsActor actor, string id, string? note = null, CancellationToken ct = default);
+    Task<OpsSettlementResult> ConfirmRefundAsync(OpsActor actor, string id, string? note = null, CancellationToken ct = default, bool payoutConfirmed = false);
     /// <summary>M08 · Ghi bằng chứng đã chuyển khoản hoàn cho đơn đã huỷ vào tài khoản chính chủ (D27, D32).</summary>
     Task<decimal> ConfirmReservationRefundAsync(OpsActor actor, string id, OpsReservationRefundRequest request, CancellationToken ct = default);
 

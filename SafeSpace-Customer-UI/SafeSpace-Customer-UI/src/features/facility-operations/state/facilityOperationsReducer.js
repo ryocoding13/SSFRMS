@@ -209,20 +209,21 @@ const ACTIONS = {
     const next = { ...state, contracts: patch(state.contracts, id, (c) => ({ reminders: [...c.reminders, { text, at: iso(now) }] })) };
     return { state: addLog(next, now, `Đã ghi nhận nhắc khách · ${id}`, "manager/contracts", "MANAGER"), result: { id } };
   },
-  CONFIRM_REFUND(state, { id }, now) {
+  CONFIRM_REFUND(state, { id, payout }, now) {
     const c = find(state.contracts, id, "hợp đồng");
     if (c.state !== "RETURNED") fail("Hợp đồng chưa có biên bản trả kho.");
     const r = state.returns.find((x) => x.contract === id);
     if(!canFinalizeReturn(state,c,r))fail("Chưa đủ biên bản hoặc phản hồi/khắc phục chưa xử lý xong.");
     const { refund } = settleReturn(r, c);
+    const paid = payout === true && refund > 0; // D67: chốt kèm xác nhận đã hoàn
     const next = {
       ...state,
-      deposit_refunds: [...(state.deposit_refunds||[]), {id:`HC-${id}`,contractId:id,unit:r.unit,customer:r.customer,facilityId:state.facility?.facility_id,ownerId:r.owner_id,deposit:r.deposit,deposit_refund:refund,rent_refund:0,overdue:r.report?.overdue_fee,damage:r.report?.damage_fee,cleaning:r.report?.cleaning_fee,amount:refund,status:refund>0?"PENDING":"NO_REFUND",version:1,bankName:r.bank_name,accountNumber:r.account_number,accountHolder:r.account_holder,inspectedAt:iso(now)}],
-      contracts: patch(state.contracts, id, () => ({ state: "CLOSED", due: `Chờ hoàn ${money(refund)}`, refund_status: "PENDING", refund_amount: refund })),
+      deposit_refunds: [...(state.deposit_refunds||[]), {id:`HC-${id}`,contractId:id,unit:r.unit,customer:r.customer,facilityId:state.facility?.facility_id,ownerId:r.owner_id,deposit:r.deposit,deposit_refund:refund,rent_refund:0,overdue:r.report?.overdue_fee,damage:r.report?.damage_fee,cleaning:r.report?.cleaning_fee,amount:refund,status:refund>0?(paid?"PAID":"PENDING"):"NO_REFUND",version:paid?2:1,bankName:r.bank_name,accountNumber:r.account_number,accountHolder:r.account_holder,inspectedAt:iso(now),...(paid?{paidAt:iso(now),method:r.bank_name==="CASH"?"CASH":"BANK_TRANSFER"}:{})}],
+      contracts: patch(state.contracts, id, () => ({ state: "CLOSED", due: paid ? `Đã hoàn ${money(refund)}` : `Chờ hoàn ${money(refund)}`, refund_status: paid ? "PAID" : "PENDING", refund_amount: refund })),
       returns: patch(state.returns, r.id, () => ({ settlement: demoSettlement(r, true) })),
       units: r ? patchUnit(state.units, r.unit, () => ({ status: r.report?.cleaning_required || r.report?.proposal !== "Sẵn sàng cho thuê lại" ? "MAINTENANCE" : "EMPTY", tenant: null, end: null })) : state.units,
     };
-    return { state: addLog(next, now, `Chờ hoàn cọc ${money(refund)} · ${id}`, "manager/contracts", "MANAGER"), result: { id, refund, refundStatus: "PENDING" } };
+    return { state: addLog(next, now, `${paid ? "Đã hoàn cọc" : "Chờ hoàn cọc"} ${money(refund)} · ${id}`, "manager/contracts", "MANAGER"), result: { id, refund, refundStatus: refund > 0 ? (paid ? "PAID" : "PENDING") : "NO_REFUND" } };
   },
 
   CONFIRM_DEPOSIT_REFUND(state,payload,now) {

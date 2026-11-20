@@ -119,7 +119,9 @@ public sealed partial class D32RefundEvidenceTests
         var futureUnits = await svc.GetUnitsByFacilityIdAsync(fid, nextYearStart, 1);
         var uNext = Assert.Single(futureUnits);
         Assert.Equal("OCCUPIED", uNext.Status);
-        Assert.Equal(old.EndDate, uNext.CurrentContractEndDate);
+        // D67: so do tinh theo ngay khach chon - nam sau hop dong hien tai da ket thuc nen o trong
+        Assert.Null(uNext.CurrentContractEndDate);
+        Assert.Equal("FREE", uNext.MapStatus);
         Assert.True(uNext.BookableForPeriod);
         Assert.Null(uNext.PeriodUnavailableReason);
 

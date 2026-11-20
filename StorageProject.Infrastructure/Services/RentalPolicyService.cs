@@ -266,6 +266,13 @@ public class RentalPolicyService(AppDbContext dbContext) : IRentalPolicyService
         };
 
         dbContext.PolicyConsents.Add(consent);
+        // D67: đồng ý chính sách → giữ chỗ 24 giờ. Chỉ kéo dài đơn còn chờ thanh toán, còn hạn và chưa mở mã PayOS
+        // (đã mở mã thì giữ 15 phút của PayOS).
+        if (reservation.Status == "PENDING_PAYMENT" && reservation.PaidAt == null && reservation.OrderCode == null
+            && reservation.ExpiresAt > consent.AcceptedAt)
+        {
+            reservation.ExpiresAt = OpsRules.CalculatePolicyHoldDeadlineUtc(consent.AcceptedAt);
+        }
         await dbContext.SaveChangesAsync(ct);
 
         return new PolicyConsentDto(

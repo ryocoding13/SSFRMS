@@ -113,7 +113,7 @@ export default function FacilityListPage({ query }) {
                   Ra vào {f.hours} · Camera 24/7
                 </p>
                 <p className="price">{money(offer.monthly_rate)} / tháng</p>
-                <p className="hint">Chọn gói thuê và ngày bắt đầu ở trang chi tiết.</p>
+                <p className="hint">Chọn ngày bắt đầu và số tháng thuê ở trang chi tiết.</p>
                 <a className="btn btn--primary" href={href(`find/${f.facility_id}${qs({ offer: offer.key, type: filters.type, band: filters.band })}`)} aria-label={`Xem chi tiết cơ sở ${f.name} tại ${areaLabel(f)}`}>
                   Xem chi tiết cơ sở
                 </a>

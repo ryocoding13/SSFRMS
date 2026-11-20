@@ -41,6 +41,8 @@ export const api = {
 
   // Hợp đồng, thanh toán, gia hạn, bàn giao, trả kho
   contracts: () => request("/api/contracts"),
+  // D68: khoản hoàn cọc của khách — dùng cho chuông thông báo "đã hoàn / tiền đã về quầy"
+  depositRefunds: () => request("/api/deposit-refunds"),
   contract: (id) => request(`/api/contracts/${id}`),
   contractDocument: (id) => request(`/api/contracts/${encodeURIComponent(id)}/document`, { responseType: "blob" }),
   // Figma C07g: hợp đồng giấy hiển thị trong trang (cùng mẫu tệp đính kèm email)

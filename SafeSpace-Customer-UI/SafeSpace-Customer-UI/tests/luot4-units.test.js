@@ -103,7 +103,7 @@ test("D56: chế độ EXACT giữ đúng ô khách chọn từ sơ đồ, bư�
   assert.match(review, /Ô hệ thống bố trí cho bạn/);
 });
 
-test("D62: đặt đúng ô đang thuê → lịch làm mờ các ngày trước khi ô trống lại, không hiện hộp \"hết ô\"", () => {
+test("D62/D68: ô đang thuê → báo ngày thuê được kèm nút chọn, lịch vẫn từ hôm nay, không hiện hộp \"hết ô\"", () => {
   const today = "2026-11-14";
   assert.equal(unitBookableFrom({ status: "OCCUPIED", free_from: "2026-11-26" }, today), "2026-11-26");
   assert.equal(unitBookableFrom({ status: "FREE", free_from: null }, today), today);
@@ -111,6 +111,50 @@ test("D62: đặt đúng ô đang thuê → lịch làm mờ các ngày trước
   assert.equal(unitBookableFrom({ status: "OCCUPIED", free_from: "2026-11-10" }, today), today);
   assert.equal(unitBookableFrom(null, today), today); // chế độ tự bố trí
   const detail = readFileSync(new URL("../src/features/customer/facilities/FacilityDetailPage.jsx", import.meta.url), "utf8");
-  assert.match(detail, /min=\{minStart\}/);
+  // D68: không tự đẩy ngày; lịch chỉ làm mờ ngày quá khứ, khách tự bấm "Chọn ngày này"
+  assert.match(detail, /min=\{today\(\)\}/);
+  assert.match(detail, /Chọn ngày này/);
+  assert.doesNotMatch(detail, /if \(start < minStart\) setStart/);
+  assert.doesNotMatch(detail, /ĐÍCH DANH/);
   assert.match(detail, /soldOut && !unit &&/);
+});
+
+// D67 (20/11/2026): sơ đồ ô tính theo ngày khách chọn, giữ chỗ đếm ngược, số tháng 1–99
+import { holdClock, holdSecondsLeft } from "../src/shared/utils/units.js";
+import { isValidMonths } from "../src/shared/utils/catalog.js";
+
+test("D67: trạng thái sơ đồ lấy theo mapStatus máy chủ, giữ chỗ đếm ngược, đang thuê có ngày bắt đầu – kết thúc", () => {
+  const facility = { facility_id: 1, offers: [] };
+  const api = [
+    // ô đã có đơn thuê từ tháng 6 năm sau: hôm nay vẫn trống (bảng ô lưu RESERVED)
+    { unitId: 1, unitNumber: "K01", status: "RESERVED", mapStatus: "FREE", nextBookedFrom: "2027-06-01", bookableForPeriod: false },
+    { unitId: 2, unitNumber: "K02", status: "OCCUPIED", mapStatus: "RENTED", currentContractStartDate: "2026-10-01", currentContractEndDate: "2027-01-01", bookableForPeriod: false },
+    { unitId: 3, unitNumber: "K03", status: "AVAILABLE", mapStatus: "HELD", holdExpiresAt: "2026-11-20T15:00:00", bookableForPeriod: false },
+    { unitId: 4, unitNumber: "K04", status: "MAINTENANCE", mapStatus: "SERVICE", bookableForPeriod: false },
+    { unitId: 5, unitNumber: "K05", status: "OCCUPIED" }, // máy chủ cũ chưa có mapStatus
+  ];
+  const [k1, k2, k3, k4, k5] = unitsFor(facility, null, api);
+  assert.equal(k1.status, "FREE");
+  assert.equal(k1.next_booked_from, "2027-06-01");
+  assert.equal(k2.status, "RENTED");
+  assert.equal(k2.current_contract_start_date, "2026-10-01");
+  assert.equal(k2.current_contract_end_date, "2027-01-01");
+  assert.equal(k3.status, "HELD");
+  assert.equal(k3.hold_expires_at, "2026-11-20T15:00:00.000Z", "giờ không múi hiểu là UTC");
+  assert.equal(holdSecondsLeft(k3, Date.parse("2026-11-20T14:45:00Z")), 900);
+  assert.equal(holdSecondsLeft(k3, Date.parse("2026-11-20T16:00:00Z")), 0);
+  assert.equal(holdClock(900), "00:15:00");
+  assert.equal(holdClock(24 * 3600), "24:00:00");
+  assert.equal(k4.status, "SERVICE");
+  assert.equal(k4.bookable_for_period, false);
+  assert.equal(k5.status, "RENTED");
+  assert.equal(holdSecondsLeft(k1), null);
+});
+
+test("D67: số tháng thuê / gia hạn là số nguyên 1–99", () => {
+  for (const ok of [1, 2, 12, 99, "7", "01"]) assert.equal(isValidMonths(ok), true, String(ok));
+  for (const bad of [0, "0", "00", 100, -1, 2.5, "", "a", null]) assert.equal(isValidMonths(bad), false, String(bad));
+  const page = readFileSync(new URL("../src/features/customer/facilities/FacilityDetailPage.jsx", import.meta.url), "utf8");
+  assert.ok(page.indexOf("<DatePicker") < page.indexOf("<MonthsInput"), "chọn ngày bắt đầu trước, rồi số tháng");
+  assert.doesNotMatch(page, /RENTAL_PLANS/);
 });

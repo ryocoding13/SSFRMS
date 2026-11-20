@@ -8,7 +8,7 @@
  */
 import React, { useState } from "react";
 import { Button, DetailList, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
-import { RENTAL_PLANS } from "../../../shared/utils/catalog.js";
+import MonthsInput from "../../../shared/components/MonthsInput.jsx";
 import { addMonths, dateLabel, money, today } from "../../../shared/utils/format.js";
 import { go } from "../../../app/router.js";
 import { contractOf, pendingRenewal, pendingReturn } from "../../../app/state/appSelectors.js";
@@ -25,7 +25,7 @@ export function RenewalRequestPage({ id }) {
   const { data, dispatch } = useApp();
   const policy = useWorkflowData("policy");
   const c = contractOf(data, id);
-  const [months, setMonths] = useState(3);
+  const [months, setMonths] = useState(1), [monthsOk, setMonthsOk] = useState(true);
   const [acceptedVersion, setAcceptedVersion] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -40,6 +40,7 @@ export function RenewalRequestPage({ id }) {
   const submit = async (e) => {
     e.preventDefault();
     if (busy || blocked) return;
+    if (!monthsOk) return setError("Vui lòng nhập số tháng gia hạn từ 1 đến 99.");
     if (!accepted) return setError("Vui lòng đọc và đồng ý chính sách hiện hành trước khi gửi.");
     setBusy(true); setError("");
     try {
@@ -56,17 +57,16 @@ export function RenewalRequestPage({ id }) {
       <form className="panel customer-detail__card" onSubmit={submit}>
         <h2>Kỳ gia hạn</h2>
         <DetailList items={[["Hợp đồng", `${id} · ${c.unit_number}`], ["Thời hạn hiện tại", `Đến ${dateLabel(c.end_date)}`]]} />
-        <fieldset className="customer-detail__choices" disabled={busy || blocked}>
-          <legend>Chọn số tháng *</legend>
-          {RENTAL_PLANS.map(m => <label className="customer-detail__choice" key={m}><input type="radio" name="renewal-months" value={m} checked={months === m} onChange={() => { setMonths(m); setError(""); }} /><span>{m} tháng{months === m ? ` · ${dateLabel(c.end_date)} – ${dateLabel(addMonths(c.end_date, m))}` : ""}</span></label>)}
-        </fieldset>
+          {/* D67: nhập số tháng gia hạn 1–99 (bỏ gói 1/3/6 tháng) */}
+          <MonthsInput what="gia hạn" label="Số tháng gia hạn (1–99) *" value={months} disabled={busy || blocked} onChange={m => { setMonths(m); setError(""); }} onValidity={setMonthsOk}
+            hint={`${dateLabel(c.end_date)} – ${dateLabel(addMonths(c.end_date, months))}`} />
         <label className="customer-detail__choice"><input type="checkbox" checked={accepted} disabled={!policyReady || busy || blocked} onChange={e => setAcceptedVersion(e.target.checked ? String(version) : null)} /><span>Tôi đã đọc và đồng ý <a href="#/policies" target="_blank" rel="noreferrer">chính sách hiện hành</a>{policyReady ? ` (${policy.data.displayVersion || version})` : ""} cho kỳ gia hạn.</span></label>
         {!policyReady && <Notice>{policy.loading ? "Đang tải chính sách…" : "Chưa tải được phiên bản chính sách hợp lệ. Vui lòng tải lại trước khi gửi gia hạn."}</Notice>}
         {policy.error && <Button variant="outline" onClick={policy.reload}>Tải lại chính sách</Button>}
         {bookedFrom ? <div className="renewal-booked"><Notice>Ô {c.unit_number} đã có khách đặt từ {dateLabel(bookedFrom)}, nên không gia hạn giữ ô này được. Bạn có thể gia hạn sang một ô cùng loại còn trống, giữ nguyên giá.</Notice><LinkButton to={`units/${encodeURIComponent(id)}/renew-other`}>Gia hạn sang ô khác</LinkButton></div>
           : blocked && <Notice>Không thể gửi thêm yêu cầu: hợp đồng đã hết hạn hoặc đang có yêu cầu gia hạn/trả kho chờ xử lý.</Notice>}
         {error && <Notice tone="error">{error}</Notice>}
-        <div className="customer-detail__actions"><LinkButton to={`units/${id}`} variant="outline">Quay lại hợp đồng</LinkButton><Button type="submit" disabled={busy || blocked || !accepted}>{/* #25: bước gửi yêu cầu chỉ ghi "Gia hạn"; "Thanh toán" chỉ xuất hiện khi đã có khoản gia hạn cần trả */}{busy ? "Đang gia hạn…" : "Gia hạn"}</Button></div>
+        <div className="customer-detail__actions"><LinkButton to={`units/${id}`} variant="outline">Quay lại hợp đồng</LinkButton><Button type="submit" disabled={busy || blocked || !accepted || !monthsOk}>{/* #25: bước gửi yêu cầu chỉ ghi "Gia hạn"; "Thanh toán" chỉ xuất hiện khi đã có khoản gia hạn cần trả */}{busy ? "Đang gia hạn…" : "Gia hạn"}</Button></div>
       </form>
       <aside className="panel customer-detail__card customer-detail__sidebar">
         <h2>Chi phí dự kiến</h2>

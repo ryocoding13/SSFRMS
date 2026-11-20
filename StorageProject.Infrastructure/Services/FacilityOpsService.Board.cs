@@ -257,7 +257,12 @@ public partial class FacilityOpsService
                 LateInspection: i.Status != "COMPLETED" && now - i.CreatedAt > InspectionSla,
                 DeductionStatus: deduction.Status, DeductionDeadlineAt: Local(deduction.DeadlineUtc),
                 DeductionPhotos: PhotosOf(deductionPhotos, i.InspectionId),
-                Settlement: settlement);
+                Settlement: settlement,
+                RefundMethod: i.RefundBankName == CashMethod ? CashMethod : (i.RefundBankName != null ? "BANK_TRANSFER" : null),
+                RefundBankName: i.RefundBankName == CashMethod ? null : i.RefundBankName,
+                RefundAccountNumber: i.RefundBankName == CashMethod ? null : i.RefundAccountNumber,
+                RefundAccountHolder: i.RefundBankName == CashMethod ? null : i.RefundAccountHolder,
+                ScheduledDate: i.ScheduledAt is DateTime sd ? DateOnly.FromDateTime(sd + VnOffset).ToString("yyyy-MM-dd") : null);
         }).ToList();
 
         // ---- S05 · Yêu cầu hỗ trợ

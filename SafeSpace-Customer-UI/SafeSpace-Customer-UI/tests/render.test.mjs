@@ -57,7 +57,7 @@ try {
   window.location.hash = "#/units/HĐ-2026-0142/return";
   const returnHtml = renderToStaticMarkup(React.createElement(App));
   // D42 + Task #8/#9: trả kho chỉ chọn ngày, không bắt ảnh hay khung giờ; chọn cách nhận hoàn (chuyển khoản / tiền mặt tại quầy)
-  for (const text of ["Thông tin trả kho", "Ngày mong muốn trả kho", "Nhận tiền hoàn", "Nhận hoàn qua", "Tiền mặt tại quầy", "Số tài khoản", "Không thể huỷ yêu cầu", "QR/PIN khoá ngay", "48 giờ"]) assert.ok(returnHtml.includes(text), text);
+  for (const text of ["Thông tin trả kho", "Ngày mong muốn trả kho", "Nhận tiền hoàn", "Nhận hoàn qua", "Tiền mặt tại quầy", "Số tài khoản", "Không thể huỷ yêu cầu", "QR/PIN khoá khi nhân viên kiểm tra vào ngày hẹn", "48 giờ"]) assert.ok(returnHtml.includes(text), text); // D68: trả kho theo lịch hẹn
   for (const text of ["Tải ảnh kho trống", "Khung giờ"]) assert.ok(!returnHtml.includes(text), text);
   window.location.hash = "#/reservations/SS-20260914-0142/cancel";
   const cancelHtml = renderToStaticMarkup(React.createElement(App));
@@ -69,11 +69,12 @@ try {
   memory.set("safespace.approved-workflows.demo.v1", JSON.stringify(workflowFixture));
   window.location.hash = "#/refunds";
   const pendingRefundHtml = renderToStaticMarkup(React.createElement(App));
-  for (const text of ["Chờ hoàn", "662.500", "Phí quá hạn", "••••6789", "Chưa có thông tin"]) assert.ok(pendingRefundHtml.includes(text),text);
+  // D68: nhãn ghi rõ tiền hoàn đi đâu (chờ chuyển khoản / đã chuyển khoản / tiền đã về quầy)
+  for (const text of ["Chờ chuyển khoản", "662.500", "Phí quá hạn", "••••6789", "Chưa có thông tin"]) assert.ok(pendingRefundHtml.includes(text),text);
   for (const text of ["SHOULD-NOT-SHOW", "SECRET-UNIT", "0123456789", "Khoản chưa thanh toán"]) assert.ok(!pendingRefundHtml.includes(text),text);
   workflowFixture.depositRefunds[0].status = "PAID";
   memory.set("safespace.approved-workflows.demo.v1", JSON.stringify(workflowFixture));
-  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Đã hoàn"));
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Đã chuyển khoản"));
   delete workflowFixture.depositRefunds[0].amount;
   workflowFixture.depositRefunds[0].status = "PENDING";
   memory.set("safespace.approved-workflows.demo.v1", JSON.stringify(workflowFixture));
@@ -159,7 +160,7 @@ try {
   assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Kiểm tra trạng thái thanh toán"));
   window.location.hash = "#/units/HĐ-2026-0142/renew";
   const renewalHtml = renderToStaticMarkup(React.createElement(App));
-  assert.ok(renewalHtml.includes('type="radio"') && renewalHtml.includes('type="checkbox"') && renewalHtml.includes("Chi phí dự kiến"));
+  assert.ok(renewalHtml.includes('inputMode="numeric"') && renewalHtml.includes("Số tháng gia hạn (1–99)") && renewalHtml.includes('type="checkbox"') && renewalHtml.includes("Chi phí dự kiến")) // D67: nhập 1–99 tháng thay gói 1/3/6;
   seed(true);
   const lifecycleData = createSeedData();
   lifecycleData.renewals = [{renewal_id:"GH-expired",contract_id:"HĐ-2026-0086",months:3,status:"EXPIRED",old_end:"2026-09-01",new_end:"2026-12-01",amount:1000000,payment_deadline_at:"2026-09-01T03:00:00Z"}];

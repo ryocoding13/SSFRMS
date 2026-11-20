@@ -11,7 +11,7 @@ import { noticeKey } from "../../shared/utils/notices.js";
 import { requireRentalPolicy } from "../../shared/utils/rentalPolicy.js";
 import { storedRefundChoice, validateRefundChoice } from "../../shared/utils/refundRequest.js";
 import { isReturnFee, NO_RETURN_COLLECTION, visitDateError } from "../../shared/utils/returnPolicy.js";
-import { RENTAL_PLANS, SIZE_BANDS, offerByKey, quote } from "../../shared/utils/catalog.js";
+import { MONTHS_ERROR, SIZE_BANDS, isValidMonths, offerByKey, quote } from "../../shared/utils/catalog.js";
 import { unitsFor } from "../../shared/utils/units.js";
 import {
   addDays,
@@ -125,7 +125,7 @@ const handlers = {
     const offer = offerByKey(facility, p.offer_key || `${p.type}-${p.band}`);
     if (!offer) fail("Cơ sở này chưa có loại kho bạn chọn.");
     const months = Number(p.months);
-    if (!RENTAL_PLANS.includes(months)) fail("Gói thuê chỉ gồm 1, 3 hoặc 6 tháng.");
+    if (!isValidMonths(months)) fail(MONTHS_ERROR);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(p.start_date || "")) fail("Vui lòng chọn ngày bắt đầu.");
     if (p.start_date < localDate(ctx.now)) fail("Ngày bắt đầu không được ở quá khứ.");
 
@@ -344,7 +344,7 @@ const handlers = {
     const c = contractOf(state, p.contract_id);
     if (!c || c.status === "ENDED" || c.end_date <= localDate(ctx.now)) fail("Hợp đồng chưa thể gia hạn.");
     const months = Number(p.months);
-    if (!RENTAL_PLANS.includes(months)) fail("Gói gia hạn chỉ gồm 1, 3 hoặc 6 tháng.");
+    if (!isValidMonths(months)) fail(MONTHS_ERROR);
     const pending = hasPending(state, c.contract_id);
     if (pending.renewal) fail("Hợp đồng đã có gia hạn đang xử lý hoặc chờ thanh toán.");
     if (pending.ret) fail("Hợp đồng đang có yêu cầu trả kho.");

@@ -587,6 +587,7 @@ public partial class FacilityOpsService
         });
         if (p.ContractId != null)
         {
+            CustomerEmailDelivery.QueueRefundPaid(dbContext, p.ContractId.Value, now); // D68
             Log(actor.UserId, "DEPOSIT_REFUND_CASH_PAID", LogEntity.Contract, p.ContractId.Value,
                 new { refund = p.Amount, payment = CashRefundCode(p.PaymentId) });
         }

@@ -188,14 +188,14 @@ public sealed record ContractDocument(long Id, string CustomerName, string Facil
         Article("Điều 4. Ra vào kho");
         P("4.1. Bên B ra vào bằng mã QR hoặc mã PIN 6 số trên ứng dụng, từ 06:00 đến 22:00 hằng ngày, kể từ 00:00 ngày bắt đầu thuê.");
         P("4.2. Chìa khoá vật lý nhận tại quầy sau khi nhân viên xác minh. Bên B tự bảo quản mã và chìa khoá, không giao cho người khác sử dụng.");
-        P("4.3. Mã hết hiệu lực khi hết thời hạn thuê hoặc khi Bên B gửi yêu cầu trả kho thành công.");
+        P("4.3. Mã hết hiệu lực khi hết thời hạn thuê, hoặc từ ngày hẹn trả kho Bên B đã đăng ký; trước ngày hẹn Bên B vẫn ra vào bình thường.");
 
         Article("Điều 5. Huỷ đơn và dừng thuê trước hạn");
         P("5.1. Huỷ trước ngày bắt đầu thuê: miễn phí huỷ, Bên B được hoàn 100% tiền thuê và 100% tiền cọc.");
         P("5.2. Từ ngày bắt đầu thuê, Bên B dừng thuê theo thủ tục trả kho. Tiền thuê tính tròn theo các tháng đã bắt đầu; các tháng nguyên chưa bắt đầu được hoàn lại; tiền cọc xử lý theo Điều 6.");
 
         Article("Điều 6. Trả kho và hoàn cọc");
-        P("6.1. Bên B gửi yêu cầu trả kho và chọn ngày trả trên ứng dụng. Nhân viên Bên A kiểm tra ô kho và lập biên bản kèm ảnh hiện trạng.");
+        P("6.1. Bên B gửi yêu cầu trả kho và chọn ngày hẹn trả trên ứng dụng; tiền thuê tính đến ngày hẹn trả. Từ ngày hẹn, nhân viên Bên A kiểm tra ô kho và lập biên bản kèm ảnh hiện trạng.");
         P($"6.2. Ô kho sạch, không hư hỏng: hoàn 100% tiền cọc. Vi phạm vệ sinh: trừ {Percent(CleaningFeeRate)} tiền cọc. Hư hỏng: trừ theo biên bản kiểm tra.");
         P("6.3. Tổng các khoản khấu trừ không vượt quá tiền cọc; Bên B không phải trả thêm khoản nào ngoài tiền cọc.");
         P("6.4. Tiền hoàn được chuyển trong 3–5 ngày làm việc vào tài khoản Bên B khai báo, hoặc nhận tiền mặt tại quầy nếu Bên B chọn.");

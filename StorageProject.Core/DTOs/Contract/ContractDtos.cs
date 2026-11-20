@@ -31,7 +31,9 @@ public record ContractSummaryDto(
     decimal DepositAmount,
     string Status,
     DateTime? ActivatedAt,
-    ContractOverdueDto? Overdue = null
+    ContractOverdueDto? Overdue = null,
+    // D68: ngày hẹn trả kho (giờ VN) khi đã gửi yêu cầu trả — trước ngày này khách vẫn dùng QR/PIN
+    DateOnly? ReturnScheduledDate = null
 );
 
 public record ContractDetailDto(

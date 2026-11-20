@@ -20,6 +20,18 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
     private static readonly TimeSpan VnOffset = TimeSpan.FromHours(7);
 
     /// <summary>
+    /// D68: trả kho là lịch hẹn. Hợp đồng RETURN_PENDING mà lịch trả (chưa kiểm tra) còn sau hôm nay (giờ VN)
+    /// thì QR/PIN vẫn mở cửa; tới ngày hẹn (nhân viên kiểm tra) mới khoá.
+    /// </summary>
+    private async Task<bool> BeforeReturnDayAsync(RentalContract contract, CancellationToken ct)
+    {
+        if (contract.Status != "RETURN_PENDING") return false;
+        var tomorrowStartUtc = DateTime.SpecifyKind(DateOnly.FromDateTime(DateTime.UtcNow + VnOffset).AddDays(1).ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc) - VnOffset;
+        return await dbContext.ReturnInspections.AnyAsync(i => i.ContractId == contract.ContractId && i.Status == "SCHEDULED"
+            && i.ScheduledAt != null && i.ScheduledAt >= tomorrowStartUtc, ct);
+    }
+
+    /// <summary>
     /// Lấy thông tin mã QR và mã PIN dự phòng để mở cửa ô kho cho khách hàng có hợp đồng hợp lệ.
     /// </summary>
     /// <param name="customerId">ID của khách hàng sở hữu hợp đồng.</param>
@@ -43,8 +55,10 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
             throw new KeyNotFoundException("Không tìm thấy hợp đồng.");
         }
 
-        if (contract.Status is "RETURN_PENDING" or "COMPLETED" or "TERMINATED" or "CANCELLED"
-            || (contract.Status is not ("ACTIVE" or "EXPIRING" or "OVERDUE")))
+        // D68: đã hẹn trả kho nhưng chưa tới ngày hẹn → khách vẫn dùng kho bình thường.
+        var beforeReturnDay = await BeforeReturnDayAsync(contract, ct);
+        if (!beforeReturnDay && (contract.Status is "RETURN_PENDING" or "COMPLETED" or "TERMINATED" or "CANCELLED"
+            || (contract.Status is not ("ACTIVE" or "EXPIRING" or "OVERDUE"))))
         {
             throw new InvalidOperationException("Hợp đồng đã trả kho hoặc hết hiệu lực, mã mở cửa không còn dùng được.");
         }
@@ -190,7 +204,8 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
 
         // Thứ tự kiểm tra và lý do từ chối theo thiết kế C07
         // #3: Thẻ RETURNED hoặc hợp đồng đã kết thúc/trả kho
-        if (latestCred.Status == "RETURNED" || contract.Status is "RETURN_PENDING" or "COMPLETED" or "TERMINATED" or "CANCELLED")
+        var beforeReturnDay = await BeforeReturnDayAsync(contract, ct); // D68
+        if (latestCred.Status == "RETURNED" || (!beforeReturnDay && contract.Status is "RETURN_PENDING") || contract.Status is "COMPLETED" or "TERMINATED" or "CANCELLED")
         {
             return await LogAndDenyAsync(contract.ContractId, scannedUnit, customerName, contractCode, "Mã đã hết hiệu lực — hợp đồng đã trả kho.", ipAddress, ct);
         }
@@ -202,7 +217,7 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
         }
 
         // #6: Hợp đồng không còn hiệu lực
-        if (contract.Status is not ("ACTIVE" or "EXPIRING" or "OVERDUE"))
+        if (!beforeReturnDay && contract.Status is not ("ACTIVE" or "EXPIRING" or "OVERDUE"))
         {
             return await LogAndDenyAsync(contract.ContractId, scannedUnit, customerName, contractCode, "Hợp đồng không còn hiệu lực.", ipAddress, ct);
         }

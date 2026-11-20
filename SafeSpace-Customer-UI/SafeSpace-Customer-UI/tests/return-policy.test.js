@@ -6,6 +6,7 @@ import { createOpsData } from "../src/features/facility-operations/data/facility
 import { reduce } from "../src/app/state/appReducer.js";
 import { createSeedData } from "../src/app/data/appSeed.js";
 import { OPS_ACTIONS } from "../src/features/facility-operations/api/facilityOperationsApi.js";
+import { opsReceiptCheck } from "../src/features/facility-operations/settlements/settlementModel.js";
 import { composeData } from "../src/shared/api/apiMappers.js";
 import { pendingTaskCounts } from "../src/features/facility-operations/utils/pendingTaskCounts.js";
 import { payableCount, unpaidCount } from "../src/app/state/appSelectors.js";
@@ -131,7 +132,7 @@ test("badge nhân viên và quản lý hiển thị đúng cho tất cả các t
   assert.equal(mgrBadges["manager/unit-conflicts"], 1); // chỉ ca không còn ô tương đương; SWAP do khách tự chọn
   assert.equal(mgrBadges["manager/overdue"], 1);
   assert.equal(mgrBadges["manager/refunds"], 1);
-  assert.equal(mgrBadges["manager/contracts"], 2); // 1 hợp đồng quá hạn + 1 hồ sơ quá hạn
+  assert.equal(mgrBadges["manager/contracts"], 6); // D68: 1 hợp đồng quá hạn + 1 hồ sơ quá hạn + 4 khoản hoàn còn chờ (không còn tab Hoàn tiền)
   assert.equal(mgrBadges["manager/refund"], 4); // 1 đơn huỷ + 1 hoàn cọc + 2 tiền mặt chờ xác nhận đã trả (D66)
   assert.equal(mgrBadges["manager"], 2); // Tổng quan: 1 đơn chưa có ô + 1 ca không còn ô tương đương
 });
@@ -173,4 +174,26 @@ test("D59 · ngày hẹn không được trước ngày bắt đầu thuê (đơ
   assert.match(visitDateError("2026-11-10", "2026-12-12", "2026-11-05", "nhận chìa khóa", "2026-11-11"), /từ ngày bắt đầu thuê 11\/11\/2026/);
   assert.equal(visitDateError("2026-11-11", "2026-12-12", "2026-11-05", "nhận chìa khóa", "2026-11-11"), "");
   assert.match(visitDateError("2026-12-12", "2026-12-12", "2026-11-13", "nhận chìa khóa", "2026-11-11"), /chậm nhất 11\/12\/2026/);
+});
+
+test("D67: quản lý chốt đối soát kèm xác nhận hoàn trong một lệnh", () => {
+  const s0 = createOpsData("2026-10-28");
+  const ret = s0.returns.find((r) => r.status === "SCHEDULED") || s0.returns[0];
+  const a = reduceOps(s0, { type: "SUBMIT_RETURN", payload: { id: ret.id, report: { items: "Trống", walls: "Tốt", keys: "Đã nhận", proposal: "Sẵn sàng cho thuê lại", damage_fee: 0, cleaning_required: false } } });
+  assert.ifError(a.error);
+  const ready = {
+    ...a.state,
+    returns: a.state.returns.map((r) => (r.id === ret.id ? { ...r, deduction_status: "AGREED", damage_workflow_resolved: true } : r)),
+    contracts: a.state.contracts.map((c) => (c.id === ret.contract ? { ...c, state: "RETURNED" } : c)),
+  };
+  const b = reduceOps(ready, { type: "CONFIRM_REFUND", payload: { id: ret.contract, payout: true } });
+  assert.ifError(b.error);
+  const item = b.state.deposit_refunds.filter((x) => x.contractId === ret.contract).at(-1);
+  if (b.result.refund > 0) {
+    assert.equal(b.result.refundStatus, "PAID");
+    assert.equal(item.status, "PAID");
+    assert.ok(item.paidAt);
+  } else assert.equal(b.result.refundStatus, "NO_REFUND");
+  assert.doesNotThrow(() => opsReceiptCheck("CONFIRM_REFUND", { id: ret.contract, payout: true }, b.result, { contracts: [{ id: ret.contract, state: "CLOSED" }] }));
+  assert.throws(() => opsReceiptCheck("CONFIRM_REFUND", { id: ret.contract }, { refund: 100, refundStatus: "PAID" }, { contracts: [{ id: ret.contract, state: "CLOSED" }] }));
 });

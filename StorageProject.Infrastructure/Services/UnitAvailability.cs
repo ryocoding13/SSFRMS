@@ -24,6 +24,9 @@ public static class UnitAvailability
     /// <summary>Các trạng thái ô kho bị khoá kỹ thuật, không thể cho thuê.</summary>
     private static readonly string[] BlockedUnitStatuses = ["MAINTENANCE", "OUT_OF_SERVICE", "INSPECTION"];
 
+    /// <summary>D67: trạng thái bảo trì — không nhận đặt chỗ cho bất kỳ kỳ nào.</summary>
+    public static readonly string[] MaintenanceStatuses = ["MAINTENANCE", "OUT_OF_SERVICE"];
+
     /// <summary>Thông tin một chu kỳ giữ ô kho của hợp đồng.</summary>
     /// <param name="ContractId">ID hợp đồng thuê đang giữ ô.</param>
     /// <param name="StartDate">Ngày bắt đầu hiệu lực.</param>
@@ -105,6 +108,8 @@ public static class UnitAvailability
     {
         // Ô RESERVED không có hợp đồng = đang giữ cho đề xuất đổi kho 48 giờ (D41) → không cho đơn khác lấy.
         if (slot.Holds.Count == 0 && slot.Unit.Status == "RESERVED") return false;
+        // D67: ô đang bảo trì / ngừng phục vụ không nhận đặt cho bất kỳ kỳ nào (bỏ "đặt trước sau ngày đệm" của D41).
+        if (MaintenanceStatuses.Contains(slot.Unit.Status)) return false;
         if (slot.Holds.Count == 0) return !BlockedUnitStatuses.Contains(slot.Unit.Status) || start > today.AddDays(bufferDays);
         foreach (var h in slot.Holds)
         {
@@ -117,6 +122,25 @@ public static class UnitAvailability
         }
         return true;
     }
+
+    /// <summary>
+    /// D67: hợp đồng đang chiếm ô vào ngày <paramref name="date"/> (khách chọn trên sơ đồ), tính cả ngày đệm cho thuê lại
+    /// sau ngày kết thúc. Hợp đồng quá hạn / chờ trả kho đã qua ngày kết thúc coi như còn chiếm tới hôm nay.
+    /// Hợp đồng cho kỳ bắt đầu sau ngày này không tính (ô vẫn trống ở ngày đang xem).
+    /// </summary>
+    public static Hold? HoldAt(UnitSlot slot, DateOnly date, int bufferDays, DateOnly today) =>
+        slot.Holds
+            .Where(h =>
+            {
+                var endsAt = h.EndDate < today && h.Status is "OVERDUE" or "RETURN_PENDING" ? today : h.EndDate;
+                return h.StartDate <= date && date < endsAt.AddDays(bufferDays);
+            })
+            .OrderBy(h => h.StartDate)
+            .FirstOrDefault();
+
+    /// <summary>D67: ngày bắt đầu sớm nhất của hợp đồng cho kỳ sau ngày đang xem (để ghi "Đã có lịch thuê từ …").</summary>
+    public static DateOnly? NextHoldStart(UnitSlot slot, DateOnly date) =>
+        slot.Holds.Where(h => h.StartDate > date).Select(h => (DateOnly?)h.StartDate).Min();
 
     /// <summary>
     /// Ngày dự kiến hết hạn của hợp đồng đang thuê/giữ ô ở hiện tại (nếu có).
@@ -138,6 +162,7 @@ public static class UnitAvailability
     public static string? UnavailableReason(UnitSlot slot, DateOnly start, DateOnly end, int bufferDays, DateOnly today)
     {
         if (Bookable(slot, start, end, bufferDays, today)) return null;
+        if (MaintenanceStatuses.Contains(slot.Unit.Status)) return "Ô đang bảo trì, chưa nhận đặt.";
         if (slot.Holds.Any(h => h.Status == "OVERDUE")) return "Ô đang quá hạn trả, chưa nhận đặt trước.";
         if (slot.Holds.Count == 0 && slot.Unit.Status == "RESERVED") return "Ô đang được giữ cho đề xuất đổi kho.";
         if (slot.Holds.Count == 0 && BlockedUnitStatuses.Contains(slot.Unit.Status))
@@ -166,6 +191,7 @@ public static class UnitAvailability
     public static DateOnly? FreeFrom(UnitSlot slot, int bufferDays, DateOnly today)
     {
         if (slot.FreeNow) return null;
+        if (MaintenanceStatuses.Contains(slot.Unit.Status)) return null; // D67: bảo trì chưa có ngày trống lại
         if (slot.Holds.Any(h => h.Status == "OVERDUE")) return null;
         if (slot.Holds.Count == 0)
             return BlockedUnitStatuses.Contains(slot.Unit.Status) ? today.AddDays(bufferDays) : null;
