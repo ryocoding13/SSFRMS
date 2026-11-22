@@ -158,3 +158,24 @@ test("D67: số tháng thuê / gia hạn là số nguyên 1–99", () => {
   assert.ok(page.indexOf("<DatePicker") < page.indexOf("<MonthsInput"), "chọn ngày bắt đầu trước, rồi số tháng");
   assert.doesNotMatch(page, /RENTAL_PLANS/);
 });
+
+// D69 (22/11/2026): chỉ giữ chỗ sau khi khách đồng ý chính sách và chọn cách thanh toán
+test("D69: bấm Đặt ô chưa tạo đơn; trang chính sách nháp tạo đơn khi xác nhận", () => {
+  const detail = readFileSync(new URL("../src/features/customer/facilities/FacilityDetailPage.jsx", import.meta.url), "utf8");
+  const review = readFileSync(new URL("../src/features/customer/payments/ReservationReviewPage.jsx", import.meta.url), "utf8");
+  const provider = readFileSync(new URL("../src/app/state/AppProvider.jsx", import.meta.url), "utf8");
+  assert.doesNotMatch(detail, /CREATE_RESERVATION/);
+  assert.match(detail, /checkout\/new\/confirm/);
+  assert.match(review, /BOOK_RESERVATION/);
+  assert.match(review, /Mã đơn và thời gian giữ chỗ bắt đầu khi bạn bấm xác nhận/);
+  assert.equal((provider.match(/"BOOK_RESERVATION"/g) || []).length, 2, "có ở cả chế độ mô phỏng và chế độ nối máy chủ");
+  // Chuỗi tạo đơn → đồng ý → trả tại cửa hàng chạy liền nhau được trên reducer
+  const now = new Date();
+  let state = createSeedData();
+  const facility = state.facilities[0], offer = facility.offers[0];
+  const start = state.today || new Date(now.getTime() + 7 * 864e5).toISOString().slice(0, 10);
+  const before = state.reservations.length;
+  const created = reduce(state, { type: "CREATE_RESERVATION", payload: { facility_id: facility.facility_id, offer_key: offer.key, months: 2, start_date: start } }, { now, timeoutSeconds: 900 });
+  assert.ifError(created.error);
+  assert.equal(created.state.reservations.length, before + 1);
+});

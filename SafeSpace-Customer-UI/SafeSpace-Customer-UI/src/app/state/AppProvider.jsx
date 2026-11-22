@@ -126,6 +126,20 @@ function LocalProvider({ children }) {
 
   const dispatch = useCallback(
     async (type, payload) => {
+      // D69: chỉ tạo đơn (giữ chỗ) khi khách đã đồng ý chính sách và chọn cách thanh toán
+      if (type === "BOOK_RESERVATION") {
+        const { policy_version, method, ...booking } = payload;
+        const created = await dispatch("CREATE_RESERVATION", booking);
+        if (!created.ok) return created;
+        const id = created.reservation_id;
+        const consent = await dispatch("ACCEPT_RESERVATION_POLICY", { reservation_id: id, policy_version, accepted: true });
+        if (!consent.ok) return { ...consent, reservation_id: id, created: true };
+        if (method === "store") {
+          const paid = await dispatch("PAY_AT_FACILITY", { reservation_id: id });
+          if (!paid.ok) return { ...paid, reservation_id: id, created: true };
+        }
+        return { ok: true, reservation_id: id };
+      }
       if (type === "ACCEPT_RESERVATION_POLICY") payload = { ...payload, policy_snapshot: readLocalPolicy() };
       if (["PAY_AT_FACILITY", "CONFIRM_TRANSFER"].includes(type)) {
         const reservation = ref.current.data.reservations.find(r => r.reservation_id === payload.reservation_id);
@@ -642,6 +656,43 @@ function ApiProvider({ children }) {
             // D67: hạn giữ chỗ lấy theo máy chủ (15 phút → 24 giờ sau khi đồng ý chính sách → 15 phút khi mở PayOS)
             await loadCustomer();
             return { ok: true, reservation_id: reservationCode(dto) };
+          }
+          case "BOOK_RESERVATION": {
+            // D69: tạo đơn + ghi đồng ý chính sách (+ chuyển sang trả tại cửa hàng) liền nhau, chỉ khi khách bấm xác nhận
+            const facility = d.facilities.find((f) => f.facility_id === Number(p.facility_id));
+            const offer = offerByKey(facility, p.offer_key);
+            if (!facility || !offer?.unit_type_id) return fail("Cơ sở này chưa có loại kho bạn chọn.");
+            const months = Number(p.months);
+            if (!isValidMonths(months)) return fail(MONTHS_ERROR);
+            if (!p.start_date || p.start_date < localDate(new Date())) return fail("Ngày bắt đầu không được ở quá khứ.");
+            const active = refs.current.session;
+            if (!active) return fail("Vui lòng đăng nhập lại.");
+            const dto = await api.createReservation({
+              facilityId: facility.facility_id,
+              unitTypeId: offer.unit_type_id,
+              startDate: p.start_date,
+              rentalPeriodMonths: months,
+              selectedUnitId: p.selected_unit_id ?? null,
+            });
+            const code = reservationCode(dto);
+            try {
+              const consent = await recordReservationConsent(api, dto.reservationId, active.user.userId, p.policy_version);
+              updateOverlay((o) => ({ ...o, policyConsents: { ...(o.policyConsents || {}), [dto.reservationId]: consent } }));
+            } catch (e) {
+              await loadCustomer().catch(() => {});
+              return { ok: false, error: e?.message || "Chưa lưu được xác nhận chính sách.", reservation_id: code, created: true };
+            }
+            if (p.method === "store") {
+              try { await api.payAtFacility(dto.reservationId); }
+              catch (e) {
+                await loadCustomer().catch(() => {});
+                return { ok: false, error: e?.message || "Chưa chuyển được sang thanh toán tại cửa hàng.", code: e instanceof ApiError ? e.data?.code : undefined, reservation_id: code, created: true };
+              }
+              updateOverlay((o) => ({ ...o, atFacility: { ...o.atFacility, [dto.reservationId]: Date.now() } }));
+              remember("Đã giữ chỗ cho bạn", `${shortCode(code)} · Thanh toán tại cửa hàng khi nhận kho.`, `reservations/${code}`, `Đơn ${shortCode(code)} chờ thanh toán tại cửa hàng`);
+            }
+            await loadCustomer().catch(() => {});
+            return { ok: true, reservation_id: code };
           }
           case "PAY_AT_FACILITY":
           case "CONFIRM_TRANSFER": {

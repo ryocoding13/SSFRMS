@@ -1,3 +1,8 @@
+## 2026-11-22 — D69: chỉ giữ chỗ sau khi khách đồng ý chính sách và chọn cách thanh toán
+
+- **FE:** nút "Đặt ô / Tiếp tục đặt chỗ" không còn tạo đơn; mở trang chính sách nháp `#/checkout/new/confirm?facility=…&offer=…&months=…&start=…&unit_id=…&unit=…` (chưa có mã đơn, ghi "Chưa giữ chỗ…"). Bấm xác nhận → action mới `BOOK_RESERVATION` tạo đơn, ghi đồng ý chính sách và (nếu chọn tại cửa hàng) chuyển sang thu tại quầy liền nhau; QR → trang mã QR 15 phút, tại cửa hàng → màn xác nhận (giữ 24 giờ). Ô vừa bị người khác đặt → báo lỗi tại chỗ kèm "Chọn ô hoặc ngày khác →"; đơn đã tạo mà ghi đồng ý lỗi → mở trang xác nhận của đơn đó. Trang `#/checkout/{mã}/confirm` của đơn có sẵn giữ nguyên. Không đổi BE/API/DB.
+- **Kiểm chứng:** `npm test` 238/238, `test:render` PASS 177 route (thêm trang nháp), `check:structure`, `test:business` 15/15, `test:workflow-actions` PASS, `vite build` OK. Chrome trên `dev:mock`: bấm "Đặt ô TB-S-101" → số đơn trên máy chủ giả không đổi; xác nhận tại cửa hàng → đơn chờ thu tại quầy hạn +24 giờ; xác nhận QR → trang QR 14:58; hết ô → báo lỗi kèm liên kết quay lại sơ đồ. Chưa thử backend thật.
+
 ## 2026-11-21 — D68: ngày đặt mặc định hôm nay, chọn cách thanh toán ở trang chính sách, trả kho theo lịch hẹn, bảo trì chỉ khi có mục không đạt, bỏ tab Hoàn tiền, email kèm PDF hợp đồng
 
 - **Đặt kho:** bỏ đoạn tự đẩy ngày bắt đầu của D62 (gây ngày nhảy sang 21/03/2027 và mất ngày khi mở sơ đồ); lịch `min=today()`; ô bận hiện "Ô này thuê được từ … · Chọn ngày này". Khung ô gọn (tiêu đề + một dòng chi tiết), bỏ "Ô đang chọn (đích danh)" và hai khối xanh. Nút "Tải lại sơ đồ" → "Bỏ chọn ô". `MonthsInput`: trống "Vui lòng nhập số tháng thuê", sai "Số tháng thuê từ 1 đến 99".

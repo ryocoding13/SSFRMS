@@ -22,7 +22,7 @@ import { go, href, qs } from "../../../app/router.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 
 export default function FacilityDetailPage({ id, query }) {
-  const { data, authed, dispatch, checkAvailability, getFacilityUnits } = useApp();
+  const { data, authed, checkAvailability, getFacilityUnits } = useApp();
   const facility = data.facilities.find((f) => f.facility_id === Number(id));
   const startQuery = query.get("start");
   const [offerKey, setOfferKey] = useState(
@@ -34,7 +34,6 @@ export default function FacilityDetailPage({ id, query }) {
   const now = useNow(1000);
   const [start, setStart] = useState(startQuery && startQuery >= today() ? startQuery : today());
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
   const [photo, setPhoto] = useState(null);
   const [stock, setStock] = useState(null);
   // Figma C03b ↔ C03b-sđ: nút ở góc trên đổi cột trái giữa "ảnh & tiện ích" và "sơ đồ tình trạng kho"
@@ -234,18 +233,16 @@ export default function FacilityDetailPage({ id, query }) {
 
     if (!authed)
       return go(`login?next=${encodeURIComponent(`find/${facility.facility_id}${qs({ offer: offer.key, months, start, view: unit ? "map" : "", unit: unit?.code })}`)}`);
-    setBusy(true);
-    const res = await dispatch("CREATE_RESERVATION", {
-      facility_id: facility.facility_id,
-      offer_key: offer.key,
+    // D69: chưa tạo đơn / chưa giữ ô ở bước này. Trang chính sách nháp tạo đơn khi khách đồng ý và chọn cách thanh toán.
+    const exact = view === "map" && unit;
+    go(`checkout/new/confirm${qs({
+      facility: facility.facility_id,
+      offer: offer.key,
       months,
-      start_date: start,
-      selected_unit_id: view === "map" && unit?.unit_id ? unit.unit_id : null,
-      unit_code: view === "map" && unit?.code ? unit.code : null,
-    });
-    setBusy(false);
-    if (!res.ok) return setError(res.error);
-    go(`checkout/${res.reservation_id}/confirm`);
+      start,
+      unit_id: exact && unit.unit_id ? unit.unit_id : "",
+      unit: exact ? unit.code : "",
+    })}`);
   };
 
   const place = [facility.district, facility.city].filter(Boolean).join(", ") || facility.address;
@@ -405,11 +402,11 @@ export default function FacilityDetailPage({ id, query }) {
             {offer && (
               <Button
                 onClick={proceed}
-                disabled={busy || !monthsOk || soldOut || unitHasNoPrice || Boolean(view === "map" && unit && !unit.bookable_for_period)}
+                disabled={!monthsOk || soldOut || unitHasNoPrice || Boolean(view === "map" && unit && !unit.bookable_for_period)}
                 className={unitHasNoPrice ? "btn--muted" : ""}
                 title={soldOut ? "Chưa có ô trống cả kỳ cho lựa chọn này" : (view === "map" && unit && !unit.bookable_for_period ? "Ô đã chọn không khả dụng trong kỳ này" : undefined)}
               >
-                {unitHasNoPrice ? "Chưa có giá phù hợp" : busy ? "Đang xử lý…" : (view === "map" && unit ? `Đặt ô ${unit.code}` : "Tiếp tục đặt chỗ")}
+                {unitHasNoPrice ? "Chưa có giá phù hợp" : (view === "map" && unit ? `Đặt ô ${unit.code}` : "Tiếp tục đặt chỗ")}
               </Button>
             )}
             <a className="btn btn--outline" href={href(`find${qs({ type: query.get("type"), band: query.get("band") })}`)}>Chọn cơ sở khác</a>

@@ -779,3 +779,12 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - **Quản lý:** mục "Hợp đồng & quá hạn" đổi tên **"Biên bản & trả kho"**; bỏ tab "Hoàn tiền". Khoản hoàn còn chờ (hoàn đơn huỷ, khách khai thiếu tài khoản, khoản trước D67) hiện thành dòng nhắc ở đầu "Biên bản & trả kho" và nút "Xác nhận hoàn tiền" trong hồ sơ hợp đồng, mở trang xác nhận cũ. Nút chốt rút gọn: "Chốt & đã chuyển khoản" / "Chốt & giao tiền về quầy".
 - **Khách:** khoản hoàn ghi rõ nơi nhận — "Đã chuyển khoản … vào [ngân hàng · số tài khoản]" hoặc "… đã chuyển về quầy SafeSpace [cơ sở]. Mời bạn đến quầy nhận". Chuông thông báo: "Đã nhận lịch trả kho" (kèm ngày hẹn), "Trả kho hoàn tất", "Đã hoàn tiền" / "Tiền hoàn đã về quầy". Email: "Trả kho hoàn tất" khi chốt (đọc trạng thái khoản hoàn lúc gửi) và "Đã hoàn tiền / Tiền hoàn đã về quầy" khi khoản hoàn được xác nhận sau bước chốt.
 - **Email hợp đồng đính kèm PDF** tiếng Việt `SafeSpace-HD-YYYY-NNNN.pdf`, dựng từ đúng bản "Hợp đồng giấy" (`ContractDocument.ToHtml`), khổ A4, chân trang "HĐ-… · Trang x/y", font nhúng. Tạo PDF lỗi thì vẫn gửi thư (không đính kèm) và ghi cảnh báo.
+
+## D69 — 22/11/2026: Chỉ giữ chỗ sau khi khách đồng ý chính sách và chọn cách thanh toán — Đã chốt
+
+> Vector chốt ngày 22/11/2026. Thay phần "tạo đơn giữ ô 15 phút để khách đọc chính sách" của D67. Không đổi database (D48), không đổi API.
+
+- Bấm **Đặt ô / Tiếp tục đặt chỗ** chỉ mở trang **Bước 2/3 · Xác nhận & chính sách** dạng nháp (`#/checkout/new/confirm?facility=…&offer=…&months=…&start=…&unit=…`): **chưa tạo đơn, chưa có mã đơn, chưa giữ ô**, sơ đồ của khách khác vẫn thấy ô còn trống. Trang ghi "Mã đơn và thời gian giữ chỗ bắt đầu khi bạn bấm xác nhận".
+- Khách tick đồng ý chính sách + chọn cách thanh toán rồi bấm xác nhận → lúc đó mới tạo đơn và ghi đồng ý chính sách liền nhau: **QR** → giữ 15 phút từ lúc tạo mã (trang mã QR); **Tại cửa hàng** → giữ 24 giờ từ lúc xác nhận, sang màn xác nhận.
+- Nếu ô vừa bị người khác đặt trong lúc khách đọc chính sách, trang báo lỗi tại chỗ và có nút quay lại sơ đồ để chọn ô/ngày khác. Nếu đơn đã tạo nhưng ghi đồng ý lỗi, mở trang xác nhận của chính đơn đó để khách thử lại (đơn tự hết hạn sau 15 phút nếu bỏ dở).
+- Trang `#/checkout/{mã đơn}/confirm` của đơn có sẵn (mở lại từ danh sách đơn) giữ nguyên cách cũ.

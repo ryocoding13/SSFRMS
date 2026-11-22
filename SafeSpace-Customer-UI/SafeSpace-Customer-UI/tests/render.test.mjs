@@ -190,6 +190,14 @@ try {
   const reviewHtml = renderToStaticMarkup(React.createElement(App));
   for (const text of ["Bước 2/3", "Tóm tắt đơn", "Chính sách thuê kho", "Tiếp tục thanh toán", 'type="checkbox"']) assert.ok(reviewHtml.includes(text),text);
   assert.ok(!reviewHtml.includes("Mã QR thanh toán"));
+  // D69: trang chính sách nháp (chưa tạo đơn) hiện tóm tắt và chọn cách thanh toán, chưa có mã đơn
+  const draftFacility = reviewData.facilities[0];
+  const draftStart = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
+  window.location.hash = `#/checkout/new/confirm?facility=${draftFacility.facility_id}&offer=${encodeURIComponent(draftFacility.offers[0].key)}&months=2&start=${draftStart}`;
+  const draftHtml = renderToStaticMarkup(React.createElement(App));
+  for (const text of ["Bước 2/3", "Tóm tắt đặt chỗ", "Mã đơn và thời gian giữ chỗ bắt đầu khi bạn bấm xác nhận", "Cách thanh toán", "Quay lại chọn kho"]) assert.ok(draftHtml.includes(text), text);
+  window.location.hash = `#/checkout/new/confirm?facility=${draftFacility.facility_id}&months=2&start=2020-01-01`;
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Thông tin đặt chỗ chưa đủ"));
   window.location.hash = `#/checkout/${reviewReservation.reservation_id}`;
   const guardedCheckout = renderToStaticMarkup(React.createElement(App));
   assert.ok(guardedCheckout.includes("xác nhận chính sách"));
