@@ -19,6 +19,9 @@ public sealed class CustomerEmailDelivery(AppDbContext db, ISmtpMailTransport ma
     public const string PaymentQueued = "RESERVATION_PAYMENT_EMAIL_QUEUED";
     public const string RenewalReminderQueued = "RENEWAL_REMINDER_EMAIL_QUEUED";
     public const string OverdueQueued = "OVERDUE_EMAIL_QUEUED";
+    // D68: báo khách khi cơ sở chốt trả kho (kèm tiền hoàn đi đâu) và khi khoản hoàn được xác nhận sau đó
+    public const string ReturnSettledQueued = "RETURN_SETTLED_EMAIL_QUEUED";
+    public const string RefundPaidQueued = "REFUND_PAID_EMAIL_QUEUED";
     public const string Attempted = "CUSTOMER_EMAIL_ATTEMPTED";
     public const string Sent = "CUSTOMER_EMAIL_SENT";
     public const string Failed = "CUSTOMER_EMAIL_FAILED";
@@ -37,6 +40,14 @@ public sealed class CustomerEmailDelivery(AppDbContext db, ISmtpMailTransport ma
         {
             Action = ContractQueued, EntityType = ContractEntity, EntityId = contractId, LoggedAt = issuedAt
         });
+
+    /// <summary>D68: thư "Trả kho hoàn tất" sau khi quản lý chốt đối soát (nội dung đọc trạng thái khoản hoàn lúc gửi).</summary>
+    public static void QueueReturnSettled(AppDbContext db, long contractId, DateTime at) =>
+        db.ActivityLogs.Add(new ActivityLog { Action = ReturnSettledQueued, EntityType = ContractEntity, EntityId = contractId, LoggedAt = at });
+
+    /// <summary>D68: thư "Đã hoàn tiền / tiền đã về quầy" khi khoản hoàn được xác nhận sau bước chốt.</summary>
+    public static void QueueRefundPaid(AppDbContext db, long contractId, DateTime at) =>
+        db.ActivityLogs.Add(new ActivityLog { Action = RefundPaidQueued, EntityType = ContractEntity, EntityId = contractId, LoggedAt = at });
 
     public static void QueuePaymentReceipt(AppDbContext db, Reservation reservation) =>
         db.ActivityLogs.Add(new ActivityLog
@@ -110,7 +121,8 @@ public sealed class CustomerEmailDelivery(AppDbContext db, ISmtpMailTransport ma
         var pending = await Due(db.ActivityLogs.AsNoTracking()
                 .Where(log => log.EntityId != null
                     && ((log.EntityType == ContractEntity && (log.Action == ContractQueued
-                        || log.Action == OverdueQueued || log.Action == RenewalReminderQueued))
+                        || log.Action == OverdueQueued || log.Action == RenewalReminderQueued
+                        || log.Action == ReturnSettledQueued || log.Action == RefundPaidQueued))
                         || (log.EntityType == ReservationEntity && log.Action == PaymentQueued))), retryBefore)
             .OrderBy(log => log.Action == ContractQueued || log.Action == PaymentQueued ? 0 : 1)
             .ThenBy(log => log.LogId).Take(20).ToListAsync(ct);
@@ -182,6 +194,13 @@ public sealed class CustomerEmailDelivery(AppDbContext db, ISmtpMailTransport ma
                 .Select(r => new { r.ReservationId, r.CreatedAt, r.PaidAt, r.PaymentMethod, Amount = r.EstimatedAmount + r.RequiredDeposit })
                 .SingleOrDefaultAsync(ct);
             subject = $"SafeSpace — Xác nhận thanh toán và hợp đồng {document.Code}";
+            // D68: đính kèm PDF hợp đồng tiếng Việt; tạo PDF lỗi thì vẫn gửi thư (khách xem hợp đồng trong ứng dụng).
+            byte[]? pdf = null;
+            try { pdf = ContractPdf.Render(document); }
+            catch (Exception ex)
+            {
+                logger.LogWarning("Chưa tạo được PDF hợp đồng {Code} để đính kèm. Loại lỗi: {ErrorType}.", document.Code, ex.GetType().Name);
+            }
             var rows = new List<(string, string)>();
             if (payment?.PaidAt is DateTime paidAt)
                 rows.AddRange(PaymentRows(payment.ReservationId, payment.CreatedAt, paidAt, payment.PaymentMethod, payment.Amount));
@@ -196,8 +215,10 @@ public sealed class CustomerEmailDelivery(AppDbContext db, ISmtpMailTransport ma
                     ? $"Hợp đồng thuê kho {document.Code} của bạn đã được phát hành."
                     : $"SafeSpace đã nhận đủ thanh toán và phát hành hợp đồng thuê kho {document.Code} cho bạn.",
                 rows,
-                "Bạn xem và tải hợp đồng giấy (PDF) bất cứ lúc nào trong ứng dụng SafeSpace: Kho của tôi → Xem hợp đồng → Xem hợp đồng giấy. Mã QR/PIN đã có trong ứng dụng và mở được cửa từ 00:00 ngày bắt đầu thuê; chìa khóa vật lý nhận tại quầy sau khi xác minh.",
+                (pdf is null ? "" : "Hợp đồng (PDF) được đính kèm trong thư này. ") +
+                "Bạn cũng xem và tải hợp đồng giấy bất cứ lúc nào trong ứng dụng SafeSpace: Kho của tôi → Xem hợp đồng → Xem hợp đồng giấy. Mã QR/PIN đã có trong ứng dụng và mở được cửa từ 00:00 ngày bắt đầu thuê; chìa khóa vật lý nhận tại quầy sau khi xác minh.",
                 LinkTo("Xem hợp đồng giấy", FrontendLink($"units/{code}/contract")));
+            if (pdf is not null) builder.Attachments.Add(ContractPdf.FileName(document), pdf, new ContentType("application", "pdf"));
             body = builder.ToMessageBody();
         }
         else if (notice.Action == RenewalReminderQueued)
@@ -216,6 +237,55 @@ public sealed class CustomerEmailDelivery(AppDbContext db, ISmtpMailTransport ma
                  ("Hạn thuê", ContractDocument.Date(contract.EndDate))],
                 "Nếu muốn tiếp tục thuê, hãy mở Kho của tôi và chọn Gia hạn trước ngày hết hạn. Nếu không thuê tiếp, bạn có thể gửi yêu cầu trả kho trong cùng màn hình.",
                 LinkTo("Gia hạn hoặc trả kho", FrontendLink($"units/{code}"))).ToMessageBody();
+        }
+        else if (notice.Action is ReturnSettledQueued or RefundPaidQueued)
+        {
+            // D68: khách biết trả kho đã xong và tiền hoàn đi đâu (đã chuyển khoản vào tài khoản nào / đã về quầy cơ sở).
+            var refund = await db.Payments.AsNoTracking()
+                .Where(p => p.ContractId == contract.ContractId && p.PaymentType == "REFUND")
+                .OrderByDescending(p => p.PaymentId)
+                .Select(p => new { p.Amount, p.Status, p.PaymentMethod, p.PaidAt })
+                .FirstOrDefaultAsync(ct);
+            var account = await db.ReturnInspections.AsNoTracking()
+                .Where(i => i.ContractId == contract.ContractId && i.Status == "COMPLETED")
+                .OrderByDescending(i => i.InspectedAt)
+                .Select(i => new { i.RefundBankName, i.RefundAccountNumber })
+                .FirstOrDefaultAsync(ct);
+            if (notice.Action == RefundPaidQueued && refund?.Status != "PAID")
+            {
+                await SaveResultAsync(notice, Skipped, "REFUND_NOT_PAID", ct);
+                return;
+            }
+            var cash = refund?.PaymentMethod == "CASH";
+            // Chỉ ghi 4 số cuối tài khoản trong thư
+            var tail = account?.RefundAccountNumber is { Length: > 0 } number ? $"tài khoản ••••{number[^Math.Min(4, number.Length)..]}" : null;
+            var acct = string.Join(" · ", new[] { account?.RefundBankName, tail }.Where(x => !string.IsNullOrWhiteSpace(x) && x != "CASH"));
+            var rows = new List<(string, string)> { ("Hợp đồng", code), ("Cơ sở", contract.Facility), ("Ô kho", contract.UnitNumber) };
+            string whereText;
+            if (refund is null || refund.Amount <= 0)
+            {
+                rows.Add(("Tiền hoàn", "Không còn khoản hoàn"));
+                whereText = "Cọc đã được dùng hết cho các khoản khấu trừ theo biên bản; bạn không phải trả thêm.";
+            }
+            else
+            {
+                rows.Add(("Tiền hoàn", ContractDocument.Money(refund.Amount)));
+                rows.Add(("Nhận qua", cash ? "Tiền mặt tại quầy" : $"Chuyển khoản{(acct.Length > 0 ? $" · {acct}" : "")}"));
+                if (refund.Status == "PAID" && refund.PaidAt is DateTime paidAt)
+                    rows.Add(("Thời điểm", $"{paidAt.AddHours(7).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)} (giờ Việt Nam)"));
+                whereText = refund.Status == "PAID"
+                    ? (cash ? $"Tiền hoàn đã được chuyển về quầy SafeSpace {contract.Facility}. Mời bạn đến quầy nhận tiền mặt (mang theo giấy tờ tùy thân)."
+                            : "Tiền hoàn đã được chuyển khoản vào tài khoản bạn khai báo. Vui lòng kiểm tra tài khoản ngân hàng.")
+                    : (cash ? $"Cơ sở sẽ chuyển tiền hoàn về quầy {contract.Facility}; SafeSpace báo bạn khi tiền đã sẵn sàng để nhận."
+                            : "Cơ sở sẽ chuyển khoản trong 3–5 ngày làm việc vào tài khoản bạn khai báo.");
+            }
+            var settled = notice.Action == ReturnSettledQueued;
+            subject = settled ? $"SafeSpace — Trả kho hoàn tất {code}"
+                : cash ? $"SafeSpace — Tiền hoàn đã về quầy {code}" : $"SafeSpace — Đã hoàn tiền {code}";
+            body = Compose(contract.FullName,
+                settled ? $"SafeSpace đã kiểm tra kho {contract.UnitNumber} và chốt đối soát trả kho cho hợp đồng {code}."
+                        : $"Khoản hoàn của hợp đồng {code} đã được xác nhận.",
+                rows, whereText, LinkTo("Xem khoản hoàn", FrontendLink("refunds"))).ToMessageBody();
         }
         else
         {

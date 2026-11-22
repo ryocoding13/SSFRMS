@@ -76,7 +76,15 @@ public record FacilityUnitDto(
     // #3: Ngày dự kiến hết hạn hợp đồng hiện tại (nếu đang thuê/giữ) và khả năng đặt theo khoảng ngày đang tìm.
     DateOnly? CurrentContractEndDate = null,
     bool BookableForPeriod = true,
-    string? PeriodUnavailableReason = null
+    string? PeriodUnavailableReason = null,
+    // D67: trạng thái trên sơ đồ tại ngày khách chọn: FREE, RENTED, HELD, SERVICE.
+    string? MapStatus = null,
+    // D67: ngày bắt đầu của hợp đồng đang chiếm ô ở ngày khách chọn (đi cùng CurrentContractEndDate).
+    DateOnly? CurrentContractStartDate = null,
+    // D67: hạn giữ chỗ (UTC) khi ô đang được khách khác giữ để thanh toán — sơ đồ đếm ngược tới mốc này.
+    DateTime? HoldExpiresAt = null,
+    // D67: ô trống ở ngày khách chọn nhưng đã có lịch thuê / giữ chỗ cho kỳ sau, bắt đầu từ ngày này.
+    DateOnly? NextBookedFrom = null
 );
 
 public record FloorZoneOption(string Value, IReadOnlyList<string> Zones);

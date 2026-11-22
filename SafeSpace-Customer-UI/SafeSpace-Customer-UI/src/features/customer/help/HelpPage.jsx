@@ -4,8 +4,8 @@ import { Icon, LinkButton, PageHeader } from "../../../shared/components/UI.jsx"
 export const FAQ = [
   {
     q: "Tôi chọn kho như thế nào?",
-    a: "Chọn loại kho, diện tích và khu vực để tìm cơ sở phù hợp. Gói thuê (1, 3 hoặc 6 tháng) và ngày bắt đầu được chọn ở trang chi tiết cơ sở.",
-    steps: ["Vào Tìm & đặt kho, chọn loại kho, diện tích và khu vực.", "Mở chi tiết cơ sở để xem ảnh, sơ đồ và giá theo gói thuê.", "Chọn ngày bắt đầu rồi bấm Tiếp tục đặt chỗ."],
+    a: "Chọn loại kho, diện tích và khu vực để tìm cơ sở phù hợp. Ngày bắt đầu và số tháng thuê (1–99 tháng) được chọn ở trang chi tiết cơ sở.",
+    steps: ["Vào Tìm & đặt kho, chọn loại kho, diện tích và khu vực.", "Mở chi tiết cơ sở để xem ảnh, sơ đồ và giá thuê theo tháng.", "Chọn ngày bắt đầu, nhập số tháng thuê rồi bấm Tiếp tục đặt chỗ."],
   },
   {
     q: "Khi nào tôi nhận được mã kho?",

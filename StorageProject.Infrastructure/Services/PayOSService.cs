@@ -62,6 +62,12 @@ public class PayOSService(
             throw new InvalidOperationException("Số tiền thanh toán VND không hợp lệ.");
         if (request.Amount.HasValue && request.Amount != amount)
             throw new ArgumentException("Số tiền phải khớp tiền thuê và tiền cọc do máy chủ tính.");
+        // D67: khách chọn PayOS → giữ chỗ còn 15 phút kể từ lúc mở mã (không vượt hạn 24 giờ sau khi đồng ý chính sách).
+        if (r.OrderCode == null)
+        {
+            var payosDeadline = OpsRules.CalculateOnlineHoldDeadlineUtc(DateTime.UtcNow);
+            if (r.ExpiresAt == null || r.ExpiresAt > payosDeadline) r.ExpiresAt = payosDeadline;
+        }
         var expiry = r.ExpiresAt ?? DateTime.UtcNow.AddMinutes(15);
         if (r.OrderCode != null && !string.IsNullOrEmpty(r.CheckoutUrl) && !string.IsNullOrEmpty(r.PaymentQrUrl))
             return new CreatePayOSQrResponse(r.ReservationId, r.OrderCode.Value, r.CheckoutUrl, r.PaymentQrUrl, amount, expiry);
@@ -118,12 +124,16 @@ public class PayOSService(
         if (r.ExpiresAt <= DateTime.UtcNow) throw new InvalidOperationException("Đơn đã hết thời gian giữ chỗ.");
 
         // BO07: Kiểm tra bằng chứng đồng ý chính sách trước khi chọn thanh toán tại cơ sở
-        var hasFacilityConsent = await dbContext.PolicyConsents
-            .AnyAsync(c => c.ReservationId == r.ReservationId && c.CustomerId == customerId, ct);
-        if (!hasFacilityConsent)
+        var facilityConsentAt = await dbContext.PolicyConsents
+            .Where(c => c.ReservationId == r.ReservationId && c.CustomerId == customerId)
+            .OrderBy(c => c.AcceptedAt).Select(c => (DateTime?)c.AcceptedAt).FirstOrDefaultAsync(ct);
+        if (facilityConsentAt == null)
         {
             throw new InvalidOperationException("Bạn cần hoàn tất chấp thuận chính sách cho thuê trước khi chọn thanh toán tại cơ sở.");
         }
+        // D67: thanh toán tại quầy giữ chỗ 24 giờ tính từ lúc đồng ý chính sách (không còn giữ đến hết ngày hẹn nhận kho).
+        var counterDeadline = OpsRules.CalculatePolicyHoldDeadlineUtc(facilityConsentAt.Value);
+        if (counterDeadline <= DateTime.UtcNow) throw new InvalidOperationException("Đơn đã hết thời gian giữ chỗ.");
 
         // Do not announce a switch until PayOS confirms cancellation. Keep OrderCode for delayed webhooks.
         if (r.OrderCode.HasValue)
@@ -133,10 +143,7 @@ public class PayOSService(
         }
         r.PaymentMethod = "AT_FACILITY";
         r.Status = "PENDING_AT_FACILITY";
-        // Hold until the end of the scheduled check-in day (Vietnam time), never indefinitely (P2).
-        var checkInDay = r.CheckInAppointmentAt.HasValue
-            ? DateOnly.FromDateTime(r.CheckInAppointmentAt.Value.AddHours(7)) : r.StartDate;
-        r.ExpiresAt = OpsRules.CalculateCounterHoldDeadlineUtc(checkInDay);
+        r.ExpiresAt = counterDeadline;
         ReservationSettlement.Audit(dbContext, customerId, "PAY_AT_FACILITY_SELECTED", r.ReservationId, new { r.OrderCode, r.ExpiresAt });
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);

@@ -13,6 +13,13 @@ export function actualVnTime(value,now=new Date()) {
 }
 /** D42/D47: khoản hoàn khách chọn nhận tiền mặt — quản lý duyệt & giao ở "Hoàn tiền mặt tại quầy", nhân viên chi. */
 export const isCashRefund = (r) => r?.method === "CASH" || r?.bankName === "CASH";
+/** D67: cách khách chọn nhận hoàn trên hồ sơ trả kho (máy chủ: refund_method / refund_*; chế độ thử: bank_name / account_*). */
+export function returnRefundChoice(ret) {
+ const bank=ret?.refund_bank_name??ret?.bank_name??null;
+ const cash=ret?.refund_method==="CASH"||bank==="CASH";
+ return {cash,bankName:cash?null:bank,accountNumber:cash?null:(ret?.refund_account_number??ret?.account_number??null),accountHolder:cash?null:(ret?.refund_account_holder??ret?.account_holder??null),
+  complete:cash||Boolean(bank&&(ret?.refund_account_number??ret?.account_number)&&(ret?.refund_account_holder??ret?.account_holder))};
+}
 export function transferProof(item,payload,now=new Date()) {
  if(!item||item.status!=="PENDING"||!knownMoney(item.amount)||item.amount<=0)throw new Error("Khoản hoàn chưa có số tiền hợp lệ hoặc không còn chờ xử lý.");
  if(!item.customer)throw new Error("Thiếu tên khách trên hợp đồng.");
@@ -75,7 +82,8 @@ export function opsReceiptCheck(type,payload,res,board) {
  if(type==="VERIFY_CUSTOMER"&&!board.verifications?.some(v=>v.id===payload.id&&v.status==="DONE"&&v.verified_at))throw new Error("Chưa xác nhận hồ sơ đã được xác minh.");
  if(type==="RECORD_KEY_RECEIPT"&&!board.handovers?.some(h=>h.id===payload.id&&h.status==="DONE"&&h.done_at))throw new Error("Chưa xác nhận đã lưu việc giao chìa khóa.");
  if(type==="SUBMIT_RETURN") {const r=board.returns?.find(r=>r.id===payload.id);if(r?.status!=="SUBMITTED"||!r.submitted_at||["damage_fee","cleaning_fee","cleaning_required","damage_item","fee_reason"].some(k=>r.report?.[k]!==payload.report[k])||(payload.files?.length&&!r.report?.photos?.length))throw new Error("Chưa xác nhận ảnh và các khoản khấu trừ đã được lưu đầy đủ.");}
- if(type==="CONFIRM_REFUND"&&(!knownMoney(res?.refund)||res?.refundStatus!=="PENDING"||!board.contracts?.some(c=>c.id===payload.id&&c.state==="CLOSED")))throw new Error("Chưa xác nhận khoản hoàn chờ chuyển tiền.");
+ // D67: chốt kèm xác nhận hoàn (payout) → khoản hoàn ở trạng thái PAID; không còn tiền hoàn → NO_REFUND.
+ if(type==="CONFIRM_REFUND"&&(!knownMoney(res?.refund)||!(payload.payout?["PAID","NO_REFUND"]:["PENDING","NO_REFUND"]).includes(res?.refundStatus)||!board.contracts?.some(c=>c.id===payload.id&&c.state==="CLOSED")))throw new Error(payload.payout?"Chưa xác nhận được đã hoàn tiền. Tải lại trước khi gửi tiếp.":"Chưa xác nhận khoản hoàn chờ chuyển tiền.");
  if(type==="CONFIRM_DEPOSIT_REFUND")transferProof(ops.deposit_refunds?.find(r=>r.id===payload.id),payload);
  if(type==="CONFIRM_RESERVATION_REFUND") {const r=board.refunds?.find(r=>r.id===payload.id);if(r?.status!=="PAID"||(r.transaction_ref||null)!==(String(payload.transaction_ref||"").trim()||null)||!r.paid_at)throw new Error("Máy chủ chưa xác nhận bằng chứng chuyển tiền.");}
 }

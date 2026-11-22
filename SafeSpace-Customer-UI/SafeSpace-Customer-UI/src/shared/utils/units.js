@@ -148,7 +148,8 @@ export function unitsFor(facility, stock = null, realUnits = null) {
       const isClimate = u.climateControlled !== undefined ? Boolean(u.climateControlled) : (offer?.type === "climate" || u.type === "climate");
       const unitArea = Number(u.sizeM2 ?? u.area ?? offer?.area ?? 15);
       const area = unitArea > 0 ? unitArea : 15;
-      const status = fromBackendStatus(u.status);
+      // D67: máy chủ trả trạng thái tại ngày khách chọn (mapStatus); bản cũ chưa có thì suy từ trạng thái ô.
+      const status = UNIT_STATUS[u.mapStatus] ? u.mapStatus : fromBackendStatus(u.status);
 
       return {
         unit_id: u.unitId ?? u.unit_id ?? null,
@@ -169,6 +170,9 @@ export function unitsFor(facility, stock = null, realUnits = null) {
         bookable_for_period: u.bookableForPeriod !== undefined ? Boolean(u.bookableForPeriod) : status === "FREE",
         period_unavailable_reason: u.periodUnavailableReason || null,
         current_contract_end_date: u.currentContractEndDate || null,
+        current_contract_start_date: u.currentContractStartDate || null,
+        hold_expires_at: u.holdExpiresAt ? utcIso(u.holdExpiresAt) : null,
+        next_booked_from: u.nextBookedFrom || null,
       };
     });
   }
@@ -201,6 +205,9 @@ export function unitsFor(facility, stock = null, realUnits = null) {
       position: `Tầng trệt · Dãy ${row}`,
       status,
       current_contract_end_date: null,
+      current_contract_start_date: null,
+      hold_expires_at: null,
+      next_booked_from: null,
       free_from: null,
       overdue: false,
       bookable_for_period: status === "FREE",
@@ -215,8 +222,27 @@ export function unitsFor(facility, stock = null, realUnits = null) {
  * Ô trống hoặc chưa biết ngày trống: từ hôm nay.
  */
 export const unitBookableFrom = (unit, todayIso) => {
-  const from = unit && unit.status !== "FREE" ? unit.free_from : null;
+  // D67: trạng thái ô nay tính theo ngày khách chọn, nên dùng free_from (tính từ hôm nay) dù ô đang hiện "Còn trống".
+  const from = unit?.free_from || null;
   return from && from > todayIso ? from : todayIso;
+};
+
+// Máy chủ có thể trả thời điểm UTC không kèm "Z" → coi là UTC.
+const utcIso = (v) => {
+  const s = String(v);
+  const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : `${s}Z`);
+  return Number.isFinite(d.getTime()) ? d.toISOString() : null;
+};
+
+/** D67: số giây giữ chỗ còn lại của ô (null nếu ô không có hạn giữ chỗ). */
+export const holdSecondsLeft = (unit, now = Date.now()) =>
+  unit?.hold_expires_at ? Math.max(0, Math.floor((Date.parse(unit.hold_expires_at) - Number(now)) / 1000)) : null;
+
+/** D67: giờ:phút:giây đếm ngược (vượt 24 giờ vẫn hiện số giờ). */
+export const holdClock = (seconds) => {
+  const s = Math.max(0, Math.floor(Number(seconds) || 0));
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
 };
 
 export const freeCount = (units) => units.filter((u) => u.status === "FREE").length;

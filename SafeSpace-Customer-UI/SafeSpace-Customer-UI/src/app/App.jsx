@@ -115,7 +115,7 @@ function renderPage({ page, parts, query }) {
     case "pricing": return <PublicPricingPage />;
     case "guide": return <HelpPage />;
     case "find": return a === "map" ? <FacilityMapPage query={query} /> : a ? <FacilityDetailPage id={a} query={query} /> : <FacilityListPage query={query} />;
-    case "checkout": return b === "failed" ? <CheckoutFailedPage id={a} /> : b === "confirm" ? <ReservationReviewPage key={a} id={a} /> : <CheckoutPage key={a} id={a} />;
+    case "checkout": return b === "failed" ? <CheckoutFailedPage id={a} /> : b === "confirm" ? <ReservationReviewPage key={a === "new" ? `new?${query.toString()}` : a} id={a} query={query} /> : <CheckoutPage key={a} id={a} />;
     case "confirmation": return <ReservationDetailPage id={a} />;
     case "overview": return <CustomerDashboardPage />;
     case "reservations": return a && b === "cancel" ? <CancelReservationPage key={a} id={a} /> : a ? <ReservationDetailPage id={a} mode="detail" /> : <ReservationListPage />;

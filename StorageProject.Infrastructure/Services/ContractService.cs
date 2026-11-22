@@ -28,6 +28,7 @@ public class ContractService(AppDbContext dbContext) : IContractService
                 .ThenInclude(u => u.Facility)
             .Include(c => c.Unit)
                 .ThenInclude(u => u.UnitType)
+            .Include(c => c.ReturnInspections)
             .Where(c => c.CustomerId == customerId)
             .OrderByDescending(c => c.CreatedAt)
             .ToListAsync(ct);
@@ -69,7 +70,11 @@ public class ContractService(AppDbContext dbContext) : IContractService
                 c.DepositAmount,
                 c.Status,
                 c.ActivatedAt,
-                overdueDto
+                overdueDto,
+                c.Status == "RETURN_PENDING"
+                    ? c.ReturnInspections.Where(i => i.Status == "SCHEDULED" && i.ScheduledAt != null)
+                        .Select(i => (DateOnly?)DateOnly.FromDateTime(i.ScheduledAt!.Value + TimeSpan.FromHours(7))).Max()
+                    : null
             ));
         }
 

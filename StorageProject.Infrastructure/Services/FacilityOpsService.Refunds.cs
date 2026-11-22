@@ -117,6 +117,7 @@ public partial class FacilityOpsService
         p.UpdatedAt = NowUtc;
         Log(actor.UserId, requestIsCash ? "DEPOSIT_REFUND_CASH_PAID" : "DEPOSIT_REFUND_TRANSFERRED", LogEntity.Contract, p.Contract.ContractId,
             new { refund = p.Amount, payment = $"HC-{p.PaymentId:0000}", transactionRef = reference, transferredAt = paidAt, method = requestIsCash ? CashMethod : "BANK_TRANSFER" });
+        CustomerEmailDelivery.QueueRefundPaid(dbContext, p.Contract.ContractId, NowUtc); // D68: báo khách tiền hoàn đã đi đâu
         await dbContext.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 

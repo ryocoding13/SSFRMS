@@ -58,14 +58,15 @@ export function pendingTaskCounts(ops, role, me) {
   const depositRefunds = count(ops.deposit_refunds, r => r.status === "PENDING" && !isCashRefund(r));
   const refunds = count(ops.refunds, r => r.status === "PENDING");
 
-  // #7 (12/11): navbar quản lý = Tổng quan · Danh sách kho · Hợp đồng & quá hạn · Hoàn tiền · Báo cáo.
+  // #7 (12/11): navbar quản lý = Tổng quan · Danh sách kho · Biên bản & trả kho · Hoàn tiền · Báo cáo.
   // Phân bổ kho / Xung đột đặt kho chỉ còn là thẻ "Cần xử lý" ở Tổng quan khi không bố trí được ô.
   const allocate = count(ops.allocations, a => a.status === "PENDING");
   const contracts = count(ops.contracts, c => c.state === "OVERDUE" || isReturnSettlementReady(ops, c)) + overdueCases;
   const refund = refunds + depositRefunds + managerCashRefunds;
 
+  // D68: không còn tab "Hoàn tiền" — khoản hoàn còn chờ đếm vào "Biên bản & trả kho"
   const result = {
-    "manager/contracts": contracts,
+    "manager/contracts": contracts + refund,
     "manager/refund": refund,
   };
 

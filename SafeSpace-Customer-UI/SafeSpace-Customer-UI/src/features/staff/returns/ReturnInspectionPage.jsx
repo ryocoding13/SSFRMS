@@ -11,6 +11,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { Button, Empty, Field, Icon, LinkButton, Notice, PageHeader, Tag } from "../../../shared/components/UI.jsx";
 import ReturnPhotoInput from "../../../shared/components/ReturnPhotoInput.jsx";
 import { cleaningFee } from "../../../shared/utils/returnPolicy.js";
+import { dateLabel, today } from "../../../shared/utils/format.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
 import { validateInspection } from "../../facility-operations/settlements/settlementModel.js";
 import { SettlementTable } from "../../facility-operations/settlements/SettlementComponents.jsx";
@@ -58,7 +59,8 @@ export function inspectionFlags(form) {
     dirty,
     clean,
     damageItem: damaged.map((p) => `${p.check.label}: ${p.option.value}`).join("; "),
-    proposal: damaged.length ? PROPOSALS[2] : dirty ? PROPOSALS[0] : READY,
+    // D68: chỉ "Sẵn sàng cho thuê lại" khi đạt đủ 3/3 mục; có mục không đạt thì chờ vệ sinh/bảo trì
+    proposal: damaged.length ? PROPOSALS[2] : dirty || clean < 3 ? PROPOSALS[0] : READY,
   };
 }
 
@@ -119,25 +121,27 @@ export function ReturnInspectionPage({ query }) {
   const flags = inspectionFlags(form);
   // D38: "Sẵn sàng cho thuê lại" chỉ khi đạt ≥ 2/3 tiêu chuẩn và không có khấu trừ (D32: ô cần vệ sinh/sửa giữ bảo trì)
   const charged = form.cleaning_required || (flags.damaged && Number(form.damage_fee) > 0);
-  const canReady = flags.clean >= 2 && !charged;
-  const proposal = form.proposal === READY && !canReady ? PROPOSALS[0] : form.proposal;
+  // D68: trạng thái ô sau kiểm tra tự tính, không chọn tay — đạt đủ 3/3 và không khấu trừ thì cho thuê lại ngay,
+  // có bất kỳ mục không đạt thì chờ vệ sinh / bảo trì.
+  const canReady = flags.clean === 3 && !charged;
+  const proposal = !chosen(form) ? "" : flags.damaged ? PROPOSALS[2] : canReady ? READY : PROPOSALS[0];
+  const notDue = !submitted && r.scheduled_date && r.scheduled_date > today();
   const report = submitted ? r.report || {} : buildInspectionReport({ ...form, proposal }, r.deposit);
   // D49 / #56: không giữ 30% cọc. #16: sau khi gửi, bảng đối soát lấy đúng số máy chủ tính (r.settlement);
   // khi đang lập biên bản chỉ xem phần cọc dự kiến theo các khoản đang nhập.
   const settlement = submitted && r.settlement
     ? settlementOf(r.settlement)
     : depositSidePreview(r.deposit, submitted ? report.cleaning_fee : cleaningFee(r.deposit, form.cleaning_required), Number(report.damage_fee) || 0, r.overdue_fee || 0);
-  const blocked = saving || needsRefresh || reading || r.status !== "SCHEDULED", supported = source !== "api" || ops.inspection_evidence_supported === true;
+  const blocked = saving || needsRefresh || reading || r.status !== "SCHEDULED" || Boolean(notDue), supported = source !== "api" || ops.inspection_evidence_supported === true;
   const change = (key, value) => { setForm((f) => ({ ...f, [key]: value })); setError(""); };
   // Chọn tình trạng: chưa đạt vệ sinh/còn đồ tự tick phí vệ sinh; trạng thái ô theo mức nặng nhất (người dùng vẫn đổi được)
   const pick = (key, value) => { setForm((f) => { const next = { ...f, [key]: value }; const fl = inspectionFlags(next); return { ...next, cleaning_required: fl.dirty, proposal: fl.proposal }; }); setError(""); };
   const allOk = () => { setForm((f) => ({ ...f, ...ALL_OK })); setError(""); };
-  const proposalOptions = PROPOSALS.map((p) => ({ value: p, disabled: p === READY && !canReady }));
   const draftKey = `safespace.inspection-draft:${ops.facility?.facility_id}:${r.id}`;
   const submit = async (e) => {
     e.preventDefault(); if (blocked || !supported) return;
     if (!chosen(form)) { setError("Chọn đủ 3 mục Đồ còn lại, Tường, sàn và cửa, Chìa khóa vật lý trước khi gửi."); return; }
-    if (proposal === READY && !canReady) { setError("Kho đạt dưới 2/3 tiêu chuẩn hoặc có khấu trừ, chưa được chọn \"Sẵn sàng cho thuê lại\"."); return; }
+    if (notDue) { setError(`Chưa đến ngày hẹn trả kho (${dateLabel(r.scheduled_date)}).`); return; }
     try {
       validateInspection(r, report, files);
       const result = await run("SUBMIT_RETURN", { id: r.id, report, files }, "Đã gửi biên bản cho quản lý");
@@ -148,22 +152,24 @@ export function ReturnInspectionPage({ query }) {
   const openDraft = () => { try { const d = JSON.parse(localStorage.getItem(draftKey)); if (d && ["items", "walls", "keys"].every((k) => typeof d[k] === "string")) setForm({ ...DEFAULT_FORM, ...d }); else setError("Chưa có nháp hợp lệ."); } catch { setError("Không đọc được nháp."); } };
   return <main className="container page customer-records customer-detail">
     <p className="customer-records__breadcrumb">SafeSpace / Nhân viên / Kiểm tra trả kho</p>
-    <PageHeader title={`Kiểm tra trả kho ${r.unit}`} description={`${r.customer} · Khách gửi trả kho: ${timeLabel(r.requested_at)}. Phí quá hạn dừng tại thời điểm gửi thành công.`}><Tag tone="amber">{submitted ? "Đã gửi biên bản" : "Chờ kiểm tra"}</Tag></PageHeader>
+    <PageHeader title={`Kiểm tra trả kho ${r.unit}`} description={`${r.customer} · Hẹn trả kho: ${r.scheduled_date ? dateLabel(r.scheduled_date) : r.appointment || "chưa có"} · Khách gửi yêu cầu: ${timeLabel(r.requested_at)}.`}><Tag tone="amber">{submitted ? "Đã gửi biên bản" : "Chờ kiểm tra"}</Tag></PageHeader>
     <div className="customer-detail__grid">
       <form className="panel customer-detail__card inspect-form" onSubmit={submit} noValidate>
+        {notDue && <Notice>Chưa đến ngày hẹn trả kho ({dateLabel(r.scheduled_date)}). Khách vẫn dùng kho đến ngày này; biên bản gửi được từ ngày hẹn.</Notice>}
         <div className="inspect-form__head"><h2>Biên bản kiểm tra</h2>{!submitted && <Button variant="soft" icon="check" disabled={blocked} onClick={allOk}>Tất cả đạt tiêu chuẩn</Button>}</div>
         {CHECKS.map((c) => submitted
           ? <Field key={c.key} label={c.label}><input value={report[c.key] || "Chưa có dữ liệu"} disabled readOnly /></Field>
           : <ChoiceSelect key={c.key} label={c.label} value={form[c.key]} options={c.options} disabled={blocked} onChange={(v) => pick(c.key, v)} />)}
         <label className="customer-detail__choice inspect-cleaning">
-          <input type="checkbox" checked={Boolean(report.cleaning_required)} disabled={blocked} onChange={(e) => { const on = e.target.checked; setForm((f) => ({ ...f, cleaning_required: on, proposal: on && (!f.proposal || f.proposal === READY) ? PROPOSALS[0] : f.proposal })); setError(""); }} />
+          <input type="checkbox" checked={Boolean(report.cleaning_required)} disabled={blocked} onChange={(e) => { const on = e.target.checked; setForm((f) => ({ ...f, cleaning_required: on })); setError(""); }} />
           <span><strong>Chưa đạt tiêu chuẩn vệ sinh · khấu trừ cố định 10% cọc</strong><small>Tự tick khi có mục chưa đạt tiêu chuẩn vệ sinh; bỏ tick nếu không tính phí.</small></span>
         </label>
         {submitted
           ? <Field label="Trạng thái ô sau kiểm tra"><input value={report.proposal || "Chưa có dữ liệu"} disabled readOnly /></Field>
-          : <ChoiceSelect label="Trạng thái ô sau kiểm tra" value={proposal} placeholder="Tự đề xuất sau khi chọn 3 mục" options={proposalOptions} disabled={blocked} onChange={(v) => change("proposal", v)}
-              extra={chosen(form) && <span className={`inspect-clean inspect-clean--${flags.clean >= 2 ? "ok" : "bad"}`}>Đạt chuẩn {flags.clean}/3</span>} />}
-        {!submitted && chosen(form) && !canReady && <p className="inspect-rule">{flags.clean < 2 ? `Đạt ${flags.clean}/3 tiêu chuẩn · cần đạt ít nhất 2/3` : "Có khấu trừ vệ sinh/hư hỏng"} nên chưa được chọn "Sẵn sàng cho thuê lại".</p>}
+          : <Field label="Trạng thái ô sau kiểm tra" hint={chosen(form) ? `Đạt chuẩn ${flags.clean}/3 · hệ thống tự tính theo 3 mục và khoản khấu trừ` : undefined}>
+              <input value={proposal || "Tự tính sau khi chọn 3 mục"} disabled readOnly />
+            </Field>}
+        {!submitted && chosen(form) && !canReady && <p className="inspect-rule">{flags.clean < 3 ? `Đạt ${flags.clean}/3 tiêu chuẩn` : "Có khấu trừ vệ sinh/hư hỏng"} nên ô chờ vệ sinh / bảo trì trước khi cho thuê lại.</p>}
         {submitted ? <>
           <DamagePhotos photos={report.photos} />
           {Array.isArray(report.photo_files) && report.photo_files.length > 0 && <p className="hint">Tệp đã gửi (mô phỏng chỉ lưu tên): {report.photo_files.map((f) => f.fileName).join(", ")}</p>}

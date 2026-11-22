@@ -72,7 +72,8 @@ export const OPS_ACTIONS = {
   ASSIGN: ({ id, staff }) => ["PUT", `/api/ops/assignments/${enc(id)}`, { staffId: staff }],
   REMIND: ({ id, note }) => ["POST", `/api/ops/contracts/${enc(id)}/reminders`, { note: note || "" }],
   // M07a · Ghi chú gửi kèm; backend hiện chưa đọc body (BACKEND-TODO: lưu ghi chú xác nhận trả kho)
-  CONFIRM_REFUND: ({ id, note }) => ["POST", `/api/ops/contracts/${enc(id)}/refund`, { note: String(note || "").trim() || null }],
+  // D67: payout = true → chốt đối soát và ghi luôn đã chuyển khoản / đã bàn giao tiền mặt cho quầy (một nút)
+  CONFIRM_REFUND: ({ id, note, payout }) => ["POST", `/api/ops/contracts/${enc(id)}/refund`, { note: String(note || "").trim() || null, payoutConfirmed: payout === true }],
   // M08 · D27: xác nhận đã chuyển khoản hoàn cho đơn khách huỷ (backend chưa nhận phương thức / mã giao dịch → gửi kèm để lưu sau)
   CONFIRM_RESERVATION_REFUND: ({ id, method, transaction_ref, transferredAt, confirmed }) => ["POST", `/api/ops/reservations/${enc(id)}/refund`, { method: method || "BANK_TRANSFER", transactionRef: String(transaction_ref || "").trim() || null, transferredAt, confirmed }],
   // M02b / M02c · CreateStorageUnitRequest / UpdateStorageUnitRequest (OpsDtos.cs).

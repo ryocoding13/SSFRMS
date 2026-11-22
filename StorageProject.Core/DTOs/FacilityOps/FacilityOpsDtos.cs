@@ -65,7 +65,11 @@ public record OpsReturnDto(
     // Câu 7: ảnh khách gửi khi tự thay thế / khiếu nại, để nhân viên kiểm tra lại
     IReadOnlyList<EvidencePhotoDto>? DeductionPhotos = null,
     // #16: bảng đối soát tính bằng cùng RefundPolicy với bước chốt (null khi chưa có biên bản)
-    OpsSettlementDto? Settlement = null);
+    OpsSettlementDto? Settlement = null,
+    // D67: cách khách chọn nhận hoàn khi gửi trả kho (BANK_TRANSFER / CASH) và tài khoản nhận, để quản lý chốt và xác nhận một lần
+    string? RefundMethod = null, string? RefundBankName = null, string? RefundAccountNumber = null, string? RefundAccountHolder = null,
+    // D68: ngày hẹn trả kho (yyyy-MM-dd, giờ VN) — nhân viên chỉ gửi biên bản từ ngày này
+    string? ScheduledDate = null);
 
 /// <summary>
 /// #16 / #19: bảng đối soát trả kho. Official = false là số dự kiến trước khi chốt; true khi hợp đồng đã chốt.
@@ -150,6 +154,9 @@ public record OpsSettlementResult(decimal Refund, string RefundStatus);
 
 // ---- Thân request (BACKEND-TODO A2, A3)
 public record OpsNoteRequest(string? Note);
+
+/// <summary>D67: chốt đối soát trả kho; PayoutConfirmed = true là quản lý xác nhận luôn đã chuyển khoản / đã bàn giao tiền mặt cho quầy.</summary>
+public record OpsSettleRequest(string? Note, bool PayoutConfirmed = false);
 
 /// <summary>
 /// S02. Màn mới gửi checklist 4 mục (OriginalDocumentValid, PhotoMatched, InfoMatched, BookingMatched), không gửi số giấy tờ.

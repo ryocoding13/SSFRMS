@@ -24,8 +24,14 @@ export const bandLabel = (id) => SIZE_BANDS.find((b) => b.id === id)?.label || S
 // Loại kho từ backend: đến 20 m² là cỡ M, lớn hơn là cỡ L
 export const bandOfArea = (area) => (area <= 20 ? "M" : "L");
 
-// Gói thuê trong Figma: 1 / 3 / 6 tháng
-export const RENTAL_PLANS = [1, 3, 6];
+// D67: khách nhập số tháng thuê / gia hạn là số nguyên 1–99 (bỏ gói 1 / 3 / 6 tháng).
+export const MIN_RENTAL_MONTHS = 1;
+export const MAX_RENTAL_MONTHS = 99;
+export const isValidMonths = (m) => Number.isInteger(Number(m)) && String(m).trim() !== "" && Number(m) >= MIN_RENTAL_MONTHS && Number(m) <= MAX_RENTAL_MONTHS;
+export const MONTHS_ERROR = "Số tháng thuê từ 1 đến 99.";
+// D68: lời nhắc thân thiện cho khách — ô trống thì nhắc nhập, nhập sai thì nói khoảng cho phép
+export const monthsMessage = (text, what = "thuê") =>
+  String(text ?? "").trim() === "" ? `Vui lòng nhập số tháng ${what}.` : isValidMonths(text) ? "" : `Số tháng ${what} từ 1 đến 99.`;
 
 export const BUDGET_LIMIT = 1100000; // chip "Dưới 1.100.000 đ / tháng"
 

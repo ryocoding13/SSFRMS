@@ -69,7 +69,7 @@ const STAFF = {
   done: [StaffResultPage, "staff"],
 };
 const MANAGER = {
-  // #7 (12/11): navbar quản lý chỉ còn Tổng quan · Danh sách kho · Hợp đồng & quá hạn · Hoàn tiền · Báo cáo.
+  // #7 (12/11): navbar quản lý chỉ còn Tổng quan · Danh sách kho · Biên bản & trả kho · Hoàn tiền · Báo cáo.
   // Các màn con vẫn giữ đường dẫn để mở từ thẻ việc / nút trong trang.
   incidents: [IncidentManagementPage, "manager/units"], // mở từ Danh sách kho
   overdue: [OverdueCasePage, "manager/contracts"], // nút "Xử lý quá hạn" trên hợp đồng

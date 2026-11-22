@@ -573,6 +573,8 @@ a.cell-strong:hover { color: var(--blue); }
 .unit-tile--bookable { box-shadow: inset 0 0 0 2px #16a34a; }
 .unit-tile__meta { font-size: 11px !important; color: var(--muted); }
 .unit-tile__bookable { font-size: 11px !important; font-weight: 600; color: #15803d; }
+.unit-tile--free .unit-tile__meta { color: rgba(255, 255, 255, 0.85); }
+.unit-tile__countdown { font-weight: 700; color: #b45309 !important; font-variant-numeric: tabular-nums; }
 .unit-tile:hover { transform: translateY(-2px); }
 .unit-tile.is-selected { box-shadow: inset 0 0 0 4px var(--soft), 0 0 0 2px var(--blue); }
 .unit-tile--free.is-selected { box-shadow: inset 0 0 0 4px var(--soft); }
@@ -969,3 +971,17 @@ label.search-input input { border: 0; outline: 0; flex: 1; font-size: 14px; back
 .booking__none p { margin: 0; font-size: 14px; line-height: 1.5; }
 @keyframes booking-none-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .booking__none { animation: none; } }
+
+/* D68: khung ô đang chọn gọn — tiêu đề + một dòng chi tiết, gợi ý ngày thuê được */
+.booking__unit-meta { margin: 2px 0 8px; font-size: 13px; color: var(--muted, #64748b); }
+.booking__rentable { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin: 4px 0 8px; }
+.booking__rentable .hint { margin: 0; }
+.booking__warn { color: var(--color-error, #b91c1c); }
+/* D68: chọn cách thanh toán ở trang chính sách; đổi QR → tại cửa hàng */
+.policy-review__pay { border: 0; padding: 0; margin: 12px 0 4px; }
+.policy-review__pay legend { font-weight: 600; margin-bottom: 8px; }
+.pay-switch { margin-top: 12px; padding: 12px; border-radius: 10px; background: var(--surface-2, #f1f5f9); }
+.pay-switch__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pay-switch__link { margin-top: 12px; }
+/* D68: khách thấy tiền hoàn đi đâu */
+.refund-where { margin: 8px 0; padding: 10px 12px; border-radius: 10px; background: #ecfdf5; color: #065f46; font-weight: 500; }

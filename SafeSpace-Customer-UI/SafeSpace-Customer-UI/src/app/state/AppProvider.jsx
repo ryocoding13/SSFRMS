@@ -21,14 +21,14 @@ import { api } from "../../shared/api/customerApi.js";
 import { paidBeforeExpiry } from "../../shared/api/paymentStatus.js";
 import { ApiError, setToken } from "../../shared/api/httpClient.js";
 import { isUnsupported, localAccessCode, normAccess, normCancelPreview, normDoor, normPayos, normScan } from "../../features/customer/access/accessApi.js";
-import { notYetMessage } from "../../shared/utils/access.js";
+import { beforeReturnDay, notYetMessage, returnLockMessage } from "../../shared/utils/access.js";
 import { bankAccount } from "../config/payment.js";
 import { vietQrPayload } from "../../shared/utils/vietqr.js";
-import { composeData, emptyOverlay, mapCatalog, reservationCode, reservationsToExpire, ticketCode } from "../../shared/api/apiMappers.js";
+import { composeData, emptyOverlay, holdSecondsOf, mapCatalog, reservationCode, reservationsToExpire, ticketCode } from "../../shared/api/apiMappers.js";
 import { API_URL, USE_API } from "../config/api.js";
 import { paymentTimeoutSeconds } from "../config/media.js";
 import { createEmptyData, createSeedData } from "../data/appSeed.js";
-import { RENTAL_PLANS, offerByKey } from "../../shared/utils/catalog.js";
+import { MONTHS_ERROR, isValidMonths, offerByKey } from "../../shared/utils/catalog.js";
 import { isEmail, localDate, shortCode, timeoutLabel } from "../../shared/utils/format.js";
 import { TICKET_TOPICS, ticketTitle } from "../../shared/utils/status.js";
 import { isAdminRoles, isCustomerRoles, isOpsRoles, isBusinessRoles, rolesFromToken } from "../../shared/utils/roles.js";
@@ -126,6 +126,20 @@ function LocalProvider({ children }) {
 
   const dispatch = useCallback(
     async (type, payload) => {
+      // D69: chỉ tạo đơn (giữ chỗ) khi khách đã đồng ý chính sách và chọn cách thanh toán
+      if (type === "BOOK_RESERVATION") {
+        const { policy_version, method, ...booking } = payload;
+        const created = await dispatch("CREATE_RESERVATION", booking);
+        if (!created.ok) return created;
+        const id = created.reservation_id;
+        const consent = await dispatch("ACCEPT_RESERVATION_POLICY", { reservation_id: id, policy_version, accepted: true });
+        if (!consent.ok) return { ...consent, reservation_id: id, created: true };
+        if (method === "store") {
+          const paid = await dispatch("PAY_AT_FACILITY", { reservation_id: id });
+          if (!paid.ok) return { ...paid, reservation_id: id, created: true };
+        }
+        return { ok: true, reservation_id: id };
+      }
       if (type === "ACCEPT_RESERVATION_POLICY") payload = { ...payload, policy_snapshot: readLocalPolicy() };
       if (["PAY_AT_FACILITY", "CONFIRM_TRANSFER"].includes(type)) {
         const reservation = ref.current.data.reservations.find(r => r.reservation_id === payload.reservation_id);
@@ -372,11 +386,13 @@ function ApiProvider({ children }) {
   const loadCustomer = useCallback(async () => {
     const activeSession = refs.current.session;
     // D41: đề xuất đổi kho chỉ để hiện chuông; lỗi tải không chặn các dữ liệu khác của khách.
-    const [reservations, contracts, tickets, unitConflicts] = await Promise.all([api.reservations(), api.contracts(), api.tickets(),
-      api.unitConflicts().catch(e => { if (e?.status === 401) throw e; return []; })]);
+    const [reservations, contracts, tickets, unitConflicts, depositRefunds] = await Promise.all([api.reservations(), api.contracts(), api.tickets(),
+      api.unitConflicts().catch(e => { if (e?.status === 401) throw e; return []; }),
+      api.depositRefunds().catch(e => { if (e?.status === 401) throw e; return []; })]);
     const [reservationDetails, contractDetails, ticketDetails] = await Promise.all([
       Promise.all(reservations.filter((r) => r.status !== "CANCELLED").map((r) => api.reservation(r.reservationId).catch(() => null))),
-      Promise.all(contracts.map((c) => api.contract(c.contractId).catch(() => ({ ...c, payments: [], renewals: [] })))),
+      // D68: giữ trường của danh sách (vd. ngày hẹn trả kho) khi ghép chi tiết hợp đồng
+      Promise.all(contracts.map((c) => api.contract(c.contractId).then((d) => ({ ...c, ...d })).catch(() => ({ ...c, payments: [], renewals: [] })))),
       Promise.all(tickets.map((t) => api.ticket(t.ticketId).catch(e => {
         if (e.status === 401) throw e;
         const previous = refs.current.session?.token === activeSession?.token
@@ -391,7 +407,7 @@ function ApiProvider({ children }) {
       contracts: contractDetails,
       tickets: ticketDetails,
     };
-    const events = customerNotifications({ contracts: contractDetails, tickets: ticketDetails, reservations, unitConflicts });
+    const events = customerNotifications({ contracts: contractDetails, tickets: ticketDetails, reservations, unitConflicts, refunds: depositRefunds });
     updateOverlay(o => {
       const byId = new Map(events.map(event => [event.id, event]));
       const ids = new Set(o.notifications.map(notice => notice.id));
@@ -486,7 +502,7 @@ function ApiProvider({ children }) {
       for (const r of due) {
         if (cancelling.current.has(r.reservationId)) continue;
         cancelling.current.add(r.reservationId);
-        const seconds = refs.current.overlay.holds[r.reservationId] ? paymentTimeoutSeconds : 24 * 3600;
+        const seconds = holdSecondsOf(r, paymentTimeoutSeconds);
         paidBeforeExpiry(r.reservationId).then(async (paid) => {
           if (paid === false) await api.cancelReservation(r.reservationId, `Quá ${timeoutLabel(seconds)} chưa thanh toán`).catch(() => {});
           else if (paid === null) cancelling.current.delete(r.reservationId);
@@ -618,6 +634,8 @@ function ApiProvider({ children }) {
               const consent = await recordReservationConsent(api, reservation.api_id, active.user.userId, p.policy_version);
               if (refs.current.session?.token !== active.token) return fail("Phiên tài khoản đã thay đổi. Vui lòng mở lại đơn.");
               updateOverlay(o => ({ ...o, policyConsents: { ...(o.policyConsents || {}), [reservation.api_id]: consent } }));
+              // D67: đồng ý chính sách → máy chủ giữ chỗ 24 giờ; tải lại để đồng hồ dùng hạn mới
+              await loadCustomer().catch(() => {});
               return { ok: true, consent };
             } finally { acceptingPolicy.current.delete(reservation.api_id); }
           }
@@ -626,7 +644,7 @@ function ApiProvider({ children }) {
             const offer = offerByKey(facility, p.offer_key);
             if (!facility || !offer?.unit_type_id) return fail("Cơ sở này chưa có loại kho bạn chọn.");
             const months = Number(p.months);
-            if (!RENTAL_PLANS.includes(months)) return fail("Gói thuê chỉ gồm 1, 3 hoặc 6 tháng.");
+            if (!isValidMonths(months)) return fail(MONTHS_ERROR);
             if (!p.start_date || p.start_date < localDate(new Date())) return fail("Ngày bắt đầu không được ở quá khứ.");
             const dto = await api.createReservation({
               facilityId: facility.facility_id,
@@ -635,9 +653,46 @@ function ApiProvider({ children }) {
               rentalPeriodMonths: months,
               selectedUnitId: p.selected_unit_id ?? null,
             });
-            updateOverlay((o) => ({ ...o, holds: { ...o.holds, [dto.reservationId]: Date.now() } }));
+            // D67: hạn giữ chỗ lấy theo máy chủ (15 phút → 24 giờ sau khi đồng ý chính sách → 15 phút khi mở PayOS)
             await loadCustomer();
             return { ok: true, reservation_id: reservationCode(dto) };
+          }
+          case "BOOK_RESERVATION": {
+            // D69: tạo đơn + ghi đồng ý chính sách (+ chuyển sang trả tại cửa hàng) liền nhau, chỉ khi khách bấm xác nhận
+            const facility = d.facilities.find((f) => f.facility_id === Number(p.facility_id));
+            const offer = offerByKey(facility, p.offer_key);
+            if (!facility || !offer?.unit_type_id) return fail("Cơ sở này chưa có loại kho bạn chọn.");
+            const months = Number(p.months);
+            if (!isValidMonths(months)) return fail(MONTHS_ERROR);
+            if (!p.start_date || p.start_date < localDate(new Date())) return fail("Ngày bắt đầu không được ở quá khứ.");
+            const active = refs.current.session;
+            if (!active) return fail("Vui lòng đăng nhập lại.");
+            const dto = await api.createReservation({
+              facilityId: facility.facility_id,
+              unitTypeId: offer.unit_type_id,
+              startDate: p.start_date,
+              rentalPeriodMonths: months,
+              selectedUnitId: p.selected_unit_id ?? null,
+            });
+            const code = reservationCode(dto);
+            try {
+              const consent = await recordReservationConsent(api, dto.reservationId, active.user.userId, p.policy_version);
+              updateOverlay((o) => ({ ...o, policyConsents: { ...(o.policyConsents || {}), [dto.reservationId]: consent } }));
+            } catch (e) {
+              await loadCustomer().catch(() => {});
+              return { ok: false, error: e?.message || "Chưa lưu được xác nhận chính sách.", reservation_id: code, created: true };
+            }
+            if (p.method === "store") {
+              try { await api.payAtFacility(dto.reservationId); }
+              catch (e) {
+                await loadCustomer().catch(() => {});
+                return { ok: false, error: e?.message || "Chưa chuyển được sang thanh toán tại cửa hàng.", code: e instanceof ApiError ? e.data?.code : undefined, reservation_id: code, created: true };
+              }
+              updateOverlay((o) => ({ ...o, atFacility: { ...o.atFacility, [dto.reservationId]: Date.now() } }));
+              remember("Đã giữ chỗ cho bạn", `${shortCode(code)} · Thanh toán tại cửa hàng khi nhận kho.`, `reservations/${code}`, `Đơn ${shortCode(code)} chờ thanh toán tại cửa hàng`);
+            }
+            await loadCustomer().catch(() => {});
+            return { ok: true, reservation_id: code };
           }
           case "PAY_AT_FACILITY":
           case "CONFIRM_TRANSFER": {
@@ -703,7 +758,7 @@ function ApiProvider({ children }) {
             const c = d.contracts.find((x) => x.contract_id === p.contract_id);
             if (!c) return fail("Không tìm thấy hợp đồng.");
             const months = Number(p.months);
-            if (!RENTAL_PLANS.includes(months)) return fail("Gói gia hạn chỉ gồm 1, 3 hoặc 6 tháng.");
+            if (!isValidMonths(months)) return fail(MONTHS_ERROR);
             if (pendingRenewal(d, c.contract_id)) return fail("Hợp đồng đã có yêu cầu gia hạn đang chờ thanh toán.");
             if (pendingReturn(d, c.contract_id)) return fail("Hợp đồng đang có yêu cầu trả kho.");
             if (c.status === "ENDED" || c.end_date <= localDate(new Date())) return fail("Hợp đồng đã hết hạn, không thể gửi gia hạn.");
@@ -876,7 +931,8 @@ function ApiProvider({ children }) {
           }
           const checkout = normPayos(dto);
           if (!checkout) return fail("Máy chủ chưa trả mã QR thanh toán. Vui lòng thử lại.");
-          if (checkout.paid) await loadCustomer().catch(() => {});
+          // D67: mở mã PayOS rút giữ chỗ còn 15 phút → tải lại đơn để mọi màn thấy đúng hạn mới
+          if (checkout.paid || kind !== "payment") await loadCustomer().catch(() => {});
           return { ok: true, checkout };
         }),
       checkPaid: ({ kind, item }) =>
@@ -902,7 +958,7 @@ function ApiProvider({ children }) {
         }),
       accessQr: (contract) =>
         guard(async () => {
-          if (contract.status === "RETURN_PENDING") return { ok: false, error: "QR đã hết hiệu lực do đã gửi trả kho." };
+          if (contract.status === "RETURN_PENDING" && !beforeReturnDay(contract, localDate(new Date()))) return { ok: false, error: returnLockMessage(contract) };
           const access = normAccess(await api.accessQr(contract.api_id));
           return access ? { ok: true, access } : fail("Máy chủ chưa trả mã mở cửa.");
         }),

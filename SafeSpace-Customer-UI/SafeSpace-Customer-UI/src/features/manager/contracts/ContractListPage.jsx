@@ -8,7 +8,7 @@
  */
 import React, { useEffect, useRef, useState } from "react";
 import { InspectionReview, SettlementTable } from "../../facility-operations/settlements/SettlementComponents.jsx";
-import { canFinalizeReturn, isReturnSettlementReady, returnCaseState, settlementFromRefund, settlementOf } from "../../facility-operations/settlements/settlementModel.js";
+import { canFinalizeReturn, isReturnSettlementReady, returnCaseState, returnRefundChoice, settlementFromRefund, settlementOf } from "../../facility-operations/settlements/settlementModel.js";
 import { amountLabel } from "../../facility-operations/damage/DamageComponents.jsx";
 import { RecordCard } from "../../facility-operations/workflows/WorkflowComponents.jsx";
 import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
@@ -28,16 +28,49 @@ export const CONTRACT_STATE = (c) =>
         ? ["Đã chốt đối soát", "green"] // #19: không chỉ ghi "Đã xử lý"
         : ["Chưa rõ trạng thái", "amber"];
 
-// M07: chốt số tiền, không xác nhận đã chuyển hoàn.
+// M07 · D67: một nút — chốt đối soát và xác nhận luôn đã chuyển khoản / đã bàn giao tiền mặt cho quầy.
 function ReturnConfirmDialog({ contract, ret, onClose, onConfirm }) {
   // #16: hiện đúng số trên bảng đối soát (cùng RefundPolicy với bước chốt), không còn "Máy chủ tính khi chốt"
   const st = settlementOf(ret?.settlement);
+  const choice = returnRefundChoice(ret);
+  const total = Number(st?.total);
+  const hasRefund = Number.isFinite(total) ? total > 0 : true;
+  // Chuyển khoản thiếu tài khoản nhận → chỉ chốt, xác nhận chuyển sau ở mục Hoàn tiền khi khách bổ sung.
+  const payout = hasRefund && choice.complete;
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  return <ConfirmDialog title={`Duyệt đối soát · ${contract.id}`} text="Sau khi chốt, số dự kiến trở thành chính thức và tạo khoản chờ hoàn; chưa xác nhận đã chuyển tiền." busy={busy} rows={[["Khách hàng / kho",`${contract.customer} · ${contract.unit}`],["Tổng khấu trừ",amountLabel(st?.totalDeduction)],["Cọc còn hoàn",amountLabel(st?.depositRefund)],["Tiền thuê được hoàn",amountLabel(st?.rentRefund)],["Tổng tiền hoàn",amountLabel(st?.total)]]} label="Chốt đối soát" hint="Khấu trừ không vượt cọc; không thu thêm. Kho cần vệ sinh/sửa tiếp tục bảo trì." onCancel={onClose} onConfirm={async()=>{if(busy)return;setBusy(true);try{const ok=await onConfirm(note.trim());if(!ok)setBusy(false);}catch{setBusy(false);}}}><Field label="Ghi chú đối soát"><textarea maxLength={255} value={note} disabled={busy} onChange={e=>setNote(e.target.value)}/></Field></ConfirmDialog>;
+  const label = !hasRefund ? "Chốt đối soát" : !payout ? "Chốt đối soát" : choice.cash ? "Chốt & giao tiền về quầy" : "Chốt & đã chuyển khoản"; // D68: ngắn để không xuống dòng
+  const text = !hasRefund
+    ? "Không còn khoản hoàn. Chốt đối soát để đóng hợp đồng."
+    : !payout
+      ? "Khách chưa khai đủ tài khoản nhận hoàn. Chốt đối soát trước, xác nhận chuyển khoản ở mục Hoàn tiền sau khi khách bổ sung."
+      : choice.cash
+        ? `Chốt đối soát và bàn giao ${amountLabel(st?.total)} tiền mặt về quầy cơ sở. Khách đến nhận lúc nào cũng được.`
+        : `Chuyển ${amountLabel(st?.total)} vào tài khoản dưới đây trước khi bấm. Bấm là chốt đối soát và ghi đã chuyển khoản; không cần mã giao dịch.`;
+  const rows = [["Khách hàng / kho", `${contract.customer} · ${contract.unit}`], ["Tổng khấu trừ", amountLabel(st?.totalDeduction)], ["Cọc còn hoàn", amountLabel(st?.depositRefund)], ["Tiền thuê được hoàn", amountLabel(st?.rentRefund)], ["Tổng tiền hoàn", amountLabel(st?.total)],
+    ...(hasRefund ? (choice.cash ? [["Khách chọn nhận", "Tiền mặt tại quầy"]]
+      : [["Khách chọn nhận", "Chuyển khoản"], ["Ngân hàng", choice.bankName || "Chưa có"], ["Số tài khoản", choice.accountNumber || "Chưa có"], ["Chủ tài khoản", choice.accountHolder || "Chưa có"]]) : [])];
+  return <ConfirmDialog title={`Duyệt đối soát · ${contract.id}`} text={text} busy={busy} rows={rows} label={label} hint="Khấu trừ không vượt cọc; không thu thêm. Kho cần vệ sinh/sửa tiếp tục bảo trì." onCancel={onClose} onConfirm={async()=>{if(busy)return;setBusy(true);try{const ok=await onConfirm(note.trim(), payout);if(!ok)setBusy(false);}catch{setBusy(false);}}}><Field label="Ghi chú đối soát"><textarea maxLength={255} value={note} disabled={busy} onChange={e=>setNote(e.target.value)}/></Field></ConfirmDialog>;
 }
 
 // #19 · Figma M-ĐS-CHỐT: sau khi chốt vẫn mở được biên bản, ảnh, kết quả tiền và đường tới khoản hoàn.
+/**
+ * D68: không còn tab "Hoàn tiền". Khoản hoàn còn chờ (đơn huỷ đã thanh toán, khách khai thiếu tài khoản, khoản trước D67)
+ * hiện thành một dòng nhắc ở đầu "Biên bản & trả kho" và mở trang xác nhận.
+ */
+function PendingRefundsNotice({ ops }) {
+  const cancel = (ops.refunds || []).filter((r) => r.status === "PENDING").length;
+  const deposit = (ops.deposit_refunds || []).filter((r) => r.status === "PENDING").length;
+  const total = cancel + deposit;
+  if (!total) return null;
+  return (
+    <Notice>
+      Còn {total} khoản hoàn chờ xác nhận{cancel ? ` (${cancel} khoản hoàn đơn huỷ)` : ""}.{" "}
+      <LinkButton to="manager/refund" variant="outline">Xác nhận hoàn tiền</LinkButton>
+    </Notice>
+  );
+}
+
 function SettledCase({ ops, contract }) {
   const ret = ops.returns.find((r) => r.contract === contract.id);
   const refund = (ops.deposit_refunds || []).find((r) => (r.contractId || r.contract_id) === contract.id);
@@ -48,13 +81,13 @@ function SettledCase({ ops, contract }) {
       <div className="customer-detail__actions"><Tag tone={tone}>{label}</Tag></div>
       <div className="customer-detail__grid">
         <div className="customer-detail__column">
-          {ret ? <InspectionReview ret={ret} /> : <Notice>Biên bản cũ hơn 30 ngày xem lại tại mục Hoàn tiền.</Notice>}
+          {ret ? <InspectionReview ret={ret} /> : <Notice>Biên bản cũ hơn 30 ngày: xem trong khoản hoàn bên dưới.</Notice>}
           {refund && (
             <section className="panel customer-detail__card">
               <h2>Khoản hoàn {refund.id}</h2>
               <p className="muted">{refund.method === "CASH" ? "Tiền mặt tại quầy" : `Chuyển khoản ${refund.bankName || ""}`} · {amountLabel(refund.amount)}</p>
-              <p className="muted">{refund.status === "PAID" ? (refund.method === "CASH" ? "Đã chi tiền mặt cho khách" : `Đã hoàn · mã giao dịch ngân hàng ${refund.transactionRef || "chưa có"}`) : refund.method === "CASH" ? "Đang chờ chi: duyệt và giao nhân viên ở mục Hoàn tiền mặt tại quầy." : "Đang chờ hoàn: nhập mã giao dịch ngân hàng sau khi chuyển tiền."}</p>
-              <div className="customer-detail__actions"><LinkButton to={refund.method === "CASH" ? `manager/refund${qs({ kind: "cash" })}` : `manager/deposit-refunds${qs({ id: refund.id })}`}>Mở khoản hoàn</LinkButton></div>
+              <p className="muted">{refund.status === "PAID" ? (refund.method === "CASH" ? `Đã bàn giao tiền mặt về quầy${refund.paidAt ? ` · ${dateTimeLabel(refund.paidAt)}` : ""}` : `Đã chuyển khoản${refund.paidAt ? ` · ${dateTimeLabel(refund.paidAt)}` : ""}`) : refund.method === "CASH" ? "Đang chờ: xác nhận đã giao tiền mặt về quầy." : "Đang chờ: chuyển khoản rồi bấm xác nhận."}</p>
+              {refund.status === "PENDING" && <div className="customer-detail__actions"><LinkButton to={refund.method === "CASH" ? `manager/refund${qs({ kind: "cash" })}` : `manager/deposit-refunds${qs({ id: refund.id })}`}>Xác nhận hoàn tiền</LinkButton></div>}
             </section>
           )}
         </div>
@@ -123,7 +156,8 @@ export function ContractListPage({ query }) {
   useEffect(() => { if (sel) detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, [sel?.id]);
   return (
     <main className="container page">
-      <PageHeaderBlock title="Hợp đồng & xử lý quá hạn" text="Theo dõi hạn thuê, đối soát trả kho và yêu cầu cần duyệt tại cơ sở." />
+      <PageHeaderBlock title="Biên bản & trả kho" text="Xem biên bản trả kho của nhân viên, chốt đối soát và xác nhận hoàn tiền; theo dõi hạn thuê và quá hạn." />
+      <PendingRefundsNotice ops={ops} />
       <ReturnCases ops={ops} />
       <h2 className="section-title">Hợp đồng</h2>
       <div className="customer-detail__column">{!listedContracts.length&&<Empty title="Không có hợp đồng cần theo dõi" text="Hợp đồng đang trả kho xem ở Hồ sơ trả kho phía trên."/>}{listedContracts.map(c=>{const [label,tone]=CONTRACT_STATE(c);return <RecordCard key={c.id} title={`${c.id} · ${c.customer}`} subtitle={`Kho ${c.unit} · hết hạn ${dateLabel(c.end)}`} status={label} actions={<>{c.state==="OVERDUE"&&<LinkButton to={`manager/overdue${qs({contract:c.id})}`}>Xử lý quá hạn</LinkButton>}<LinkButton to={`manager/contracts${qs({id:c.id})}`} variant={c.state==="OVERDUE"?"outline":undefined}>{c.state==="RETURNED"?"Duyệt đối soát":"Xem hồ sơ"}</LinkButton></>}><p>{c.state==="RETURNED"?"Biên bản đã gửi · khấu trừ tối đa bằng cọc":"Theo dõi hạn thuê và lịch sử liên hệ khách"}</p></RecordCard>;})}</div>
@@ -135,9 +169,9 @@ export function ContractListPage({ query }) {
             <>
               {/* #16 · Figma M-ĐS: biên bản & ảnh bên trái, bảng đối soát dự kiến bên phải (cùng số với bước chốt) */}
               <div className="customer-detail__grid"><div className="customer-detail__column"><InspectionReview ret={ops.returns.find(r=>r.contract===sel.id)}/></div><SettlementTable settlement={settlementOf(ops.returns.find(r=>r.contract===sel.id)?.settlement)} report={ops.returns.find(r=>r.contract===sel.id)?.report}/></div>
-              <p className="muted">Biên bản trả kho {sel.unit} đã được gửi và khách đã phản hồi. Kiểm tra số liệu rồi chốt đối soát để chuyển sang hoàn tiền.</p>
+              <p className="muted">Biên bản trả kho {sel.unit} đã được gửi và khách đã phản hồi. Kiểm tra số liệu và thông tin nhận hoàn, rồi chốt đối soát và xác nhận hoàn tiền ngay tại đây.</p>
               {!settlementReady && <Notice>{RETURN_POLICY_PENDING}</Notice>}
-              <Button disabled={!settlementReady||saving||needsRefresh||!canFinalizeReturn(ops,sel,ops.returns.find(r=>r.contract===sel.id))||(source==="api"&&ops.returns.find(r=>r.contract===sel.id)?.damage_workflow_resolved!==true)} onClick={() => setReturning(true)}>Xác nhận trả kho</Button>
+              <Button disabled={!settlementReady||saving||needsRefresh||!canFinalizeReturn(ops,sel,ops.returns.find(r=>r.contract===sel.id))||(source==="api"&&ops.returns.find(r=>r.contract===sel.id)?.damage_workflow_resolved!==true)} onClick={() => setReturning(true)}>Chốt đối soát &amp; hoàn tiền</Button>
             </>
           ) : sel.state === "CLOSED" || sel.state === "RESOLVED" ? (
             <SettledCase ops={ops} contract={sel} />
@@ -157,9 +191,9 @@ export function ContractListPage({ query }) {
               contract={sel}
               ret={ops.returns.find((x) => x.contract === sel.id)}
               onClose={() => setReturning(false)}
-              onConfirm={async (note) => {
+              onConfirm={async (note, payout) => {
                 // Giữ hộp thoại (và ghi chú) khi lưu thất bại để quản lý kiểm tra rồi thử lại
-                const res = await run("CONFIRM_REFUND", { id: sel.id, note }, "Đã xác nhận trả kho");
+                const res = await run("CONFIRM_REFUND", { id: sel.id, note, payout }, payout ? "Đã chốt đối soát và xác nhận hoàn tiền" : "Đã xác nhận trả kho");
                 if (res.ok) setReturning(false);
                 return res.ok;
               }}

@@ -2,8 +2,9 @@
  * CHECKOUT PAGE - THANH TOÁN ĐƠN ĐẶT CHỖ THUÊ KHO (C04 / D02 / D21)
  *
  * Luồng thanh toán D21:
- * - Phương thức 1: Quét mã QR VietQR PayOS (thời gian giữ chỗ 10 phút, webhook tự xác nhận).
- * - Phương thức 2: Thanh toán tiền mặt tại quầy (PENDING_VERIFICATION, giữ chỗ 24 giờ).
+ * - D67: đồng ý chính sách → giữ chỗ 24 giờ; màn này chưa chọn sẵn phương thức và đếm ngược 24 giờ.
+ * - Phương thức 1: Quét mã QR VietQR PayOS — giữ chỗ còn 15 phút từ lúc tạo mã; hết giờ tự thoát, đơn hết hạn.
+ * - Phương thức 2: Thanh toán tại quầy — giữ chỗ 24 giờ tính từ lúc đồng ý chính sách.
  * - Cơ chế tự động thử lại khi tạo link PayOS bị gián đoạn mạng.
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -34,16 +35,19 @@ export function CheckoutPage({ id }) {
   const r = data.reservations.find((x) => x.reservation_id === id);
   const facility = r && facilityOf(data, r.facility_id, r.facility_name);
   const now = useNow(250);
-  const [method, setMethod] = useState("qr");
+  // D68: khách đã chọn phương thức ở trang chính sách; trang này chỉ còn thanh toán QR (15 phút).
+  // Chọn trả tại cửa hàng thì đơn chuyển thẳng sang chờ thu tại quầy (24 giờ), không qua trang này.
+  const method = "qr";
   const [checkout, setCheckout] = useState(null);
   // loading | ready | unsupported | error
   const [qrState, setQrState] = useState("loading");
   const [qrError, setQrError] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, [id]);
-  const total = r?.timeout_seconds || timeoutSeconds;
+  const total = timeoutSeconds;
   const deadline = checkout?.expires_at && r?.expires_at ? Math.min(new Date(checkout.expires_at), new Date(r.expires_at)) : checkout?.expires_at || r?.expires_at;
   const remaining = deadline ? (new Date(deadline) - now) / 1000 : 0;
   const pending = r?.status === "PENDING_PAYMENT";
@@ -128,6 +132,18 @@ export function CheckoutPage({ id }) {
   };
 
   const pct = Math.max(0, Math.min(100, (remaining / total) * 100));
+  const countdown = (live) => (
+    <div className="countdown" role="timer" aria-label="Thời gian giữ chỗ còn lại">
+      <div className="countdown__row">
+        <span>Thời gian giữ chỗ còn lại</span>
+        <strong>{formatCountdown(remaining)}</strong>
+      </div>
+      <div className="countdown__bar" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={Math.round(Math.max(0, remaining))}>
+        <span style={{ width: `${pct}%` }} />
+      </div>
+      {live}
+    </div>
+  );
   const amount = checkout?.amount || r.initial_total;
   const rows = (last) => (
     <dl className="pay-rows">
@@ -167,70 +183,42 @@ export function CheckoutPage({ id }) {
         </div>
         <aside className="panel booking">
           <h2>Thanh toán đặt chỗ</h2>
-          <div className="pay-method" role="radiogroup" aria-label="Phương thức thanh toán">
-            {PAY_METHODS.map(([k, title, sub]) => (
-              <button
-                type="button"
-                role="radio"
-                key={k}
-                aria-checked={method === k}
-                className={`pay-method__opt${method === k ? " is-on" : ""}`}
-                onClick={() => { setMethod(k); setError(""); }}
-              >
-                <span className="pay-method__dot" aria-hidden="true" />
-                <span><strong>{title}</strong><small>{sub}</small></span>
-              </button>
-            ))}
-          </div>
-
-          {method === "qr" ? (
-            <>
-              <p className="hint">Quét mã QR bằng ứng dụng ngân hàng. Đơn tự xác nhận ngay khi thanh toán thành công.</p>
-              {qrState === "unsupported" ? (
-                <Notice>
-                  Thanh toán QR đang tạm gián đoạn. Bạn có thể chọn <strong>Tại cửa hàng</strong> để giữ chỗ và thanh toán khi nhận kho.
-                </Notice>
-              ) : qrState === "error" ? (
-                <Notice tone="error">
-                  {qrError}{" "}
-                  <button type="button" className="link-btn" onClick={load}>Tạo lại mã QR</button>
-                </Notice>
-              ) : (
-                <QrCode
-                  value={checkout?.qr}
-                  title={qrState === "loading" ? "Đang tạo mã QR…" : "Mã QR thanh toán"}
-                  label={`Mã QR thanh toán đơn ${r.reservation_id}`}
-                  caption={checkout?.url ? <a href={checkout.url} target="_blank" rel="noreferrer">Mở trang thanh toán PayOS ↗</a> : "Mã QR tạo riêng cho đơn này"}
-                />
-              )}
-              {rows()}
-              <div className="countdown" role="timer" aria-label="Thời gian giữ chỗ còn lại">
-                <div className="countdown__row">
-                  <span>Thời gian giữ chỗ</span>
-                  <strong>{formatCountdown(remaining)}</strong>
-                </div>
-                <div className="countdown__bar" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={Math.round(Math.max(0, remaining))}>
-                  <span style={{ width: `${pct}%` }} />
-                </div>
-                <p className="countdown__live" aria-live="polite">
-                  <span className="pulse" aria-hidden="true" /> Đang chờ thanh toán… Trang tự chuyển khi thanh toán được xác nhận. Hết giờ chưa thanh toán thì đơn tự huỷ.
-                </p>
-              </div>
-            </>
+          <p className="hint">Quét mã QR bằng ứng dụng ngân hàng. Đơn tự xác nhận ngay khi thanh toán thành công. Mã QR giữ chỗ 15 phút kể từ lúc tạo.</p>
+          {qrState === "unsupported" ? (
+            <Notice>
+              Thanh toán QR đang tạm gián đoạn. Bạn có thể đổi sang trả tại cửa hàng để giữ chỗ và thanh toán khi nhận kho.
+            </Notice>
+          ) : qrState === "error" ? (
+            <Notice tone="error">
+              {qrError}{" "}
+              <button type="button" className="link-btn" onClick={load}>Tạo lại mã QR</button>
+            </Notice>
           ) : (
-            <>
-              <p className="hint">Thanh toán bằng tiền mặt hoặc thẻ tại quầy khi bạn đến nhận kho.</p>
-              {rows(<div><dt>Thanh toán tại</dt><dd>{facility.name}</dd></div>)}
-              <div className="countdown">
-                <div className="countdown__row">
-                  <span>Thời gian giữ chỗ</span>
-                  <strong>24 giờ</strong>
-                </div>
-                <p>Vui lòng đến cơ sở và thanh toán trong thời gian giữ chỗ. Quá hạn, đơn đặt chỗ sẽ tự huỷ.</p>
+            <QrCode
+              value={checkout?.qr}
+              title={qrState === "loading" ? "Đang tạo mã QR…" : "Mã QR thanh toán"}
+              label={`Mã QR thanh toán đơn ${r.reservation_id}`}
+              caption={checkout?.url ? <a href={checkout.url} target="_blank" rel="noreferrer">Mở trang thanh toán PayOS ↗</a> : "Mã QR tạo riêng cho đơn này"}
+            />
+          )}
+          {rows()}
+          {countdown(
+            <p className="countdown__live" aria-live="polite">
+              <span className="pulse" aria-hidden="true" /> Đang chờ thanh toán… Trang tự chuyển khi thanh toán được xác nhận. Hết 15 phút chưa thanh toán thì đơn tự huỷ và ô được trả lại.
+            </p>,
+          )}
+          {error && <Notice tone="error">{error}</Notice>}
+          {/* D68: đổi ý thì chuyển sang trả tại cửa hàng — giữ chỗ 24 giờ tính từ lúc đồng ý chính sách */}
+          {switching ? (
+            <div className="pay-switch">
+              <p className="hint">Chuyển sang trả tại cửa hàng ({facility.name}): ô được giữ 24 giờ kể từ lúc bạn đồng ý chính sách; mã QR này bị huỷ.</p>
+              <div className="pay-switch__actions">
+                <Button variant="outline" onClick={() => setSwitching(false)} disabled={busy}>Giữ thanh toán QR</Button>
+                <Button onClick={payAtStore} disabled={busy}>{busy ? "Đang chuyển…" : "Đổi sang tại cửa hàng"}</Button>
               </div>
-              {error && <Notice tone="error">{error}</Notice>}
-              <Button block onClick={payAtStore} disabled={busy}>{busy ? "Đang xác nhận…" : "Xác nhận đặt chỗ"}</Button>
-            </>
+            </div>
+          ) : (
+            <button type="button" className="link-btn pay-switch__link" onClick={() => { setSwitching(true); setError(""); }}>Đổi sang trả tại cửa hàng</button>
           )}
         </aside>
       </div>

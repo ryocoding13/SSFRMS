@@ -225,6 +225,7 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
     public async Task<IReadOnlyList<FacilityUnitDto>> GetUnitsByFacilityIdAsync(long facilityId, DateOnly? startDate = null, int? months = null, CancellationToken ct = default)
     {
         // D41 & #3: sơ đồ ô hiện ngày hết hạn dự kiến, "Trống từ dd/mm" và kiểm tra khả dụng theo đúng khoảng ngày [startDate, endDate).
+        // D67: trạng thái từng ô tính tại ngày bắt đầu khách chọn (mặc định hôm nay), không theo trạng thái lưu trong bảng ô.
         var today = OpsRules.TodayLocal;
         var slots = await UnitAvailability.SlotsAsync(dbContext, facilityId, null, ct);
         var buffers = new Dictionary<long, int>();
@@ -234,12 +235,13 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
         }
         var slotMap = slots.ToDictionary(s => s.Unit.UnitId);
         var hasPeriod = startDate.HasValue && months is > 0;
-        var periodStart = startDate ?? today;
+        var periodStart = startDate.HasValue && startDate.Value > today ? startDate.Value : today;
         var periodEnd = hasPeriod ? periodStart.AddMonths(months!.Value) : periodStart.AddMonths(1);
 
         var held = hasPeriod
             ? await UnitProposal.HeldByOthersAsync(dbContext, facilityId, null, periodStart, periodEnd, 0, ct)
             : [];
+        var pending = await UnitProposal.PendingHoldsAsync(dbContext, facilityId, ct);
 
         var units = await dbContext.StorageUnits
             .AsNoTracking()
@@ -259,21 +261,57 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
                     Overdue: false,
                     CurrentContractEndDate: null,
                     BookableForPeriod: false,
-                    PeriodUnavailableReason: "Ô đang có yêu cầu bảo trì.");
+                    PeriodUnavailableReason: "Ô đang bảo trì, chưa nhận đặt.",
+                    MapStatus: "SERVICE");
             }
             var buffer = buffers[u.UnitTypeId];
             var free = UnitAvailability.FreeFrom(slot, buffer, today);
             var overdue = slot.Holds.Any(h => h.Status == "OVERDUE");
-            var currentEnd = UnitAvailability.CurrentContractEndDate(slot, today);
             var isHeld = held.Contains(u.UnitId);
             var reason = hasPeriod
-                ? (isHeld ? "Ô vừa có người đặt giữ chỗ trước." : UnitAvailability.UnavailableReason(slot, periodStart, periodEnd, buffer, today))
+                ? (isHeld ? "Ô đang được khách khác giữ chỗ để thanh toán." : UnitAvailability.UnavailableReason(slot, periodStart, periodEnd, buffer, today))
                 : (overdue ? "Ô đang quá hạn trả, chưa nhận đặt trước."
                     : (slot.Holds.Count == 0 && u.Status == "RESERVED" ? "Ô đang được giữ cho đề xuất đổi kho." : null));
+
+            // D67: trạng thái tại ngày đang xem.
+            var contractAt = UnitAvailability.HoldAt(slot, periodStart, buffer, today);
+            var pendingAt = pending.Where(p => p.UnitId == u.UnitId && p.StartDate <= periodStart && periodStart < p.EndDate)
+                .OrderBy(p => p.ExpiresAt ?? DateTime.MaxValue).FirstOrDefault();
+            string mapStatus;
+            DateTime? holdExpiresAt = null;
+            if (UnitAvailability.MaintenanceStatuses.Contains(u.Status) || (contractAt == null && u.Status == "INSPECTION"))
+            {
+                mapStatus = "SERVICE";
+            }
+            else if (contractAt != null)
+            {
+                mapStatus = "RENTED";
+            }
+            else if (pendingAt != null || (slot.Holds.Count == 0 && u.Status == "RESERVED"))
+            {
+                mapStatus = "HELD";
+                holdExpiresAt = pendingAt?.ExpiresAt is DateTime e ? DateTime.SpecifyKind(e, DateTimeKind.Utc) : null;
+            }
+            else
+            {
+                mapStatus = "FREE";
+            }
+            var nextFromContracts = UnitAvailability.NextHoldStart(slot, periodStart);
+            var nextFromPending = pending.Where(p => p.UnitId == u.UnitId && p.StartDate > periodStart).Select(p => (DateOnly?)p.StartDate).Min();
+            var nextBooked = mapStatus == "FREE"
+                ? new[] { nextFromContracts, nextFromPending }.Where(d => d.HasValue).Min()
+                : null;
             return new FacilityUnitDto(
                 u.UnitId, u.FacilityId, u.UnitTypeId, u.UnitNumber, u.Floor, u.Zone, u.LocationDescription,
                 u.UnitType.Area, u.UnitType.ClimateControlled, u.Status,
-                free, overdue, currentEnd, reason == null, reason);
+                free, overdue,
+                CurrentContractEndDate: contractAt?.EndDate,
+                BookableForPeriod: reason == null,
+                PeriodUnavailableReason: reason,
+                MapStatus: mapStatus,
+                CurrentContractStartDate: contractAt?.StartDate,
+                HoldExpiresAt: holdExpiresAt,
+                NextBookedFrom: nextBooked);
         }).ToList();
     }
 }

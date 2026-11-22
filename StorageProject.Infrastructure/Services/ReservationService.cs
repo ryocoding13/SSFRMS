@@ -122,9 +122,9 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
 
     public async Task<ReservationDto> CreateReservationAsync(long customerId, CreateReservationRequest request, CancellationToken ct = default)
     {
-        if (request.RentalPeriodMonths <= 0)
+        if (request.RentalPeriodMonths < OpsRules.MinRentalMonths || request.RentalPeriodMonths > OpsRules.MaxRentalMonths)
         {
-            throw new ArgumentException("Thời hạn thuê phải lớn hơn 0 tháng.");
+            throw new ArgumentException("Số tháng thuê phải từ 1 đến 99.");
         }
 
         var facility = await dbContext.Facilities.FindAsync([request.FacilityId], ct)

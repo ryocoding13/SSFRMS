@@ -57,7 +57,7 @@ try {
   window.location.hash = "#/units/HĐ-2026-0142/return";
   const returnHtml = renderToStaticMarkup(React.createElement(App));
   // D42 + Task #8/#9: trả kho chỉ chọn ngày, không bắt ảnh hay khung giờ; chọn cách nhận hoàn (chuyển khoản / tiền mặt tại quầy)
-  for (const text of ["Thông tin trả kho", "Ngày mong muốn trả kho", "Nhận tiền hoàn", "Nhận hoàn qua", "Tiền mặt tại quầy", "Số tài khoản", "Không thể huỷ yêu cầu", "QR/PIN khoá ngay", "48 giờ"]) assert.ok(returnHtml.includes(text), text);
+  for (const text of ["Thông tin trả kho", "Ngày mong muốn trả kho", "Nhận tiền hoàn", "Nhận hoàn qua", "Tiền mặt tại quầy", "Số tài khoản", "Không thể huỷ yêu cầu", "QR/PIN khoá khi nhân viên kiểm tra vào ngày hẹn", "48 giờ"]) assert.ok(returnHtml.includes(text), text); // D68: trả kho theo lịch hẹn
   for (const text of ["Tải ảnh kho trống", "Khung giờ"]) assert.ok(!returnHtml.includes(text), text);
   window.location.hash = "#/reservations/SS-20260914-0142/cancel";
   const cancelHtml = renderToStaticMarkup(React.createElement(App));
@@ -69,11 +69,12 @@ try {
   memory.set("safespace.approved-workflows.demo.v1", JSON.stringify(workflowFixture));
   window.location.hash = "#/refunds";
   const pendingRefundHtml = renderToStaticMarkup(React.createElement(App));
-  for (const text of ["Chờ hoàn", "662.500", "Phí quá hạn", "••••6789", "Chưa có thông tin"]) assert.ok(pendingRefundHtml.includes(text),text);
+  // D68: nhãn ghi rõ tiền hoàn đi đâu (chờ chuyển khoản / đã chuyển khoản / tiền đã về quầy)
+  for (const text of ["Chờ chuyển khoản", "662.500", "Phí quá hạn", "••••6789", "Chưa có thông tin"]) assert.ok(pendingRefundHtml.includes(text),text);
   for (const text of ["SHOULD-NOT-SHOW", "SECRET-UNIT", "0123456789", "Khoản chưa thanh toán"]) assert.ok(!pendingRefundHtml.includes(text),text);
   workflowFixture.depositRefunds[0].status = "PAID";
   memory.set("safespace.approved-workflows.demo.v1", JSON.stringify(workflowFixture));
-  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Đã hoàn"));
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Đã chuyển khoản"));
   delete workflowFixture.depositRefunds[0].amount;
   workflowFixture.depositRefunds[0].status = "PENDING";
   memory.set("safespace.approved-workflows.demo.v1", JSON.stringify(workflowFixture));
@@ -159,7 +160,7 @@ try {
   assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Kiểm tra trạng thái thanh toán"));
   window.location.hash = "#/units/HĐ-2026-0142/renew";
   const renewalHtml = renderToStaticMarkup(React.createElement(App));
-  assert.ok(renewalHtml.includes('type="radio"') && renewalHtml.includes('type="checkbox"') && renewalHtml.includes("Chi phí dự kiến"));
+  assert.ok(renewalHtml.includes('inputMode="numeric"') && renewalHtml.includes("Số tháng gia hạn (1–99)") && renewalHtml.includes('type="checkbox"') && renewalHtml.includes("Chi phí dự kiến")) // D67: nhập 1–99 tháng thay gói 1/3/6;
   seed(true);
   const lifecycleData = createSeedData();
   lifecycleData.renewals = [{renewal_id:"GH-expired",contract_id:"HĐ-2026-0086",months:3,status:"EXPIRED",old_end:"2026-09-01",new_end:"2026-12-01",amount:1000000,payment_deadline_at:"2026-09-01T03:00:00Z"}];
@@ -189,6 +190,14 @@ try {
   const reviewHtml = renderToStaticMarkup(React.createElement(App));
   for (const text of ["Bước 2/3", "Tóm tắt đơn", "Chính sách thuê kho", "Tiếp tục thanh toán", 'type="checkbox"']) assert.ok(reviewHtml.includes(text),text);
   assert.ok(!reviewHtml.includes("Mã QR thanh toán"));
+  // D69: trang chính sách nháp (chưa tạo đơn) hiện tóm tắt và chọn cách thanh toán, chưa có mã đơn
+  const draftFacility = reviewData.facilities[0];
+  const draftStart = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
+  window.location.hash = `#/checkout/new/confirm?facility=${draftFacility.facility_id}&offer=${encodeURIComponent(draftFacility.offers[0].key)}&months=2&start=${draftStart}`;
+  const draftHtml = renderToStaticMarkup(React.createElement(App));
+  for (const text of ["Bước 2/3", "Tóm tắt đặt chỗ", "Mã đơn và thời gian giữ chỗ bắt đầu khi bạn bấm xác nhận", "Cách thanh toán", "Quay lại chọn kho"]) assert.ok(draftHtml.includes(text), text);
+  window.location.hash = `#/checkout/new/confirm?facility=${draftFacility.facility_id}&months=2&start=2020-01-01`;
+  assert.ok(renderToStaticMarkup(React.createElement(App)).includes("Thông tin đặt chỗ chưa đủ"));
   window.location.hash = `#/checkout/${reviewReservation.reservation_id}`;
   const guardedCheckout = renderToStaticMarkup(React.createElement(App));
   assert.ok(guardedCheckout.includes("xác nhận chính sách"));

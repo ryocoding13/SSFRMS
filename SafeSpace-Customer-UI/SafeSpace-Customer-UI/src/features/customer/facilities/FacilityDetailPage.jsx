@@ -13,23 +13,27 @@ import { DatePicker, Select } from "../../../shared/components/Pickers.jsx";
 import { directionsUrl } from "../access/accessApi.js";
 import { Button, Empty, Field, Icon, LinkButton, Notice } from "../../../shared/components/UI.jsx";
 import UnitMap from "../../../shared/components/UnitMap.jsx";
-import { RENTAL_PLANS, UNIT_TYPES, offerTypes, pickOffer, quote } from "../../../shared/utils/catalog.js";
-import { UNIT_STATUS, unitBookableFrom, unitsFor } from "../../../shared/utils/units.js";
+import { UNIT_TYPES, isValidMonths, offerTypes, pickOffer, quote, typeLabel } from "../../../shared/utils/catalog.js";
+import MonthsInput from "../../../shared/components/MonthsInput.jsx";
+import { floorLabel, holdClock, holdSecondsLeft, unitBookableFrom, unitsFor, zoneLabel } from "../../../shared/utils/units.js";
+import { useNow } from "../../../shared/hooks/useBrowserEvents.js";
 import { dateLabel, money, today } from "../../../shared/utils/format.js";
 import { go, href, qs } from "../../../app/router.js";
 import { useApp } from "../../../app/state/AppProvider.jsx";
 
 export default function FacilityDetailPage({ id, query }) {
-  const { data, authed, dispatch, checkAvailability, getFacilityUnits } = useApp();
+  const { data, authed, checkAvailability, getFacilityUnits } = useApp();
   const facility = data.facilities.find((f) => f.facility_id === Number(id));
   const startQuery = query.get("start");
   const [offerKey, setOfferKey] = useState(
     () => pickOffer(facility, { key: query.get("offer"), type: query.get("type"), band: query.get("band") })?.key || null,
   );
-  const [months, setMonths] = useState(RENTAL_PLANS.includes(Number(query.get("months"))) ? Number(query.get("months")) : 3);
+  // D67: chọn ngày bắt đầu rồi nhập số tháng 1–99 (không còn gói 1/3/6 tháng)
+  const [months, setMonths] = useState(isValidMonths(query.get("months")) ? Number(query.get("months")) : 1);
+  const [monthsOk, setMonthsOk] = useState(true);
+  const now = useNow(1000);
   const [start, setStart] = useState(startQuery && startQuery >= today() ? startQuery : today());
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
   const [photo, setPhoto] = useState(null);
   const [stock, setStock] = useState(null);
   // Figma C03b ↔ C03b-sđ: nút ở góc trên đổi cột trái giữa "ảnh & tiện ích" và "sơ đồ tình trạng kho"
@@ -47,11 +51,9 @@ export default function FacilityDetailPage({ id, query }) {
     return (units.find((u) => u.code === want) || units.find((u) => u.status === "FREE") || units[0])?.code || null;
   });
   const unit = view === "map" ? units.find((u) => u.code === unitCode) || null : null;
-  // D62: đặt đúng ô đang có người thuê → lịch chỉ cho chọn từ ngày ô trống lại, các ngày trước làm mờ
-  const minStart = unitBookableFrom(unit, today());
-  useEffect(() => {
-    if (start < minStart) setStart(minStart);
-  }, [minStart]); // eslint-disable-line react-hooks/exhaustive-deps
+  // D68: không tự đẩy ngày bắt đầu khi chọn ô đang có người thuê (gây lỗi ngày nhảy sang năm sau và mất ngày khi mở sơ đồ).
+  // Ngày luôn mặc định hôm nay; ô bận thì chỉ báo "Thuê được từ …" kèm nút để khách tự chọn ngày đó.
+  const rentableFrom = unitBookableFrom(unit, today());
 
   // Reset dữ liệu ô khi đổi cơ sở để chống race condition và không giữ ô của cơ sở cũ
   useEffect(() => {
@@ -95,6 +97,7 @@ export default function FacilityDetailPage({ id, query }) {
   // Tự động đồng bộ ô đang chọn khi danh sách units thực tế được cập nhật
   useEffect(() => {
     if (view !== "map" || !units || units.length === 0) return;
+    if (!unitCode) return; // D68: khách đã bấm "Bỏ chọn ô" → giữ chế độ tự bố trí
     const currentHit = units.find((u) => u.code === unitCode);
     if (!currentHit) {
       const nextUnit = units.find((u) => u.status === "FREE") || units[0];
@@ -215,6 +218,7 @@ export default function FacilityDetailPage({ id, query }) {
   const proceed = async () => {
     setError("");
     if (!offer) return setError("Cơ sở này chưa có loại kho phù hợp.");
+    if (!monthsOk) return setError("Vui lòng nhập số tháng thuê từ 1 đến 99.");
     if (unitHasNoPrice) return setError("Ô kho này hiện chưa có giá thuê được cấu hình.");
 
     // D56: Kiểm tra nếu khách đang chọn ô đích danh trên sơ đồ
@@ -229,18 +233,16 @@ export default function FacilityDetailPage({ id, query }) {
 
     if (!authed)
       return go(`login?next=${encodeURIComponent(`find/${facility.facility_id}${qs({ offer: offer.key, months, start, view: unit ? "map" : "", unit: unit?.code })}`)}`);
-    setBusy(true);
-    const res = await dispatch("CREATE_RESERVATION", {
-      facility_id: facility.facility_id,
-      offer_key: offer.key,
+    // D69: chưa tạo đơn / chưa giữ ô ở bước này. Trang chính sách nháp tạo đơn khi khách đồng ý và chọn cách thanh toán.
+    const exact = view === "map" && unit;
+    go(`checkout/new/confirm${qs({
+      facility: facility.facility_id,
+      offer: offer.key,
       months,
-      start_date: start,
-      selected_unit_id: view === "map" && unit?.unit_id ? unit.unit_id : null,
-      unit_code: view === "map" && unit?.code ? unit.code : null,
-    });
-    setBusy(false);
-    if (!res.ok) return setError(res.error);
-    go(`checkout/${res.reservation_id}/confirm`);
+      start,
+      unit_id: exact && unit.unit_id ? unit.unit_id : "",
+      unit: exact ? unit.code : "",
+    })}`);
   };
 
   const place = [facility.district, facility.city].filter(Boolean).join(", ") || facility.address;
@@ -276,6 +278,8 @@ export default function FacilityDetailPage({ id, query }) {
             error={unitsError}
             onRetry={reloadUnits}
             onReload={getFacilityUnits ? reloadUnits : undefined}
+            onClear={unitCode ? () => { setUnitCode(""); setError(""); } : undefined}
+            viewDate={start}
           />
         ) : (
         <div>
@@ -314,35 +318,36 @@ export default function FacilityDetailPage({ id, query }) {
         <aside className="panel booking">
           {unit ? (
             <div className="booking__unit">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <p className="booking__eyebrow">Ô ĐANG CHỌN (ĐÍCH DANH)</p>
-                <button
-                  type="button"
-                  className="biz-link"
-                  style={{ fontSize: "12px", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                  onClick={() => { setUnitCode(""); setError(""); }}
-                >
-                  Bỏ chọn ô (để tự chọn)
-                </button>
-              </div>
-              <h2>Ô kho {unit.code} · {unit.position}</h2>
-              <p className={`unit-badge unit-badge--${UNIT_STATUS[unit.status].tone}`}>
-                Hiện tại: {UNIT_STATUS[unit.status].label}
+              {/* D68: tiêu đề gọn "Ô kho K02", dòng nhỏ ghi chi tiết; trạng thái và kỳ khả dụng đã có trên sơ đồ */}
+              <h2>Ô kho {unit.code}</h2>
+              <p className="booking__unit-meta">
+                {[floorLabel(unit.floor), zoneLabel(unit.zone || unit.row), typeLabel(unit.type), unit.area_label].filter((x) => x && !/^Chưa /.test(x)).join(" · ")}
               </p>
-              {unit.current_contract_end_date && (
-                <p className="hint">Ngày hết hạn dự kiến: <strong>{dateLabel(unit.current_contract_end_date)}</strong></p>
-              )}
-              {unit.bookable_for_period ? (
-                <p className="unit-badge unit-badge--free">
-                  Khả dụng trong kỳ ({dateLabel(start)} – {dateLabel(q?.end_date)})
-                </p>
-              ) : (
-                <p className="hint" style={{ color: "var(--color-error, #b91c1c)" }}>
-                  {unit.period_unavailable_reason || (unit.overdue ? "Ô đang quá hạn trả, chưa nhận đặt trước." : unit.free_from ? `Trống từ ${dateLabel(unit.free_from)} · đặt trước được từ ngày này.` : "Không khả dụng trong khoảng ngày đang tìm.")}
+              {unit.status === "RENTED" && unit.current_contract_end_date && (
+                <p className="hint">
+                  Đang thuê{unit.current_contract_start_date ? <> từ <strong>{dateLabel(unit.current_contract_start_date)}</strong></> : null} đến <strong>{dateLabel(unit.current_contract_end_date)}</strong> (dự kiến)
                 </p>
               )}
-              {unit.status !== "FREE" && unit.free_from && unit.bookable_for_period && (
-                <p className="hint">Trống từ {dateLabel(unit.free_from)} · đặt trước được từ ngày bạn chọn.</p>
+              {unit.status === "HELD" && (
+                <p className="hint" role="timer">
+                  {unit.hold_expires_at
+                    ? <>Khách khác đang thanh toán · còn giữ chỗ <strong>{holdClock(holdSecondsLeft(unit, now))}</strong>. Hết giờ mà chưa thanh toán thì ô trống lại.</>
+                    : "Ô đang được giữ chỗ, chưa nhận đặt."}
+                </p>
+              )}
+              {unit.status === "SERVICE" && <p className="hint">Ô đang bảo trì, chưa nhận đặt.</p>}
+              {unit.status === "FREE" && unit.next_booked_from && (
+                <p className="hint">Đã có lịch thuê từ <strong>{dateLabel(unit.next_booked_from)}</strong>.</p>
+              )}
+              {!unit.bookable_for_period && unit.status !== "HELD" && unit.status !== "SERVICE" && (
+                rentableFrom > start ? (
+                  <div className="booking__rentable">
+                    <p className="hint">Ô này thuê được từ <strong>{dateLabel(rentableFrom)}</strong>.</p>
+                    <Button variant="outline" className="btn--sm" onClick={() => { setStart(rentableFrom); setError(""); }}>Chọn ngày này</Button>
+                  </div>
+                ) : (
+                  <p className="hint booking__warn">{unit.period_unavailable_reason || "Ô không trống trong khoảng ngày bạn chọn. Chọn ô khác hoặc đổi ngày."}</p>
+                )
               )}
             </div>
           ) : view === "map" ? (
@@ -361,7 +366,7 @@ export default function FacilityDetailPage({ id, query }) {
               <p className="hint">
                 {view === "map" && unit
                   ? `Đặt đúng ô ${unit.code} bạn đã chọn. Hệ thống giữ chính xác ô này cho bạn trong toàn bộ kỳ thuê.`
-                  : "Giá theo loại kho, diện tích và gói thuê. Hệ thống tự động bố trí ô phù hợp trong toàn bộ kỳ thuê."}
+                  : "Giá theo loại kho, diện tích và số tháng thuê. Hệ thống tự động bố trí ô phù hợp trong toàn bộ kỳ thuê."}
               </p>
               <Field label="Loại kho">
                 <Select value={offer.type} onChange={(e) => changeType(e.target.value)}>
@@ -377,23 +382,9 @@ export default function FacilityDetailPage({ id, query }) {
                   ))}
                 </Select>
               </Field>
-              <div className="field">
-                <span className="field__label" id="plan-label">Gói thuê</span>
-                <div className="plans" role="group" aria-labelledby="plan-label">
-                  {RENTAL_PLANS.map((m) => (
-                    <button type="button" key={m} className={m === months ? "is-on" : ""} aria-pressed={m === months} onClick={() => setMonths(m)}>
-                      {m} tháng
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <DatePicker label="Ngày bắt đầu" value={start} min={minStart} onChange={setStart} />
-              {unit && minStart > today() && (
-                <p className="hint hint--tight">
-                  Ô {unit.code} đang có người thuê{unit.current_contract_end_date ? ` đến ${dateLabel(unit.current_contract_end_date)}` : ""} · chọn được ngày bắt đầu từ {dateLabel(minStart)}.
-                </p>
-              )}
-              <p className="hint hint--tight">Kết thúc dự kiến: {dateLabel(q.end_date)}</p>
+              <DatePicker label="Ngày bắt đầu" value={start} min={today()} onChange={setStart} />
+              <MonthsInput label="Số tháng thuê " value={months} onChange={(m) => { setMonths(m); setError(""); }} onValidity={setMonthsOk} />
+              {monthsOk && <p className="hint hint--tight">Thuê từ {dateLabel(start)} · kết thúc dự kiến {dateLabel(q.end_date)}</p>}
               <h4>Chi phí dự kiến</h4>
               <dl className="cost">
                 <div><dt>Tiền thuê {months} tháng</dt><dd>{money(q.rent_total)}</dd></div>
@@ -401,7 +392,7 @@ export default function FacilityDetailPage({ id, query }) {
                 <div className="cost__total"><dt>Tổng ban đầu</dt><dd>{money(q.initial_total)}</dd></div>
               </dl>
               <p className="hint hint--alert">Cọc được xử lý khi kết thúc hợp đồng theo tình trạng kho và chính sách đã công bố.</p>
-              {soldOut && !unit && <div className="booking__none"><strong>Không còn ô trống cho cả kỳ thuê</strong><p>Không có ô {UNIT_TYPES.find((t) => t.id === offer.type)?.label || "kho"} {offer.size_label} nào trống trong toàn bộ kỳ {dateLabel(start)} – {dateLabel(q.end_date)} tại cơ sở này. Đổi ngày bắt đầu, diện tích, gói thuê hoặc chọn cơ sở khác để hệ thống tìm lại. Bạn không cần chọn ô trên sơ đồ.</p></div>}
+              {soldOut && !unit && <div className="booking__none"><strong>Không còn ô trống cho cả kỳ thuê</strong><p>Không có ô {UNIT_TYPES.find((t) => t.id === offer.type)?.label || "kho"} {offer.size_label} nào trống trong toàn bộ kỳ {dateLabel(start)} – {dateLabel(q.end_date)} tại cơ sở này. Đổi ngày bắt đầu, diện tích, số tháng thuê hoặc chọn cơ sở khác để hệ thống tìm lại. Bạn không cần chọn ô trên sơ đồ.</p></div>}
               {error && <Notice tone="error">{error}</Notice>}
             </>
           ) : (
@@ -411,11 +402,11 @@ export default function FacilityDetailPage({ id, query }) {
             {offer && (
               <Button
                 onClick={proceed}
-                disabled={busy || soldOut || unitHasNoPrice || Boolean(view === "map" && unit && !unit.bookable_for_period)}
+                disabled={!monthsOk || soldOut || unitHasNoPrice || Boolean(view === "map" && unit && !unit.bookable_for_period)}
                 className={unitHasNoPrice ? "btn--muted" : ""}
                 title={soldOut ? "Chưa có ô trống cả kỳ cho lựa chọn này" : (view === "map" && unit && !unit.bookable_for_period ? "Ô đã chọn không khả dụng trong kỳ này" : undefined)}
               >
-                {unitHasNoPrice ? "Chưa có giá phù hợp" : busy ? "Đang xử lý…" : (view === "map" && unit ? `Đặt ô ${unit.code}` : "Tiếp tục đặt chỗ")}
+                {unitHasNoPrice ? "Chưa có giá phù hợp" : (view === "map" && unit ? `Đặt ô ${unit.code}` : "Tiếp tục đặt chỗ")}
               </Button>
             )}
             <a className="btn btn--outline" href={href(`find${qs({ type: query.get("type"), band: query.get("band") })}`)}>Chọn cơ sở khác</a>
