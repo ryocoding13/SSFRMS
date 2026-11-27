@@ -23,6 +23,14 @@ export function customerNotifications({ contracts = [], tickets = [], reservatio
     if (c.accessUpdatedAt) add(`ACCESS-${c.contractId}-${c.accessUpdatedAt}`, "Mã ra vào đã được cấp lại", `Kho ${c.unitNumber} · Xem QR/PIN mới trong hợp đồng. Mã cũ cùng loại đã bị vô hiệu hóa.`, to, c.accessUpdatedAt);
     if (c.handover?.handoverAt) add(`KEY-${c.contractId}-${c.handover.handoverAt}`, "Đã ghi nhận nhận chìa khóa", `Kho ${c.unitNumber} · Chìa khóa vật lý đã được nhận tại quầy.`, to, c.handover.handoverAt);
     // D68: thông báo rõ từng bước trả kho thay cho "Hợp đồng có cập nhật"
+    // D72: biên bản trả kho có khoản khấu trừ chờ khách xác nhận — mỗi biên bản (kể cả biên bản lập lại) một thông báo
+    const deduction = c.returnDeduction;
+    if (c.status === "RETURN_PENDING" && deduction?.returnId && deduction.status === "WAITING") add(`DEDUCTION-${deduction.returnId}`,
+      "Biên bản trả kho chờ bạn xác nhận",
+      `Kho ${c.unitNumber} · Khấu trừ ${money((Number(deduction.cleaningFee) || 0) + (Number(deduction.damageFee) || 0))} từ cọc. ${deduction.deadlineAt ? `Phản hồi trước ${ddmm(deduction.deadlineAt)}; quá hạn hệ thống hoàn cọc theo biên bản.` : "Xem và phản hồi trong 48 giờ."}`,
+      `units/${contractCode(c)}/deduction`, vnIso(deduction.sentAt));
+    if (deduction?.returnId && deduction.status === "RECHECKED") add(`DEDUCTION-RECHECK-${deduction.returnId}`, "Cơ sở đã kiểm tra lại kho",
+      `Kho ${c.unitNumber} · ${deduction.recheckNote || "Xem kết quả kiểm tra lại và khoản khấu trừ."}`, `units/${contractCode(c)}/deduction`, vnIso(deduction.sentAt));
     if (c.status === "RETURN_PENDING") add(`CONTRACT-STATUS-${c.contractId}-${c.status}`, "Đã nhận lịch trả kho",
       `Kho ${c.unitNumber} · ${c.returnScheduledDate ? `Hẹn trả ngày ${dateLabel(c.returnScheduledDate)}; trước ngày này bạn vẫn dùng kho.` : "Nhân viên sẽ kiểm tra kho theo lịch hẹn."}`, to, c.createdAt);
     else if (c.status === "COMPLETED") add(`CONTRACT-STATUS-${c.contractId}-${c.status}`, "Trả kho hoàn tất",

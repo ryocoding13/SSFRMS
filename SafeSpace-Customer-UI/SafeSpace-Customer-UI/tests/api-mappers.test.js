@@ -352,3 +352,25 @@ test("3.6 · lịch sử thanh toán: thời gian, phương thức, mã giao d�
   assert.deepEqual(historyRows(ledger, { month: "2026-10" }).map((r) => r.api_id), [2]);
   assert.equal(methodLabel(ledger[1]), "trừ vào cọc"); assert.equal(methodLabel(ledger[0]), "PayOS"); assert.equal(methodLabel({}), "Chưa có dữ liệu");
 });
+
+test("D72: chuông báo biên bản trả kho chờ xác nhận, mỗi biên bản (kể cả lập lại) một thông báo", async () => {
+  const { customerNotifications } = await import("../src/features/customer/notifications/customerNotifications.js");
+  const base = { contractId: 46, startDate: "2026-11-01", endDate: "2026-12-01", unitNumber: "K02", status: "RETURN_PENDING", createdAt: "2026-11-01T00:00:00Z" };
+  const waiting = (returnId) => ({ ...base, returnDeduction: { returnId, status: "WAITING", cleaningFee: 0, damageFee: 100000, sentAt: "2026-11-27T22:34:00", deadlineAt: "2026-11-29T22:34:00" } });
+  const first = customerNotifications({ contracts: [waiting("TK-0010")] }).filter(e => e.id.startsWith("SERVER-DEDUCTION"));
+  assert.equal(first.length, 1);
+  assert.match(first[0].title, /chờ bạn xác nhận/);
+  assert.match(first[0].detail, /100\.000/);
+  assert.match(first[0].to, /\/deduction$/);
+  const redo = customerNotifications({ contracts: [waiting("TK-0011")] }).find(e => e.id.startsWith("SERVER-DEDUCTION"));
+  assert.notEqual(redo.id, first[0].id);
+  const agreed = customerNotifications({ contracts: [{ ...base, returnDeduction: { returnId: "TK-0011", status: "AGREED" } }] });
+  assert.equal(agreed.filter(e => e.id.startsWith("SERVER-DEDUCTION")).length, 0);
+});
+
+test("D72: nhân viên / quản lý thấy nội dung khách phản hồi khấu trừ", async () => {
+  const { deductionReplyRows } = await import("../src/features/facility-operations/settlements/deductionReply.js");
+  const rows = deductionReplyRows({ damage_decision: "DISPUTE", deduction_note: "Chìa hỏng từ trước khi tôi thuê", recheck_note: null });
+  assert.deepEqual(rows, [["Khoản hư hỏng", "Khiếu nại"], ["Khách ghi", "Chìa hỏng từ trước khi tôi thuê"]]);
+  assert.deepEqual(deductionReplyRows({}), []);
+});

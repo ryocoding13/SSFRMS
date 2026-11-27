@@ -392,7 +392,11 @@ function ApiProvider({ children }) {
     const [reservationDetails, contractDetails, ticketDetails] = await Promise.all([
       Promise.all(reservations.filter((r) => r.status !== "CANCELLED").map((r) => api.reservation(r.reservationId).catch(() => null))),
       // D68: giữ trường của danh sách (vd. ngày hẹn trả kho) khi ghép chi tiết hợp đồng
-      Promise.all(contracts.map((c) => api.contract(c.contractId).then((d) => ({ ...c, ...d })).catch(() => ({ ...c, payments: [], renewals: [] })))),
+      Promise.all(contracts.map((c) => api.contract(c.contractId).then((d) => ({ ...c, ...d })).catch(() => ({ ...c, payments: [], renewals: [] }))
+        // D72: hợp đồng đang trả kho → đọc biên bản khấu trừ để báo chuông khi nhân viên gửi (cả biên bản lập lại); lỗi thì bỏ qua
+        .then(async (d) => d.status === "RETURN_PENDING" && api.returnDeduction
+          ? { ...d, returnDeduction: await api.returnDeduction(d.contractId).catch(e => { if (e?.status === 401) throw e; return null; }) }
+          : d))),
       Promise.all(tickets.map((t) => api.ticket(t.ticketId).catch(e => {
         if (e.status === 401) throw e;
         const previous = refs.current.session?.token === activeSession?.token

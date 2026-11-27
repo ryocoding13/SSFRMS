@@ -1,6 +1,7 @@
 import React from "react";
 import { DetailList, Notice, Tag } from "../../../shared/components/UI.jsx";
 import { amountLabel, DamagePhotos, timeLabel } from "../damage/DamageComponents.jsx";
+import { deductionReplyRows } from "./deductionReply.js";
 import "./settlements.css";
 // D49: trả sớm sau StartDate hoàn 100% cọc nếu đạt chuẩn, khấu trừ vệ sinh/hư hỏng/quá hạn vào cọc như trả đúng hạn; hoàn thêm tiền thuê tháng chưa bắt đầu khi BE chốt.
 export function SettlementSummary({deposit,damage,cleaning,overdue,amount,official=false,keep}) {
@@ -14,7 +15,7 @@ export function InspectionReview({ret}) {
  if(!r) return <section className="panel customer-detail__card"><h2>Biên bản kiểm tra</h2><Notice>Chưa có biên bản và ảnh hiện trạng của nhân viên.</Notice></section>;
  return <>
   <section className="panel customer-detail__card"><h2>Kiểm kê</h2><DetailList items={[["Đồ còn lại",r.items||"Chưa có dữ liệu"],["Tường, sàn, cửa",r.walls||"Chưa có dữ liệu"],["Chìa khóa",r.keys||"Chưa có dữ liệu"],["Trạng thái ô đề xuất",r.proposal||"Chưa có dữ liệu"],["Nhân viên gửi",ret?.submitted_at?timeLabel(ret.submitted_at):"Chưa có thông tin"]]}/></section>
-  <section className="panel customer-detail__card"><h2>Hư hỏng &amp; khấu trừ</h2><DetailList items={[["Vệ sinh",r.cleaning_required?`Chưa đạt · 10% cọc · ${amountLabel(r.cleaning_fee)}`:"Đạt"],["Hạng mục hư hỏng",r.damage_item||"Không có"],["Khấu trừ hư hỏng",amountLabel(Number(r.damage_fee)||0)],["Lý do / ghi chú",r.fee_reason||"Không có nội dung bổ sung"],["Khách phản hồi",DEDUCTION_LABEL[ret?.deduction_status]||"Chưa có dữ liệu"]]}/></section>
+  <section className="panel customer-detail__card"><h2>Hư hỏng &amp; khấu trừ</h2><DetailList items={[["Vệ sinh",r.cleaning_required?`Chưa đạt · 10% cọc · ${amountLabel(r.cleaning_fee)}`:"Đạt"],["Hạng mục hư hỏng",r.damage_item||"Không có"],["Khấu trừ hư hỏng",amountLabel(Number(r.damage_fee)||0)],["Lý do / ghi chú",r.fee_reason||"Không có nội dung bổ sung"],["Khách phản hồi",DEDUCTION_LABEL[ret?.deduction_status]||"Chưa có dữ liệu"],...deductionReplyRows(ret||{})]}/>{ret?.deduction_photos?.length>0&&<DamagePhotos photos={ret.deduction_photos}/>}</section>
   <section className="panel customer-detail__card"><h2>Ảnh hiện trạng</h2><p className="hint">Bấm vào ảnh để xem lớn.</p><DamagePhotos photos={r.photos} emptyText="Chưa có ảnh hiện trạng."/>{r.photo_files?.length>0&&<p className="hint">Tệp mô phỏng: {r.photo_files.map(f=>f.fileName).join(", ")}</p>}</section>
  </>;
 }

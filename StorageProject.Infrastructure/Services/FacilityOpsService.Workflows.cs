@@ -75,6 +75,18 @@ public partial class FacilityOpsService
         return ("WAITING", deadline);
     }
 
+    /// <summary>Phương án khách chọn cho từng khoản (vệ sinh, hư hỏng) từ nhật ký phản hồi khấu trừ.</summary>
+    private static (string? Cleaning, string? Damage) ItemDecisions(ReturnInspection i, ActivityLog? decision)
+    {
+        if (decision == null) return (null, null);
+        var code = Read(decision, "decision");
+        var hasCleaning = i.CleaningRequired || i.CleaningFee > 0;
+        var hasDamage = i.DamageFee > 0;
+        var cleaning = Read(decision, "cleaningDecision") ?? (hasCleaning ? (code == "AGREE" ? "AGREE" : code is "SELF_CLEAN" or "DISPUTE" ? code : hasDamage ? "AGREE" : null) : null);
+        var damage = Read(decision, "damageDecision") ?? (hasDamage ? (code == "AGREE" ? "AGREE" : code is "SELF_REPLACE" or "DISPUTE" ? code : hasCleaning ? "AGREE" : null) : null);
+        return (cleaning, damage);
+    }
+
     /// <summary>Chặn chốt hoàn cọc (M07) khi khách còn trong hạn xác nhận hoặc phương án thay thế chưa được kiểm tra lại.</summary>
     private async Task RequireDeductionSettledAsync(ReturnInspection inspection, long? actorId, DateTime now, CancellationToken ct)
     {
@@ -130,14 +142,7 @@ public partial class FacilityOpsService
         var overdueDays = Math.Max(0, DateOnly.FromDateTime(i.CreatedAt + VnOffset).DayNumber - c.EndDate.DayNumber);
         var overdueFee = c.Unit != null ? await OverdueFeeAtAsync(c, c.Unit.FacilityId, i.CreatedAt, ct) : 0;
         var decisionCode = decision != null ? Read(decision, "decision") : null;
-        var hasCleaning = i.CleaningRequired || i.CleaningFee > 0;
-        var hasDamage = i.DamageFee > 0;
-        var cleaningDecision = decision != null
-            ? Read(decision, "cleaningDecision") ?? (hasCleaning ? (decisionCode == "AGREE" ? "AGREE" : decisionCode is "SELF_CLEAN" or "DISPUTE" ? decisionCode : hasDamage ? "AGREE" : null) : null)
-            : null;
-        var damageDecision = decision != null
-            ? Read(decision, "damageDecision") ?? (hasDamage ? (decisionCode == "AGREE" ? "AGREE" : decisionCode is "SELF_REPLACE" or "DISPUTE" ? decisionCode : hasCleaning ? "AGREE" : null) : null)
-            : null;
+        var (cleaningDecision, damageDecision) = ItemDecisions(i, decision);
         return new ReturnDeductionDto(
             ReturnCode(i.InspectionId), ContractCode(c), c.DepositAmount, i.CleaningFee, i.DamageFee,
             i.DamageItem ?? "", i.FeeReason ?? "", PhotosOf(photos, i.InspectionId),

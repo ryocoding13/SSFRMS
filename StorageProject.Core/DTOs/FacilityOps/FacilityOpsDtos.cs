@@ -71,7 +71,10 @@ public record OpsReturnDto(
     // D68: ngày hẹn trả kho (yyyy-MM-dd, giờ VN) — nhân viên chỉ gửi biên bản từ ngày này
     string? ScheduledDate = null,
     // D71: biên bản lập lại theo yêu cầu quản lý — ghi chú của quản lý, thời điểm, mã biên bản cũ (để đối chiếu)
-    string? RedoNote = null, string? RedoAt = null, string? PreviousReturnId = null);
+    string? RedoNote = null, string? RedoAt = null, string? PreviousReturnId = null,
+    // D72: nội dung khách phản hồi khấu trừ (ghi chú, phương án từng khoản, thời điểm) và kết quả kiểm tra lại, để nhân viên / quản lý xem
+    string? DeductionNote = null, string? DeductionDecidedAt = null, string? CleaningDecision = null, string? DamageDecision = null,
+    string? RecheckNote = null);
 
 /// <summary>
 /// #16 / #19: bảng đối soát trả kho. Official = false là số dự kiến trước khi chốt; true khi hợp đồng đã chốt.
