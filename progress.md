@@ -1,3 +1,9 @@
+## 2026-11-27 — D72: chuông báo biên bản trả kho chờ xác nhận; cơ sở xem nội dung khách phản hồi khấu trừ
+
+- **BE:** `OpsReturnDto` thêm `DeductionNote`, `DeductionDecidedAt`, `CleaningDecision`, `DamageDecision`, `RecheckNote` (board đọc từ nhật ký phản hồi / kiểm tra lại); tách `ItemDecisions` dùng chung với `ToDeductionDtoAsync`.
+- **FE:** `AppProvider.loadCustomer` đọc `return-deduction` cho hợp đồng `RETURN_PENDING`; `customerNotifications` thêm thông báo "Biên bản trả kho chờ bạn xác nhận" (mỗi mã biên bản một thông báo) và "Cơ sở đã kiểm tra lại kho"; `deductionReply.js` (mới) dùng ở `ReturnRecheckPage` và `SettlementComponents`.
+- **Test:** BE thêm `D32RefundEvidenceTests.D72.cs`; FE thêm 2 test `api-mappers.test.js`. FE `npm test` 241/241, `test:render` PASS 177 route, build OK. **Chưa chạy `dotnet test`** (môi trường AI không có .NET SDK).
+
 ## 2026-11-27 — D71: quản lý trả biên bản trả kho cho nhân viên kiểm tra lại; sửa chữ hoàn tiền mặt
 
 - **BE:** `FacilityOpsService.RedoReturnInspectionAsync` (file mới `FacilityOpsService.ReturnRedo.cs`), `POST /api/ops/returns/{id}/redo` `{note}` (chỉ quản lý, khoá `contract-settlement` + `return-inspection`); `SubmitReturnInspectionAsync` gọi `CarryOverDeductionAsync` (khấu trừ không đổi thì chép phản hồi/kiểm tra lại/tự chốt của khách và ảnh khách sang biên bản mới); board `returns[]` thêm `redoNote`, `redoAt`, `previousReturnId`.

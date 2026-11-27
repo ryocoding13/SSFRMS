@@ -810,3 +810,10 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - **Lập biên bản mới:** biên bản cũ chuyển `CANCELLED` và giữ lại để đối chiếu; hệ thống tạo lịch kiểm tra mới cùng ngày hẹn, cùng thời điểm khách gửi trả kho (phí quá hạn và hạn 3 ngày không đổi), cùng tài khoản nhận hoàn và ảnh khách gửi. Nhân viên thấy ghi chú của quản lý trên việc "Quản lý yêu cầu kiểm tra lại" và lập biên bản mới (chụp ảnh lại).
 - **Khách:** không nhận thông báo khi biên bản bị trả lại. Khi nhân viên gửi biên bản mới: khấu trừ (vệ sinh, hư hỏng) **không đổi** thì giữ phản hồi cũ của khách (đồng ý / tự dọn / tự thay / khiếu nại / đã kiểm tra lại / tự chốt 48 giờ); **có đổi** thì khách xác nhận lại trong 48 giờ như D39/D40.
 - **Hoàn tiền mặt (giữ D67):** "Chốt & giao tiền về quầy" nghĩa là tiền đã về quầy cơ sở, chưa phải khách đã nhận. Màn khách ghi "Tiền về quầy" (không ghi "Chuyển khoản" / "Đã nhận"), không hiện hạn hoàn. Chỉ khoản tiền mặt còn chờ về quầy mới hiện lựa chọn đổi sang chuyển khoản (D44); đã về quầy thì không hiện lựa chọn đó vì hệ thống không hỗ trợ.
+
+## D72 — 27/11/2026: Báo khách khi có biên bản trả kho cần xác nhận; nhân viên / quản lý xem được nội dung khách phản hồi — Đã chốt
+
+> Vector báo lỗi ngày 27/11/2026: khách không nhận thông báo khi nhân viên gửi (hoặc gửi lại theo D71) biên bản có khoản khấu trừ, và nội dung khách phản hồi không hiện ở phía nhân viên. Bổ sung D39/D71, không đổi bảng/cột (D48).
+
+- **Thông báo khách:** khi biên bản trả kho có khoản khấu trừ đang chờ khách xác nhận, chuông khách hiện "Biên bản trả kho chờ bạn xác nhận" (số tiền khấu trừ, hạn phản hồi), bấm vào mở màn xác nhận khấu trừ. Mỗi biên bản một thông báo, nên biên bản lập lại theo D71 mà khấu trừ thay đổi cũng được báo. Khi cơ sở kiểm tra lại xong, chuông báo "Cơ sở đã kiểm tra lại kho". Lúc biên bản bị quản lý trả lại thì vẫn không báo khách (D71).
+- **Phía cơ sở:** màn "Kiểm tra lại sau trả kho" của nhân viên và màn duyệt đối soát của quản lý hiện phương án khách chọn cho từng khoản (đồng ý / tự dọn / tự thay / khiếu nại), ghi chú của khách, thời điểm phản hồi, ảnh khách gửi và kết quả kiểm tra lại.

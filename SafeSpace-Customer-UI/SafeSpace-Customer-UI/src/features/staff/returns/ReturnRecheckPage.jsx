@@ -7,8 +7,10 @@
  * - Nhân viên kiểm tra lại thực tế: Nếu đạt yêu cầu -> Hủy bỏ khoản khấu trừ tương ứng.
  */
 import React, { useState } from "react";
-import { Button, Field, Modal, Notice, PageHeader } from "../../../shared/components/UI.jsx";
+import { Button, DetailList, Field, Modal, Notice, PageHeader } from "../../../shared/components/UI.jsx";
 import { money } from "../../../shared/utils/format.js";
+import { timeLabel } from "../../facility-operations/damage/DamageComponents.jsx";
+import { deductionReplyRows } from "../../facility-operations/settlements/deductionReply.js";
 import { useOps } from "../../facility-operations/state/FacilityOperationsProvider.jsx";
 import { RecordCard, WorkflowEmpty } from "../../facility-operations/workflows/WorkflowComponents.jsx";
 import { useOpsEndpoint } from "../../facility-operations/workflows/useOpsEndpoint.js";
@@ -42,12 +44,15 @@ export function ReturnRecheckPage() {
     <PageHeader title="Kiểm tra lại sau trả kho" description="Khách đã chọn tự dọn, tự thay hoặc khiếu nại. Kiểm tra lại tại kho; đạt thì không trừ khoản tương ứng vào cọc." />
     {items.map(r => <RecordCard key={r.id} title={`${r.id} · ${r.customer}`} subtitle={`Kho ${r.unit} · ${r.contract}`} status="Chờ kiểm tra lại"
       actions={<Button disabled={api.busy} onClick={() => setForm({ item: r, cleaningPassed: false, replacementPassed: false, note: "" })}>Ghi kết quả</Button>}>
-      <p>{CHOICE[r.deduction_status]}</p><p className="muted">Cọc {money(r.deposit)}{r.deduction_photos?.length ? ` · khách gửi ${r.deduction_photos.length} ảnh` : ""}</p>
+      <p>{CHOICE[r.deduction_status]}</p>
+      {deductionReplyRows(r).length > 0 && <DetailList items={deductionReplyRows(r)} />}
+      <p className="muted">{r.deduction_decided_at ? `Khách phản hồi lúc ${timeLabel(r.deduction_decided_at)} · ` : ""}Cọc {money(r.deposit)}{r.deduction_photos?.length ? ` · khách gửi ${r.deduction_photos.length} ảnh` : ""}</p>
       {r.deduction_photos?.length > 0 && <ul className="deduction-photos">{r.deduction_photos.filter(p => /^(https?:)?\//.test(p.url || "")).map((p, i) => <li key={i}><a href={p.url} target="_blank" rel="noreferrer"><img src={p.url} alt={`Ảnh khách gửi ${i + 1}`} loading="lazy" /></a></li>)}</ul>}
     </RecordCard>)}
     {!items.length && <WorkflowEmpty title="Không có kho cần kiểm tra lại" text="Khi khách chọn tự dọn, tự thay hoặc khiếu nại, hồ sơ sẽ hiện ở đây." />}
     {form && <Modal title={`Kiểm tra lại · ${form.item.id}`} onClose={() => { setForm(null); setError(""); }}>
       <p className="modal__text">{CHOICE[form.item.deduction_status]}</p>
+      {form.item.deduction_note && <p className="modal__text">Khách ghi: “{form.item.deduction_note}”</p>}
       <fieldset className="choice-list">
         {form.item.deduction_status !== "SELF_REPLACE" && <label className="choice-list__item"><input type="checkbox" checked={form.cleaningPassed} onChange={e => setForm({ ...form, cleaningPassed: e.target.checked })} /><span>Kho đã đạt tiêu chuẩn vệ sinh · không trừ phí vệ sinh</span></label>}
         {form.item.deduction_status !== "SELF_CLEAN" && <label className="choice-list__item"><input type="checkbox" checked={form.replacementPassed} onChange={e => setForm({ ...form, replacementPassed: e.target.checked })} /><span>Vật dụng đã thay tương đương · không trừ phí hư hỏng</span></label>}

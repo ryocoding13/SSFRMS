@@ -239,6 +239,10 @@ public partial class FacilityOpsService
             var redoRequest = Last(returnLogs, i.InspectionId, ReturnRedoRequested);
             var overdueFee = overdueAtRequest[i.InspectionId];
             var deduction = DeductionStateOf(i, returnLogs.Where(l => l.EntityId == i.InspectionId), now);
+            // D72: nội dung khách phản hồi + kết quả kiểm tra lại cho nhân viên / quản lý
+            var decisionLog = Last(returnLogs, i.InspectionId, FlowAction.DeductionDecision);
+            var recheckLog = Last(returnLogs, i.InspectionId, FlowAction.DeductionRecheck);
+            var (cleaningDecision, damageDecision) = ItemDecisions(i, decisionLog);
             OpsReturnReportDto? report = submitted == null ? null : new OpsReturnReportDto(
                 Read(submitted, "items") ?? "", Read(submitted, "walls") ?? "", Read(submitted, "keys") ?? "", Read(submitted, "proposal") ?? "",
                 i.DamageFee, i.CleaningFee, i.CleaningRequired, i.DamageItem ?? "", i.FeeReason ?? "", overdueFee,
@@ -266,7 +270,11 @@ public partial class FacilityOpsService
                 ScheduledDate: i.ScheduledAt is DateTime sd ? DateOnly.FromDateTime(sd + VnOffset).ToString("yyyy-MM-dd") : null,
                 RedoNote: redoRequest != null ? Read(redoRequest, "note") : null,
                 RedoAt: redoRequest != null ? Local(redoRequest.LoggedAt) : null,
-                PreviousReturnId: redoRequest != null ? Read(redoRequest, "previous") : null);
+                PreviousReturnId: redoRequest != null ? Read(redoRequest, "previous") : null,
+                DeductionNote: decisionLog != null ? Read(decisionLog, "note") : null,
+                DeductionDecidedAt: decisionLog != null ? Local(decisionLog.LoggedAt) : null,
+                CleaningDecision: cleaningDecision, DamageDecision: damageDecision,
+                RecheckNote: recheckLog != null ? Read(recheckLog, "note") : null);
         }).ToList();
 
         // ---- S05 · Yêu cầu hỗ trợ
