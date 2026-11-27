@@ -92,10 +92,13 @@ public static class RenewalUnitMove
         var upgraded = originalType is long o && o != unit.UnitTypeId;
         var types = upgraded ? new[] { unit.UnitTypeId, originalType!.Value } : new[] { unit.UnitTypeId };
         var options = new List<RenewalUnitOptionDto>();
+        // D70: ô đang có khách khác giữ chỗ để thanh toán (đơn chờ PayOS / tại quầy / đã trả chờ cấp ô) không được chọn.
+        var heldByReservations = (await UnitProposal.PendingHoldsAsync(db, unit.FacilityId, ct))
+            .Where(p => p.EndDate > today).Select(p => p.UnitId).ToHashSet();
         foreach (var typeId in types)
         {
             var slots = await UnitAvailability.SlotsAsync(db, unit.FacilityId, typeId, ct);
-            var free = slots.Where(s => s.FreeNow && s.Unit.UnitId != unit.UnitId).ToList();
+            var free = slots.Where(s => s.FreeNow && s.Unit.UnitId != unit.UnitId && !heldByReservations.Contains(s.Unit.UnitId)).ToList();
             if (free.Count == 0) continue;
             var rate = await RateAsync(db, unit.FacilityId, typeId, contract.AgreedMonthlyRate, today, ct);
             var deposit = await DepositRequiredAsync(db, unit.FacilityId, typeId, rate, today, ct);
@@ -104,7 +107,7 @@ public static class RenewalUnitMove
                 rate, deposit, Math.Max(0m, deposit - contract.DepositAmount))));
         }
         return new RenewalUnitOptionsDto(contract.ContractId, unit.UnitNumber, contract.EndDate,
-            await UnitAvailability.NextBookingAsync(db, contract, ct), upgraded, contract.DepositAmount, options);
+            (await UnitAvailability.NextBookingWithHoldsAsync(db, contract, ct)).From, upgraded, contract.DepositAmount, options);
     }
 
     private static RenewalUnitOptionDto Pick(RenewalUnitOptionsDto options, long targetUnitId) =>

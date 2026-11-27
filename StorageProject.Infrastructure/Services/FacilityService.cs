@@ -238,9 +238,14 @@ public class FacilityService(AppDbContext dbContext) : IFacilityService
         var periodStart = startDate.HasValue && startDate.Value > today ? startDate.Value : today;
         var periodEnd = hasPeriod ? periodStart.AddMonths(months!.Value) : periodStart.AddMonths(1);
 
-        var held = hasPeriod
-            ? await UnitProposal.HeldByOthersAsync(dbContext, facilityId, null, periodStart, periodEnd, 0, ct)
-            : [];
+        // D70: xét ô đang giữ chỗ theo đúng ngày đệm của từng loại kho, giống lúc tạo đơn (trước đây sơ đồ không cộng ngày đệm
+        // nên báo còn trống mà bấm đặt lại bị từ chối).
+        var held = new HashSet<long>();
+        if (hasPeriod)
+        {
+            foreach (var (typeId, typeBuffer) in buffers)
+                held.UnionWith(await UnitProposal.HeldByOthersAsync(dbContext, facilityId, typeId, periodStart, periodEnd, 0, ct, typeBuffer));
+        }
         var pending = await UnitProposal.PendingHoldsAsync(dbContext, facilityId, ct);
 
         var units = await dbContext.StorageUnits

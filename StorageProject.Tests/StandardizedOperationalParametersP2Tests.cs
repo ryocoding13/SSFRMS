@@ -56,13 +56,13 @@ public class StandardizedOperationalParametersP2Tests
     public void RenewalPaymentDeadline_ClampsToContractEndDate_WhenLessThan24HoursRemain()
     {
         // Lúc duyệt: 2026-11-10 12:00:00 UTC (19:00 VN)
-        // Ngày hết hạn: 2026-11-11 (tức 2026-11-10 17:00:00 UTC, chỉ còn 5 giờ)
+        // D70: ngày hết hạn 2026-11-10 vẫn dùng được tới 23:59 VN (tức 2026-11-10 17:00:00 UTC, chỉ còn 5 giờ)
         var now = new DateTime(2026, 11, 10, 12, 0, 0, DateTimeKind.Utc);
-        var contractEndDate = new DateOnly(2026, 11, 11);
+        var contractEndDate = new DateOnly(2026, 11, 10);
 
         var deadline = OpsRules.CalculateRenewalPaymentDeadlineUtc(now, contractEndDate);
 
-        var expiryUtc = contractEndDate.ToDateTime(TimeOnly.MinValue) - OpsRules.ReportOffset;
+        var expiryUtc = contractEndDate.AddDays(1).ToDateTime(TimeOnly.MinValue) - OpsRules.ReportOffset;
         Assert.Equal(expiryUtc, deadline);
         Assert.True(deadline < now.AddHours(24));
         Assert.Equal(5, (deadline - now).TotalHours);

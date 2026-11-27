@@ -93,9 +93,10 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
 
         var now = DateTime.UtcNow;
         var vnToday = DateOnly.FromDateTime(now + TimeSpan.FromHours(7));
-        if (contract.EndDate <= vnToday)
+        // D70: ngày hết hạn vẫn là ngày còn dùng — gia hạn được đến hết ngày đó.
+        if (contract.EndDate < vnToday)
         {
-            throw new InvalidOperationException("Hợp đồng đã đến hoặc quá ngày hết hạn, không thể gửi yêu cầu gia hạn.");
+            throw new InvalidOperationException("Hợp đồng đã quá ngày hết hạn, không thể gửi yêu cầu gia hạn.");
         }
 
         var deadline = OpsRules.CalculateRenewalPaymentDeadlineUtc(now, contract.EndDate);
@@ -137,10 +138,11 @@ public class RenewalService(AppDbContext dbContext, IPayOSGateway gateway) : IRe
                 throw new InvalidOperationException("Hợp đồng đang chuyển sang ô mới. Gửi gia hạn tiếp sau khi chuyển đồ xong.");
             targetOption = await RenewalUnitMove.ValidateAsync(dbContext, contract, targetUnitId, ct);
         }
-        // D41: ô đã có khách mới đặt trước từ ngày hết hạn → khoá gia hạn ô này (khách có thể chuyển sang ô khác còn trống)
-        else if (await UnitAvailability.NextBookingAsync(dbContext, contract, ct) is DateOnly bookedFrom)
+        // D70 (thay khoá cứng của D41): chỉ chặn khi kỳ gia hạn + ngày đệm chồng lên lịch của khách khác trên ô này,
+        // gồm cả đơn đang giữ chỗ chờ thanh toán (trước đây chỉ xét hợp đồng → gia hạn lấy mất ô khách đang trả tiền).
+        else if (await UnitAvailability.RenewalConflictAsync(dbContext, contract, contract.EndDate.AddMonths(request.RenewalPeriodMonths), ct) is DateOnly bookedFrom)
         {
-            throw new InvalidOperationException($"Ô đã có khách đặt từ {bookedFrom:dd/MM/yyyy}, không gia hạn được ô này. Liên hệ cơ sở để chuyển sang ô khác còn trống.");
+            throw new InvalidOperationException($"Ô đã có khách đặt từ {bookedFrom:dd/MM/yyyy}, không gia hạn được {request.RenewalPeriodMonths} tháng ở ô này. Chọn ít tháng hơn hoặc chuyển sang ô khác còn trống.");
         }
 
         int? consentVersion = expectedVersion;

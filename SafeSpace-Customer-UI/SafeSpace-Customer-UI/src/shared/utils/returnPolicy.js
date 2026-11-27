@@ -15,14 +15,15 @@ const isoDay = value => /^\d{4}-\d{2}-\d{2}/.test(String(value || "")) ? String(
 const dayBefore = iso => { const [y, m, d] = iso.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10); };
 export function contractVisitRange(endDate, todayIso, startDate) {
   const end = isoDay(endDate), start = isoDay(startDate), min = start > isoDay(todayIso) ? start : isoDay(todayIso);
-  const max = !end ? "" : dayBefore(end) > min ? dayBefore(end) : min; // không có hợp đồng → không giới hạn trên
+  // D70: ngày hết hạn vẫn là ngày còn dùng → hẹn được tới hết ngày đó; đã quá hạn thì chỉ hôm nay.
+  const max = !end ? "" : end > min ? end : min; // không có hợp đồng → không giới hạn trên
   return { min, max };
 }
 export function visitDateError(date, endDate, todayIso, what = "trả kho", startDate) {
   const { min, max } = contractVisitRange(endDate, todayIso, startDate);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ""))) return `Vui lòng chọn ngày ${what}.`;
   if (date < min) return min > isoDay(todayIso) ? `Ngày ${what} phải từ ngày bắt đầu thuê ${min.split("-").reverse().join("/")}.` : `Ngày ${what} không được ở quá khứ.`;
-  if (max && date > max) return max === min ? `Hợp đồng đã đến ngày hết hạn: chỉ hẹn ${what} trong hôm nay.` : `Ngày ${what} phải trước ngày hết hạn hợp đồng (chậm nhất ${max.split("-").reverse().join("/")}).`;
+  if (max && date > max) return max === min ? `Hợp đồng đã đến ngày hết hạn: chỉ hẹn ${what} trong hôm nay.` : `Ngày ${what} chậm nhất là ngày hết hạn hợp đồng (${max.split("-").reverse().join("/")}).`;
   return "";
 }
 export const isEarlyStop = (endDate, moveOutDate) => Boolean(endDate && moveOutDate && moveOutDate < endDate);

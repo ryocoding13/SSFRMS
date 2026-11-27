@@ -788,3 +788,16 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - Khách tick đồng ý chính sách + chọn cách thanh toán rồi bấm xác nhận → lúc đó mới tạo đơn và ghi đồng ý chính sách liền nhau: **QR** → giữ 15 phút từ lúc tạo mã (trang mã QR); **Tại cửa hàng** → giữ 24 giờ từ lúc xác nhận, sang màn xác nhận.
 - Nếu ô vừa bị người khác đặt trong lúc khách đọc chính sách, trang báo lỗi tại chỗ và có nút quay lại sơ đồ để chọn ô/ngày khác. Nếu đơn đã tạo nhưng ghi đồng ý lỗi, mở trang xác nhận của chính đơn đó để khách thử lại (đơn tự hết hạn sau 15 phút nếu bỏ dở).
 - Trang `#/checkout/{mã đơn}/confirm` của đơn có sẵn (mở lại từ danh sách đơn) giữ nguyên cách cũ.
+
+## D70 — 27/11/2026: Ngày hết hạn còn dùng, chỉ chặn gia hạn khi trùng lịch, hoàn tiền gia hạn khi huỷ, giữ chỗ QR không kéo dài 24 giờ — Đã chốt
+
+> Vector chốt ngày 27/11/2026 sau khi rà soát lỗi. Giải điểm treo của D59 (EndDate hiểu hai cách); thay khoá cứng gia hạn của D41 ("ô đã có người đặt trước thì khoá gia hạn ô đó"); thay phần "đồng ý chính sách → giữ chỗ 24 giờ" của D67; giữ D68 về trả kho theo lịch hẹn (QR/PIN khoá từ 00:00 ngày hẹn) nhưng sửa chữ hiển thị cho khớp. Không đổi bảng/cột (D48); hợp đồng chi tiết trả thêm trường `maxRenewalMonths`.
+
+- **Ngày hết hạn là ngày còn dùng:** QR/PIN mở cửa trong `[StartDate, EndDate]`, đến 23:59 ngày hết hạn theo giờ Việt Nam; quá hạn tính từ 00:00 ngày sau (giữ D32). Đúng ngày hết hạn khách vẫn gia hạn được (hạn thanh toán chậm nhất hết ngày đó), hẹn trả kho / nhận chìa khóa được tới hết ngày đó. Ngày đệm cho thuê lại tính từ ngày hết hạn, tối thiểu 1 ngày để khách mới không trùng ngày cuối của khách cũ.
+- **QR/PIN khi trả kho:** khoá từ 00:00 ngày hẹn trả (như code D68). Hẹn trả hôm nay thì khoá ngay khi gửi. Hộp xác nhận và danh sách lưu ý ghi đúng quy tắc này.
+- **Gia hạn khi ô đã có lịch sau:** chỉ chặn khi kỳ gia hạn cộng ngày đệm chồng lên lịch của khách khác trên ô đó — gồm hợp đồng đã cấp **và đơn đang giữ chỗ chờ thanh toán**. Màn gia hạn ghi "gia hạn ô này tối đa N tháng"; N = 0 thì chỉ còn "Gia hạn sang ô khác".
+- **Không lấy ô khách khác đang thanh toán:** gia hạn sang ô khác, chuyển ô do sự cố, đổi ô / dời ngày khi xung đột đều bỏ qua ô đang có đơn giữ chỗ còn hiệu lực.
+- **Gia hạn trước ngày bắt đầu:** vẫn cho gia hạn. Huỷ đơn trước ngày bắt đầu thì hoàn cả tiền thuê, cọc, tiền gia hạn và cọc chênh đã thu; yêu cầu gia hạn đang chờ thanh toán bị huỷ, trả ô đang giữ cho chuyển ô.
+- **Giữ chỗ:** ghi đồng ý chính sách không kéo dài giữ chỗ. QR giữ 15 phút từ lúc mở mã; tại cửa hàng giữ 24 giờ từ lúc đồng ý (như D69). Mở mã lỗi hoặc khách bỏ dở thì ô trống lại sau 15 phút.
+- **Cửa mô phỏng:** không tự khoá (D51), nhưng khi hợp đồng của lần mở gần nhất hết quyền ra vào (quá hạn, tới ngày hẹn trả, đã trả kho / huỷ, mã bị thu hồi) thì trạng thái cửa hiện "Đã khoá".
+- **Sơ đồ ô:** xét ô đang giữ chỗ theo đúng ngày đệm của loại kho như lúc tạo đơn.

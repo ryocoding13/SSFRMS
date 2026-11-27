@@ -342,7 +342,7 @@ const handlers = {
 
   REQUEST_RENEWAL(state, p, ctx) {
     const c = contractOf(state, p.contract_id);
-    if (!c || c.status === "ENDED" || c.end_date <= localDate(ctx.now)) fail("Hợp đồng chưa thể gia hạn.");
+    if (!c || c.status === "ENDED" || c.end_date < localDate(ctx.now)) fail("Hợp đồng chưa thể gia hạn.");
     const months = Number(p.months);
     if (!isValidMonths(months)) fail(MONTHS_ERROR);
     const pending = hasPending(state, c.contract_id);

@@ -61,7 +61,9 @@ public record ContractDetailDto(
     // D41: ô đã có khách mới đặt từ ngày này → nút gia hạn mờ "Ô đã có khách đặt từ dd/mm"
     DateOnly? NextBookingFrom = null,
     PolicyConsentDto? PolicyConsent = null,
-    ContractOverdueDto? Overdue = null
+    ContractOverdueDto? Overdue = null,
+    // D70: số tháng gia hạn tối đa ở chính ô này trước lịch khách sau (null = không giới hạn, 0 = chỉ gia hạn sang ô khác)
+    int? MaxRenewalMonths = null
 );
 
 public record HandoverSummaryDto(

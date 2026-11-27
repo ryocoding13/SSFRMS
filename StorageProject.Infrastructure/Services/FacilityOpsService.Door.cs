@@ -26,16 +26,23 @@ public partial class FacilityOpsService
             .Where(l => l.EntityType == "CONTRACT" && l.EntityId != null && contractIds.Contains(l.EntityId.Value)
                         && (l.Action == "ACCESS_SCANNED" || l.Action == DoorClosedAction))
             .OrderBy(l => l.LoggedAt).ThenBy(l => l.LogId)
-            .Select(l => new { l.Action, l.NewValue, l.LoggedAt })
+            .Select(l => new { l.Action, l.NewValue, l.LoggedAt, l.EntityId })
             .ToListAsync(ct);
         var result = new Dictionary<string, DoorState>(StringComparer.OrdinalIgnoreCase);
+        var openedBy = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         foreach (var l in logs)
         {
             var (unit, outcome) = DoorEvent(l.NewValue);
             if (string.IsNullOrWhiteSpace(unit)) continue;
             if (l.Action == DoorClosedAction) result[unit!] = new DoorState(false, l.LoggedAt);
-            else if (outcome == "OPEN") result[unit!] = new DoorState(true, l.LoggedAt);
+            else if (outcome == "OPEN") { result[unit!] = new DoorState(true, l.LoggedAt); openedBy[unit!] = l.EntityId!.Value; }
             // DENIED không đổi trạng thái cửa.
+        }
+        // D70: hợp đồng mở cửa lần cuối đã hết quyền ra vào → cửa coi như đã khoá.
+        foreach (var (unit, state) in result.ToList())
+        {
+            if (state.Open && openedBy.TryGetValue(unit, out var contractId) && !await AccessService.StillUsableAsync(dbContext, contractId, ct))
+                result[unit] = new DoorState(false, state.At);
         }
         return result;
     }

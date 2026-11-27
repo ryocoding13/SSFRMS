@@ -31,7 +31,9 @@ test("mô phỏng lưu consent và giữ EndDate; hết hạn không gửi thêm
   assert.equal(out.error,undefined);
   assert.deepEqual(out.state.renewals[0].policy_consent,consent);
   assert.equal(out.state.contracts[0].end_date,c.end_date);
-  assert.ok(reduce(state,action,{now:new Date("2027-01-01T04:00:00Z")}).error);
+  // D70: đúng ngày hết hạn vẫn gia hạn được; từ ngày sau mới chặn
+  assert.equal(reduce(state,action,{now:new Date("2027-01-01T04:00:00Z")}).error,undefined);
+  assert.ok(reduce(state,action,{now:new Date("2027-01-02T04:00:00Z")}).error);
 });
 
 test("không xác nhận consent sai phiên bản hoặc thiếu thời điểm server", async () => {

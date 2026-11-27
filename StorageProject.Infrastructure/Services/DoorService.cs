@@ -77,6 +77,9 @@ public class DoorService(AppDbContext dbContext) : IDoorService
             if (l.Action == ClosedAction) state = (false, l.LoggedAt, l.EntityId);
             else if (result == "OPEN") state = (true, l.LoggedAt, l.EntityId);
         }
+        // D70: hợp đồng đã hết quyền ra vào (quá hạn, tới ngày hẹn trả, trả kho, huỷ…) thì cửa coi như đã khoá.
+        if (state.Item1 && state.Item3 is long openedBy && !await AccessService.StillUsableAsync(dbContext, openedBy, ct))
+            state = (false, state.Item2, openedBy);
         return state;
     }
 

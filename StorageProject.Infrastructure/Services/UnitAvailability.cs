@@ -55,7 +55,8 @@ public static class UnitAvailability
     public static async Task<int> BufferDaysAsync(AppDbContext db, long facilityId, long unitTypeId, DateOnly onDate, CancellationToken ct)
     {
         var policy = await OpsRules.FindApplicablePolicyAsync(db, BufferPolicyType, facilityId, unitTypeId, onDate, ct);
-        return policy?.Value is decimal v && v >= 0 && v <= 60 ? (int)Math.Round(v) : DefaultBufferDays;
+        // D70: ngày hết hạn là ngày khách cũ còn dùng, nên khách mới sớm nhất từ ngày sau đó (đệm tối thiểu 1 ngày).
+        return policy?.Value is decimal v && v >= 0 && v <= 60 ? Math.Max(1, (int)Math.Round(v)) : DefaultBufferDays;
     }
 
     /// <summary>
@@ -253,6 +254,45 @@ public static class UnitAvailability
             && !r.UnitAssignments.Any(a => a.Status == "ACTIVE")
             && r.StartDate < end && r.ExpectedEndDate > start, ct);
         return Math.Max(0, bookable - waiting);
+    }
+
+    /// <summary>
+    /// D70 (thay khoá cứng của D41): ngày bắt đầu sớm nhất của lịch khách khác trên cùng ô mà kỳ gia hạn
+    /// (từ ngày hết hạn cũ tới <paramref name="newEndDate"/>, cộng ngày đệm) chồng lên — gồm hợp đồng đã cấp và đơn đang giữ chỗ
+    /// (khách đang thanh toán). Null nếu gia hạn được.
+    /// </summary>
+    public static async Task<DateOnly?> RenewalConflictAsync(AppDbContext db, RentalContract contract, DateOnly newEndDate, CancellationToken ct)
+    {
+        var (next, buffer) = await NextBookingWithHoldsAsync(db, contract, ct);
+        return next is DateOnly from && from < newEndDate.AddDays(buffer) ? from : null; // lịch sau phải bắt đầu từ newEnd + đệm
+    }
+
+    /// <summary>
+    /// D70: lịch sớm nhất của khách khác trên cùng ô sau hợp đồng này — hợp đồng đã cấp hoặc đơn đang giữ chỗ chờ thanh toán —
+    /// kèm số ngày đệm áp dụng.
+    /// </summary>
+    public static async Task<(DateOnly? From, int Buffer)> NextBookingWithHoldsAsync(AppDbContext db, RentalContract contract, CancellationToken ct)
+    {
+        var unit = contract.Unit ?? await db.StorageUnits.AsNoTracking().SingleAsync(u => u.UnitId == contract.UnitId, ct);
+        var buffer = await BufferDaysAsync(db, unit.FacilityId, unit.UnitTypeId, OpsRules.TodayLocal, ct);
+        var contractStart = await NextBookingAsync(db, contract, ct);
+        var pendingStart = (await UnitProposal.PendingHoldsAsync(db, unit.FacilityId, ct))
+            .Where(p => p.UnitId == contract.UnitId && p.StartDate > contract.StartDate)
+            .Select(p => (DateOnly?)p.StartDate)
+            .Min();
+        return (new[] { contractStart, pendingStart }.Where(d => d.HasValue).Min(), buffer);
+    }
+
+    /// <summary>
+    /// D70: số tháng gia hạn tối đa ở chính ô này trước lịch của khách sau (cộng ngày đệm). Null = không có lịch sau
+    /// (gia hạn tới 99 tháng); 0 = không gia hạn được ô này, chỉ chuyển sang ô khác.
+    /// </summary>
+    public static int? MaxRenewalMonths(DateOnly endDate, DateOnly? nextFrom, int buffer)
+    {
+        if (nextFrom is not DateOnly from) return null;
+        var months = 0;
+        while (months < OpsRules.MaxRentalMonths && endDate.AddMonths(months + 1).AddDays(buffer) <= from) months++;
+        return months;
     }
 
     /// <summary>

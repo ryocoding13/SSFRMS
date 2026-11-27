@@ -13,7 +13,7 @@ import ConfirmDialog from "../../../shared/components/ConfirmDialog.jsx";
 import RefundMethodFields from "../../../shared/components/RefundMethodFields.jsx";
 import { useRefundSupport } from "../../../shared/hooks/useRefundSupport.js";
 import { emptyRefundBank, isCashRefund, validateRefundChoice } from "../../../shared/utils/refundRequest.js";
-import { dateLabel, daysBetween, money, today } from "../../../shared/utils/format.js";
+import { addDays, dateLabel, daysBetween, money, today } from "../../../shared/utils/format.js";
 import { typeLabel } from "../../../shared/utils/catalog.js";
 import { contractVisitRange, earlyStopKeep, isEarlyStop, unusedRent, visitDateError } from "../../../shared/utils/returnPolicy.js";
 import { go } from "../../../app/router.js";
@@ -94,9 +94,9 @@ export function ReturnRequestPage({ id }) {
       <aside className="customer-detail__column customer-detail__sidebar">
         <section className="panel customer-detail__card"><h2>Hợp đồng {id}</h2><DetailList items={[["Kho", `${c.unit_number} · ${typeLabel(c.type)}${c.size_m2 ? ` ${c.size_m2} m²` : ""}`], ["Dùng đến hết", `${dateLabel(c.end_date)} · 23:59`], ["Cọc đang giữ", money(c.deposit)]]} /></section>
         <RefundPreview c={c} date={date} cash={isCashRefund(bank)} />
-        <section className="panel customer-detail__card return-request__warning"><h2>Sau khi gửi thành công</h2><ul><li>Phí thuê tính đến ngày hẹn trả kho.</li><li>Trước ngày hẹn bạn vẫn mở cửa kho bằng QR/PIN như bình thường; QR/PIN khoá khi nhân viên kiểm tra vào ngày hẹn.</li><li>Không thể huỷ yêu cầu.</li><li>Đồ còn lại do nhân viên dọn; cơ sở không nhận bảo quản.</li><li>Trong 3 ngày nhân viên gửi biên bản và tiền hoàn dự kiến; bạn có 48 giờ để xác nhận, quá hạn tự hoàn theo biên bản.</li></ul></section>
+        <section className="panel customer-detail__card return-request__warning"><h2>Sau khi gửi thành công</h2><ul><li>Phí thuê tính đến ngày hẹn trả kho.</li><li>Trước ngày hẹn bạn vẫn mở cửa kho bằng QR/PIN như bình thường; QR/PIN khoá từ 00:00 ngày hẹn (hẹn hôm nay thì khoá ngay khi gửi).</li><li>Không thể huỷ yêu cầu.</li><li>Đồ còn lại do nhân viên dọn; cơ sở không nhận bảo quản.</li><li>Trong 3 ngày nhân viên gửi biên bản và tiền hoàn dự kiến; bạn có 48 giờ để xác nhận, quá hạn tự hoàn theo biên bản.</li></ul></section>
       </aside>
     </div>
-    {confirm && <ConfirmDialog title="Xác nhận gửi trả kho?" tone="warning" text="QR/PIN sẽ hết hiệu lực ngay khi gửi thành công, phí quá hạn dừng và bạn không thể huỷ yêu cầu. Nhân viên sẽ kiểm tra thực tế và chụp ảnh hiện trạng kho." rows={[["Kho", c.unit_number], ["Ngày mong muốn trả kho", dateLabel(date)], ...(isCashRefund(bank) ? [["Cách nhận hoàn", "Tiền mặt tại quầy · trong 30 ngày"]] : [["Ngân hàng", bank.bankName], ["Tài khoản", bank.accountNumber], ["Chủ tài khoản", bank.accountHolder]])]} busy={busy} onCancel={() => setConfirm(false)} onConfirm={send} label="Xác nhận trả kho" />}
+    {confirm && <ConfirmDialog title="Xác nhận gửi trả kho?" tone="warning" text={`${date && date > today() ? `QR/PIN vẫn dùng được đến hết ${dateLabel(addDays(date, -1))} và khoá từ 00:00 ngày ${dateLabel(date)}` : "QR/PIN sẽ khoá ngay khi gửi thành công vì bạn hẹn trả kho hôm nay"}. Phí thuê tính đến ngày hẹn và bạn không thể huỷ yêu cầu. Nhân viên sẽ kiểm tra thực tế và chụp ảnh hiện trạng kho.`} rows={[["Kho", c.unit_number], ["Ngày mong muốn trả kho", dateLabel(date)], ...(isCashRefund(bank) ? [["Cách nhận hoàn", "Tiền mặt tại quầy · trong 30 ngày"]] : [["Ngân hàng", bank.bankName], ["Tài khoản", bank.accountNumber], ["Chủ tài khoản", bank.accountHolder]])]} busy={busy} onCancel={() => setConfirm(false)} onConfirm={send} label="Xác nhận trả kho" />}
   </main>;
 }

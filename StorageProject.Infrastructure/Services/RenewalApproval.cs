@@ -59,7 +59,7 @@ public static class RenewalApproval
             throw new InvalidOperationException("Hợp đồng đang có một yêu cầu gia hạn khác chờ thanh toán.");
         // D41/D46: gia hạn sang ô khác không bị khoá D41 ở ô cũ; kiểm lại ô mới còn trống rồi giữ ô khi duyệt.
         var unitPlan = await RenewalUnitMove.PlanAsync(db, renewal.RenewalId, ct);
-        if (unitPlan == null && await UnitAvailability.NextBookingAsync(db, contract, ct) is DateOnly bookedFrom)
+        if (unitPlan == null && await UnitAvailability.RenewalConflictAsync(db, contract, renewal.NewEndDate, ct) is DateOnly bookedFrom)
             throw new InvalidOperationException($"Ô đã có khách đặt từ {bookedFrom:dd/MM/yyyy} (D41). Từ chối gia hạn hoặc chuyển khách sang ô khác.");
 
         var now = DateTime.UtcNow;

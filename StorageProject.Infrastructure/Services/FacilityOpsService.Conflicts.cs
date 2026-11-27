@@ -138,7 +138,9 @@ public partial class FacilityOpsService
     {
         var facilityId = c.Unit.FacilityId;
         var buffer = await UnitAvailability.BufferDaysAsync(dbContext, facilityId, c.Unit.UnitTypeId, today, ct);
-        bool Fits(UnitAvailability.UnitSlot s) => s.Unit.UnitId != c.UnitId && s.FreeNow
+        // D70: bỏ qua ô đang có khách khác giữ chỗ để thanh toán cùng kỳ (trước đây chỉ xét hợp đồng).
+        var held = await UnitProposal.HeldByOthersAsync(dbContext, facilityId, null, c.StartDate, c.EndDate, c.ReservationId, ct, buffer);
+        bool Fits(UnitAvailability.UnitSlot s) => s.Unit.UnitId != c.UnitId && s.FreeNow && !held.Contains(s.Unit.UnitId)
                                                   && UnitAvailability.Bookable(s, c.StartDate, c.EndDate, buffer, today);
         var same = (await UnitAvailability.SlotsAsync(dbContext, facilityId, c.Unit.UnitTypeId, ct, c.ContractId)).FirstOrDefault(Fits);
         if (same != null) return ("SWAP", same);
@@ -393,9 +395,11 @@ public partial class FacilityOpsService
         var slots = await UnitAvailability.SlotsAsync(dbContext, c.Unit.FacilityId, c.Unit.UnitTypeId, ct, c.ContractId);
         // Giữ ô cũ nếu ô cũ trống kịp; không thì ô cùng loại đặt được cho kỳ mới (ưu tiên trống thật).
         var current = slots.FirstOrDefault(s => s.Unit.UnitId == c.UnitId);
-        var pick = current != null && UnitAvailability.Bookable(current, start, end, buffer, today)
+        // D70: không lấy ô khách khác đang giữ chỗ để thanh toán cho kỳ mới.
+        var held = await UnitProposal.HeldByOthersAsync(dbContext, c.Unit.FacilityId, c.Unit.UnitTypeId, start, end, c.ReservationId, ct, buffer);
+        var pick = current != null && !held.Contains(current.Unit.UnitId) && UnitAvailability.Bookable(current, start, end, buffer, today)
             ? current
-            : UnitAvailability.Pick(slots, start, end, buffer, today);
+            : UnitAvailability.Pick(slots.Where(s => !held.Contains(s.Unit.UnitId)), start, end, buffer, today);
         if (pick == null)
         {
             throw new InvalidOperationException("Chưa có ô cùng loại trống cho ngày này. Chọn ngày khác hoặc huỷ hoàn 100%.");

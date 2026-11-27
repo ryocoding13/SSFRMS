@@ -269,7 +269,7 @@ function LocalProvider({ children }) {
         if (c.status === "ENDED") return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Mã đã hết hiệu lực — hợp đồng đã trả kho." } };
         if (c.access_issued === false) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Mã ra vào chưa được cấp." } };
         if (c.start_date > localDate(new Date())) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: notYetMessage(c.start_date) } };
-        if (c.end_date <= localDate(new Date())) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Hợp đồng đã quá hạn. Vui lòng gia hạn hoặc liên hệ cơ sở." } };
+        if (c.end_date < localDate(new Date())) return { ok: true, scan: { result: "DENIED", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: "Hợp đồng đã quá hạn. Vui lòng gia hạn hoặc liên hệ cơ sở." } };
         try { const doors = JSON.parse(localStorage.getItem("safespace.doors") || "{}"); doors[c.contract_id] = { door: "OPEN", at: now }; localStorage.setItem("safespace.doors", JSON.stringify(doors)); } catch { /* bộ nhớ trình duyệt bị chặn */ }
         return { ok: true, scan: { result: "OPEN", unit: c.unit_number, customer: d.user.full_name, contract: c.contract_id, at: now, reason: null } };
       },
@@ -761,7 +761,7 @@ function ApiProvider({ children }) {
             if (!isValidMonths(months)) return fail(MONTHS_ERROR);
             if (pendingRenewal(d, c.contract_id)) return fail("Hợp đồng đã có yêu cầu gia hạn đang chờ thanh toán.");
             if (pendingReturn(d, c.contract_id)) return fail("Hợp đồng đang có yêu cầu trả kho.");
-            if (c.status === "ENDED" || c.end_date <= localDate(new Date())) return fail("Hợp đồng đã hết hạn, không thể gửi gia hạn.");
+            if (c.status === "ENDED" || c.end_date < localDate(new Date())) return fail("Hợp đồng đã hết hạn, không thể gửi gia hạn.");
             const { dto, acknowledged } = await submitRenewalWithConsent(api, c.api_id, months, p.policy_consent);
             if (!acknowledged) {
               await loadCustomer();

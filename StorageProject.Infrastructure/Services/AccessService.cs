@@ -32,6 +32,25 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
     }
 
     /// <summary>
+    /// D70: cửa mô phỏng không tự khoá (D51), nhưng khi hợp đồng của lần mở gần nhất không còn quyền ra vào
+    /// (quá hạn, đã tới ngày hẹn trả kho, đã trả kho / huỷ, mã bị thu hồi hoặc thay) thì hệ thống coi cửa đã khoá.
+    /// </summary>
+    public static async Task<bool> StillUsableAsync(AppDbContext db, long contractId, CancellationToken ct)
+    {
+        var c = await db.RentalContracts.AsNoTracking().Include(x => x.AccessCredentials)
+            .FirstOrDefaultAsync(x => x.ContractId == contractId, ct);
+        if (c == null) return false;
+        var today = OpsRules.TodayLocal;
+        if (c.StartDate > today || c.EndDate < today) return false;
+        if (!c.AccessCredentials.Any(a => a.Status == "ACTIVE" && a.CredentialType != "KEY")) return false;
+        if (c.Status is "ACTIVE" or "EXPIRING") return true;
+        if (c.Status != "RETURN_PENDING") return false;
+        var tomorrowStartUtc = DateTime.SpecifyKind(today.AddDays(1).ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc) - VnOffset;
+        return await db.ReturnInspections.AnyAsync(i => i.ContractId == contractId && i.Status == "SCHEDULED"
+            && i.ScheduledAt != null && i.ScheduledAt >= tomorrowStartUtc, ct);
+    }
+
+    /// <summary>
     /// Lấy thông tin mã QR và mã PIN dự phòng để mở cửa ô kho cho khách hàng có hợp đồng hợp lệ.
     /// </summary>
     /// <param name="customerId">ID của khách hàng sở hữu hợp đồng.</param>
@@ -228,8 +247,8 @@ public class AccessService(AppDbContext dbContext, AccessQrOptions options) : IA
         if (latestCred.Status != "ACTIVE")
             return await LogAndDenyAsync(contract.ContractId, scannedUnit, customerName, contractCode, "Mã không còn hiệu lực.", ipAddress, ct);
 
-        // #7: Quá hạn
-        if (contract.Status == "OVERDUE" || contract.EndDate <= vnToday)
+        // #7: Quá hạn — D70: ngày hết hạn vẫn mở cửa được đến 23:59, quá hạn từ 00:00 ngày sau EndDate
+        if (contract.Status == "OVERDUE" || contract.EndDate < vnToday)
         {
             return await LogAndDenyAsync(contract.ContractId, scannedUnit, customerName, contractCode, "Hợp đồng đã quá hạn. Vui lòng gia hạn hoặc liên hệ cơ sở.", ipAddress, ct);
         }

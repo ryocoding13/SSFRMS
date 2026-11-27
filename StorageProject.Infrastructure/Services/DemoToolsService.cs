@@ -30,8 +30,9 @@ public class DemoToolsService(AppDbContext dbContext) : IDemoToolsService
     private static string Money(decimal v) => v.ToString("#,##0", CultureInfo.GetCultureInfo("vi-VN")) + " đ";
 
     /// <summary>Trạng thái hợp đồng đang chạy theo ngày mới (các trạng thái khác như trả kho / kết thúc giữ nguyên).</summary>
+    // D70: ngày hết hạn vẫn còn dùng, quá hạn từ ngày sau.
     public static string RunningStatus(DateOnly end, DateOnly today) =>
-        end <= today ? "OVERDUE" : end.DayNumber - today.DayNumber <= ExpiringDays ? "EXPIRING" : "ACTIVE";
+        end < today ? "OVERDUE" : end.DayNumber - today.DayNumber <= ExpiringDays ? "EXPIRING" : "ACTIVE";
 
     public static int OverdueDays(DateOnly end, DateOnly today) => Math.Max(0, today.DayNumber - end.DayNumber);
 
