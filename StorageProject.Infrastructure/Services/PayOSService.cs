@@ -63,10 +63,10 @@ public class PayOSService(
         if (request.Amount.HasValue && request.Amount != amount)
             throw new ArgumentException("Số tiền phải khớp tiền thuê và tiền cọc do máy chủ tính.");
         // D67: khách chọn PayOS → giữ chỗ còn 15 phút kể từ lúc mở mã (không vượt hạn 24 giờ sau khi đồng ý chính sách).
+        // D70: đồng ý chính sách không còn kéo dài giữ chỗ, nên hạn đặt lại đúng 15 phút tính từ lúc mở mã (một lần, khi chưa có mã).
         if (r.OrderCode == null)
         {
-            var payosDeadline = OpsRules.CalculateOnlineHoldDeadlineUtc(DateTime.UtcNow);
-            if (r.ExpiresAt == null || r.ExpiresAt > payosDeadline) r.ExpiresAt = payosDeadline;
+            r.ExpiresAt = OpsRules.CalculateOnlineHoldDeadlineUtc(DateTime.UtcNow);
         }
         var expiry = r.ExpiresAt ?? DateTime.UtcNow.AddMinutes(15);
         if (r.OrderCode != null && !string.IsNullOrEmpty(r.CheckoutUrl) && !string.IsNullOrEmpty(r.PaymentQrUrl))

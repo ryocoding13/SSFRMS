@@ -195,6 +195,9 @@ public class ContractService(AppDbContext dbContext) : IContractService
             calc.IsSettled
         );
 
+        // D70: lịch khách sau gồm cả đơn đang giữ chỗ; gia hạn ô này được tối đa bao nhiêu tháng trước lịch đó.
+        var (nextBooking, nextBuffer) = await UnitAvailability.NextBookingWithHoldsAsync(dbContext, c, ct);
+
         return new ContractDetailDto(
             c.ContractId,
             c.ReservationId,
@@ -220,9 +223,10 @@ public class ContractService(AppDbContext dbContext) : IContractService
                 .Select(a => (DateTime?)a.IssuedAt).Max(),
             consent?.PolicyVersion?.Version,
             consent?.AcceptedAt,
-            await UnitAvailability.NextBookingAsync(dbContext, c, ct),
+            nextBooking,
             consentDto,
-            overdueDto
+            overdueDto,
+            UnitAvailability.MaxRenewalMonths(c.EndDate, nextBooking, nextBuffer)
         );
     }
 
@@ -267,13 +271,13 @@ public class ContractService(AppDbContext dbContext) : IContractService
                 : $"Không thể đăng ký trả kho với hợp đồng ở trạng thái {contract.Status}.");
         }
         if (contract.StartDate > today) throw new InvalidOperationException("Hợp đồng chưa đến ngày bắt đầu thuê. Vui lòng huỷ đơn thay vì trả kho.");
-        // Ngày hẹn trả kho: từ hôm nay đến trước ngày hết hạn (QR/PIN mở cửa trong [StartDate, EndDate)); đã tới/quá hạn thì chỉ hôm nay.
+        // D70: ngày hẹn trả kho từ hôm nay đến hết ngày hết hạn (QR/PIN mở cửa trong [StartDate, EndDate]); đã quá hạn thì chỉ hôm nay.
         var lastReturnDay = OpsRules.LastVisitDay(contract.EndDate, today);
         if (request.Date > lastReturnDay)
         {
             throw new ArgumentException(lastReturnDay == today
-                ? "Hợp đồng đã đến ngày hết hạn: chỉ hẹn trả kho trong hôm nay."
-                : $"Ngày trả kho phải trước ngày hết hạn hợp đồng (chậm nhất {lastReturnDay:dd/MM/yyyy}).");
+                ? "Hợp đồng đã quá ngày hết hạn: chỉ hẹn trả kho trong hôm nay."
+                : $"Ngày trả kho chậm nhất là ngày hết hạn hợp đồng ({lastReturnDay:dd/MM/yyyy}).");
         }
         if (contract.ReturnInspections.Any(i => i.Status is "SCHEDULED" or "IN_PROGRESS"))
         {

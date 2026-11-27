@@ -314,12 +314,16 @@ public sealed partial class CheckoutTests
         await Assert.ThrowsAsync<KeyNotFoundException>(() => access.GetQrAsync(1, c.ContractId));
     }
 
-    [Fact] public async Task ContractEndIsExclusiveAndReturnedContractNeverReactivatedByPaymentReplay() {
+    [Fact] public async Task ContractEndDayIsUsableAndReturnedContractNeverReactivatedByPaymentReplay() {
         await using var f = await Fixture.Create(); await f.PayOS.ProcessWebhookAsync("{}", null);
         var c = await f.Db.RentalContracts.SingleAsync(); c.StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)); await f.Db.SaveChangesAsync();
         var qr = await Access(f.Db).GetQrAsync(f.Order.CustomerId, c.ContractId);
-        c.StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)).AddDays(-1);
-        c.EndDate = c.StartDate.AddDays(1); await f.Db.SaveChangesAsync();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        c.StartDate = today.AddDays(-2);
+        c.EndDate = today; await f.Db.SaveChangesAsync();
+        // D70: ngày hết hạn vẫn mở cửa được đến 23:59; từ ngày sau mới là quá hạn.
+        Assert.Equal("OPEN", (await Access(f.Db).ScanAsync(qr.Code, "test")).Result);
+        c.EndDate = today.AddDays(-1); await f.Db.SaveChangesAsync();
         Assert.Equal("DENIED", (await Access(f.Db).ScanAsync(qr.Code, "test")).Result);
         c.Status = "COMPLETED"; await f.Db.SaveChangesAsync();
         await f.PayOS.ProcessWebhookAsync("{}", null);

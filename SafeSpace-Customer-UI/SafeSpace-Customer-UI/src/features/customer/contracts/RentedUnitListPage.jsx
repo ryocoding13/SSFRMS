@@ -58,7 +58,7 @@ export function RentedUnitListPage() {
                     ? <LinkButton to={`units/${c.contract_id}/renew`} variant="outline">Gia hạn</LinkButton>
                     : <>
                       {/* #59: xem mã được cả trước ngày thuê (chỉ mở cửa từ 00:00 ngày bắt đầu) */}
-                      <Button variant="outline" disabled={Boolean(pendingReturn(data, c.contract_id)) || c.end_date <= now} onClick={() => setQrContract(c)}>Mã QR mở cửa</Button>
+                      <Button variant="outline" disabled={Boolean(pendingReturn(data, c.contract_id)) || c.end_date < now} onClick={() => setQrContract(c)}>Mã QR mở cửa</Button>
                     </>)}
                   <LinkButton to={`units/${c.contract_id}`}>Xem hợp đồng</LinkButton>
                 </>}>

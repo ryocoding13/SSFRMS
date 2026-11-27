@@ -53,14 +53,11 @@ public static class OpsRules
     public static DateOnly TodayLocal => DateOnly.FromDateTime(DateTime.UtcNow + ReportOffset);
 
     /// <summary>
-    /// Ngày cuối cùng được hẹn đến kho trong kỳ thuê (trả kho, nhận chìa khóa): trước ngày hết hạn, vì QR/PIN chỉ mở cửa trong
-    /// [StartDate, EndDate) theo giờ Việt Nam (D26). Hợp đồng đã tới/quá ngày hết hạn chỉ hẹn được trong hôm nay.
+    /// Ngày cuối cùng được hẹn đến kho trong kỳ thuê (trả kho, nhận chìa khóa). D70: ngày hết hạn là ngày còn dùng
+    /// (QR/PIN mở cửa trong [StartDate, EndDate] theo giờ Việt Nam, quá hạn từ EndDate + 1) nên hẹn được tới hết EndDate.
+    /// Hợp đồng đã quá ngày hết hạn chỉ hẹn được trong hôm nay.
     /// </summary>
-    public static DateOnly LastVisitDay(DateOnly endDate, DateOnly today)
-    {
-        var dayBeforeEnd = endDate.AddDays(-1);
-        return dayBeforeEnd > today ? dayBeforeEnd : today;
-    }
+    public static DateOnly LastVisitDay(DateOnly endDate, DateOnly today) => endDate > today ? endDate : today;
 
     /// <summary>Ngày hiện tại theo giờ chuẩn UTC.</summary>
     public static DateOnly TodayUtc => DateOnly.FromDateTime(DateTime.UtcNow);
@@ -123,11 +120,12 @@ public static class OpsRules
         checkInDay.AddDays(1).ToDateTime(TimeOnly.MinValue) - ReportOffset;
 
     /// <summary>
-    /// Hạn thanh toán gia hạn sau khi duyệt: min(now + 24 giờ, 00:00 ngày hết hạn hợp đồng theo giờ Việt Nam).
+    /// Hạn thanh toán gia hạn sau khi duyệt: min(now + 24 giờ, hết ngày hết hạn hợp đồng — 00:00 ngày sau EndDate theo giờ
+    /// Việt Nam). D70: ngày hết hạn vẫn là ngày còn dùng nên khách gia hạn được trong chính ngày đó.
     /// </summary>
     public static DateTime CalculateRenewalPaymentDeadlineUtc(DateTime approvedAtUtc, DateOnly oldEndDate)
     {
-        var expiryUtc = oldEndDate.ToDateTime(TimeOnly.MinValue) - ReportOffset;
+        var expiryUtc = oldEndDate.AddDays(1).ToDateTime(TimeOnly.MinValue) - ReportOffset;
         var maxDeadlineUtc = approvedAtUtc.AddHours(DefaultRenewalPaymentDeadlineHours);
         return maxDeadlineUtc < expiryUtc ? maxDeadlineUtc : expiryUtc;
     }

@@ -2,7 +2,7 @@
  * CHECKOUT PAGE - THANH TOÁN ĐƠN ĐẶT CHỖ THUÊ KHO (C04 / D02 / D21)
  *
  * Luồng thanh toán D21:
- * - D67: đồng ý chính sách → giữ chỗ 24 giờ; màn này chưa chọn sẵn phương thức và đếm ngược 24 giờ.
+ * - D70: chọn QR → giữ chỗ 15 phút tính từ lúc mở mã (đồng ý chính sách không còn kéo dài giữ chỗ 24 giờ).
  * - Phương thức 1: Quét mã QR VietQR PayOS — giữ chỗ còn 15 phút từ lúc tạo mã; hết giờ tự thoát, đơn hết hạn.
  * - Phương thức 2: Thanh toán tại quầy — giữ chỗ 24 giờ tính từ lúc đồng ý chính sách.
  * - Cơ chế tự động thử lại khi tạo link PayOS bị gián đoạn mạng.

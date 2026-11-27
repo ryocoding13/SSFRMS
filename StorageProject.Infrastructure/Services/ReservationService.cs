@@ -302,17 +302,24 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
     private const string CancelPolicyName = "Huỷ trước ngày bắt đầu: miễn phí huỷ (0%), hoàn đủ 100% tiền thuê và 100% tiền cọc";
 
     // D27: chỉ tính trên khoản đã thu (RENT + DEPOSIT, PAID). Đơn chưa thanh toán thì không phát sinh phí.
+    // D70: hợp đồng chưa tới ngày bắt đầu vẫn gia hạn được; huỷ thì hoàn cả tiền gia hạn và cọc chênh đã thu (RENEWAL, DEPOSIT gắn gia hạn).
     private async Task<(decimal Paid, decimal Fee, decimal Refund)> QuoteCancelAsync(Reservation reservation, CancellationToken ct)
     {
+        var contractId = await dbContext.RentalContracts.AsNoTracking()
+            .Where(c => c.ReservationId == reservation.ReservationId)
+            .Select(c => (long?)c.ContractId).FirstOrDefaultAsync(ct);
         var paid = await dbContext.Payments.AsNoTracking()
-            .Where(p => p.ReservationId == reservation.ReservationId && p.Status == "PAID" &&
-                        (p.PaymentType == "RENT" || p.PaymentType == "DEPOSIT"))
+            .Where(p => p.Status == "PAID" &&
+                        ((p.ReservationId == reservation.ReservationId && p.RenewalId == null &&
+                          (p.PaymentType == "RENT" || p.PaymentType == "DEPOSIT"))
+                         || (contractId != null && p.ContractId == contractId && p.RenewalId != null &&
+                             (p.PaymentType == "RENEWAL" || p.PaymentType == "DEPOSIT"))))
             .ToListAsync(ct);
         if (paid.Count == 0) return (0, 0, 0);
         if (OpsRules.TodayLocal >= reservation.StartDate)
             throw new InvalidOperationException(
                 "Đã đến ngày bắt đầu thuê nên không huỷ đặt chỗ được. Vui lòng đăng ký trả kho để được xử lý hoàn cọc theo chính sách.");
-        var rent = paid.Where(p => p.PaymentType == "RENT").Sum(p => p.Amount);
+        var rent = paid.Where(p => p.PaymentType is "RENT" or "RENEWAL").Sum(p => p.Amount);
         var deposit = paid.Where(p => p.PaymentType == "DEPOSIT").Sum(p => p.Amount);
         var result = RefundPolicy.Calculate(new RefundInput(RefundScenario.CancelBeforeStart, deposit, rent,
             reservation.StartDate, reservation.ExpectedEndDate, OpsRules.TodayLocal));
@@ -386,6 +393,26 @@ public class ReservationService(AppDbContext dbContext) : IReservationService
         var draft = contract is { Status: "DRAFT" or "ACTIVE" } ? contract : null;
         if (draft != null)
         {
+            // D70: huỷ hợp đồng thì đóng luôn yêu cầu gia hạn chưa xong (khoản chờ thanh toán, mã PayOS, ô giữ cho chuyển ô).
+            var openRenewals = await dbContext.ContractRenewals.Include(r => r.Payments)
+                .Where(r => r.ContractId == draft.ContractId && (r.Status == "PENDING" || r.Status == "APPROVED"))
+                .ToListAsync(ct);
+            foreach (var r in openRenewals)
+            {
+                r.Status = "CANCELLED";
+                foreach (var p in r.Payments.Where(p => p.Status == "PENDING"))
+                {
+                    p.Status = "FAILED";
+                    p.UpdatedAt = now;
+                    foreach (var checkout in await dbContext.PaymentCheckouts.Where(c => c.PaymentId == p.PaymentId && c.Status == "PENDING").ToListAsync(ct))
+                    {
+                        checkout.Status = "EXPIRED";
+                        checkout.UpdatedAt = now;
+                    }
+                }
+                await RenewalUnitMove.ReleaseAsync(dbContext, r.RenewalId, customerId, $"Khách huỷ đơn #{reservationId} · huỷ gia hạn GH-{r.RenewalId:0000}", ct);
+                ReservationSettlement.Audit(dbContext, customerId, "RENEWAL_CANCELLED", reservationId, new { r.RenewalId, reason = "Huỷ đặt chỗ trước ngày bắt đầu" });
+            }
             draft.Status = "CANCELLED";
             draft.TerminationReason = "Khách huỷ đặt chỗ trước ngày bắt đầu thuê";
             if (draft.HandoverRecord is { Status: not "HANDED_OVER" }) draft.HandoverRecord.Status = "CANCELLED";

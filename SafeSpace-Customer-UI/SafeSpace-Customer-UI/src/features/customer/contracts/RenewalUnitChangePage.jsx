@@ -49,7 +49,7 @@ export function RenewalUnitChangePage({ id }) {
   const version = policy.data?.version;
   const policyReady = !policy.loading && !policy.error && version != null && Number(version) > 0;
   const accepted = policyReady && acceptedVersion === String(version);
-  const blocked = c.end_date <= today() || Boolean(pendingRenewal(data, id) || pendingReturn(data, id));
+  const blocked = c.end_date < today() || Boolean(pendingRenewal(data, id) || pendingReturn(data, id));
   const upgraded = Boolean(opts?.upgraded);
   const submit = e => {
     e.preventDefault();

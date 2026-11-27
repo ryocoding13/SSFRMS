@@ -23,7 +23,8 @@ public sealed class DemoToolsRuleTests
 
     [Theory]
     [InlineData(2026, 11, 9, "OVERDUE", 3)]
-    [InlineData(2026, 11, 12, "OVERDUE", 0)]
+    [InlineData(2026, 11, 11, "OVERDUE", 1)]
+    [InlineData(2026, 11, 12, "EXPIRING", 0)] // D70: đúng ngày hết hạn vẫn còn dùng
     [InlineData(2026, 11, 20, "EXPIRING", 0)]
     [InlineData(2026, 11, 23, "ACTIVE", 0)] // D65: còn 11 ngày chưa phải sắp hết hạn
     [InlineData(2027, 2, 12, "ACTIVE", 0)]

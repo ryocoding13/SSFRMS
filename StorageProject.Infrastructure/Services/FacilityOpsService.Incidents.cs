@@ -486,6 +486,8 @@ public partial class FacilityOpsService
         public List<(long ContractId, long UnitId, DateOnly Start, DateOnly End)> Busy { get; init; } = [];
         public Dictionary<long, int> HistoryCounts { get; init; } = new();
         public Dictionary<long, string> ReservedFor { get; init; } = new();
+        /// <summary>D70: ô đang có khách khác giữ chỗ để thanh toán (đơn chưa cấp ô) — không chọn làm ô thay thế trùng kỳ.</summary>
+        public List<UnitProposal.PendingHold> PendingHolds { get; init; } = [];
         /// <summary>Phiên bản ô = số lần đổi trạng thái đã ghi + 1 (tăng mỗi lần đổi qua SetUnitStatus / UnitStatusRules).</summary>
         public int VersionOf(long unitId) => HistoryCounts.GetValueOrDefault(unitId) + 1;
     }
@@ -515,7 +517,8 @@ public partial class FacilityOpsService
             UnderMaintenance = maintenance.ToHashSet(),
             Busy = busy.Select(b => (b.ContractId, b.UnitId, b.StartDate, b.EndDate)).ToList(),
             HistoryCounts = history,
-            ReservedFor = reserved.GroupBy(r => r.UnitId).ToDictionary(g => g.Key, g => g.First().CaseCode)
+            ReservedFor = reserved.GroupBy(r => r.UnitId).ToDictionary(g => g.Key, g => g.First().CaseCode),
+            PendingHolds = await UnitProposal.PendingHoldsAsync(dbContext, facilityId, ct)
         };
     }
 
@@ -531,7 +534,8 @@ public partial class FacilityOpsService
                             || (u.Status == "RESERVED" && ctx.ReservedFor.TryGetValue(u.UnitId, out var holder) && holder == caseCode))
                         && !ctx.UnderMaintenance.Contains(u.UnitId)
                         && !ctx.Busy.Any(b => b.UnitId == u.UnitId && b.ContractId != contract.ContractId
-                                              && b.Start < contract.EndDate && b.End > today))
+                                              && b.Start < contract.EndDate && b.End > today)
+                        && !ctx.PendingHolds.Any(p => p.UnitId == u.UnitId && p.StartDate <= contract.EndDate && p.EndDate > today))
             .OrderBy(u => u.UnitNumber)
             .ToList();
     }

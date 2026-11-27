@@ -319,6 +319,7 @@ export function composeData({ catalog, remote, overlay: ov, session, timeoutSeco
       api_status: c.status || null,
       // D41: ô đã có khách mới đặt từ ngày này → khoá gia hạn "Ô đã có khách đặt từ dd/mm"
       next_booking_from: c.nextBookingFrom ? dateOnly(c.nextBookingFrom) : null,
+      max_renewal_months: Number.isInteger(c.maxRenewalMonths) ? c.maxRenewalMonths : null, // D70
       // D68: trả kho là lịch hẹn — trước ngày hẹn khách vẫn dùng QR/PIN
       return_date: c.returnScheduledDate ? dateOnly(c.returnScheduledDate) : null,
       access_issued: ["ACTIVE", "EXPIRING", "OVERDUE"].includes(c.status) || (c.status === "RETURN_PENDING" && Boolean(c.returnScheduledDate)),
