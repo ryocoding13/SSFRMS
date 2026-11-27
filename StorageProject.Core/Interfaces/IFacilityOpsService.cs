@@ -56,6 +56,8 @@ public interface IFacilityOpsService
     Task<ReturnDeductionDto> GetReturnDeductionAsync(long customerId, string contractCode, CancellationToken ct = default);
     Task<ReturnDeductionDto> DecideReturnDeductionAsync(long customerId, string contractCode, ReturnDeductionDecisionRequest request, CancellationToken ct = default);
     Task RecheckReturnAsync(OpsActor actor, string id, ReturnRecheckRequest request, CancellationToken ct = default);
+    /// <summary>D71: quản lý trả biên bản trả kho về cho nhân viên lập lại, kèm ghi chú (trước khi chốt đối soát).</summary>
+    Task RedoReturnInspectionAsync(OpsActor actor, string id, OpsNoteRequest request, CancellationToken ct = default);
     /// <summary>Tiến trình nền: quá 48 giờ khách chưa xác nhận → tự chốt hoàn cọc theo biên bản (D40).</summary>
     Task<int> AutoSettleExpiredDeductionsAsync(CancellationToken ct = default);
 

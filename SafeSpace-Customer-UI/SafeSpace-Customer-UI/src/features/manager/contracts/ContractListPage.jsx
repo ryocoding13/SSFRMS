@@ -120,7 +120,7 @@ function ReturnCases({ ops }) {
           <article className="panel record-card" key={ret.id}>
             <div className="record-card__body">
               <h2>{ret.unit} · {ret.contract} · {ret.customer}</h2>
-              <p className="muted">{ret.status === "SUBMITTED" ? `Biên bản ${dateTimeLabel(ret.submitted_at)}` : "Khách đã gửi trả kho · chưa có biên bản và ảnh của nhân viên"}</p>
+              <p className="muted">{ret.status === "SUBMITTED" ? `Biên bản ${dateTimeLabel(ret.submitted_at)}` : ret.redo_note ? `Đã trả biên bản ${ret.previous_return_id || ""} cho nhân viên · ${ret.redo_note}` : "Khách đã gửi trả kho · chưa có biên bản và ảnh của nhân viên"}</p>
               <p className="muted">{ret.settlement ? `Tổng hoàn ${ret.settlement.official ? "" : "dự kiến "}${amountLabel(ret.settlement.total)}` : "Chưa có số dự kiến"}</p>
             </div>
             <div className="record-card__actions">
@@ -145,6 +145,8 @@ export function ContractListPage({ query }) {
   const { ops, run, source, saving, needsRefresh } = useOps();
   const settlementReady = source === "local" || supportsReturnPolicy(ops);
   const [returning, setReturning] = useState(false);
+  // D71: trả biên bản cho nhân viên kiểm tra lại, kèm ghi chú bắt buộc
+  const [redo, setRedo] = useState(null), [redoNote, setRedoNote] = useState(""), [redoError, setRedoError] = useState("");
   const visibleContracts = ops.contracts.filter((c) => c.state !== "RETURNED" || isReturnSettlementReady(ops, c));
   // Hợp đồng đã có hồ sơ trả kho chỉ hiện ở "Hồ sơ trả kho" phía trên, không lặp lại ở danh sách Hợp đồng.
   const returnContracts = new Set((ops.returns || []).map((r) => r.contract));
@@ -171,7 +173,8 @@ export function ContractListPage({ query }) {
               <div className="customer-detail__grid"><div className="customer-detail__column"><InspectionReview ret={ops.returns.find(r=>r.contract===sel.id)}/></div><SettlementTable settlement={settlementOf(ops.returns.find(r=>r.contract===sel.id)?.settlement)} report={ops.returns.find(r=>r.contract===sel.id)?.report}/></div>
               <p className="muted">Biên bản trả kho {sel.unit} đã được gửi và khách đã phản hồi. Kiểm tra số liệu và thông tin nhận hoàn, rồi chốt đối soát và xác nhận hoàn tiền ngay tại đây.</p>
               {!settlementReady && <Notice>{RETURN_POLICY_PENDING}</Notice>}
-              <Button disabled={!settlementReady||saving||needsRefresh||!canFinalizeReturn(ops,sel,ops.returns.find(r=>r.contract===sel.id))||(source==="api"&&ops.returns.find(r=>r.contract===sel.id)?.damage_workflow_resolved!==true)} onClick={() => setReturning(true)}>Chốt đối soát &amp; hoàn tiền</Button>
+              <Button disabled={!settlementReady||saving||needsRefresh||!canFinalizeReturn(ops,sel,ops.returns.find(r=>r.contract===sel.id))||(source==="api"&&ops.returns.find(r=>r.contract===sel.id)?.damage_workflow_resolved!==true)} onClick={() => setReturning(true)}>Chốt đối soát &amp; hoàn tiền</Button>{" "}
+              <Button variant="outline" disabled={saving||needsRefresh||ops.returns.find(r=>r.contract===sel.id)?.status!=="SUBMITTED"} onClick={() => { setRedo(ops.returns.find(r=>r.contract===sel.id)); setRedoNote(""); setRedoError(""); }}>Yêu cầu kiểm tra lại</Button>
             </>
           ) : sel.state === "CLOSED" || sel.state === "RESOLVED" ? (
             <SettledCase ops={ops} contract={sel} />
@@ -198,6 +201,24 @@ export function ContractListPage({ query }) {
                 return res.ok;
               }}
             />
+          )}
+          {redo && (
+            <ConfirmDialog
+              title={`Yêu cầu kiểm tra lại · Kho ${redo.unit}`}
+              text="Biên bản hiện tại sẽ bị huỷ và lưu lại để đối chiếu. Nhân viên lập biên bản mới theo ghi chú của bạn. Khách không nhận thông báo; nếu khoản khấu trừ thay đổi, khách sẽ xác nhận lại."
+              label="Gửi cho nhân viên" busy={saving} hint=""
+              onCancel={() => setRedo(null)}
+              onConfirm={async () => {
+                if (!redoNote.trim()) return setRedoError("Ghi rõ điều nhân viên cần kiểm tra lại.");
+                const res = await run("REDO_RETURN", { id: redo.id, contract: redo.contract, note: redoNote }, "Đã gửi yêu cầu kiểm tra lại cho nhân viên");
+                if (res.ok) { setRedo(null); go("manager/contracts"); } else setRedoError(res.error || "Không gửi được yêu cầu.");
+              }}
+            >
+              <Field label="Điều nhân viên cần kiểm tra lại *">
+                <textarea rows={3} maxLength={1000} value={redoNote} placeholder="Ví dụ: chụp lại ảnh tường bên trái, kiểm tra lại ổ khoá" onChange={(e) => { setRedoNote(e.target.value); setRedoError(""); }} />
+              </Field>
+              {redoError && <Notice tone="error">{redoError}</Notice>}
+            </ConfirmDialog>
           )}
           {(sel.reminders || []).length > 0 && (
             <ul className="ops-notes">

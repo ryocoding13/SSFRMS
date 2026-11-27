@@ -236,6 +236,7 @@ public partial class FacilityOpsService
         {
             var (c, i) = x;
             var submitted = Last(returnLogs, i.InspectionId, LogAction.ReturnInspected);
+            var redoRequest = Last(returnLogs, i.InspectionId, ReturnRedoRequested);
             var overdueFee = overdueAtRequest[i.InspectionId];
             var deduction = DeductionStateOf(i, returnLogs.Where(l => l.EntityId == i.InspectionId), now);
             OpsReturnReportDto? report = submitted == null ? null : new OpsReturnReportDto(
@@ -262,7 +263,10 @@ public partial class FacilityOpsService
                 RefundBankName: i.RefundBankName == CashMethod ? null : i.RefundBankName,
                 RefundAccountNumber: i.RefundBankName == CashMethod ? null : i.RefundAccountNumber,
                 RefundAccountHolder: i.RefundBankName == CashMethod ? null : i.RefundAccountHolder,
-                ScheduledDate: i.ScheduledAt is DateTime sd ? DateOnly.FromDateTime(sd + VnOffset).ToString("yyyy-MM-dd") : null);
+                ScheduledDate: i.ScheduledAt is DateTime sd ? DateOnly.FromDateTime(sd + VnOffset).ToString("yyyy-MM-dd") : null,
+                RedoNote: redoRequest != null ? Read(redoRequest, "note") : null,
+                RedoAt: redoRequest != null ? Local(redoRequest.LoggedAt) : null,
+                PreviousReturnId: redoRequest != null ? Read(redoRequest, "previous") : null);
         }).ToList();
 
         // ---- S05 · Yêu cầu hỗ trợ

@@ -153,3 +153,19 @@ test("LOC-03: CREATE_UNIT và UPDATE_UNIT lưu và cập nhật đầy đủ flo
   assert.equal(k14NoDesc.locationDescription, null);
   assert.equal(k14NoDesc.zone, "Dãy A"); // Giữ nguyên zone cũ
 });
+
+test("D71: quản lý trả biên bản cho nhân viên lập lại, ghi chú bắt buộc; nhân viên gửi lại được", () => {
+  let s = createOpsData(T);
+  s = run(s, "SUBMIT_RETURN", { id: "TK-0098", report: { items: "a", walls: "b", keys: "c", proposal: "Sẵn sàng cho thuê lại" } }).state;
+  assert.ok(run(s, "REDO_RETURN", { id: "TK-0098", note: "  " }).error);
+  const out = run(s, "REDO_RETURN", { id: "TK-0098", note: "Chụp lại ảnh tường trái" });
+  assert.equal(out.error, undefined);
+  const r = out.state.returns.find((x) => x.id === "TK-0098");
+  assert.equal(r.status, "SCHEDULED");
+  assert.equal(r.redo_note, "Chụp lại ảnh tường trái");
+  assert.equal(r.report, null);
+  assert.ok(run(out.state, "REDO_RETURN", { id: "TK-0098", note: "lần nữa" }).error, "chưa gửi lại thì không trả lại lần nữa");
+  const again = run(out.state, "SUBMIT_RETURN", { id: "TK-0098", report: { items: "a", walls: "b", keys: "c", proposal: "Sẵn sàng cho thuê lại" } });
+  assert.equal(again.error, undefined);
+  assert.equal(again.state.returns.find((x) => x.id === "TK-0098").status, "SUBMITTED");
+});

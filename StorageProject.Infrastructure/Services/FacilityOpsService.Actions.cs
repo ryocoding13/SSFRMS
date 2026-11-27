@@ -283,6 +283,8 @@ public partial class FacilityOpsService
             cred.ReturnedAt = now;
         }
         EvidencePhotos.Attach(dbContext, photos, EvidencePhotos.ReturnInspection, i.InspectionId, actor.UserId, now);
+        // D71: biên bản lập lại theo yêu cầu quản lý — khấu trừ không đổi thì giữ phản hồi cũ của khách.
+        await CarryOverDeductionAsync(i, ct);
         Log(actor.UserId, LogAction.ReturnInspected, LogEntity.Return, i.InspectionId, new
         {
             items, walls, keys, proposal, damageFee, cleaningRequired, cleaningFee = i.CleaningFee,

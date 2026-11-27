@@ -21,7 +21,7 @@ import "../../../shared/styles/customer-detail.css";
 // D42/D44 · Khách theo dõi khoản hoàn tiền mặt tại quầy; trong 30 ngày có thể đổi sang chuyển khoản.
 const STATUS = {
   WAITING_APPROVAL: ["Chờ cơ sở duyệt chi", "amber"], READY: ["Chờ bạn đến nhận", "blue"], REMIND: ["Chờ bạn đến nhận", "blue"],
-  APPOINTMENT: ["Đã hẹn ngày đến", "blue"], PAID: ["Đã nhận tại quầy", "green"], FORFEITED: ["Quá 30 ngày · không còn nhận", "red"],
+  APPOINTMENT: ["Đã hẹn ngày đến", "blue"], PAID: ["Tiền đã về quầy · mời đến nhận", "green"], FORFEITED: ["Quá 30 ngày · không còn nhận", "red"],
   SWITCHED_TO_BANK: ["Đã chuyển sang chuyển khoản", "green"],
 };
 const SOURCE = { RESERVATION: "Huỷ đơn", DEPOSIT: "Hoàn cọc trả kho", INCIDENT: "Kết thúc do sự cố cơ sở" };
@@ -56,7 +56,7 @@ function CashRefundDetail({ item, expectedName, onSwitch }) {
             ["Duyệt chi", item.approvedAt ? vnStamp(item.approvedAt) : "Chưa duyệt"],
             ["Hạn nhận", item.deadlineDate ? `22:00 · ${vnDate(item.deadlineDate)} (30 ngày sau khi quản lý duyệt)` : "Tính 30 ngày từ khi quản lý duyệt"],
             ...(item.appointmentDate ? [["Ngày hẹn đến quầy", vnDate(item.appointmentDate)]] : []),
-            ...(item.paidAt ? [["Đã nhận lúc", vnStamp(item.paidAt)]] : []),
+            ...(item.paidAt ? [["Tiền về quầy lúc", vnStamp(item.paidAt)]] : []),
             ["Trạng thái", <strong>{label}</strong>],
           ]} />
           {switchable(item.status) && <p className="hint">Mang CCCD trùng tên trên hợp đồng{expectedName ? ` (${expectedName})` : ""}. Nhân viên hỏi mã đơn và số điện thoại, đếm tiền trước mặt bạn rồi mời bạn ký sổ chi. Quá hạn nhận không đến, bạn mất khoản hoàn.</p>}

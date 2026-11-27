@@ -148,8 +148,8 @@ export function staffTasks(ops, me, kind = "all") {
       .filter((r) => r.status === "SCHEDULED")
       .forEach((r) =>
         list.push({
-          key: r.id, kind: "return", status: ["Đã lên lịch", "gray"], title: `Kho #${r.unit} · ${r.customer}`,
-          meta: `Cọc đang giữ ${money(r.deposit)}`, when: `Ngày hẹn ${dayOnly(r.appointment)}`,
+          key: r.id, kind: "return", status: r.redo_note ? ["Quản lý yêu cầu kiểm tra lại", "amber"] : ["Đã lên lịch", "gray"], title: `Kho #${r.unit} · ${r.customer}`,
+          meta: r.redo_note ? `Ghi chú quản lý: ${r.redo_note}` : `Cọc đang giữ ${money(r.deposit)}`, when: `Ngày hẹn ${dayOnly(r.appointment)}`,
           cta: "Kiểm tra", outline: true, to: `staff/return?id=${r.id}`, sort: r.appointment,
         }),
       );
