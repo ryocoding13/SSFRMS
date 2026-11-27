@@ -155,6 +155,7 @@ export function ReturnInspectionPage({ query }) {
     <PageHeader title={`Kiểm tra trả kho ${r.unit}`} description={`${r.customer} · Hẹn trả kho: ${r.scheduled_date ? dateLabel(r.scheduled_date) : r.appointment || "chưa có"} · Khách gửi yêu cầu: ${timeLabel(r.requested_at)}.`}><Tag tone="amber">{submitted ? "Đã gửi biên bản" : "Chờ kiểm tra"}</Tag></PageHeader>
     <div className="customer-detail__grid">
       <form className="panel customer-detail__card inspect-form" onSubmit={submit} noValidate>
+        {r.redo_note && !submitted && <Notice>Quản lý yêu cầu kiểm tra lại{r.redo_at ? ` (${timeLabel(r.redo_at)})` : ""}: {r.redo_note}. Lập biên bản mới thay cho biên bản {r.previous_return_id || "trước"}.</Notice>}
         {notDue && <Notice>Chưa đến ngày hẹn trả kho ({dateLabel(r.scheduled_date)}). Khách vẫn dùng kho đến ngày này; biên bản gửi được từ ngày hẹn.</Notice>}
         <div className="inspect-form__head"><h2>Biên bản kiểm tra</h2>{!submitted && <Button variant="soft" icon="check" disabled={blocked} onClick={allOk}>Tất cả đạt tiêu chuẩn</Button>}</div>
         {CHECKS.map((c) => submitted

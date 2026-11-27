@@ -801,3 +801,12 @@ Bổ sung @playwright/test trong devDependencies để kiểm thao tác biểu m
 - **Giữ chỗ:** ghi đồng ý chính sách không kéo dài giữ chỗ. QR giữ 15 phút từ lúc mở mã; tại cửa hàng giữ 24 giờ từ lúc đồng ý (như D69). Mở mã lỗi hoặc khách bỏ dở thì ô trống lại sau 15 phút.
 - **Cửa mô phỏng:** không tự khoá (D51), nhưng khi hợp đồng của lần mở gần nhất hết quyền ra vào (quá hạn, tới ngày hẹn trả, đã trả kho / huỷ, mã bị thu hồi) thì trạng thái cửa hiện "Đã khoá".
 - **Sơ đồ ô:** xét ô đang giữ chỗ theo đúng ngày đệm của loại kho như lúc tạo đơn.
+
+## D71 — 27/11/2026: Quản lý trả biên bản trả kho cho nhân viên kiểm tra lại; hiển thị đúng hoàn tiền mặt — Đã chốt
+
+> Vector chốt ngày 27/11/2026. Bổ sung M07 (quản lý trước đây chỉ có nút chốt đối soát, không từ chối được biên bản). Không đổi bảng/cột (D48): dùng trạng thái `CANCELLED` có sẵn của `return_inspections` và `activity_logs`.
+
+- **Yêu cầu kiểm tra lại:** trên màn duyệt đối soát, quản lý bấm "Yêu cầu kiểm tra lại" và **bắt buộc ghi chú**. Chỉ làm được khi biên bản đã gửi và hợp đồng chưa chốt / chưa có khoản hoàn.
+- **Lập biên bản mới:** biên bản cũ chuyển `CANCELLED` và giữ lại để đối chiếu; hệ thống tạo lịch kiểm tra mới cùng ngày hẹn, cùng thời điểm khách gửi trả kho (phí quá hạn và hạn 3 ngày không đổi), cùng tài khoản nhận hoàn và ảnh khách gửi. Nhân viên thấy ghi chú của quản lý trên việc "Quản lý yêu cầu kiểm tra lại" và lập biên bản mới (chụp ảnh lại).
+- **Khách:** không nhận thông báo khi biên bản bị trả lại. Khi nhân viên gửi biên bản mới: khấu trừ (vệ sinh, hư hỏng) **không đổi** thì giữ phản hồi cũ của khách (đồng ý / tự dọn / tự thay / khiếu nại / đã kiểm tra lại / tự chốt 48 giờ); **có đổi** thì khách xác nhận lại trong 48 giờ như D39/D40.
+- **Hoàn tiền mặt (giữ D67):** "Chốt & giao tiền về quầy" nghĩa là tiền đã về quầy cơ sở, chưa phải khách đã nhận. Màn khách ghi "Tiền về quầy" (không ghi "Chuyển khoản" / "Đã nhận"), không hiện hạn hoàn. Chỉ khoản tiền mặt còn chờ về quầy mới hiện lựa chọn đổi sang chuyển khoản (D44); đã về quầy thì không hiện lựa chọn đó vì hệ thống không hỗ trợ.

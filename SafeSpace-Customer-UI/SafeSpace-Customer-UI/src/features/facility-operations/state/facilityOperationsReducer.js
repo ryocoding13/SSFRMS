@@ -145,6 +145,24 @@ const ACTIONS = {
     };
   },
 
+  // D71 · Quản lý trả biên bản cho nhân viên lập lại (khách không được báo)
+  REDO_RETURN(state, { id, note }, now) {
+    const r = find(state.returns, id, "biên bản trả kho");
+    if (r.status !== "SUBMITTED") fail("Chỉ trả lại được biên bản đã gửi và chưa chốt đối soát.");
+    const text = String(note || "").trim();
+    if (!text) fail("Ghi rõ điều nhân viên cần kiểm tra lại.");
+    const next = {
+      ...state,
+      returns: patch(state.returns, id, () => ({
+        status: "SCHEDULED", report: null, submitted_at: null, settlement: null, deduction_status: "NONE",
+        damage_workflow_resolved: true, redo_note: text, redo_at: iso(now), previous_return_id: id, previous_report: r.report,
+      })),
+      // Hợp đồng chưa còn biên bản để chốt → rời trạng thái "Chờ xác nhận trả kho"
+      contracts: state.contracts.map((c) => (c.id === r.contract && c.state === "RETURNED" ? { ...c, state: "RETURN_CHECK", due: "Chờ nhân viên kiểm tra lại" } : c)),
+    };
+    return { state: addLog(next, now, `Quản lý yêu cầu kiểm tra lại kho ${r.unit}`, "staff/return", "STAFF"), result: { id } };
+  },
+
   // S05
   TICKET_RESPONSE(state, { id, note, next: status, staff }, now) {
     const t = find(state.tickets, id, "yêu cầu hỗ trợ");

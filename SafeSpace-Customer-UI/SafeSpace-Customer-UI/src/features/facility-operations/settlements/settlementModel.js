@@ -68,12 +68,13 @@ export function isReturnSettlementReady(board,contract) {
  return canFinalizeReturn(board,contract,ret);
 }
 export function opsMutationCheck(type,payload,ops,source,role) {
- const staff=["VERIFY_CUSTOMER","RECORD_KEY_RECEIPT","SUBMIT_RETURN"].includes(type),manager=["CONFIRM_REFUND","CONFIRM_RESERVATION_REFUND","CONFIRM_DEPOSIT_REFUND"].includes(type);
+ const staff=["VERIFY_CUSTOMER","RECORD_KEY_RECEIPT","SUBMIT_RETURN"].includes(type),manager=["CONFIRM_REFUND","CONFIRM_RESERVATION_REFUND","CONFIRM_DEPOSIT_REFUND","REDO_RETURN"].includes(type);
  if((staff&&!["STAFF","MANAGER"].includes(role))||(manager&&role!=="MANAGER"))throw new Error("Vai trò không được thực hiện thao tác này.");
  if(type==="VERIFY_CUSTOMER") {if(!["original_valid","photo_ok","info_ok","booking_matched"].every(k=>payload[k]===true))throw new Error("Đánh dấu đủ bốn mục đối chiếu.");if(source==="api"&&ops.verification_checklist_supported!==true)throw new Error("Chưa thể xác minh lúc này. Vui lòng thử lại sau.");}
  if(type==="RECORD_KEY_RECEIPT")validateKeyReceipt(ops,payload);
  if(type==="SUBMIT_RETURN") {validateInspection(ops.returns.find(r=>r.id===payload.id),payload.report,payload.files);if(source==="api"&&ops.inspection_evidence_supported!==true)throw new Error("Chưa thể gửi biên bản lúc này. Vui lòng thử lại sau.");}
  if(type==="CONFIRM_REFUND") {const c=ops.contracts.find(c=>c.id===payload.id),r=ops.returns.find(r=>r.contract===payload.id);if(!canFinalizeReturn(ops,c,r))throw new Error("Chưa đủ biên bản hoặc phản hồi/khắc phục chưa xử lý xong.");if(source==="api"&&r.damage_workflow_resolved!==true)throw new Error("Máy chủ chưa xác nhận đã giải quyết phản hồi/khắc phục.");}
+ if(type==="REDO_RETURN") {const r=ops.returns.find(r=>r.id===payload.id);if(!r||r.status!=="SUBMITTED")throw new Error("Chỉ trả lại được biên bản đã gửi và chưa chốt đối soát.");if(!String(payload.note||"").trim())throw new Error("Ghi rõ điều nhân viên cần kiểm tra lại.");}
  if(type==="CONFIRM_DEPOSIT_REFUND")transferProof(ops.deposit_refunds?.find(r=>r.id===payload.id),payload);
  if(type==="CONFIRM_RESERVATION_REFUND") {const item=ops.refunds?.find(r=>r.id===payload.id);transferProof(item,payload);if(source==="api"&&ops.refund_evidence_supported!==true)throw new Error("Chưa thể ghi nhận đã hoàn lúc này. Vui lòng thử lại sau.");}
 }
@@ -82,6 +83,7 @@ export function opsReceiptCheck(type,payload,res,board) {
  if(type==="VERIFY_CUSTOMER"&&!board.verifications?.some(v=>v.id===payload.id&&v.status==="DONE"&&v.verified_at))throw new Error("Chưa xác nhận hồ sơ đã được xác minh.");
  if(type==="RECORD_KEY_RECEIPT"&&!board.handovers?.some(h=>h.id===payload.id&&h.status==="DONE"&&h.done_at))throw new Error("Chưa xác nhận đã lưu việc giao chìa khóa.");
  if(type==="SUBMIT_RETURN") {const r=board.returns?.find(r=>r.id===payload.id);if(r?.status!=="SUBMITTED"||!r.submitted_at||["damage_fee","cleaning_fee","cleaning_required","damage_item","fee_reason"].some(k=>r.report?.[k]!==payload.report[k])||(payload.files?.length&&!r.report?.photos?.length))throw new Error("Chưa xác nhận ảnh và các khoản khấu trừ đã được lưu đầy đủ.");}
+ if(type==="REDO_RETURN") {if(!board.returns?.some(r=>r.contract===payload.contract&&r.status==="SCHEDULED"&&r.redo_note))throw new Error("Chưa xác nhận biên bản đã được trả lại cho nhân viên.");}
  // D67: chốt kèm xác nhận hoàn (payout) → khoản hoàn ở trạng thái PAID; không còn tiền hoàn → NO_REFUND.
  if(type==="CONFIRM_REFUND"&&(!knownMoney(res?.refund)||!(payload.payout?["PAID","NO_REFUND"]:["PENDING","NO_REFUND"]).includes(res?.refundStatus)||!board.contracts?.some(c=>c.id===payload.id&&c.state==="CLOSED")))throw new Error(payload.payout?"Chưa xác nhận được đã hoàn tiền. Tải lại trước khi gửi tiếp.":"Chưa xác nhận khoản hoàn chờ chuyển tiền.");
  if(type==="CONFIRM_DEPOSIT_REFUND")transferProof(ops.deposit_refunds?.find(r=>r.id===payload.id),payload);
@@ -166,6 +168,7 @@ export function returnCaseState(board, contract, ret) {
   if (refund?.status === "PENDING") return ["SETTLED", "Đã chốt · Đang chờ hoàn", "green"];
   return ["SETTLED", "Đã chốt đối soát", "green"];
  }
+ if (ret?.redo_note && ret.status !== "SUBMITTED") return ["WAIT_STAFF", "Chờ nhân viên kiểm tra lại", "amber"]; // D71
  if (!ret || ret.status !== "SUBMITTED") return ["WAIT_STAFF", "Chờ nhân viên kiểm tra", "gray"];
  if (canFinalizeReturn(board, contract, ret)) return ["READY", "Sẵn sàng duyệt", "blue"];
  return ["WAIT_CUSTOMER", "Đã có biên bản · chờ khách phản hồi", "amber"];

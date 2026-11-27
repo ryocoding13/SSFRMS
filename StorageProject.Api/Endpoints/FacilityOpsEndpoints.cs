@@ -102,6 +102,11 @@ public static class FacilityOpsEndpoints
             Run(async () => { await ops.RecheckReturnAsync(Actor(user), id, request, ct); return Done(); }))
             .WithSummary("D39 · Cơ sở kiểm tra lại: cleaningPassed / replacementPassed đạt thì không trừ khoản tương ứng; note bắt buộc");
 
+        // ---- D71 · Quản lý trả biên bản trả kho cho nhân viên kiểm tra lại
+        group.MapPost("/returns/{id}/redo", (string id, OpsNoteRequest request, ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
+            Run(async () => { await ops.RedoReturnInspectionAsync(Actor(user), id, request, ct); return Done(); }))
+            .WithSummary("D71 · Quản lý yêu cầu nhân viên kiểm tra lại: biên bản cũ huỷ (giữ đối chiếu), tạo lịch lập biên bản mới; note bắt buộc; khách không được báo");
+
         // ---- D42 · Hoàn tiền mặt tại quầy
         group.MapGet("/cash-refunds", (ClaimsPrincipal user, IFacilityOpsService ops, CancellationToken ct) =>
             Run(async () => Results.Ok(await ops.GetCashRefundsAsync(Actor(user), ct))))
